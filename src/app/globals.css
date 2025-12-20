@@ -1,26 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
 @import "tailwindcss";
 
+/* Friendly palette and typography adapted from the Vite mini app */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Friendly palette (accent = #E87722) */
+  --accent: #E87722;
+  --accent-hover: #D76A1A;
+  --accent-soft: #FFB77A;
+  --bg-dark: #181818;
+  --surface: #222222;
+  --text-on-dark: #FFFFFF;
+  --muted-on-dark: rgba(255,255,255,0.72);
+  --border: rgba(255,255,255,0.06);
+
+  --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --heading-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+
+  /* Light-mode overrides will set these to lighter variants */
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg-dark: #f8f8f8;
+    --surface: #ffffff;
+    --text-on-dark: #111111;
+    --muted-on-dark: rgba(0,0,0,0.6);
+    --border: rgba(0,0,0,0.06);
+    --text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+    --heading-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+    --background: var(--bg-dark);
+    --foreground: var(--text-on-dark);
   }
 }
 
+/* Import Montserrat for headings to match mini app (already imported at top) */
+
+/* Base page styles */
+html, body {
+  height: 100%;
+}
 body {
+  margin: 0;
+  padding: 1.25rem;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Make Montserrat the primary font, fall back to the geist variable if present */
+  font-family: 'Montserrat', var(--font-geist-sans, Inter, system-ui, Avenir, Helvetica, Arial, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Headings */
+h1, h2, h3 {
+  font-family: 'Montserrat', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-shadow: var(--heading-shadow);
+  margin: 0 0 0.5rem 0;
+}
+
+/* Utility surfaces and components */
+.surface {
+  background: var(--surface);
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.muted { color: var(--muted-on-dark); }
+
+.btn {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
+  color: var(--text-on-dark);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+
+button[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+textarea { font-family: inherit; border-radius: 6px; padding: 0.5rem; border: 1px solid var(--border); background: transparent; color: inherit; }
+
+/* small layout niceties */
+main { max-width: 900px; margin-top: 1rem; }
+
+/* Header/layout spacing (match Vite app) */
+.app-header { margin-bottom: 0.5rem; }
+.header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.header-row h1 { margin-bottom: 0.25rem; }
+.header-actions { display: flex; align-items: center; gap: 0.75rem; }
+.connect-container { display: flex; flex-direction: column; align-items: flex-end; }
+.connect-info { display: flex; gap: 0.5rem; align-items: center; }
+
+/* Links */
+nav a { color: var(--accent-soft); text-decoration: underline; }
+nav a:hover { color: var(--accent); }
+

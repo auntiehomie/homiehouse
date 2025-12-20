@@ -1,0 +1,21 @@
+{
+	"accountAssociation": {
+		"header": "PLACEHOLDER_BASE64_HEADER",
+		"payload": "PLACEHOLDER_BASE64_PAYLOAD",
+		"signature": "PLACEHOLDER_BASE64_SIGNATURE"
+	},
+	"miniapp": {
+		"version": "1",
+		"name": "homiehouse",
+		"iconUrl": "https://example.com/icon.png",
+		"homeUrl": "https://your-domain.example/",
+		"imageUrl": "https://example.com/og-image.png",
+		"buttonTitle": "Open",
+		"splashImageUrl": "https://example.com/splash.png",
+		"splashBackgroundColor": "#f5f0ec",
+		"requiredCapabilities": [
+			"actions.composeCast",
+			"wallet.getEthereumProvider"
+		]
+	}
+}
