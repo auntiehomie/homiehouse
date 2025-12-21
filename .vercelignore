@@ -1,0 +1,2 @@
+# Exclude the nested Vite mini-app from Vercel build context
+homiehouse/

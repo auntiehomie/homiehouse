@@ -25,6 +25,8 @@ export default function SignInWithFarcaster() {
       setLoading(true);
       const message = payload?.message ?? payload?.siweMessage;
       const signature = payload?.signature ?? payload?.siweSignature;
+      const nonce = payload?.nonce ?? payload?.siweNonce;
+      const domain = typeof window !== "undefined" ? window.location.hostname : undefined;
 
       if (!message || !signature) {
         console.error("AuthKit success payload missing message or signature", payload);
@@ -34,7 +36,7 @@ export default function SignInWithFarcaster() {
         return;
       }
 
-      const body = { message, signature };
+      const body = { message, signature, nonce, domain };
       const apiUrl = (typeof window !== "undefined" ? window.location.origin : "") + "/api/siwf";
 
       let res;

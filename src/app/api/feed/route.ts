@@ -22,39 +22,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "missing fid" }, { status: 400 });
     }
 
-    // Try a list of possible Neynar endpoints (provider APIs change).
-    const candidates = [
-      `${NEYNAR_BASE}/v2/farcaster/feed/home?fid=${encodeURIComponent(fid)}&limit=50`,
-      `${NEYNAR_BASE}/v2/farcaster/user/feed?fid=${encodeURIComponent(fid)}&limit=50`,
-      `${NEYNAR_BASE}/v1/farcaster/feed/home?fid=${encodeURIComponent(fid)}&limit=50`,
-      `${NEYNAR_BASE}/v2/farcaster/casts?fid=${encodeURIComponent(fid)}&limit=50`,
-      `${NEYNAR_BASE}/v1/casts?fid=${encodeURIComponent(fid)}&limit=50`,
-    ];
-
-    let lastErr: any = null;
-    for (const endpoint of candidates) {
-      try {
-        const res = await fetch(endpoint, { headers: { "x-api-key": NEYNAR } });
-        if (!res.ok) {
-          const text = await res.text();
-          try { console.warn("/api/feed neynar candidate failed", endpoint, res.status, text); } catch {}
-          lastErr = { status: res.status, text, endpoint };
-          // try next candidate
-          continue;
-        }
-
-        const data = await res.json();
-        try { console.log(`/api/feed fetched ${Array.isArray(data) ? data.length : (data?.length ?? "?")} items for fid=${fid} from ${endpoint}`); } catch {}
-        return NextResponse.json({ ok: true, data });
-      } catch (e: any) {
-        lastErr = { error: String(e), endpoint };
-        try { console.warn("/api/feed neynar fetch error", endpoint, e); } catch {}
-        continue;
+    // Use the v2 feed endpoint with filters. For a user's home/following feed,
+    // set feed_type=following and provide fid.
+    const endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=following&fid=${encodeURIComponent(fid)}&limit=50`;
+    try {
+      const res = await fetch(endpoint, { headers: { "x-api-key": NEYNAR } });
+      if (!res.ok) {
+        const text = await res.text();
+        try { console.warn("/api/feed neynar failed", endpoint, res.status, text); } catch {}
+        return NextResponse.json({ ok: false, error: "neynar_error", status: res.status, details: text }, { status: res.status });
       }
-    }
 
-    // All candidates failed
-    return NextResponse.json({ ok: false, error: "neynar_not_found", details: lastErr }, { status: 404 });
+      const data = await res.json();
+      const casts = Array.isArray(data?.casts) ? data.casts : [];
+      try { console.log(`/api/feed fetched ${casts.length} casts for fid=${fid} from ${endpoint}`); } catch {}
+      // Return the casts array so the client can render directly
+      return NextResponse.json({ ok: true, data: casts, next: data?.next ?? null });
+    } catch (e: any) {
+      try { console.warn("/api/feed neynar fetch error", endpoint, e); } catch {}
+      return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    }
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }
