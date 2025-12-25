@@ -3,6 +3,7 @@ import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import TrendingList from "../components/TrendingList";
 import SignInWithFarcaster from "../components/SignInWithFarcaster";
+import SignerManager from "../components/SignerManager";
 
 export default function Home() {
   return (
@@ -26,6 +27,10 @@ export default function Home() {
           <SignInWithFarcaster />
         </div>
       </header>
+
+      <div className="max-w-4xl mx-auto px-6">
+        <SignerManager />
+      </div>
 
       <main className="max-w-4xl mx-auto px-6 py-12">
         <section className="mb-8 text-center">
