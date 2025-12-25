@@ -13,6 +13,8 @@ export default function SignInWithFarcaster() {
     // AuthKit should provide a message and signature (SIWE)
     try {
       setLoading(true);
+      console.log("Full AuthKit payload:", payload);
+      
       const message = payload?.message ?? payload?.siweMessage;
       const signature = payload?.signature ?? payload?.siweSignature;
       const nonce = payload?.nonce ?? payload?.siweNonce;
@@ -20,7 +22,8 @@ export default function SignInWithFarcaster() {
 
       if (!message || !signature) {
         console.error("AuthKit success payload missing message or signature", payload);
-        alert("Sign-in succeeded but no SIWE payload was returned. Please try again.");
+        console.log("Payload keys:", Object.keys(payload || {}));
+        alert("Sign-in succeeded but no SIWE payload was returned. Please check the console for details.");
         return;
       }
 
