@@ -15,7 +15,7 @@ export default function Home() {
             <span className="px-2">·</span>
             <Link href="/compose">Compose</Link>
             <span className="px-2">·</span>
-            <Link href="/wiki">Wiki</Link>
+            <Link href="/ask-homie">Ask Homie</Link>
           </nav>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
