@@ -40,11 +40,6 @@ export default function Home() {
           <aside className="p-4 border rounded-md">
             <h3 className="font-medium">Trending</h3>
             <TrendingList />
-            <div style={{ marginTop: 12 }}>
-              <h4 className="font-medium">Dev</h4>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">Inspector and SDK tools for debugging the host integration.</p>
-              <Link className="mt-3 inline-block text-sm font-medium" href="/dev">Open Dev →</Link>
-            </div>
           </aside>
         </section>
       </main>
