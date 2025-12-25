@@ -1,24 +1,132 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import farcaster from "../lib/farcaster";
+import { useProfile } from "@farcaster/auth-kit";
 
 export default function ComposeModal() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [signerUuid, setSignerUuid] = useState<string | null>(null);
+  const [signerStatus, setSignerStatus] = useState<string | null>(null);
+  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
+
+  const { isAuthenticated, profile } = useProfile();
+
+  // Load signer from localStorage on mount
+  useEffect(() => {
+    if (isAuthenticated && profile?.fid) {
+      const key = `signer_${profile.fid}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setSignerUuid(parsed.signer_uuid);
+          setSignerStatus(parsed.status);
+        } catch {}
+      }
+    }
+  }, [isAuthenticated, profile]);
+
+  async function createSigner() {
+    if (!profile?.fid) {
+      setStatus("Sign in first to create a signer.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Creating signer...");
+    try {
+      const res = await fetch("/api/signer", { method: "POST" });
+      const data = await res.json();
+
+      if (data.ok) {
+        setSignerUuid(data.signer_uuid);
+        setSignerStatus(data.status);
+        setApprovalUrl(data.signer_approval_url);
+
+        // Store signer locally
+        const key = `signer_${profile.fid}`;
+        localStorage.setItem(key, JSON.stringify({ signer_uuid: data.signer_uuid, status: data.status }));
+
+        setStatus("Signer created! Open the approval link to grant write permissions.");
+      } else {
+        setStatus(`Failed to create signer: ${data.error}`);
+      }
+    } catch (e: any) {
+      setStatus(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function checkSignerStatus() {
+    if (!signerUuid) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
+      const data = await res.json();
+
+      if (data.ok) {
+        setSignerStatus(data.status);
+        if (data.status === "approved") {
+          const key = `signer_${profile?.fid}`;
+          localStorage.setItem(key, JSON.stringify({ signer_uuid: signerUuid, status: "approved" }));
+          setStatus("Signer approved! You can now post.");
+        } else {
+          setStatus(`Signer status: ${data.status}`);
+        }
+      }
+    } catch (e: any) {
+      setStatus(`Error checking status: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handlePost() {
     setStatus(null);
     setLoading(true);
     try {
+      // Try SDK first (local dev)
       await farcaster.ready();
-      const res = await farcaster.postCast(text);
-      if (res.ok) {
+      const sdkRes = await farcaster.postCast(text);
+      if (sdkRes.ok) {
         setStatus("Posted successfully");
         setText("");
-      } else setStatus(`Failed: ${res.error}`);
+        setLoading(false);
+        return;
+      }
+
+      // Fallback to server-side posting
+      if (!isAuthenticated || !profile?.fid) {
+        setStatus("Sign in to post.");
+        setLoading(false);
+        return;
+      }
+
+      if (!signerUuid || signerStatus !== "approved") {
+        setStatus("You need to create and approve a signer first. Click 'Create Signer' below.");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch("/api/compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, signer_uuid: signerUuid, fid: profile.fid }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        setStatus("Posted successfully!");
+        setText("");
+      } else {
+        setStatus(`Failed: ${data.error || "unknown error"}`);
+      }
     } catch (err: any) {
       setStatus(String(err?.message || err));
     } finally {
@@ -71,6 +179,39 @@ export default function ComposeModal() {
               </button>
             </div>
             {status && <div style={{ marginTop: 8 }}>{status}</div>}
+            
+            {/* Signer management UI */}
+            {isAuthenticated && signerStatus !== "approved" && (
+              <div style={{ marginTop: 16, padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>Write Permissions</div>
+                {!signerUuid ? (
+                  <>
+                    <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
+                      To post from this app, create a signer and approve it.
+                    </div>
+                    <button className="btn" onClick={createSigner} disabled={loading}>
+                      Create Signer
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
+                      Signer status: <strong>{signerStatus}</strong>
+                    </div>
+                    {approvalUrl && signerStatus === "pending_approval" && (
+                      <div style={{ marginBottom: 8 }}>
+                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn">
+                          Approve Signer
+                        </a>
+                      </div>
+                    )}
+                    <button className="btn" onClick={checkSignerStatus} disabled={loading}>
+                      Check Status
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
