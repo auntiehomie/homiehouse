@@ -54,6 +54,10 @@ export default function FeedList() {
     <div className="space-y-4">
       {items.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
+        const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
+        const authorName = authorObj?.display_name || authorObj?.username || it.author || it.handle || 'Unknown';
+        const text = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : null)) ?? JSON.stringify(it);
+        const key = it.hash || it.id || JSON.stringify({ h: it.hash, t: rawTs, a: authorName }).slice(0, 64);
         let timeLabel = "";
         if (rawTs) {
           try {
@@ -75,9 +79,9 @@ export default function FeedList() {
         }
 
         return (
-          <article key={it.id ?? JSON.stringify(it)} className="surface">
-            <div style={{ fontWeight: 700 }}>{it.author ?? it.handle ?? 'Unknown'}</div>
-            <div style={{ marginTop: 6 }}>{it.text ?? it.body ?? JSON.stringify(it)}</div>
+          <article key={key} className="surface">
+            <div style={{ fontWeight: 700 }}>{authorName}</div>
+            <div style={{ marginTop: 6 }}>{text}</div>
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted-on-dark)' }}>{timeLabel}</div>
           </article>
         );
