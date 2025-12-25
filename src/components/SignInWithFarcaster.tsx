@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { SignInButton } from "@farcaster/auth-kit";
 
 type Profile = { username: string; displayName?: string; avatar?: string } | null;
@@ -8,16 +8,6 @@ type Profile = { username: string; displayName?: string; avatar?: string } | nul
 export default function SignInWithFarcaster() {
   const [profile, setProfile] = useState<Profile>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    // try to restore session from localStorage
-    try {
-      const raw = localStorage.getItem("hh_profile");
-      if (raw) setProfile(JSON.parse(raw));
-    } catch (e) {
-      // ignore
-    }
-  }, []);
 
   async function handleAuthKitSuccess(payload: any) {
     // AuthKit should provide a message and signature (SIWE)
@@ -30,9 +20,7 @@ export default function SignInWithFarcaster() {
 
       if (!message || !signature) {
         console.error("AuthKit success payload missing message or signature", payload);
-        // If AuthKit didn't provide SIWE, try quickAuth fallback
-        alert("Sign-in succeeded but no SIWE payload was returned. Falling back to QuickAuth if available.");
-        await quickAuthSignIn();
+        alert("Sign-in succeeded but no SIWE payload was returned. Please try again.");
         return;
       }
 
@@ -64,9 +52,6 @@ export default function SignInWithFarcaster() {
 
       if (data?.profile) {
         setProfile(data.profile);
-        try {
-          localStorage.setItem("hh_profile", JSON.stringify(data.profile));
-        } catch (e) {}
       } else {
         console.warn("/api/siwf returned no profile", data);
         alert("Sign-in verification failed. Check server logs for details.");
@@ -78,46 +63,15 @@ export default function SignInWithFarcaster() {
     }
   }
 
-  // Keep quickAuth fallback for dev environments where window.sdk exists
-  async function quickAuthSignIn() {
-    setLoading(true);
-    try {
-      const sdk = (window as any).sdk;
-      let token: string | null = null;
-      if (sdk && sdk.quickAuth && typeof sdk.quickAuth.getToken === "function") {
-        token = await sdk.quickAuth.getToken();
-      }
-
-      if (!token) {
-        // open docs as a helpful fallback
-        window.open("https://docs.farcaster.xyz/auth-kit/", "_blank");
-        return;
-      }
-
-      const res = await fetch("/api/siwf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-
-      const data = await res.json();
-      if (data?.profile) {
-        setProfile(data.profile);
-        try {
-          localStorage.setItem("hh_profile", JSON.stringify(data.profile));
-        } catch (e) {}
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // QuickAuth disabled
 
   function signOut() {
     setProfile(null);
     try {
+      // clear any cached profile and signer entries
       localStorage.removeItem("hh_profile");
+      const keys = Object.keys(localStorage).filter((k) => k.startsWith("signer_"));
+      keys.forEach((k) => localStorage.removeItem(k));
     } catch (e) {}
   }
 
@@ -143,17 +97,6 @@ export default function SignInWithFarcaster() {
       {/* Use default SignInButton so AuthKit renders its native trigger */}
       <div>
         <SignInButton onSuccess={handleAuthKitSuccess} />
-      </div>
-
-      <div>
-        <button
-          onClick={quickAuthSignIn}
-          className="px-3 py-1 rounded-md border text-sm text-zinc-400"
-          disabled={loading}
-          title="Dev fallback: signs in with the mocked host SDK"
-        >
-          {loading ? "Signing in…" : "QuickAuth (dev)"}
-        </button>
       </div>
     </div>
   );
