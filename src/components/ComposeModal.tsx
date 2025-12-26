@@ -46,13 +46,18 @@ export default function ComposeModal() {
     setLoading(true);
     setStatus("Creating signer...");
     try {
-      const res = await fetch("/api/signer", { method: "POST" });
+      const res = await fetch("/api/signer", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fid: profile.fid })
+      });
       const data = await res.json();
       console.log("Signer response:", data);
 
       if (data.ok) {
         setSignerUuid(data.signer_uuid);
         setSignerStatus(data.status);
+        
         const url = data.signer_approval_url || null;
         setApprovalUrl(url);
         console.log("Approval URL:", url);

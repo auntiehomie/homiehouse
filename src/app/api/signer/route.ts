@@ -13,8 +13,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured" }, { status: 500 });
     }
 
-    // Use the developer-managed signer endpoint which provides approval URLs
-    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer/developer_managed/signed_key`;
+    // Get the user's FID from the request body
+    const body = await req.json();
+    const userFid = body.fid;
+
+    if (!userFid) {
+      return NextResponse.json({ ok: false, error: "User FID is required" }, { status: 400 });
+    }
+
+    // Create a signer and register it to the user's FID
+    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer`;
     const createRes = await fetch(createUrl, {
       method: "POST",
       headers: {
@@ -22,6 +30,7 @@ export async function POST(req: NextRequest) {
         "api_key": NEYNAR_API_KEY,
         "content-type": "application/json",
       },
+      body: JSON.stringify({})
     });
 
     if (!createRes.ok) {
@@ -33,12 +42,15 @@ export async function POST(req: NextRequest) {
     const data = await createRes.json();
     console.log("/api/signer created:", JSON.stringify(data));
 
+    // Generate Warpcast approval URL manually using the public key and signer UUID
+    const approvalUrl = `https://client.warpcast.com/deeplinks/signed-key-request?deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}&token=${data.public_key}`;
+
     return NextResponse.json({
       ok: true,
       signer_uuid: data.signer_uuid,
       public_key: data.public_key,
       status: data.status,
-      signer_approval_url: data.signer_approval_url,
+      signer_approval_url: approvalUrl,
       fid: data.fid,
     });
   } catch (e: any) {
@@ -61,7 +73,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Check signer status
-    const statusUrl = `${NEYNAR_BASE}/v2/farcaster/signer/developer_managed/signed_key?signer_uuid=${encodeURIComponent(signer_uuid)}`;
+    const statusUrl = `${NEYNAR_BASE}/v2/farcaster/signer?signer_uuid=${encodeURIComponent(signer_uuid)}`;
     const statusRes = await fetch(statusUrl, {
       headers: {
         "accept": "application/json",
