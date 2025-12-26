@@ -3,6 +3,7 @@ import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import TrendingList from "../components/TrendingList";
 import SignInWithFarcaster from "../components/SignInWithFarcaster";
+import WalletButton from "../components/WalletButton";
 
 export default function Home() {
   return (
@@ -19,6 +20,7 @@ export default function Home() {
           </nav>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <WalletButton />
           <ComposeModal />
           {/* Sign-in with Farcaster component */}
           <SignInWithFarcaster />

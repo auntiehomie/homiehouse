@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
 import AuthKitProviderWrapper from "../components/AuthKitProviderWrapper";
+import WalletProvider from "../components/WalletProvider";
 
 export const metadata: Metadata = {
   title: "HomieHouse - Your Social Hub",
@@ -16,10 +17,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`antialiased`}>
-        <AuthKitProviderWrapper>
-          <SdkDevMock />
-          {children}
-        </AuthKitProviderWrapper>
+        <WalletProvider>
+          <AuthKitProviderWrapper>
+            <SdkDevMock />
+            {children}
+          </AuthKitProviderWrapper>
+        </WalletProvider>
       </body>
     </html>
   );
