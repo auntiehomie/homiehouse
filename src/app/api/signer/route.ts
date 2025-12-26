@@ -13,12 +13,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured" }, { status: 500 });
     }
 
-    // Create a new signer
-    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer`;
+    // Use the developer-managed signer endpoint which provides approval URLs
+    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer/developer_managed/signed_key`;
     const createRes = await fetch(createUrl, {
       method: "POST",
       headers: {
-        "x-api-key": NEYNAR_API_KEY,
+        "accept": "application/json",
+        "api_key": NEYNAR_API_KEY,
+        "content-type": "application/json",
       },
     });
 
@@ -59,10 +61,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Check signer status
-    const statusUrl = `${NEYNAR_BASE}/v2/farcaster/signer?signer_uuid=${encodeURIComponent(signer_uuid)}`;
+    const statusUrl = `${NEYNAR_BASE}/v2/farcaster/signer/developer_managed/signed_key?signer_uuid=${encodeURIComponent(signer_uuid)}`;
     const statusRes = await fetch(statusUrl, {
       headers: {
-        "x-api-key": NEYNAR_API_KEY,
+        "accept": "application/json",
+        "api_key": NEYNAR_API_KEY,
       },
     });
 
