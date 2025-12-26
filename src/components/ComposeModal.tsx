@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import farcaster from "../lib/farcaster";
 import { useProfile } from "@farcaster/auth-kit";
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function ComposeModal() {
   const [open, setOpen] = useState(false);
@@ -205,6 +206,12 @@ export default function ComposeModal() {
                     </div>
                     {approvalUrl ? (
                       <div style={{ marginBottom: 8 }}>
+                        <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
+                          <QRCodeSVG value={approvalUrl} size={200} />
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 8 }}>
+                          Scan this QR code with your phone, or click the button below:
+                        </div>
                         <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center' }}>
                           Approve Signer in Warpcast →
                         </a>
