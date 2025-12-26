@@ -54,7 +54,7 @@ export default function TrendingList() {
         return (
           <div key={it?.hash ?? it?.id ?? JSON.stringify(it)} className="surface">
             <div style={{ fontWeight: 700 }}>{authorName}</div>
-            <div style={{ marginTop: 6 }}>{text}</div>
+            <div style={{ marginTop: 6, wordWrap: 'break-word', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{text}</div>
             {timeLabel ? <div style={{ marginTop: 6, fontSize: 12, color: 'var(--muted-on-dark)'}}>{timeLabel}</div> : null}
           </div>
         );
