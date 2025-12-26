@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
     // Use absolute root to avoid warnings in Vercel
     root: process.cwd(),
   },
+  webpack: (config) => {
+    config.externals.push('pino-pretty', 'lokijs', 'encoding');
+    return config;
+  },
+  // Exclude problematic packages from server component bundling
+  experimental: {
+    serverComponentsExternalPackages: ['pino', 'thread-stream'],
+  },
 };
 
 export default nextConfig;
