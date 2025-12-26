@@ -25,6 +25,7 @@ export default function ComposeModal() {
           const parsed = JSON.parse(stored);
           setSignerUuid(parsed.signer_uuid || null);
           setSignerStatus(parsed.status || null);
+          setApprovalUrl(parsed.approval_url || null);
         } catch {
           // ignore parse errors
         }
@@ -51,12 +52,16 @@ export default function ComposeModal() {
       if (data.ok) {
         setSignerUuid(data.signer_uuid);
         setSignerStatus(data.status);
-        setApprovalUrl(data.signer_approval_url);
+        setApprovalUrl(data.signer_approval_url || null);
 
         const key = `signer_${profile.fid}`;
-        localStorage.setItem(key, JSON.stringify({ signer_uuid: data.signer_uuid, status: data.status }));
+        localStorage.setItem(key, JSON.stringify({ 
+          signer_uuid: data.signer_uuid, 
+          status: data.status,
+          approval_url: data.signer_approval_url 
+        }));
 
-        setStatus("Signer created. Approve it to unlock posting.");
+        setStatus("Signer created. Click 'Approve Signer' to grant permissions.");
       } else {
         setStatus(`Failed to create signer: ${data.error}`);
       }
@@ -190,9 +195,9 @@ export default function ComposeModal() {
                     <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
                       Signer status: <strong>{signerStatus}</strong>
                     </div>
-                    {approvalUrl && signerStatus === "pending_approval" && (
+                    {approvalUrl && (signerStatus === "pending_approval" || signerStatus === "generated") && (
                       <div style={{ marginBottom: 8 }}>
-                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn">
+                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary">
                           Approve Signer
                         </a>
                       </div>
