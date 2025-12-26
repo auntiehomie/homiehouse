@@ -48,20 +48,23 @@ export default function ComposeModal() {
     try {
       const res = await fetch("/api/signer", { method: "POST" });
       const data = await res.json();
+      console.log("Signer response:", data);
 
       if (data.ok) {
         setSignerUuid(data.signer_uuid);
         setSignerStatus(data.status);
-        setApprovalUrl(data.signer_approval_url || null);
+        const url = data.signer_approval_url || null;
+        setApprovalUrl(url);
+        console.log("Approval URL:", url);
 
         const key = `signer_${profile.fid}`;
         localStorage.setItem(key, JSON.stringify({ 
           signer_uuid: data.signer_uuid, 
           status: data.status,
-          approval_url: data.signer_approval_url 
+          approval_url: url
         }));
 
-        setStatus("Signer created. Click 'Approve Signer' to grant permissions.");
+        setStatus(url ? "Signer created. Click 'Approve Signer' to grant permissions." : "Signer created but no approval URL provided.");
       } else {
         setStatus(`Failed to create signer: ${data.error}`);
       }
@@ -195,16 +198,37 @@ export default function ComposeModal() {
                     <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
                       Signer status: <strong>{signerStatus}</strong>
                     </div>
-                    {approvalUrl && (signerStatus === "pending_approval" || signerStatus === "generated") && (
+                    {approvalUrl ? (
                       <div style={{ marginBottom: 8 }}>
-                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary">
-                          Approve Signer
+                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center' }}>
+                          Approve Signer in Warpcast →
                         </a>
                       </div>
+                    ) : (
+                      <div style={{ marginBottom: 8, fontSize: 13, color: '#ef4444' }}>
+                        No approval URL available. Try creating a new signer.
+                      </div>
                     )}
-                    <button className="btn" onClick={checkSignerStatus} disabled={loading}>
-                      {loading ? "Checking…" : "Check Status"}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn" onClick={checkSignerStatus} disabled={loading}>
+                        {loading ? "Checking…" : "Check Status"}
+                      </button>
+                      <button 
+                        className="btn" 
+                        onClick={() => {
+                          if (profile?.fid) {
+                            localStorage.removeItem(`signer_${profile.fid}`);
+                          }
+                          setSignerUuid(null);
+                          setSignerStatus(null);
+                          setApprovalUrl(null);
+                          setStatus("Signer cleared. Create a new one.");
+                        }}
+                        style={{ background: '#ef4444', color: 'white' }}
+                      >
+                        Reset Signer
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

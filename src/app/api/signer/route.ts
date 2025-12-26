@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await createRes.json();
-    console.log("/api/signer created", data.signer_uuid, data.status);
+    console.log("/api/signer created:", JSON.stringify(data));
 
     return NextResponse.json({
       ok: true,
