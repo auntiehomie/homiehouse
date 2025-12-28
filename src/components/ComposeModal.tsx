@@ -112,25 +112,8 @@ export default function ComposeModal() {
     setStatus(null);
     setLoading(true);
     try {
-      // Try SDK first (local dev)
-      await farcaster.ready();
-      const sdkRes = await farcaster.postCast(text);
-      if (sdkRes.ok) {
-        setStatus("Posted successfully");
-        setText("");
-        setLoading(false);
-        return;
-      }
-
-      // Fallback to server-side posting
       if (!isAuthenticated || !profile?.fid) {
         setStatus("Sign in to post.");
-        setLoading(false);
-        return;
-      }
-
-      if (!signerUuid || signerStatus !== "approved") {
-        setStatus("You need to grant write access first. Create and approve a signer below.");
         setLoading(false);
         return;
       }
@@ -138,7 +121,7 @@ export default function ComposeModal() {
       const res = await fetch("/api/compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, signer_uuid: signerUuid, fid: profile.fid }),
+        body: JSON.stringify({ text, fid: profile.fid }),
       });
 
       const data = await res.json();

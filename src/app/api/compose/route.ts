@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Neynar cast publishing route
-// Requires a signer_uuid for the user (obtained after they approve write permissions)
+// Neynar cast publishing route using managed signer
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
 const NEYNAR_BASE = "https://api.neynar.com";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { text, signer_uuid, fid } = body;
+    const { text, fid } = body;
 
-    if (!NEYNAR_API_KEY) {
+    if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID) {
       return NextResponse.json(
-        { ok: false, error: "Server not configured for posting. Set NEYNAR_API_KEY." },
+        { ok: false, error: "Server not configured for posting. Set NEYNAR_API_KEY and NEYNAR_SIGNER_UUID." },
         { status: 500 }
       );
     }
@@ -22,27 +22,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Missing or empty text" }, { status: 400 });
     }
 
-    if (!signer_uuid) {
+    if (!fid) {
       return NextResponse.json(
         {
           ok: false,
-          error: "no_signer",
-          message: "You need to approve write permissions first. Create a signer to post.",
+          error: "no_user",
+          message: "You need to sign in first to post.",
         },
         { status: 403 }
       );
     }
 
-    // Publish the cast using Neynar API
+    // Publish the cast using the managed signer
     const publishUrl = `${NEYNAR_BASE}/v2/farcaster/cast`;
     const publishRes = await fetch(publishUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": NEYNAR_API_KEY,
+        "api_key": NEYNAR_API_KEY,
       },
       body: JSON.stringify({
-        signer_uuid,
+        signer_uuid: NEYNAR_SIGNER_UUID,
         text: text.trim(),
       }),
     });
