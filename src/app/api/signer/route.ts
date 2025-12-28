@@ -13,16 +13,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured" }, { status: 500 });
     }
 
-    // Get the user's FID from the request body
-    const body = await req.json();
-    const userFid = body.fid;
-
-    if (!userFid) {
-      return NextResponse.json({ ok: false, error: "User FID is required" }, { status: 400 });
-    }
-
-    // Use Neynar's register signed key endpoint for sponsored signers
-    const createUrl = `${NEYNAR_BASE}/v2/farcaster/login/authorize`;
+    // Use Neynar's webhook signer creation which returns a proper approval URL
+    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer/webhook`;
     const createRes = await fetch(createUrl, {
       method: "POST",
       headers: {
@@ -30,7 +22,9 @@ export async function POST(req: NextRequest) {
         "api_key": NEYNAR_API_KEY,
         "content-type": "application/json",
       },
-      body: JSON.stringify({})
+      body: JSON.stringify({
+        url: "https://homiehouse.vercel.app/api/signer/webhook"
+      })
     });
 
     if (!createRes.ok) {
@@ -47,7 +41,7 @@ export async function POST(req: NextRequest) {
       signer_uuid: data.signer_uuid,
       public_key: data.public_key,
       status: data.status,
-      signer_approval_url: data.signer_approval_url || data.authorization_url,
+      signer_approval_url: data.signer_approval_url,
       fid: data.fid,
     });
   } catch (e: any) {
