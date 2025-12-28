@@ -32,13 +32,17 @@ export async function POST(req: NextRequest) {
     const data = await createRes.json();
     console.log("/api/signer full response:", JSON.stringify(data, null, 2));
 
-    // Use Neynar's provided approval URL directly
+    // Construct approval URL using Warpcast's format
+    // Based on https://docs.farcaster.xyz/reference/farcaster/signer-requests
+    const publicKey = data.public_key;
+    const signerApprovalUrl = `https://client.warpcast.com/deeplinks/signed-key-request?deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}&token=${publicKey}`;
+
     return NextResponse.json({
       ok: true,
       signer_uuid: data.signer_uuid,
       public_key: data.public_key,
       status: data.status,
-      signer_approval_url: data.signer_approval_url,
+      signer_approval_url: signerApprovalUrl,
       fid: data.fid,
     });
   } catch (e: any) {
