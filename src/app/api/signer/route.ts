@@ -13,18 +13,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured" }, { status: 500 });
     }
 
-    // Use Neynar's webhook signer creation which returns a proper approval URL
-    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer/webhook`;
+    // Use the basic signer endpoint
+    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer`;
     const createRes = await fetch(createUrl, {
       method: "POST",
       headers: {
         "accept": "application/json",
         "api_key": NEYNAR_API_KEY,
-        "content-type": "application/json",
       },
-      body: JSON.stringify({
-        url: "https://homiehouse.vercel.app/api/signer/webhook"
-      })
     });
 
     if (!createRes.ok) {
@@ -34,14 +30,19 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await createRes.json();
-    console.log("/api/signer created:", JSON.stringify(data));
+    console.log("/api/signer full response:", JSON.stringify(data, null, 2));
+
+    // Construct the proper Warpcast deeplink URL
+    // Use farcaster:// scheme which should work better
+    const signerUuid = data.signer_uuid;
+    const approvalUrl = `farcaster://signed-key-request?token=${signerUuid}&deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}`;
 
     return NextResponse.json({
       ok: true,
       signer_uuid: data.signer_uuid,
       public_key: data.public_key,
       status: data.status,
-      signer_approval_url: data.signer_approval_url,
+      signer_approval_url: approvalUrl,
       fid: data.fid,
     });
   } catch (e: any) {
