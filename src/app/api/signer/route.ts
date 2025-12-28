@@ -42,8 +42,10 @@ export async function POST(req: NextRequest) {
     const data = await createRes.json();
     console.log("/api/signer created:", JSON.stringify(data));
 
-    // Generate Warpcast approval URL manually using the public key and signer UUID
-    const approvalUrl = `https://client.warpcast.com/deeplinks/signed-key-request?deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}&token=${data.public_key}`;
+    // Generate Warpcast approval URL using Neynar's format
+    // The public_key should be used without the 0x prefix for Warpcast
+    const publicKeyForUrl = data.public_key.startsWith('0x') ? data.public_key.substring(2) : data.public_key;
+    const approvalUrl = `https://client.warpcast.com/deeplinks/signed-key-request?deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}&token=${publicKeyForUrl}`;
 
     return NextResponse.json({
       ok: true,
