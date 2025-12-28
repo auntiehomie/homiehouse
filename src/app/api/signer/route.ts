@@ -33,9 +33,9 @@ export async function POST(req: NextRequest) {
     console.log("/api/signer full response:", JSON.stringify(data, null, 2));
 
     // Construct the proper Warpcast deeplink URL
-    // Use farcaster:// scheme which should work better
-    const signerUuid = data.signer_uuid;
-    const approvalUrl = `farcaster://signed-key-request?token=${signerUuid}&deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}`;
+    // Use the public_key (without 0x prefix) as the token
+    const publicKey = data.public_key.startsWith('0x') ? data.public_key.substring(2) : data.public_key;
+    const approvalUrl = `farcaster://signed-key-request?token=${publicKey}&deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}`;
 
     return NextResponse.json({
       ok: true,
