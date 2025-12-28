@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "User FID is required" }, { status: 400 });
     }
 
-    // Create a signer and register it to the user's FID
-    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer`;
+    // Use Neynar's register signed key endpoint for sponsored signers
+    const createUrl = `${NEYNAR_BASE}/v2/farcaster/login/authorize`;
     const createRes = await fetch(createUrl, {
       method: "POST",
       headers: {
@@ -42,17 +42,12 @@ export async function POST(req: NextRequest) {
     const data = await createRes.json();
     console.log("/api/signer created:", JSON.stringify(data));
 
-    // Generate Warpcast approval URL using Neynar's format
-    // The public_key should be used without the 0x prefix for Warpcast
-    const publicKeyForUrl = data.public_key.startsWith('0x') ? data.public_key.substring(2) : data.public_key;
-    const approvalUrl = `https://client.warpcast.com/deeplinks/signed-key-request?deeplinkUrl=${encodeURIComponent('https://homiehouse.vercel.app')}&token=${publicKeyForUrl}`;
-
     return NextResponse.json({
       ok: true,
       signer_uuid: data.signer_uuid,
       public_key: data.public_key,
       status: data.status,
-      signer_approval_url: approvalUrl,
+      signer_approval_url: data.signer_approval_url || data.authorization_url,
       fid: data.fid,
     });
   } catch (e: any) {
