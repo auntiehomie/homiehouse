@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const publicKeyHex = '0x' + Buffer.from(publicKeyBytes).toString('hex') as `0x${string}`;
 
     // Sign the SignedKeyRequest with the app's custody address
-    const account = mnemonicToAccount(APP_MNEMONIC as `0x${string}`);
+    const account = mnemonicToAccount(APP_MNEMONIC);
     const deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours
 
     const signature = await account.signTypedData({
