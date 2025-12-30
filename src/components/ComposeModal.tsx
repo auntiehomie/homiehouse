@@ -9,37 +9,30 @@ export default function ComposeModal() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [privateKey, setPrivateKey] = useState<string | null>(null);
-  const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [signerState, setSignerState] = useState<string | null>(null);
-  const [deeplinkUrl, setDeeplinkUrl] = useState<string | null>(null);
+  const [signerUuid, setSignerUuid] = useState<string | null>(null);
+  const [signerStatus, setSignerStatus] = useState<string | null>(null);
+  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
 
   const { isAuthenticated, profile } = useProfile();
 
-  // Load signer from localStorage on mount
+  // Load signer from localStorage on mount (Neynar signer)
   useEffect(() => {
     if (isAuthenticated && profile?.fid) {
-      const key = `farcaster_signer_${profile.fid}`;
+      const key = `signer_${profile.fid}`;
       const stored = localStorage.getItem(key);
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          setToken(parsed.token || null);
-          setPrivateKey(parsed.privateKey || null);
-          setPublicKey(parsed.publicKey || null);
-          setSignerState(parsed.state || null);
-          setDeeplinkUrl(parsed.deeplinkUrl || null);
+          setSignerUuid(parsed.signer_uuid || null);
+          setSignerStatus(parsed.status || null);
         } catch {
           // ignore parse errors
         }
       }
     } else {
-      setToken(null);
-      setPrivateKey(null);
-      setPublicKey(null);
-      setSignerState(null);
-      setDeeplinkUrl(null);
+      setSignerUuid(null);
+      setSignerStatus(null);
+      setApprovalUrl(null);
     }
   }, [isAuthenticated, profile?.fid]);
 
@@ -50,53 +43,29 @@ export default function ComposeModal() {
     }
 
     setLoading(true);
-    setStatus("Creating signer request...");
+    setStatus("Creating signer...");
     try {
-      const res = await fetch("/api/signer-request", { 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fid: profile.fid })
-      });
+      const res = await fetch("/api/signer", { method: "POST" });
       const data = await res.json();
-      console.log("Signer request response:", data);
+      console.log("Signer response:", data);
 
-      if (data.ok) {
-        setToken(data.token);
-        setPrivateKey(data.privateKey);
-        setPublicKey(data.publicKey);
-        setSignerState(data.state);
-        setDeeplinkUrl(data.deeplinkUrl);
+      if (data.ok && data.signer_uuid) {
+        const uuid = data.signer_uuid;
+        setSignerUuid(uuid);
+        setSignerStatus(data.status);
+        setApprovalUrl(data.signer_approval_url);
 
-        const key = `farcaster_signer_${profile.fid}`;
-        localStorage.setItem(key, JSON.stringify({ 
-          token: data.token,
-          privateKey: data.privateKey,
-          publicKey: data.publicKey,
-          state: data.state,
-          deeplinkUrl: data.deeplinkUrl
-        }));
+        // Store in localStorage
+        const key = `signer_${profile.fid}`;
+        localStorage.setItem(key, JSON.stringify({ signer_uuid: uuid, status: data.status }));
 
-        setStatus("Signer request created. Scan QR code or click 'Approve in Warpcast'.");
+        setStatus("Signer created! Scan QR code or click 'Approve Signer'.");
       } else {
-        // Enhanced error logging
-        console.error("==== SIGNER CREATION ERROR (CLIENT) ====");
-        console.error("Full error response:", JSON.stringify(data, null, 2));
-        console.error("Error:", data.error);
-        console.error("Details:", data.details);
-        console.error("Parsed error:", data.parsedError);
-        console.error("Status code:", data.statusCode);
-        console.error("Request body sent:", data.requestBody);
-        console.error("========================================");
-        
-        const errorMsg = data.parsedError?.message || data.details || data.error;
-        setStatus(`Failed to create signer request: ${errorMsg}`);
+        console.error("Signer creation error:", data);
+        setStatus(`Failed: ${data.error || "unknown error"}`);
       }
     } catch (e: any) {
-      console.error("==== SIGNER CREATION EXCEPTION (CLIENT) ====");
-      console.error("Exception:", e);
-      console.error("Message:", e.message);
-      console.error("Stack:", e.stack);
-      console.error("============================================");
+      console.error("Signer creation exception:", e);
       setStatus(`Error: ${e.message}`);
     } finally {
       setLoading(false);
@@ -104,26 +73,27 @@ export default function ComposeModal() {
   }
 
   async function checkSignerStatus() {
-    if (!token) return;
+    if (!signerUuid) return;
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/signer-request?token=${encodeURIComponent(token)}`);
+      const res = await fetch(`/api/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       const data = await res.json();
 
       if (data.ok) {
-        setSignerState(data.state);
-        if (data.state === "completed") {
-          const key = `farcaster_signer_${profile?.fid}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            parsed.state = "completed";
-            localStorage.setItem(key, JSON.stringify(parsed));
-          }
+        const newStatus = data.status;
+        setSignerStatus(newStatus);
+
+        // Update localStorage
+        if (profile?.fid) {
+          const key = `signer_${profile.fid}`;
+          localStorage.setItem(key, JSON.stringify({ signer_uuid: signerUuid, status: newStatus }));
+        }
+
+        if (newStatus === "approved") {
           setStatus("Signer approved! You can now post.");
         } else {
-          setStatus(`Signer status: ${data.state}`);
+          setStatus(`Signer status: ${newStatus}`);
         }
       } else {
         setStatus(`Error checking status: ${data.error}`);
@@ -145,7 +115,7 @@ export default function ComposeModal() {
         return;
       }
 
-      if (!privateKey || signerState !== "completed") {
+      if (!signerUuid || signerStatus !== "approved") {
         setStatus("You need to approve the signer first.");
         setLoading(false);
         return;
@@ -156,7 +126,7 @@ export default function ComposeModal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           text, 
-          privateKey,
+          signerUuid,
           fid: profile.fid 
         }),
       });
@@ -207,10 +177,10 @@ export default function ComposeModal() {
                 placeholder="Write a cast..."
               />
             </div>
-            {isAuthenticated && signerState !== "completed" && (
+            {isAuthenticated && signerStatus !== "approved" && (
               <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>Write Permissions</div>
-                {!token ? (
+                {!signerUuid ? (
                   <>
                     <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
                       To post from this app, create a signer and approve it in Warpcast.
@@ -222,18 +192,18 @@ export default function ComposeModal() {
                 ) : (
                   <>
                     <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
-                      Signer status: <strong>{signerState}</strong>
+                      Signer status: <strong>{signerStatus}</strong>
                     </div>
-                    {deeplinkUrl ? (
+                    {approvalUrl ? (
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
-                          <QRCodeSVG value={deeplinkUrl} size={200} />
+                          <QRCodeSVG value={approvalUrl} size={200} />
                         </div>
                         <div style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 8 }}>
                           Scan this QR code with your phone, or click the button below:
                         </div>
-                        <a href={deeplinkUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center' }}>
-                          Approve in Warpcast →
+                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center' }}>
+                          Approve Signer →
                         </a>
                       </div>
                     ) : (
@@ -249,13 +219,11 @@ export default function ComposeModal() {
                         className="btn" 
                         onClick={() => {
                           if (profile?.fid) {
-                            localStorage.removeItem(`farcaster_signer_${profile.fid}`);
+                            localStorage.removeItem(`signer_${profile.fid}`);
                           }
-                          setToken(null);
-                          setPrivateKey(null);
-                          setPublicKey(null);
-                          setSignerState(null);
-                          setDeeplinkUrl(null);
+                          setSignerUuid(null);
+                          setSignerStatus(null);
+                          setApprovalUrl(null);
                           setStatus("Signer cleared. Create a new one.");
                         }}
                         style={{ background: '#ef4444', color: 'white' }}

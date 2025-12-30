@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
     const deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours
 
     console.log("==== SIGNER CREATION DEBUG INFO ====");
+    console.log("⚠️ VERIFY THIS ADDRESS MATCHES YOUR FID CUSTODY ADDRESS ⚠️");
     console.log("Derived address from mnemonic:", account.address);
     console.log("APP_FID:", APP_FID);
     console.log("APP_FID (as number):", Number(APP_FID));
