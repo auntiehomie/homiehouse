@@ -21,11 +21,20 @@ export async function POST(req: NextRequest) {
     console.log("Created signer:", createSigner.signer_uuid, createSigner.public_key);
 
     // Step 2: Generate signature using developer account
+    // Try default derivation path first
     const account = mnemonicToAccount(APP_MNEMONIC);
     console.log("==== SIGNATURE DEBUG ====");
-    console.log("Derived custody address:", account.address);
+    console.log("Derived custody address (default path):", account.address);
     console.log("APP_FID:", APP_FID);
     console.log("Public key to sign:", createSigner.public_key);
+    
+    // Try common alternative derivation paths
+    const account1 = mnemonicToAccount(APP_MNEMONIC, { addressIndex: 0 });
+    const account2 = mnemonicToAccount(APP_MNEMONIC, { addressIndex: 1 });
+    console.log("Address at index 0:", account1.address);
+    console.log("Address at index 1:", account2.address);
+    console.log("========================");
+    console.log("If none of these match, you may need to specify the correct derivation path");
     console.log("========================");
     
     const appAccountKey = new ViemLocalEip712Signer(account);
@@ -82,28 +91,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "missing signer_uuid" }, { status: 400 });
     }
 
-    // Check signer status
-    const statusUrl = `${NEYNAR_BASE}/v2/farcaster/signer?signer_uuid=${encodeURIComponent(signer_uuid)}`;
-    const statusRes = await fetch(statusUrl, {
-      headers: {
-        "accept": "application/json",
-        "api_key": NEYNAR_API_KEY,
-      },
-    });
+    // Check signer status using SDK
+    const signerData = await neynarClient.lookupSigner({ signerUuid: signer_uuid });
 
-    if (!statusRes.ok) {
-      const errText = await statusRes.text();
-      console.warn("/api/signer status check failed", statusRes.status, errText);
-      return NextResponse.json({ ok: false, error: "status_failed", details: errText }, { status: statusRes.status });
-    }
-
-    const data = await statusRes.json();
     return NextResponse.json({
       ok: true,
-      signer_uuid: data.signer_uuid,
-      status: data.status,
-      fid: data.fid,
-      public_key: data.public_key,
+      signer_uuid: signerData.signer_uuid,
+      status: signerData.status,
+      fid: signerData.fid,
+      public_key: signerData.public_key,
     });
   } catch (e: any) {
     console.error("/api/signer GET error", e);
