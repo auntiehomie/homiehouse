@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
     });
 
     console.log("Registered signed key response:", JSON.stringify(signedKey, null, 2));
+    console.log("Signer approval URL:", signedKey.signer_approval_url);
 
     return NextResponse.json({
       ok: true,

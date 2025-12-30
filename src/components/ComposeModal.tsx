@@ -194,7 +194,13 @@ export default function ComposeModal() {
                       Status: <strong>{signerStatus}</strong>
                     </div>
                     {approvalUrl && signerStatus !== "approved" && (
-                      <div style={{ marginBottom: 8 }}>
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
+                          <QRCodeSVG value={approvalUrl} size={200} />
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 8 }}>
+                          Scan this QR code with your phone, or click the button below:
+                        </div>
                         <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center', marginBottom: 8 }}>
                           Approve Signer →
                         </a>
