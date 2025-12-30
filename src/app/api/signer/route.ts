@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 import { ViemLocalEip712Signer } from "@farcaster/hub-nodejs";
 import { bytesToHex, hexToBytes } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-const NEYNAR_BASE = "https://api.neynar.com";
 const APP_FID = process.env.APP_FID;
 const APP_MNEMONIC = process.env.APP_MNEMONIC;
+
+const neynarClient = new NeynarAPIClient(NEYNAR_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,38 +16,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Server not configured properly" }, { status: 500 });
     }
 
-    // Step 1: Create signer
-    const createRes = await fetch(`${NEYNAR_BASE}/v2/farcaster/signer`, {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "api_key": NEYNAR_API_KEY,
-      },
-    });
-
-    if (!createRes.ok) {
-      const errText = await createRes.text();
-      console.error("Create signer failed:", createRes.status, errText);
-      return NextResponse.json({ ok: false, error: "create_failed", details: errText }, { status: createRes.status });
-    }
-
-    const createData = await createRes.json();
-    const publicKey = createData.public_key;
-    const signerUuid = createData.signer_uuid;
-
-    console.log("Created signer:", signerUuid, publicKey);
+    // Step 1: Create signer using SDK
+    const createSigner = await neynarClient.createSigner();
+    console.log("Created signer:", createSigner.signer_uuid, createSigner.public_key);
 
     // Step 2: Generate signature using developer account
     const account = mnemonicToAccount(APP_MNEMONIC);
     console.log("==== SIGNATURE DEBUG ====");
     console.log("Derived custody address:", account.address);
     console.log("APP_FID:", APP_FID);
-    console.log("Public key to sign:", publicKey);
+    console.log("Public key to sign:", createSigner.public_key);
     console.log("========================");
     
     const appAccountKey = new ViemLocalEip712Signer(account);
     const deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours
-    const uintAddress = hexToBytes(publicKey as `0x${string}`);
+    const uintAddress = hexToBytes(createSigner.public_key as `0x${string}`);
 
     const signatureResult = await appAccountKey.signKeyRequest({
       requestFid: BigInt(APP_FID),
@@ -60,42 +45,27 @@ export async function POST(req: NextRequest) {
 
     const signature = bytesToHex(signatureResult.value);
 
-    // Step 3: Register the signed key
-    const registerRes = await fetch(`${NEYNAR_BASE}/v2/farcaster/signer/signed-key`, {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "api_key": NEYNAR_API_KEY,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        signer_uuid: signerUuid,
-        app_fid: Number(APP_FID),
-        deadline,
-        signature,
-      }),
+    // Step 3: Register the signed key using SDK
+    const signedKey = await neynarClient.registerSignedKey({
+      signerUuid: createSigner.signer_uuid,
+      appFid: Number(APP_FID),
+      deadline,
+      signature,
     });
 
-    if (!registerRes.ok) {
-      const errText = await registerRes.text();
-      console.error("Register signed key failed:", registerRes.status, errText);
-      return NextResponse.json({ ok: false, error: "register_failed", details: errText }, { status: registerRes.status });
-    }
-
-    const registerData = await registerRes.json();
-    console.log("Registered signed key response:", JSON.stringify(registerData, null, 2));
+    console.log("Registered signed key response:", JSON.stringify(signedKey, null, 2));
 
     return NextResponse.json({
       ok: true,
-      signer_uuid: registerData.signer_uuid,
-      public_key: registerData.public_key,
-      status: registerData.status,
-      signer_approval_url: registerData.signer_approval_url,
-      fid: registerData.fid,
+      signer_uuid: signedKey.signer_uuid,
+      public_key: signedKey.public_key,
+      status: signedKey.status,
+      signer_approval_url: signedKey.signer_approval_url,
+      fid: signedKey.fid,
     });
   } catch (e: any) {
     console.error("/api/signer error", e);
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 500 });
   }
 }
 
