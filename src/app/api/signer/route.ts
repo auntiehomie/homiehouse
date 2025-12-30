@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
 
     // Step 2: Generate signature using developer account
     const account = mnemonicToAccount(APP_MNEMONIC);
+    console.log("==== SIGNATURE DEBUG ====");
+    console.log("Derived custody address:", account.address);
+    console.log("APP_FID:", APP_FID);
+    console.log("Public key to sign:", publicKey);
+    console.log("========================");
+    
     const appAccountKey = new ViemLocalEip712Signer(account);
     const deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours
     const uintAddress = hexToBytes(publicKey as `0x${string}`);
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
     const signature = bytesToHex(signatureResult.value);
 
     // Step 3: Register the signed key
-    const registerRes = await fetch(`${NEYNAR_BASE}/v2/farcaster/signer/signed_key`, {
+    const registerRes = await fetch(`${NEYNAR_BASE}/v2/farcaster/signer/signed-key`, {
       method: "POST",
       headers: {
         "accept": "application/json",
