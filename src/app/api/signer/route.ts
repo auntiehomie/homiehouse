@@ -13,28 +13,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured" }, { status: 500 });
     }
 
-    // Create signer using Neynar API
-    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer`;
-    const createRes = await fetch(createUrl, {
+    // Use Neynar's Register Signer endpoint for managed signers
+    // This provides a proper approval flow with deeplinks
+    const registerUrl = `${NEYNAR_BASE}/v2/farcaster/signer/register`;
+    const registerRes = await fetch(registerUrl, {
       method: "POST",
       headers: {
         "accept": "application/json",
         "api_key": NEYNAR_API_KEY,
+        "content-type": "application/json",
       },
+      body: JSON.stringify({}),
     });
 
-    if (!createRes.ok) {
-      const errText = await createRes.text();
-      console.error("/api/signer create failed", createRes.status, errText);
-      return NextResponse.json({ ok: false, error: "create_failed", details: errText }, { status: createRes.status });
+    if (!registerRes.ok) {
+      const errText = await registerRes.text();
+      console.error("/api/signer register failed", registerRes.status, errText);
+      return NextResponse.json({ ok: false, error: "register_failed", details: errText }, { status: registerRes.status });
     }
 
-    const data = await createRes.json();
-    console.log("/api/signer full response:", JSON.stringify(data, null, 2));
+    const data = await registerRes.json();
+    console.log("/api/signer register response:", JSON.stringify(data, null, 2));
 
-    // For Neynar signers with status "generated", user needs to register it via Warpcast
-    // The deeplink format should point to Warpcast's signed key registration
-    const signerApprovalUrl = `https://client.warpcast.com/deeplinks/signed-key-request?token=${data.public_key}`;
+    // Neynar's register endpoint should provide signer_approval_url or deeplink_url
+    const signerApprovalUrl = data.signer_approval_url || data.deeplink_url;
 
     return NextResponse.json({
       ok: true,

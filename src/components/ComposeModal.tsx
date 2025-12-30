@@ -9,10 +9,105 @@ export default function ComposeModal() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [signerUuid, setSignerUuid] = useState<string | null>(null);
+  const [signerStatus, setSignerStatus] = useState<string | null>(null);
+  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
 
   const { isAuthenticated, profile } = useProfile();
 
-  // Note: Using fallback NEYNAR_SIGNER_UUID from env for posting
+  // Load signer from localStorage
+  useEffect(() => {
+    if (isAuthenticated && profile?.fid) {
+      const key = `signer_${profile.fid}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setSignerUuid(parsed.signer_uuid || null);
+          setSignerStatus(parsed.status || null);
+          setApprovalUrl(parsed.signer_approval_url || null);
+        } catch {
+          // ignore
+        }
+      }
+    } else {
+      setSignerUuid(null);
+      setSignerStatus(null);
+      setApprovalUrl(null);
+    }
+  }, [isAuthenticated, profile?.fid]);
+
+  async function createSigner() {
+    if (!profile?.fid) {
+      setStatus("Sign in first.");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Creating signer...");
+    try {
+      const res = await fetch("/api/signer", { method: "POST" });
+      const data = await res.json();
+      console.log("Signer response:", data);
+
+      if (data.ok && data.signer_uuid) {
+        setSignerUuid(data.signer_uuid);
+        setSignerStatus(data.status);
+        setApprovalUrl(data.signer_approval_url);
+
+        const key = `signer_${profile.fid}`;
+        localStorage.setItem(key, JSON.stringify({
+          signer_uuid: data.signer_uuid,
+          status: data.status,
+          signer_approval_url: data.signer_approval_url
+        }));
+
+        setStatus("Signer created! Approve it to enable posting.");
+      } else {
+        setStatus(`Failed: ${data.error || "unknown"}`);
+      }
+    } catch (e: any) {
+      setStatus(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function checkStatus() {
+    if (!signerUuid) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
+      const data = await res.json();
+
+      if (data.ok) {
+        setSignerStatus(data.status);
+
+        if (profile?.fid) {
+          const key = `signer_${profile.fid}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            parsed.status = data.status;
+            localStorage.setItem(key, JSON.stringify(parsed));
+          }
+        }
+
+        if (data.status === "approved") {
+          setStatus("✓ Signer approved! You can now post.");
+        } else {
+          setStatus(`Status: ${data.status}`);
+        }
+      } else {
+        setStatus(`Error: ${data.error}`);
+      }
+    } catch (e: any) {
+      setStatus(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handlePost() {
     setStatus(null);
@@ -24,19 +119,20 @@ export default function ComposeModal() {
         return;
       }
 
-      // Backend will use NEYNAR_SIGNER_UUID from env as fallback
+      // Use user's signer or fallback to env
       const res = await fetch("/api/compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           text, 
+          signerUuid: signerUuid || undefined,
           fid: profile.fid 
         }),
       });
 
       const data = await res.json();
       if (data.ok) {
-        setStatus("Posted successfully!");
+        setStatus("✓ Posted successfully!");
         setText("");
       } else {
         setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
@@ -80,7 +176,37 @@ export default function ComposeModal() {
                 placeholder="Write a cast..."
               />
             </div>
-            {/* Signer management - hidden for now as we use fallback signer */}
+            {isAuthenticated && signerStatus !== "approved" && (
+              <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(59, 130, 246, 0.05)' }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Write Permissions</div>
+                {!signerUuid ? (
+                  <>
+                    <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
+                      Create a signer to enable posting from this app.
+                    </div>
+                    <button className="btn" onClick={createSigner} disabled={loading}>
+                      {loading ? "Creating…" : "Create Signer"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 8, fontSize: 14 }}>
+                      Status: <strong>{signerStatus}</strong>
+                    </div>
+                    {approvalUrl && signerStatus !== "approved" && (
+                      <div style={{ marginBottom: 8 }}>
+                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center', marginBottom: 8 }}>
+                          Approve Signer →
+                        </a>
+                      </div>
+                    )}
+                    <button className="btn" onClick={checkStatus} disabled={loading}>
+                      {loading ? "Checking…" : "Check Status"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
               <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
               <button
