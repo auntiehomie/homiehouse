@@ -115,18 +115,13 @@ export default function ComposeModal() {
         return;
       }
 
-      if (!signerUuid || signerStatus !== "approved") {
-        setStatus("You need to approve the signer first.");
-        setLoading(false);
-        return;
-      }
-
+      // Send signerUuid if available, otherwise backend will use fallback from env
       const res = await fetch("/api/compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           text, 
-          signerUuid,
+          signerUuid: signerUuid || undefined,
           fid: profile.fid 
         }),
       });
@@ -136,7 +131,7 @@ export default function ComposeModal() {
         setStatus("Posted successfully!");
         setText("");
       } else {
-        setStatus(`Failed: ${data.error || "unknown error"}`);
+        setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
       }
     } catch (err: any) {
       setStatus(String(err?.message || err));
@@ -177,20 +172,7 @@ export default function ComposeModal() {
                 placeholder="Write a cast..."
               />
             </div>
-            {isAuthenticated && signerStatus !== "approved" && (
-              <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(251, 146, 60, 0.1)' }}>
-                <div style={{ fontWeight: 600, marginBottom: 6, color: 'rgb(251, 146, 60)' }}>⚠️ Posting Not Available</div>
-                <div style={{ fontSize: 14, color: 'var(--muted-on-dark)', lineHeight: 1.5 }}>
-                  To enable posting, you need an approved signer. Please:
-                  <ol style={{ marginTop: 8, marginBottom: 8, paddingLeft: 20 }}>
-                    <li>Go to <a href="https://warpcast.com/~/developers" target="_blank" rel="noopener noreferrer" style={{ color: 'rgb(251, 146, 60)', textDecoration: 'underline' }}>Warpcast Developer Settings</a></li>
-                    <li>Create and approve a signer for this app</li>
-                    <li>Or use the NEYNAR_SIGNER_UUID from your .env in development</li>
-                  </ol>
-                  Alternatively, posting through AuthKit's native flow may be available in a future update.
-                </div>
-              </div>
-            )}
+            {/* Signer management - hidden for now as we use fallback signer */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
               <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
               <button
