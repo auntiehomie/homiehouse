@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { NeynarAPIClient } from "@neynar/nodejs-sdk";
+import { NeynarAPIClient, Configuration } from "@neynar/nodejs-sdk";
 import { ViemLocalEip712Signer } from "@farcaster/hub-nodejs";
 import { bytesToHex, hexToBytes } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-const APP_FID = process.env.APP_FID;
-const APP_MNEMONIC = process.env.APP_MNEMONIC;
+const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY!;
+const APP_FID = process.env.APP_FID!;
+const APP_MNEMONIC = process.env.APP_MNEMONIC!;
 
-const neynarClient = new NeynarAPIClient(NEYNAR_API_KEY!);
+const config = new Configuration({
+  apiKey: NEYNAR_API_KEY,
+});
+
+const neynarClient = new NeynarAPIClient(config);
 
 export async function POST(req: NextRequest) {
   try {
