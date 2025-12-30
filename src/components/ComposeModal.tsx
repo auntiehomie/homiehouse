@@ -78,9 +78,25 @@ export default function ComposeModal() {
 
         setStatus("Signer request created. Scan QR code or click 'Approve in Warpcast'.");
       } else {
-        setStatus(`Failed to create signer request: ${data.error}`);
+        // Enhanced error logging
+        console.error("==== SIGNER CREATION ERROR (CLIENT) ====");
+        console.error("Full error response:", JSON.stringify(data, null, 2));
+        console.error("Error:", data.error);
+        console.error("Details:", data.details);
+        console.error("Parsed error:", data.parsedError);
+        console.error("Status code:", data.statusCode);
+        console.error("Request body sent:", data.requestBody);
+        console.error("========================================");
+        
+        const errorMsg = data.parsedError?.message || data.details || data.error;
+        setStatus(`Failed to create signer request: ${errorMsg}`);
       }
     } catch (e: any) {
+      console.error("==== SIGNER CREATION EXCEPTION (CLIENT) ====");
+      console.error("Exception:", e);
+      console.error("Message:", e.message);
+      console.error("Stack:", e.stack);
+      console.error("============================================");
       setStatus(`Error: ${e.message}`);
     } finally {
       setLoading(false);

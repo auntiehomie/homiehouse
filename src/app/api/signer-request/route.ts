@@ -50,38 +50,85 @@ export async function POST(req: NextRequest) {
     const account = mnemonicToAccount(APP_MNEMONIC);
     const deadline = Math.floor(Date.now() / 1000) + 86400; // 24 hours
 
+    console.log("==== SIGNER CREATION DEBUG INFO ====");
+    console.log("Derived address from mnemonic:", account.address);
+    console.log("APP_FID:", APP_FID);
+    console.log("APP_FID (as number):", Number(APP_FID));
+    console.log("Public key:", publicKeyHex);
+    console.log("Deadline:", deadline);
+    console.log("Deadline (as Date):", new Date(deadline * 1000).toISOString());
+
+    const typedDataMessage = {
+      requestFid: BigInt(APP_FID),
+      key: publicKeyHex,
+      deadline: BigInt(deadline),
+    };
+
+    console.log("Typed data message:", JSON.stringify({
+      requestFid: typedDataMessage.requestFid.toString(),
+      key: typedDataMessage.key,
+      deadline: typedDataMessage.deadline.toString()
+    }, null, 2));
+    console.log("===================================");
+
     const signature = await account.signTypedData({
       domain: SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN,
       types: {
         SignedKeyRequest: SIGNED_KEY_REQUEST_TYPE,
       },
       primaryType: 'SignedKeyRequest',
-      message: {
-        requestFid: BigInt(APP_FID),
-        key: publicKeyHex,
-        deadline: BigInt(deadline),
-      },
+      message: typedDataMessage,
     });
 
+    console.log("Generated signature:", signature);
+
     // Create signed key request via Farcaster API
+    const requestBody = {
+      key: publicKeyHex,
+      requestFid: Number(APP_FID),
+      signature,
+      deadline,
+    };
+
+    console.log("Farcaster API Request Body:", JSON.stringify(requestBody, null, 2));
+
     const response = await fetch(`${FARCASTER_API}/v2/signed-key-requests`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        key: publicKeyHex,
-        requestFid: Number(APP_FID),
-        signature,
-        deadline,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Farcaster API error:", response.status, errorText);
+      console.error("==== FARCASTER API ERROR ====");
+      console.error("Status:", response.status);
+      console.error("Status Text:", response.statusText);
+      console.error("Response Headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
+      console.error("Error Response Body:", errorText);
+      console.error("Request Body Sent:", JSON.stringify(requestBody, null, 2));
+      console.error("============================");
+      
+      // Try to parse error as JSON for more details
+      let parsedError;
+      try {
+        parsedError = JSON.parse(errorText);
+        console.error("Parsed Error Object:", JSON.stringify(parsedError, null, 2));
+      } catch (e) {
+        console.error("Could not parse error as JSON");
+      }
+      
       return NextResponse.json(
-        { ok: false, error: "Failed to create signer request", details: errorText },
+        { 
+          ok: false, 
+          error: "Failed to create signer request", 
+          details: errorText,
+          parsedError,
+          requestBody,
+          statusCode: response.status,
+          statusText: response.statusText
+        },
         { status: response.status }
       );
     }
@@ -101,9 +148,19 @@ export async function POST(req: NextRequest) {
       publicKey: publicKeyHex,
     });
   } catch (error: any) {
-    console.error("/api/signer-request POST error:", error);
+    console.error("==== /api/signer-request POST ERROR ====");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error("========================================");
     return NextResponse.json(
-      { ok: false, error: String(error.message || error) },
+      { 
+        ok: false, 
+        error: String(error.message || error),
+        errorName: error.name,
+        errorStack: error.stack,
+      },
       { status: 500 }
     );
   }
