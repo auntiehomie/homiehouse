@@ -9,101 +9,10 @@ export default function ComposeModal() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [signerUuid, setSignerUuid] = useState<string | null>(null);
-  const [signerStatus, setSignerStatus] = useState<string | null>(null);
-  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
 
   const { isAuthenticated, profile } = useProfile();
 
-  // Load signer from localStorage on mount (Neynar signer)
-  useEffect(() => {
-    if (isAuthenticated && profile?.fid) {
-      const key = `signer_${profile.fid}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setSignerUuid(parsed.signer_uuid || null);
-          setSignerStatus(parsed.status || null);
-        } catch {
-          // ignore parse errors
-        }
-      }
-    } else {
-      setSignerUuid(null);
-      setSignerStatus(null);
-      setApprovalUrl(null);
-    }
-  }, [isAuthenticated, profile?.fid]);
-
-  async function createSigner() {
-    if (!profile?.fid) {
-      setStatus("Sign in first to create a signer.");
-      return;
-    }
-
-    setLoading(true);
-    setStatus("Creating signer...");
-    try {
-      const res = await fetch("/api/signer", { method: "POST" });
-      const data = await res.json();
-      console.log("Signer response:", data);
-
-      if (data.ok && data.signer_uuid) {
-        const uuid = data.signer_uuid;
-        setSignerUuid(uuid);
-        setSignerStatus(data.status);
-        setApprovalUrl(data.signer_approval_url);
-
-        // Store in localStorage
-        const key = `signer_${profile.fid}`;
-        localStorage.setItem(key, JSON.stringify({ signer_uuid: uuid, status: data.status }));
-
-        setStatus("Signer created! Scan QR code or click 'Approve Signer'.");
-      } else {
-        console.error("Signer creation error:", data);
-        setStatus(`Failed: ${data.error || "unknown error"}`);
-      }
-    } catch (e: any) {
-      console.error("Signer creation exception:", e);
-      setStatus(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function checkSignerStatus() {
-    if (!signerUuid) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      const data = await res.json();
-
-      if (data.ok) {
-        const newStatus = data.status;
-        setSignerStatus(newStatus);
-
-        // Update localStorage
-        if (profile?.fid) {
-          const key = `signer_${profile.fid}`;
-          localStorage.setItem(key, JSON.stringify({ signer_uuid: signerUuid, status: newStatus }));
-        }
-
-        if (newStatus === "approved") {
-          setStatus("Signer approved! You can now post.");
-        } else {
-          setStatus(`Signer status: ${newStatus}`);
-        }
-      } else {
-        setStatus(`Error checking status: ${data.error}`);
-      }
-    } catch (e: any) {
-      setStatus(`Error checking status: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Note: Using fallback NEYNAR_SIGNER_UUID from env for posting
 
   async function handlePost() {
     setStatus(null);
@@ -115,13 +24,12 @@ export default function ComposeModal() {
         return;
       }
 
-      // Send signerUuid if available, otherwise backend will use fallback from env
+      // Backend will use NEYNAR_SIGNER_UUID from env as fallback
       const res = await fetch("/api/compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           text, 
-          signerUuid: signerUuid || undefined,
           fid: profile.fid 
         }),
       });
