@@ -178,61 +178,17 @@ export default function ComposeModal() {
               />
             </div>
             {isAuthenticated && signerStatus !== "approved" && (
-              <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Write Permissions</div>
-                {!signerUuid ? (
-                  <>
-                    <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
-                      To post from this app, create a signer and approve it in Warpcast.
-                    </div>
-                    <button className="btn" onClick={createSigner} disabled={loading}>
-                      {loading ? "Creating…" : "Create Signer"}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
-                      Signer status: <strong>{signerStatus}</strong>
-                    </div>
-                    {approvalUrl ? (
-                      <div style={{ marginBottom: 8 }}>
-                        <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
-                          <QRCodeSVG value={approvalUrl} size={200} />
-                        </div>
-                        <div style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 8 }}>
-                          Scan this QR code with your phone, or click the button below:
-                        </div>
-                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center' }}>
-                          Approve Signer →
-                        </a>
-                      </div>
-                    ) : (
-                      <div style={{ marginBottom: 8, fontSize: 13, color: '#ef4444' }}>
-                        No approval URL available. Try creating a new signer.
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn" onClick={checkSignerStatus} disabled={loading}>
-                        {loading ? "Checking…" : "Check Status"}
-                      </button>
-                      <button 
-                        className="btn" 
-                        onClick={() => {
-                          if (profile?.fid) {
-                            localStorage.removeItem(`signer_${profile.fid}`);
-                          }
-                          setSignerUuid(null);
-                          setSignerStatus(null);
-                          setApprovalUrl(null);
-                          setStatus("Signer cleared. Create a new one.");
-                        }}
-                        style={{ background: '#ef4444', color: 'white' }}
-                      >
-                        Reset Signer
-                      </button>
-                    </div>
-                  </>
-                )}
+              <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(251, 146, 60, 0.1)' }}>
+                <div style={{ fontWeight: 600, marginBottom: 6, color: 'rgb(251, 146, 60)' }}>⚠️ Posting Not Available</div>
+                <div style={{ fontSize: 14, color: 'var(--muted-on-dark)', lineHeight: 1.5 }}>
+                  To enable posting, you need an approved signer. Please:
+                  <ol style={{ marginTop: 8, marginBottom: 8, paddingLeft: 20 }}>
+                    <li>Go to <a href="https://warpcast.com/~/developers" target="_blank" rel="noopener noreferrer" style={{ color: 'rgb(251, 146, 60)', textDecoration: 'underline' }}>Warpcast Developer Settings</a></li>
+                    <li>Create and approve a signer for this app</li>
+                    <li>Or use the NEYNAR_SIGNER_UUID from your .env in development</li>
+                  </ol>
+                  Alternatively, posting through AuthKit's native flow may be available in a future update.
+                </div>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>

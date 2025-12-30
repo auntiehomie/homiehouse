@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID; // Fallback signer for development
 const NEYNAR_BASE = "https://api.neynar.com";
 
 export async function POST(req: NextRequest) {
@@ -23,12 +24,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!signerUuid) {
+    // Use provided signerUuid or fall back to env variable for development
+    const finalSignerUuid = signerUuid || NEYNAR_SIGNER_UUID;
+
+    if (!finalSignerUuid) {
       return NextResponse.json(
         {
           ok: false,
           error: "no_signer",
-          message: "You need to approve a signer first to post.",
+          message: "You need to approve a signer first to post, or set NEYNAR_SIGNER_UUID in .env",
         },
         { status: 403 }
       );
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        signer_uuid: signerUuid,
+        signer_uuid: finalSignerUuid,
         text: text.trim(),
       }),
     });

@@ -13,29 +13,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured" }, { status: 500 });
     }
 
-    // Use the registered signer endpoint which provides proper approval flow
-    const registerUrl = `${NEYNAR_BASE}/v2/farcaster/signer/developer_managed`;
-    const registerRes = await fetch(registerUrl, {
+    // Create signer using Neynar API
+    const createUrl = `${NEYNAR_BASE}/v2/farcaster/signer`;
+    const createRes = await fetch(createUrl, {
       method: "POST",
       headers: {
         "accept": "application/json",
         "api_key": NEYNAR_API_KEY,
-        "content-type": "application/json",
       },
-      body: JSON.stringify({}),
     });
 
-    if (!registerRes.ok) {
-      const errText = await registerRes.text();
-      console.error("/api/signer register failed", registerRes.status, errText);
-      return NextResponse.json({ ok: false, error: "register_failed", details: errText }, { status: registerRes.status });
+    if (!createRes.ok) {
+      const errText = await createRes.text();
+      console.error("/api/signer create failed", createRes.status, errText);
+      return NextResponse.json({ ok: false, error: "create_failed", details: errText }, { status: createRes.status });
     }
 
-    const data = await registerRes.json();
+    const data = await createRes.json();
     console.log("/api/signer full response:", JSON.stringify(data, null, 2));
 
-    // Neynar's developer_managed endpoint should provide signer_approval_url
-    const signerApprovalUrl = data.signer_approval_url || `https://client.warpcast.com/deeplinks/signed-key-request?token=${data.public_key}`;
+    // For Neynar signers with status "generated", user needs to register it via Warpcast
+    // The deeplink format should point to Warpcast's signed key registration
+    const signerApprovalUrl = `https://client.warpcast.com/deeplinks/signed-key-request?token=${data.public_key}`;
 
     return NextResponse.json({
       ok: true,
