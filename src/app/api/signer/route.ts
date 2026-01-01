@@ -105,6 +105,7 @@ export async function GET(req: NextRequest) {
       status: signerData.status,
       fid: signerData.fid,
       public_key: signerData.public_key,
+      signer_approval_url: signerData.signer_approval_url,
     });
   } catch (e: any) {
     console.error("/api/signer GET error", e);

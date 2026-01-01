@@ -113,6 +113,11 @@ export default function ComposeModal() {
 
       if (data.ok) {
         setSignerStatus(data.status);
+        
+        // Update approval URL if returned
+        if (data.signer_approval_url) {
+          setApprovalUrl(data.signer_approval_url);
+        }
 
         if (userFid) {
           const key = `signer_${userFid}`;
@@ -120,6 +125,10 @@ export default function ComposeModal() {
           if (stored) {
             const parsed = JSON.parse(stored);
             parsed.status = data.status;
+            // Preserve approval URL
+            if (data.signer_approval_url) {
+              parsed.signer_approval_url = data.signer_approval_url;
+            }
             localStorage.setItem(key, JSON.stringify(parsed));
           }
         }
@@ -237,33 +246,58 @@ export default function ComposeModal() {
                     </button>
                   ) : (
                     <>
-                      {approvalUrl && signerStatus !== "approved" && (
+                      {signerStatus !== "approved" && (
                         <div style={{ marginBottom: 16 }}>
-                          <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
-                            <QRCodeSVG value={approvalUrl} size={200} />
-                          </div>
-                          <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
-                            Scan this QR code or click below to approve:
-                          </p>
-                          <a 
-                            href={approvalUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="btn primary" 
-                            style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px' }}
-                          >
-                            Approve in Warpcast →
-                          </a>
+                          {approvalUrl ? (
+                            <>
+                              <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
+                                <QRCodeSVG value={approvalUrl} size={200} />
+                              </div>
+                              <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
+                                Scan this QR code or click below to approve:
+                              </p>
+                              <a 
+                                href={approvalUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="btn primary" 
+                                style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
+                              >
+                                Approve in Warpcast →
+                              </a>
+                            </>
+                          ) : (
+                            <div style={{ 
+                              padding: '12px', 
+                              background: 'rgba(232, 119, 34, 0.1)', 
+                              borderRadius: '8px', 
+                              marginBottom: '12px',
+                              fontSize: '14px',
+                              color: 'var(--muted-on-dark)'
+                            }}>
+                              Approval URL not found. Try creating a new signer.
+                            </div>
+                          )}
                         </div>
                       )}
                       <button 
                         className="btn" 
                         onClick={checkStatus} 
                         disabled={loading}
-                        style={{ width: '100%', padding: '12px' }}
+                        style={{ width: '100%', padding: '12px', marginBottom: '8px' }}
                       >
                         {loading ? "Checking..." : "Check Approval Status"}
                       </button>
+                      {signerStatus && (
+                        <div style={{ 
+                          fontSize: '13px', 
+                          color: 'var(--muted-on-dark)', 
+                          textAlign: 'center',
+                          padding: '8px'
+                        }}>
+                          Status: {signerStatus}
+                        </div>
+                      )}
                     </>
                   )}
                   
