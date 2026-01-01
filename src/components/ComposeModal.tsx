@@ -212,65 +212,95 @@ export default function ComposeModal() {
                 <button className="btn" onClick={() => setOpen(false)} aria-label="Close">Close</button>
               </div>
             </div>
-            <div style={{ marginTop: 16 }}>
-              <textarea
-                className="compose-textarea"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Write a cast..."
-                autoFocus
-              />
-            </div>
-            {userFid && signerStatus !== "approved" && (
-              <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(59, 130, 246, 0.05)' }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>Write Permissions</div>
-                {!signerUuid ? (
-                  <>
-                    <div style={{ marginBottom: 8, fontSize: 14, color: 'var(--muted-on-dark)' }}>
-                      Create a signer to enable posting from this app.
-                    </div>
-                    <button className="btn" onClick={createSigner} disabled={loading}>
-                      {loading ? "Creating…" : "Create Signer"}
+
+            {/* Show approval screen if signer not approved */}
+            {userFid && signerStatus !== "approved" ? (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
+                  <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
+                    Enable Posting
+                  </h3>
+                  <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
+                    To post casts from HomieHouse, you need to approve posting permissions. 
+                    This only needs to be done once.
+                  </p>
+                  
+                  {!signerUuid ? (
+                    <button 
+                      className="btn primary" 
+                      onClick={createSigner} 
+                      disabled={loading}
+                      style={{ width: '100%', padding: '12px', fontSize: 16 }}
+                    >
+                      {loading ? "Creating..." : "Enable Posting"}
                     </button>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ marginBottom: 8, fontSize: 14 }}>
-                      Status: <strong>{signerStatus}</strong>
+                  ) : (
+                    <>
+                      {approvalUrl && signerStatus !== "approved" && (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
+                            <QRCodeSVG value={approvalUrl} size={200} />
+                          </div>
+                          <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
+                            Scan this QR code or click below to approve:
+                          </p>
+                          <a 
+                            href={approvalUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="btn primary" 
+                            style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px' }}
+                          >
+                            Approve in Warpcast →
+                          </a>
+                        </div>
+                      )}
+                      <button 
+                        className="btn" 
+                        onClick={checkStatus} 
+                        disabled={loading}
+                        style={{ width: '100%', padding: '12px' }}
+                      >
+                        {loading ? "Checking..." : "Check Approval Status"}
+                      </button>
+                    </>
+                  )}
+                  
+                  {status && (
+                    <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: 'var(--surface)', fontSize: 14 }}>
+                      {status}
                     </div>
-                    {approvalUrl && signerStatus !== "approved" && (
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
-                          <QRCodeSVG value={approvalUrl} size={200} />
-                        </div>
-                        <div style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 8 }}>
-                          Scan this QR code with your phone, or click the button below:
-                        </div>
-                        <a href={approvalUrl} target="_blank" rel="noopener noreferrer" className="btn primary" style={{ display: 'block', textAlign: 'center', marginBottom: 8 }}>
-                          Approve Signer →
-                        </a>
-                      </div>
-                    )}
-                    <button className="btn" onClick={checkStatus} disabled={loading}>
-                      {loading ? "Checking…" : "Check Status"}
-                    </button>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
+            ) : (
+              /* Normal compose interface */
+              <>
+                <div style={{ marginTop: 16 }}>
+                  <textarea
+                    className="compose-textarea"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Write a cast..."
+                    autoFocus
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                  <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
+                  <button
+                    className="btn primary"
+                    disabled={loading || !text.trim()}
+                    onClick={async () => {
+                      await handlePost();
+                    }}
+                  >
+                    {loading ? "Posting…" : "Post"}
+                  </button>
+                </div>
+                {status && <div style={{ marginTop: 8 }}>{status}</div>}
+              </>
             )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-              <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
-              <button
-                className="btn primary"
-                disabled={loading || !text.trim()}
-                onClick={async () => {
-                  await handlePost();
-                }}
-              >
-                {loading ? "Posting…" : "Post"}
-              </button>
-            </div>
-            {status && <div style={{ marginTop: 8 }}>{status}</div>}
           </div>
         </div>
       )}
