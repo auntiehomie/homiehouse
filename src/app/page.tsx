@@ -20,14 +20,22 @@ export default function Home() {
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
   const [showLanding, setShowLanding] = useState(true);
+  const [hasStoredProfile, setHasStoredProfile] = useState(false);
 
   // Check if user has previously signed in via custom auth
   useEffect(() => {
     const hasProfile = localStorage.getItem("hh_profile");
-    if (hasProfile || isAuthenticated || profile) {
+    setHasStoredProfile(!!hasProfile);
+  }, []);
+
+  // Update landing page visibility based on auth state
+  useEffect(() => {
+    if (hasStoredProfile || isAuthenticated || profile) {
       setShowLanding(false);
+    } else {
+      setShowLanding(true);
     }
-  }, [isAuthenticated, profile]);
+  }, [hasStoredProfile, isAuthenticated, profile]);
 
   useEffect(() => {
     if (!showLanding) return; // Stop animation when logged in
