@@ -187,7 +187,14 @@ export default function FeedList({
                 )}
               </div>
             )}
-            <div style={{ marginTop: 6 }}>{text}</div>
+            <div style={{ 
+              marginTop: 6, 
+              wordBreak: 'break-word', 
+              overflowWrap: 'break-word',
+              whiteSpace: 'pre-wrap'
+            }}>
+              {text}
+            </div>
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted-on-dark)' }}>{timeLabel}</div>
           </article>
         );
