@@ -101,17 +101,19 @@ export default function Home() {
   // Authenticated user experience
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
-      <header className="max-w-4xl mx-auto px-6 py-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">HomieHouse</h1>
-          <nav className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <Link href="/">Home</Link>
-            <span className="px-2">·</span>
-            <Link href="/ask-homie">Ask Homie</Link>
-          </nav>
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <header className="max-w-4xl mx-auto px-6 py-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-semibold">HomieHouse</h1>
+            <nav className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              <Link href="/">Home</Link>
+              <span className="px-2">·</span>
+              <Link href="/ask-homie">Ask Homie</Link>
+            </nav>
+          </div>
           <WalletButton />
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
           <ComposeModal />
           <SignInWithFarcaster />
         </div>
