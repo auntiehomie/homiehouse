@@ -42,6 +42,24 @@ export default function ComposeModal() {
     }
   }, []);
 
+  // Reload signer data when modal opens (important for mobile)
+  useEffect(() => {
+    if (open && userFid) {
+      const key = `signer_${userFid}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setSignerUuid(parsed.signer_uuid || null);
+          setSignerStatus(parsed.status || null);
+          setApprovalUrl(parsed.signer_approval_url || null);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, [open, userFid]);
+
   async function createSigner() {
     if (!userFid) {
       setStatus("Sign in first.");
@@ -67,7 +85,14 @@ export default function ComposeModal() {
           signer_approval_url: data.signer_approval_url
         }));
 
-        setStatus("Signer created! Approve it to enable posting.");
+        // On mobile, automatically open approval link
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile && data.signer_approval_url) {
+          setStatus("Opening approval page...");
+          window.location.href = data.signer_approval_url;
+        } else {
+          setStatus("Signer created! Approve it to enable posting.");
+        }
       } else {
         setStatus(`Failed: ${data.error || "unknown"}`);
       }
@@ -123,6 +148,15 @@ export default function ComposeModal() {
         setLoading(false);
         return;
       }
+
+      // Check if signer is approved
+      if (signerStatus !== "approved" && !signerUuid) {
+        setStatus("Please create and approve a signer first.");
+        setLoading(false);
+        return;
+      }
+
+      console.log("Posting with:", { userFid, signerUuid, signerStatus, text });
 
       // Use user's signer or fallback to env
       const res = await fetch("/api/compose", {

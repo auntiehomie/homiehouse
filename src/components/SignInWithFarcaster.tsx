@@ -110,7 +110,7 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
       {/* Use default SignInButton so AuthKit renders its native trigger */}
-      <div>
+      <div style={{ transform: 'scale(0.95)' }}>
         <SignInButton onSuccess={handleAuthKitSuccess} />
       </div>
     </div>
