@@ -153,3 +153,31 @@ nav a:hover { color: var(--accent); }
     transform: translateY(0) scale(1);
   }
 }
+
+/* Compose textarea styling */
+.compose-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 1.5;
+  resize: vertical;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.compose-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232, 119, 34, 0.1);
+  background: var(--surface);
+}
+
+.compose-textarea::placeholder {
+  color: var(--muted-on-dark);
+  opacity: 0.6;
+}

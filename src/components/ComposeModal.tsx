@@ -173,12 +173,13 @@ export default function ComposeModal() {
                 <button className="btn" onClick={() => setOpen(false)} aria-label="Close">Close</button>
               </div>
             </div>
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 16 }}>
               <textarea
-                className="w-full min-h-[120px] p-3 rounded border"
+                className="compose-textarea"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Write a cast..."
+                autoFocus
               />
             </div>
             {isAuthenticated && signerStatus !== "approved" && (
