@@ -84,10 +84,10 @@ export default function Home() {
         </header>
         
         <main className="flex-1 flex items-center justify-center px-6">
-          <div className="text-center">
+          <div className="text-center max-w-4xl mx-auto">
             <h1 
-              className={`text-5xl md:text-6xl font-bold mb-8 transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}
-              style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              className={`text-5xl md:text-6xl font-bold transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}
+              style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
             >
               {MESSAGES[currentMessageIndex]}
             </h1>
