@@ -8,6 +8,7 @@ import TrendingList from "../components/TrendingList";
 import SignInWithFarcaster from "../components/SignInWithFarcaster";
 import WalletButton from "../components/WalletButton";
 import WalletDashboard from "../components/WalletDashboard";
+import ChannelsList from "../components/ChannelsList";
 import { useProfile } from "@farcaster/auth-kit";
 
 const MESSAGES = [
@@ -118,9 +119,10 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-          {/* Wallet Sidebar */}
-          <aside className="md:col-span-2 md:col-start-2">
+          {/* Left Sidebar - Wallet + Channels */}
+          <aside className="md:col-span-2 md:col-start-2 flex flex-col gap-6">
             <WalletDashboard />
+            <ChannelsList />
           </aside>
 
           {/* Main Content */}

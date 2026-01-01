@@ -258,3 +258,28 @@ nav a:hover { color: var(--accent); }
   color: var(--muted-on-dark);
   opacity: 0.5;
 }
+
+/* Channels List Styling */
+.channels-list {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  position: sticky;
+  top: 1rem;
+}
+
+.channel-link {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--muted-on-dark);
+  text-decoration: none;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.channel-link:hover {
+  background: var(--bg-dark);
+  color: var(--accent);
+}
