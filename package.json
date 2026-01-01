@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.2",
     "@farcaster/auth-client": "^0.7.0",
     "@farcaster/auth-kit": "^0.8.1",
     "@farcaster/hub-nodejs": "^0.15.9",
