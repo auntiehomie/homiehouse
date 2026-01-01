@@ -116,25 +116,33 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <WalletDashboard />
-        
-        <section className="mb-8 text-center">
-          <h2 className="text-3xl font-bold mb-2">HomieHouse - Your Social Hub</h2>
-          <p className="text-lg text-zinc-600 dark:text-zinc-400">Your place to share what's on your mind</p>
-        </section>
-
-        <section className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-          <div className="sm:col-span-2">
-            <h3 className="text-xl font-semibold mb-4">Explore</h3>
-            <FeedTrendingTabs />
-          </div>
-
-          <aside className="p-4 border rounded-md">
-            <h3 className="font-medium">Trending</h3>
-            <TrendingList />
+      <main className="max-w-6xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {/* Wallet Sidebar */}
+          <aside className="md:col-span-1">
+            <WalletDashboard />
           </aside>
-        </section>
+
+          {/* Main Content */}
+          <div className="md:col-span-3">
+            <section className="mb-8 text-center">
+              <h2 className="text-3xl font-bold mb-2">HomieHouse - Your Social Hub</h2>
+              <p className="text-lg text-zinc-600 dark:text-zinc-400">Your place to share what's on your mind</p>
+            </section>
+
+            <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                <h3 className="text-xl font-semibold mb-4">Explore</h3>
+                <FeedTrendingTabs />
+              </div>
+
+              <aside className="p-4 border rounded-md">
+                <h3 className="font-medium">Trending</h3>
+                <TrendingList />
+              </aside>
+            </section>
+          </div>
+        </div>
       </main>
     </div>
   );

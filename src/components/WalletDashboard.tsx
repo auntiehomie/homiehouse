@@ -72,11 +72,11 @@ export default function WalletDashboard() {
           </div>
 
           <div className="wallet-address">
-            <div style={{ fontSize: '12px', color: 'var(--muted-on-dark)', marginBottom: '4px' }}>
-              Your Address
+            <div style={{ fontSize: '10px', color: 'var(--muted-on-dark)', marginBottom: '4px' }}>
+              Address
             </div>
-            <div style={{ fontSize: '14px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-              {address}
+            <div style={{ fontSize: '11px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              {address?.slice(0, 6)}...{address?.slice(-4)}
             </div>
           </div>
         </div>
