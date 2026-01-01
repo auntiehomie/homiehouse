@@ -1,11 +1,64 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import TrendingList from "../components/TrendingList";
 import SignInWithFarcaster from "../components/SignInWithFarcaster";
 import WalletButton from "../components/WalletButton";
+import { useProfile } from "@farcaster/auth-kit";
+
+const MESSAGES = [
+  "HomieHouse - Your Social Hub",
+  "Cast, learn, and grow with Ask Homie",
+  "Log in to start"
+];
 
 export default function Home() {
+  const { isAuthenticated } = useProfile();
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [fade, setFade] = useState(true);
+
+  useEffect(() => {
+    if (isAuthenticated) return; // Stop animation when logged in
+
+    const interval = setInterval(() => {
+      setFade(false);
+      
+      setTimeout(() => {
+        setCurrentMessageIndex((prev) => (prev + 1) % MESSAGES.length);
+        setFade(true);
+      }, 500); // Half second fade out before changing text
+      
+    }, 3500); // Show each message for 3.5 seconds
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  // Landing page for unauthenticated users
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
+        <header className="px-6 py-8 flex justify-end">
+          <SignInWithFarcaster />
+        </header>
+        
+        <main className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center">
+            <h1 
+              className={`text-5xl md:text-6xl font-bold mb-8 transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}
+              style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {MESSAGES[currentMessageIndex]}
+            </h1>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Authenticated user experience
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <header className="max-w-4xl mx-auto px-6 py-8 flex items-center justify-between">
@@ -20,7 +73,6 @@ export default function Home() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <WalletButton />
           <ComposeModal />
-          {/* Sign-in with Farcaster component */}
           <SignInWithFarcaster />
         </div>
       </header>
@@ -46,4 +98,3 @@ export default function Home() {
     </div>
   );
 }
-            
