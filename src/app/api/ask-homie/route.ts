@@ -28,12 +28,63 @@ Key Facts about HomieHouse:
 
 Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
 
+// Intelligent provider selection based on question content
+function selectBestProvider(question: string): 'claude' | 'openai' {
+  const lowerQuestion = question.toLowerCase();
+  
+  // Keywords that suggest Claude would be better
+  const claudeKeywords = [
+    'write', 'story', 'creative', 'essay', 'poem', 'philosophical',
+    'explain like', 'eli5', 'analogy', 'metaphor', 'analyze',
+    'opinion', 'think about', 'perspective', 'nuance', 'ethics',
+    'summarize', 'rewrite', 'improve', 'feedback', 'critique'
+  ];
+  
+  // Keywords that suggest OpenAI would be better
+  const openaiKeywords = [
+    'code', 'function', 'debug', 'error', 'api', 'typescript',
+    'javascript', 'python', 'sql', 'algorithm', 'data structure',
+    'calculate', 'math', 'number', 'formula', 'json',
+    'parse', 'regex', 'syntax', 'compile', 'implement'
+  ];
+  
+  let claudeScore = 0;
+  let openaiScore = 0;
+  
+  // Count keyword matches
+  for (const keyword of claudeKeywords) {
+    if (lowerQuestion.includes(keyword)) claudeScore++;
+  }
+  
+  for (const keyword of openaiKeywords) {
+    if (lowerQuestion.includes(keyword)) openaiScore++;
+  }
+  
+  // Additional heuristics
+  if (lowerQuestion.includes('?') && lowerQuestion.split(' ').length > 15) {
+    // Long questions tend to be better for Claude's analysis
+    claudeScore++;
+  }
+  
+  if (lowerQuestion.includes('```') || lowerQuestion.includes('function') || lowerQuestion.includes('const')) {
+    // Code blocks suggest technical question
+    openaiScore += 2;
+  }
+  
+  // Default to Claude if no clear winner (Claude handles general questions well)
+  return openaiScore > claudeScore ? 'openai' : 'claude';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { messages, provider: requestedProvider } = await req.json();
 
-    // Allow per-request provider override, otherwise use env default
-    const selectedProvider = requestedProvider || AI_PROVIDER;
+    // Get the last user message to analyze
+    const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
+    const question = lastUserMessage?.content || '';
+
+    // Smart provider selection: use requested provider, or auto-select based on content
+    const selectedProvider = requestedProvider || selectBestProvider(question);
 
     let response: string;
     let usedProvider = selectedProvider;
