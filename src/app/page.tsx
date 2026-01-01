@@ -7,6 +7,7 @@ import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import TrendingList from "../components/TrendingList";
 import SignInWithFarcaster from "../components/SignInWithFarcaster";
 import WalletButton from "../components/WalletButton";
+import WalletDashboard from "../components/WalletDashboard";
 import { useProfile } from "@farcaster/auth-kit";
 
 const MESSAGES = [
@@ -116,6 +117,8 @@ export default function Home() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-12">
+        <WalletDashboard />
+        
         <section className="mb-8 text-center">
           <h2 className="text-3xl font-bold mb-2">HomieHouse - Your Social Hub</h2>
           <p className="text-lg text-zinc-600 dark:text-zinc-400">Your place to share what's on your mind</p>
