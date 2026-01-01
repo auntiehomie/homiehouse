@@ -4,6 +4,14 @@ import { useState, useEffect } from "react";
 import { useAccount, useBalance, useSendTransaction, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther, formatEther } from "viem";
 
+interface FarcasterFriend {
+  fid: number;
+  username: string;
+  displayName: string;
+  pfpUrl: string;
+  ethAddresses: string[];
+}
+
 export default function WalletDashboard() {
   const { address, isConnected, chain } = useAccount();
   const { data: balance } = useBalance({ address });
@@ -11,9 +19,44 @@ export default function WalletDashboard() {
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [sendStatus, setSendStatus] = useState<string | null>(null);
+  const [friends, setFriends] = useState<FarcasterFriend[]>([]);
+  const [loadingFriends, setLoadingFriends] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<FarcasterFriend | null>(null);
 
   const { data: hash, sendTransaction, isPending: isSending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  // Load Farcaster friends when modal opens
+  useEffect(() => {
+    if (showSendModal && friends.length === 0) {
+      loadFriends();
+    }
+  }, [showSendModal]);
+
+  const loadFriends = async () => {
+    setLoadingFriends(true);
+    try {
+      const storedProfile = localStorage.getItem("hh_profile");
+      if (!storedProfile) return;
+      
+      const profile = JSON.parse(storedProfile);
+      const response = await fetch(`/api/friends?fid=${profile.fid}`);
+      const data = await response.json();
+      
+      if (data.friends) {
+        setFriends(data.friends);
+      }
+    } catch (error) {
+      console.error("Error loading friends:", error);
+    } finally {
+      setLoadingFriends(false);
+    }
+  };
+
+  const selectFriend = (friend: FarcasterFriend) => {
+    setSelectedFriend(friend);
+    setRecipient(friend.ethAddresses[0]); // Use first verified address
+  };
 
   useEffect(() => {
     if (isSuccess) {
@@ -23,6 +66,7 @@ export default function WalletDashboard() {
         setSendStatus(null);
         setRecipient("");
         setAmount("");
+        setSelectedFriend(null);
       }, 2000);
     }
   }, [isSuccess]);
@@ -91,6 +135,74 @@ export default function WalletDashboard() {
             </div>
 
             <form onSubmit={handleSend}>
+              {/* Friend Picker */}
+              {friends.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+                    Send to Farcaster Friend
+                  </label>
+                  <div style={{ 
+                    maxHeight: '200px', 
+                    overflowY: 'auto', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: '8px',
+                    background: 'var(--bg-dark)'
+                  }}>
+                    {friends.map((friend) => (
+                      <div
+                        key={friend.fid}
+                        onClick={() => selectFriend(friend)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          background: selectedFriend?.fid === friend.fid ? 'var(--accent)' : 'transparent',
+                          color: selectedFriend?.fid === friend.fid ? 'white' : 'inherit',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedFriend?.fid !== friend.fid) {
+                            e.currentTarget.style.background = 'var(--surface)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedFriend?.fid !== friend.fid) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        <img 
+                          src={friend.pfpUrl} 
+                          alt={friend.displayName}
+                          style={{ 
+                            width: '32px', 
+                            height: '32px', 
+                            borderRadius: '50%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600 }}>
+                            {friend.displayName}
+                          </div>
+                          <div style={{ fontSize: '12px', opacity: 0.7 }}>
+                            @{friend.username}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {loadingFriends && (
+                <div style={{ marginBottom: '16px', textAlign: 'center', padding: '16px', color: 'var(--muted-on-dark)' }}>
+                  Loading friends...
+                </div>
+              )}
+
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
                   Recipient Address
