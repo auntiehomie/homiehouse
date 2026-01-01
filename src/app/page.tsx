@@ -16,12 +16,21 @@ const MESSAGES = [
 ];
 
 export default function Home() {
-  const { isAuthenticated } = useProfile();
+  const { isAuthenticated, profile } = useProfile();
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
+  const [showLanding, setShowLanding] = useState(true);
+
+  // Check if user has previously signed in via custom auth
+  useEffect(() => {
+    const hasProfile = localStorage.getItem("hh_profile");
+    if (hasProfile || isAuthenticated || profile) {
+      setShowLanding(false);
+    }
+  }, [isAuthenticated, profile]);
 
   useEffect(() => {
-    if (isAuthenticated) return; // Stop animation when logged in
+    if (!showLanding) return; // Stop animation when logged in
 
     const interval = setInterval(() => {
       setFade(false);
@@ -34,14 +43,14 @@ export default function Home() {
     }, 3500); // Show each message for 3.5 seconds
 
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [showLanding]);
 
   // Landing page for unauthenticated users
-  if (!isAuthenticated) {
+  if (showLanding) {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
         <header className="px-6 py-8 flex justify-end">
-          <SignInWithFarcaster />
+          <SignInWithFarcaster onSignInSuccess={() => setShowLanding(false)} />
         </header>
         
         <main className="flex-1 flex items-center justify-center px-6">

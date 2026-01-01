@@ -1,13 +1,23 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SignInButton } from "@farcaster/auth-kit";
 
 type Profile = { username: string; displayName?: string; avatar?: string } | null;
 
-export default function SignInWithFarcaster() {
+export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSuccess?: () => void } = {}) {
   const [profile, setProfile] = useState<Profile>(null);
   const [loading, setLoading] = useState(false);
+
+  // Load profile from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("hh_profile");
+    if (stored) {
+      try {
+        setProfile(JSON.parse(stored));
+      } catch (e) {}
+    }
+  }, []);
 
   async function handleAuthKitSuccess(payload: any) {
     // AuthKit should provide a message and signature (SIWE)
@@ -55,6 +65,8 @@ export default function SignInWithFarcaster() {
 
       if (data?.profile) {
         setProfile(data.profile);
+        localStorage.setItem("hh_profile", JSON.stringify(data.profile));
+        onSignInSuccess?.(); // Notify parent component
       } else {
         console.warn("/api/siwf returned no profile", data);
         alert("Sign-in verification failed. Check server logs for details.");
