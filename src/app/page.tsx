@@ -120,13 +120,13 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
           {/* Left Sidebar - Wallet + Channels */}
-          <aside className="md:col-span-2 md:col-start-2 flex flex-col gap-6">
+          <aside className="md:col-span-2 flex flex-col gap-6">
             <WalletDashboard />
             <ChannelsList />
           </aside>
 
           {/* Main Content */}
-          <div className="md:col-span-8">
+          <div className="md:col-span-9 md:col-start-4">
             <section className="mb-8 text-center">
               <h2 className="text-3xl font-bold mb-2">HomieHouse - Your Social Hub</h2>
               <p className="text-lg text-zinc-600 dark:text-zinc-400">Your place to share what's on your mind</p>
