@@ -13,18 +13,29 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const fid = url.searchParams.get("fid");
+    const feedType = url.searchParams.get("feed_type") || "following";
+    const channel = url.searchParams.get("channel");
 
     if (!NEYNAR) {
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured. Set NEYNAR_API_KEY in env to enable server-side feed fetching." }, { status: 501 });
     }
 
-    if (!fid) {
-      return NextResponse.json({ ok: false, error: "missing fid" }, { status: 400 });
+    // Build endpoint based on feed type
+    let endpoint;
+    if (channel) {
+      // Channel-specific feed
+      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/channels?channel_ids=${encodeURIComponent(channel)}&limit=50`;
+    } else if (feedType === "following" && fid) {
+      // User's following feed
+      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=following&fid=${encodeURIComponent(fid)}&limit=50`;
+    } else if (feedType === "channels") {
+      // Popular channels feed
+      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=filter&filter_type=channel_id&limit=50`;
+    } else {
+      // Global feed
+      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=filter&filter_type=global_trending&limit=50`;
     }
-
-    // Use the v2 feed endpoint with filters. For a user's home/following feed,
-    // set feed_type=following and provide fid.
-    const endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=following&fid=${encodeURIComponent(fid)}&limit=50`;
+    
     try {
       const res = await fetch(endpoint, { headers: { "x-api-key": NEYNAR } });
       if (!res.ok) {
@@ -35,7 +46,7 @@ export async function GET(req: NextRequest) {
 
       const data = await res.json();
       const casts = Array.isArray(data?.casts) ? data.casts : [];
-      try { console.log(`/api/feed fetched ${casts.length} casts for fid=${fid} from ${endpoint}`); } catch {}
+      try { console.log(`/api/feed fetched ${casts.length} casts for feedType=${feedType}, channel=${channel || 'none'} from ${endpoint}`); } catch {}
       // Return the casts array so the client can render directly
       return NextResponse.json({ ok: true, data: casts, next: data?.next ?? null });
     } catch (e: any) {
