@@ -188,8 +188,7 @@ nav a:hover { color: var(--accent); }
   border-radius: 12px;
   padding: 1rem;
   border: 1px solid var(--border);
-  position: sticky;
-  top: 1rem;
+  min-width: 180px;
 }
 
 .wallet-info {
@@ -265,8 +264,6 @@ nav a:hover { color: var(--accent); }
   border-radius: 12px;
   padding: 1rem;
   border: 1px solid var(--border);
-  position: sticky;
-  top: 1rem;
   min-width: 180px;
 }
 
