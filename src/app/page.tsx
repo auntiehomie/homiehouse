@@ -16,26 +16,33 @@ const MESSAGES = [
 ];
 
 export default function Home() {
-  const { isAuthenticated, profile } = useProfile();
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
   const [showLanding, setShowLanding] = useState(true);
-  const [hasStoredProfile, setHasStoredProfile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Check if user has previously signed in via custom auth
+  // Wait for client-side mount
   useEffect(() => {
-    const hasProfile = localStorage.getItem("hh_profile");
-    setHasStoredProfile(!!hasProfile);
+    setMounted(true);
   }, []);
 
-  // Update landing page visibility based on auth state
+  // Check if user has previously signed in - only check localStorage
   useEffect(() => {
-    if (hasStoredProfile || isAuthenticated || profile) {
-      setShowLanding(false);
+    if (!mounted) return;
+    
+    const storedProfile = localStorage.getItem("hh_profile");
+    if (storedProfile) {
+      try {
+        setUserProfile(JSON.parse(storedProfile));
+        setShowLanding(false);
+      } catch (e) {
+        setShowLanding(true);
+      }
     } else {
       setShowLanding(true);
     }
-  }, [hasStoredProfile, isAuthenticated, profile]);
+  }, [mounted]);
 
   useEffect(() => {
     if (!showLanding) return; // Stop animation when logged in
@@ -53,12 +60,26 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [showLanding]);
 
+  // Prevent hydration mismatch - show nothing until mounted
+  if (!mounted) {
+    return null;
+  }
+
   // Landing page for unauthenticated users
   if (showLanding) {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
         <header className="px-6 py-8 flex justify-end">
-          <SignInWithFarcaster onSignInSuccess={() => setShowLanding(false)} />
+          <SignInWithFarcaster onSignInSuccess={() => {
+            setShowLanding(false);
+            // Reload profile after sign in
+            const storedProfile = localStorage.getItem("hh_profile");
+            if (storedProfile) {
+              try {
+                setUserProfile(JSON.parse(storedProfile));
+              } catch (e) {}
+            }
+          }} />
         </header>
         
         <main className="flex-1 flex items-center justify-center px-6">
