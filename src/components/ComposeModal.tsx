@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useProfile } from "@farcaster/auth-kit";
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function ComposeModal() {
@@ -12,33 +11,39 @@ export default function ComposeModal() {
   const [signerUuid, setSignerUuid] = useState<string | null>(null);
   const [signerStatus, setSignerStatus] = useState<string | null>(null);
   const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
+  const [userFid, setUserFid] = useState<number | null>(null);
 
-  const { isAuthenticated, profile } = useProfile();
-
-  // Load signer from localStorage
+  // Load user profile and signer from localStorage
   useEffect(() => {
-    if (isAuthenticated && profile?.fid) {
-      const key = `signer_${profile.fid}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setSignerUuid(parsed.signer_uuid || null);
-          setSignerStatus(parsed.status || null);
-          setApprovalUrl(parsed.signer_approval_url || null);
-        } catch {
-          // ignore
+    const storedProfile = localStorage.getItem("hh_profile");
+    if (storedProfile) {
+      try {
+        const profile = JSON.parse(storedProfile);
+        const fid = profile?.fid;
+        setUserFid(fid);
+        
+        if (fid) {
+          const key = `signer_${fid}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              setSignerUuid(parsed.signer_uuid || null);
+              setSignerStatus(parsed.status || null);
+              setApprovalUrl(parsed.signer_approval_url || null);
+            } catch {
+              // ignore
+            }
+          }
         }
+      } catch {
+        // ignore
       }
-    } else {
-      setSignerUuid(null);
-      setSignerStatus(null);
-      setApprovalUrl(null);
     }
-  }, [isAuthenticated, profile?.fid]);
+  }, []);
 
   async function createSigner() {
-    if (!profile?.fid) {
+    if (!userFid) {
       setStatus("Sign in first.");
       return;
     }
@@ -55,7 +60,7 @@ export default function ComposeModal() {
         setSignerStatus(data.status);
         setApprovalUrl(data.signer_approval_url);
 
-        const key = `signer_${profile.fid}`;
+        const key = `signer_${userFid}`;
         localStorage.setItem(key, JSON.stringify({
           signer_uuid: data.signer_uuid,
           status: data.status,
@@ -84,8 +89,8 @@ export default function ComposeModal() {
       if (data.ok) {
         setSignerStatus(data.status);
 
-        if (profile?.fid) {
-          const key = `signer_${profile.fid}`;
+        if (userFid) {
+          const key = `signer_${userFid}`;
           const stored = localStorage.getItem(key);
           if (stored) {
             const parsed = JSON.parse(stored);
@@ -113,7 +118,7 @@ export default function ComposeModal() {
     setStatus(null);
     setLoading(true);
     try {
-      if (!isAuthenticated || !profile?.fid) {
+      if (!userFid) {
         setStatus("Sign in to post.");
         setLoading(false);
         return;
@@ -126,7 +131,7 @@ export default function ComposeModal() {
         body: JSON.stringify({ 
           text, 
           signerUuid: signerUuid || undefined,
-          fid: profile.fid 
+          fid: userFid 
         }),
       });
 
@@ -182,7 +187,7 @@ export default function ComposeModal() {
                 autoFocus
               />
             </div>
-            {isAuthenticated && signerStatus !== "approved" && (
+            {userFid && signerStatus !== "approved" && (
               <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'rgba(59, 130, 246, 0.05)' }}>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>Write Permissions</div>
                 {!signerUuid ? (
