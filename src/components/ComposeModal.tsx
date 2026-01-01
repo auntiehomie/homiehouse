@@ -134,6 +134,11 @@ export default function ComposeModal() {
       if (data.ok) {
         setStatus("✓ Posted successfully!");
         setText("");
+        // Close modal after brief delay to show success message
+        setTimeout(() => {
+          setOpen(false);
+          setStatus(null);
+        }, 800);
       } else {
         setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
       }
