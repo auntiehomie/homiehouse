@@ -267,16 +267,18 @@ nav a:hover { color: var(--accent); }
   border: 1px solid var(--border);
   position: sticky;
   top: 1rem;
+  min-width: 180px;
 }
 
 .channel-link {
   display: block;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-radius: 8px;
   color: var(--muted-on-dark);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 15px;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .channel-link:hover {
