@@ -64,16 +64,15 @@ export default function WalletDashboard() {
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    // Show friends list if typing @ or have query
-    if (value.startsWith('@') || value.length > 0) {
-      setShowFriendsList(true);
-    } else {
-      setShowFriendsList(false);
-    }
+    // Always show friends list when there's input or friends available
+    setShowFriendsList(true);
   };
 
   // Filter friends based on search query
   const filteredFriends = friends.filter((friend) => {
+    if (!searchQuery || searchQuery === '@') {
+      return true; // Show all friends if no query or just @
+    }
     const query = searchQuery.replace('@', '').toLowerCase();
     return (
       friend.username.toLowerCase().includes(query) ||
@@ -169,17 +168,25 @@ export default function WalletDashboard() {
                   <input
                     type="text"
                     className="wallet-input"
-                    placeholder="Type @ to search friends..."
+                    placeholder={loadingFriends ? "Loading friends..." : "Type @ to search friends..."}
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     disabled={isSending || isConfirming || loadingFriends}
                     onFocus={() => {
-                      if (friends.length > 0) setShowFriendsList(true);
+                      if (!loadingFriends) setShowFriendsList(true);
+                      if (friends.length === 0) loadFriends();
                     }}
                   />
                   
+                  {/* Debug info */}
+                  {searchQuery && (
+                    <div style={{ fontSize: '11px', color: 'var(--muted-on-dark)', marginTop: '4px' }}>
+                      Found {filteredFriends.length} friends
+                    </div>
+                  )}
+                  
                   {/* Friends Dropdown */}
-                  {showFriendsList && filteredFriends.length > 0 && (
+                  {showFriendsList && !loadingFriends && filteredFriends.length > 0 && (
                     <div style={{
                       position: 'absolute',
                       top: '100%',
@@ -272,6 +279,12 @@ export default function WalletDashboard() {
               {loadingFriends && (
                 <div style={{ marginBottom: '16px', textAlign: 'center', padding: '16px', color: 'var(--muted-on-dark)' }}>
                   Loading friends...
+                </div>
+              )}
+              
+              {!loadingFriends && friends.length === 0 && (
+                <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(232, 119, 34, 0.1)', borderRadius: '8px', fontSize: '14px' }}>
+                  No friends with verified addresses found. Make sure you're following people on Farcaster who have verified Ethereum addresses.
                 </div>
               )}
 
