@@ -26,9 +26,114 @@ export default function FeedList({
 }: FeedListProps) {
   const [items, setItems] = useState<any[] | null>(null);
   const [showActions, setShowActions] = useState<string | null>(null);
+  const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
+  const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const { isAuthenticated, profile } = useProfile();
+  // Get user's signer UUID from localStorage
+  const getSignerUuid = () => {
+    const storedProfile = localStorage.getItem("hh_profile");
+    if (!storedProfile) return null;
+    
+    try {
+      const profile = JSON.parse(storedProfile);
+      const fid = profile?.fid;
+      if (!fid) return null;
+      
+      const key = `signer_${fid}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.signer_uuid || null;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
 
+  const handleLike = async (castHash: string) => {
+    const signerUuid = getSignerUuid();
+    if (!signerUuid) {
+      alert("Please create a signer first to like casts");
+      return;
+    }
+
+    setActionLoading(`like-${castHash}`);
+    try {
+      const isLiked = likedCasts.has(castHash);
+      
+      if (isLiked) {
+        // Unlike
+        const res = await fetch(`/api/like?castHash=${castHash}&signerUuid=${signerUuid}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          setLikedCasts(prev => {
+            const next = new Set(prev);
+            next.delete(castHash);
+            return next;
+          });
+        }
+      } else {
+        // Like
+        const res = await fetch("/api/like", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ castHash, signerUuid }),
+        });
+        if (res.ok) {
+          setLikedCasts(prev => new Set([...prev, castHash]));
+        }
+      }
+    } catch (error) {
+      console.error("Like error:", error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRecast = async (castHash: string) => {
+    const signerUuid = getSignerUuid();
+    if (!signerUuid) {
+      alert("Please create a signer first to recast");
+      return;
+    }
+
+    setActionLoading(`recast-${castHash}`);
+    try {
+      const isRecasted = recastedCasts.has(castHash);
+      
+      if (isRecasted) {
+        // Remove recast
+        const res = await fetch(`/api/recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          setRecastedCasts(prev => {
+            const next = new Set(prev);
+            next.delete(castHash);
+            return next;
+          });
+        }
+      } else {
+        // Recast
+        const res = await fetch("/api/recast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ castHash, signerUuid }),
+        });
+        if (res.ok) {
+          setRecastedCasts(prev => new Set([...prev, castHash]));
+        }
+      }
+    } catch (error) {
+      console.error("Recast error:", error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -196,6 +301,80 @@ export default function FeedList({
               {text}
             </div>
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted-on-dark)' }}>{timeLabel}</div>
+            
+            {/* Like and Recast buttons */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '16px', 
+              marginTop: '12px', 
+              paddingTop: '12px', 
+              borderTop: '1px solid var(--border)' 
+            }}>
+              <button
+                onClick={() => handleLike(key)}
+                disabled={actionLoading === `like-${key}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: likedCasts.has(key) ? 'var(--accent)' : 'var(--muted-on-dark)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!likedCasts.has(key)) {
+                    e.currentTarget.style.background = 'rgba(232, 119, 34, 0.1)';
+                    e.currentTarget.style.color = 'var(--accent)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!likedCasts.has(key)) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--muted-on-dark)';
+                  }
+                }}
+              >
+                {likedCasts.has(key) ? '❤️' : '🤍'} 
+                {actionLoading === `like-${key}` ? 'Loading...' : 'Like'}
+              </button>
+              
+              <button
+                onClick={() => handleRecast(key)}
+                disabled={actionLoading === `recast-${key}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: recastedCasts.has(key) ? '#10b981' : 'var(--muted-on-dark)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!recastedCasts.has(key)) {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)';
+                    e.currentTarget.style.color = '#10b981';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!recastedCasts.has(key)) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--muted-on-dark)';
+                  }
+                }}
+              >
+                🔁 {actionLoading === `recast-${key}` ? 'Loading...' : (recastedCasts.has(key) ? 'Recasted' : 'Recast')}
+              </button>
+            </div>
           </article>
         );
       })}
