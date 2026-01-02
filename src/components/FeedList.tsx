@@ -31,6 +31,11 @@ export default function FeedList({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const { isAuthenticated, profile } = useProfile();
+
+  const [showSignerModal, setShowSignerModal] = useState(false);
+  const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
+  const [creatingSignerFor, setCreatingSignerFor] = useState<'like' | 'recast' | null>(null);
+
   // Get user's signer UUID from localStorage
   const getSignerUuid = () => {
     const storedProfile = localStorage.getItem("hh_profile");
@@ -53,10 +58,49 @@ export default function FeedList({
     return null;
   };
 
+  const createSignerAutomatically = async (actionType: 'like' | 'recast') => {
+    setCreatingSignerFor(actionType);
+    try {
+      const res = await fetch("/api/signer", { method: "POST" });
+      const data = await res.json();
+
+      if (data.ok && data.signer_uuid) {
+        const storedProfile = localStorage.getItem("hh_profile");
+        if (storedProfile) {
+          const profile = JSON.parse(storedProfile);
+          const fid = profile?.fid;
+          if (fid) {
+            const key = `signer_${fid}`;
+            localStorage.setItem(key, JSON.stringify({
+              signer_uuid: data.signer_uuid,
+              status: data.status,
+              signer_approval_url: data.signer_approval_url
+            }));
+          }
+        }
+
+        // Show approval modal
+        setSignerApprovalUrl(data.signer_approval_url);
+        setShowSignerModal(true);
+
+        // On mobile, auto-redirect
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile && data.signer_approval_url) {
+          window.location.href = data.signer_approval_url;
+        }
+      }
+    } catch (error) {
+      console.error("Signer creation error:", error);
+      alert("Failed to create signer. Please try again.");
+    } finally {
+      setCreatingSignerFor(null);
+    }
+  };
+
   const handleLike = async (castHash: string) => {
     const signerUuid = getSignerUuid();
     if (!signerUuid) {
-      alert("Please create a signer first to like casts");
+      await createSignerAutomatically('like');
       return;
     }
 
@@ -97,7 +141,7 @@ export default function FeedList({
   const handleRecast = async (castHash: string) => {
     const signerUuid = getSignerUuid();
     if (!signerUuid) {
-      alert("Please create a signer first to recast");
+      await createSignerAutomatically('recast');
       return;
     }
 
@@ -378,6 +422,48 @@ export default function FeedList({
           </article>
         );
       })}
+
+      {/* Signer Approval Modal */}
+      {showSignerModal && (
+        <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
+              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
+                Approve Posting Permissions
+              </h3>
+              <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
+                To {creatingSignerFor} casts, you need to approve posting permissions in Warpcast.
+                This only needs to be done once.
+              </p>
+              
+              {signerApprovalUrl && (
+                <a 
+                  href={signerApprovalUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="btn primary" 
+                  style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
+                >
+                  Approve in Warpcast →
+                </a>
+              )}
+              
+              <button 
+                className="btn" 
+                onClick={() => setShowSignerModal(false)}
+                style={{ width: '100%', padding: '12px' }}
+              >
+                Close
+              </button>
+              
+              <p style={{ fontSize: '13px', color: 'var(--muted-on-dark)', marginTop: '16px' }}>
+                After approving, refresh the page and try again.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
