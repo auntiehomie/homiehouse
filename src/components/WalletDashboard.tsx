@@ -22,6 +22,8 @@ export default function WalletDashboard() {
   const [friends, setFriends] = useState<FarcasterFriend[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<FarcasterFriend | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFriendsList, setShowFriendsList] = useState(false);
 
   const { data: hash, sendTransaction, isPending: isSending } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
@@ -56,7 +58,28 @@ export default function WalletDashboard() {
   const selectFriend = (friend: FarcasterFriend) => {
     setSelectedFriend(friend);
     setRecipient(friend.ethAddresses[0]); // Use first verified address
+    setSearchQuery(`@${friend.username}`);
+    setShowFriendsList(false);
   };
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    // Show friends list if typing @ or have query
+    if (value.startsWith('@') || value.length > 0) {
+      setShowFriendsList(true);
+    } else {
+      setShowFriendsList(false);
+    }
+  };
+
+  // Filter friends based on search query
+  const filteredFriends = friends.filter((friend) => {
+    const query = searchQuery.replace('@', '').toLowerCase();
+    return (
+      friend.username.toLowerCase().includes(query) ||
+      friend.displayName.toLowerCase().includes(query)
+    );
+  });
 
   useEffect(() => {
     if (isSuccess) {
@@ -67,6 +90,8 @@ export default function WalletDashboard() {
         setRecipient("");
         setAmount("");
         setSelectedFriend(null);
+        setSearchQuery("");
+        setShowFriendsList(false);
       }, 2000);
     }
   }, [isSuccess]);
@@ -135,67 +160,114 @@ export default function WalletDashboard() {
             </div>
 
             <form onSubmit={handleSend}>
-              {/* Friend Picker */}
-              {friends.length > 0 && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
-                    Send to Farcaster Friend
-                  </label>
-                  <div style={{ 
-                    maxHeight: '200px', 
-                    overflowY: 'auto', 
-                    border: '1px solid var(--border)', 
-                    borderRadius: '8px',
-                    background: 'var(--bg-dark)'
-                  }}>
-                    {friends.map((friend) => (
-                      <div
-                        key={friend.fid}
-                        onClick={() => selectFriend(friend)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          background: selectedFriend?.fid === friend.fid ? 'var(--accent)' : 'transparent',
-                          color: selectedFriend?.fid === friend.fid ? 'white' : 'inherit',
-                          transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (selectedFriend?.fid !== friend.fid) {
-                            e.currentTarget.style.background = 'var(--surface)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (selectedFriend?.fid !== friend.fid) {
-                            e.currentTarget.style.background = 'transparent';
-                          }
-                        }}
-                      >
-                        <img 
-                          src={friend.pfpUrl} 
-                          alt={friend.displayName}
-                          style={{ 
-                            width: '32px', 
-                            height: '32px', 
-                            borderRadius: '50%',
-                            objectFit: 'cover'
+              {/* Mention/Tag Friend Input */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600 }}>
+                  Tag Farcaster Friend
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    className="wallet-input"
+                    placeholder="Type @ to search friends..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    disabled={isSending || isConfirming || loadingFriends}
+                    onFocus={() => {
+                      if (friends.length > 0) setShowFriendsList(true);
+                    }}
+                  />
+                  
+                  {/* Friends Dropdown */}
+                  {showFriendsList && filteredFriends.length > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      background: 'var(--bg-dark)',
+                      marginTop: '4px',
+                      zIndex: 10,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                    }}>
+                      {filteredFriends.map((friend) => (
+                        <div
+                          key={friend.fid}
+                          onClick={() => selectFriend(friend)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            background: selectedFriend?.fid === friend.fid ? 'var(--accent)' : 'transparent',
+                            color: selectedFriend?.fid === friend.fid ? 'white' : 'inherit',
+                            transition: 'all 0.2s ease',
                           }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '14px', fontWeight: 600 }}>
-                            {friend.displayName}
-                          </div>
-                          <div style={{ fontSize: '12px', opacity: 0.7 }}>
-                            @{friend.username}
+                          onMouseEnter={(e) => {
+                            if (selectedFriend?.fid !== friend.fid) {
+                              e.currentTarget.style.background = 'var(--surface)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (selectedFriend?.fid !== friend.fid) {
+                              e.currentTarget.style.background = 'transparent';
+                            }
+                          }}
+                        >
+                          <img 
+                            src={friend.pfpUrl} 
+                            alt={friend.displayName}
+                            style={{ 
+                              width: '32px', 
+                              height: '32px', 
+                              borderRadius: '50%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '14px', fontWeight: 600 }}>
+                              {friend.displayName}
+                            </div>
+                            <div style={{ fontSize: '12px', opacity: 0.7 }}>
+                              @{friend.username}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+                {selectedFriend && (
+                  <div style={{ 
+                    marginTop: '8px', 
+                    padding: '8px 12px', 
+                    background: 'var(--surface)', 
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <img 
+                      src={selectedFriend.pfpUrl} 
+                      alt={selectedFriend.displayName}
+                      style={{ 
+                        width: '24px', 
+                        height: '24px', 
+                        borderRadius: '50%',
+                        objectFit: 'cover'
+                      }}
+                    />
+                    <span style={{ fontSize: '14px' }}>
+                      Sending to <strong>{selectedFriend.displayName}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
 
               {loadingFriends && (
                 <div style={{ marginBottom: '16px', textAlign: 'center', padding: '16px', color: 'var(--muted-on-dark)' }}>
