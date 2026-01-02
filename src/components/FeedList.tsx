@@ -6,6 +6,7 @@ import { useProfile } from "@farcaster/auth-kit";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import { FeedType } from "./FeedTrendingTabs";
+import { QRCodeSVG } from 'qrcode.react';
 
 interface FeedListProps {
   feedType: FeedType;
@@ -438,15 +439,23 @@ export default function FeedList({
               </p>
               
               {signerApprovalUrl && (
-                <a 
-                  href={signerApprovalUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="btn primary" 
-                  style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
-                >
-                  Approve in Warpcast →
-                </a>
+                <>
+                  <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
+                    <QRCodeSVG value={signerApprovalUrl} size={200} />
+                  </div>
+                  <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
+                    Scan this QR code or click below to approve:
+                  </p>
+                  <a 
+                    href={signerApprovalUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="btn primary" 
+                    style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
+                  >
+                    Approve in Warpcast →
+                  </a>
+                </>
               )}
               
               <button 
