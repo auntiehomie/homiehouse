@@ -30,6 +30,9 @@ export default function FeedList({
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
   const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [replyLoading, setReplyLoading] = useState(false);
 
   const { isAuthenticated, profile } = useProfile();
 
@@ -179,6 +182,46 @@ export default function FeedList({
       setActionLoading(null);
     }
   };
+
+  const handleReply = async (castHash: string) => {
+    const signerUuid = getSignerUuid();
+    if (!signerUuid) {
+      await createSignerAutomatically('like');
+      return;
+    }
+
+    if (!replyText.trim()) {
+      return;
+    }
+
+    setReplyLoading(true);
+    try {
+      const res = await fetch("/api/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          text: replyText, 
+          signerUuid, 
+          parentHash: castHash 
+        }),
+      });
+
+      if (res.ok) {
+        setReplyText("");
+        setReplyingTo(null);
+        alert("Reply posted successfully!");
+      } else {
+        const data = await res.json();
+        alert(`Failed to reply: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("Reply error:", error);
+      alert("Failed to post reply");
+    } finally {
+      setReplyLoading(false);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -419,7 +462,71 @@ export default function FeedList({
               >
                 🔁 {actionLoading === `recast-${key}` ? 'Loading...' : (recastedCasts.has(key) ? 'Recasted' : 'Recast')}
               </button>
+              
+              <button
+                onClick={() => setReplyingTo(replyingTo === key ? null : key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: replyingTo === key ? '#3b82f6' : 'var(--muted-on-dark)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (replyingTo !== key) {
+                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                    e.currentTarget.style.color = '#3b82f6';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (replyingTo !== key) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--muted-on-dark)';
+                  }
+                }}
+              >
+                💬 Reply
+              </button>
             </div>
+            
+            {/* Reply input */}
+            {replyingTo === key && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                <textarea
+                  className="compose-textarea"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Write your reply..."
+                  autoFocus
+                  style={{ minHeight: '80px', fontSize: '14px' }}
+                />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
+                  <button 
+                    className="btn" 
+                    onClick={() => {
+                      setReplyingTo(null);
+                      setReplyText("");
+                    }}
+                    disabled={replyLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="btn primary" 
+                    onClick={() => handleReply(key)}
+                    disabled={replyLoading || !replyText.trim()}
+                  >
+                    {replyLoading ? "Posting..." : "Post Reply"}
+                  </button>
+                </div>
+              </div>
+            )}
           </article>
         );
       })}
