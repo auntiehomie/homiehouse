@@ -10,6 +10,7 @@ import WalletButton from "../components/WalletButton";
 import WalletDashboard from "../components/WalletDashboard";
 import ChannelsList from "../components/ChannelsList";
 import { useProfile } from "@farcaster/auth-kit";
+import WelcomeModal from "../components/WelcomeModal";
 
 const MESSAGES = [
   "HomieHouse - Your Social Hub",
@@ -101,6 +102,7 @@ export default function Home() {
   // Authenticated user experience
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+      <WelcomeModal />
       <header className="max-w-4xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-4">
           <div>

@@ -66,6 +66,12 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
       if (data?.profile) {
         setProfile(data.profile);
         localStorage.setItem("hh_profile", JSON.stringify(data.profile));
+        
+        // Automatically create signer after sign-in for smoother UX
+        setTimeout(() => {
+          createSignerProactively(data.profile.fid);
+        }, 500);
+        
         onSignInSuccess?.(); // Notify parent component
       } else {
         console.warn("/api/siwf returned no profile", data);
@@ -77,6 +83,49 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
       setLoading(false);
     }
   }
+
+  const createSignerProactively = async (fid: number) => {
+    try {
+      // Check if signer already exists
+      const key = `signer_${fid}`;
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.signer_uuid) {
+          // Signer exists, check if approved
+          const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
+          const checkData = await checkRes.json();
+          if (checkData.ok && checkData.status === "approved") {
+            // Already approved, nothing to do
+            return;
+          }
+        }
+      }
+
+      // Create new signer
+      const res = await fetch("/api/signer", { method: "POST" });
+      const data = await res.json();
+
+      if (data.ok && data.signer_uuid) {
+        localStorage.setItem(key, JSON.stringify({
+          signer_uuid: data.signer_uuid,
+          status: data.status,
+          signer_approval_url: data.signer_approval_url
+        }));
+
+        // Show welcome modal with approval instructions
+        if (data.status !== "approved") {
+          sessionStorage.setItem("pending_approval_url", data.signer_approval_url);
+          window.dispatchEvent(new CustomEvent("showWelcomeModal", { 
+            detail: { approvalUrl: data.signer_approval_url } 
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Proactive signer creation failed:", error);
+      // Silent fail - user can still create signer on first action
+    }
+  };
 
   // QuickAuth disabled
 
