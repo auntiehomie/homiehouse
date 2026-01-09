@@ -110,8 +110,8 @@ export default function Home() {
             <nav className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
               <Link href="/">Home</Link>
               <span className="px-2">·</span>
-              <Link href="/ask-homie">Ask Homie</Link>
-            </nav>
+              <Link href="/ask-homie">Ask Homie</Link>              <span className="px-2">·</span>
+              <Link href="/profile" className="hover:text-purple-600">Profile</Link>            </nav>
           </div>
           <WalletButton />
         </div>
