@@ -33,6 +33,7 @@ export default function FeedList({
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replyLoading, setReplyLoading] = useState(false);
+  const [showRecastModal, setShowRecastModal] = useState<string | null>(null);
 
   const { isAuthenticated, profile } = useProfile();
 
@@ -432,7 +433,7 @@ export default function FeedList({
               </button>
               
               <button
-                onClick={() => handleRecast(key)}
+                onClick={() => setShowRecastModal(key)}
                 disabled={actionLoading === `recast-${key}`}
                 style={{
                   display: 'flex',
@@ -576,6 +577,118 @@ export default function FeedList({
               <p style={{ fontSize: '13px', color: 'var(--muted-on-dark)', marginTop: '16px' }}>
                 After approving, refresh the page and try again.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recast Modal */}
+      {showRecastModal && (
+        <div 
+          onClick={() => setShowRecastModal(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--background)',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '400px',
+              width: '90%',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>
+              Recast Options
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {recastedCasts.has(showRecastModal) ? (
+                <button
+                  onClick={async () => {
+                    await handleRecast(showRecastModal);
+                    setShowRecastModal(null);
+                  }}
+                  className="btn"
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    fontSize: '15px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444'
+                  }}
+                >
+                  ↩️ Undo Recast
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    await handleRecast(showRecastModal);
+                    setShowRecastModal(null);
+                  }}
+                  className="btn primary"
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    fontSize: '15px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  🔄 Recast
+                </button>
+              )}
+              
+              <button
+                onClick={() => {
+                  // TODO: Implement quote cast functionality
+                  alert('Quote cast coming soon!');
+                  setShowRecastModal(null);
+                }}
+                className="btn"
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  fontSize: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                💬 Quote Cast
+              </button>
+              
+              <button
+                onClick={() => setShowRecastModal(null)}
+                className="btn"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  opacity: 0.7
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
