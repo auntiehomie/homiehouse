@@ -236,10 +236,15 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
     });
 
     if (!notifications.notifications || notifications.notifications.length === 0) {
+      console.log(`📭 No notifications found`);
       return;
     }
 
     console.log(`📬 Found ${notifications.notifications.length} notifications`);
+    
+    // Debug: Show notification details
+    console.log(`   Checking for new mentions...`);
+    let newCount = 0;
 
     for (const notification of notifications.notifications) {
       // @ts-ignore - types are incomplete
@@ -249,6 +254,7 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
         continue; // Skip if we've already replied
       }
 
+      newCount++;
       const author = cast.author;
       
       // Don't reply to our own casts
@@ -290,6 +296,10 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
 
       // Rate limit: wait 2 seconds between replies
       await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    if (newCount === 0) {
+      console.log(`   All notifications already processed`);
     }
   } catch (error) {
     console.error('Error checking notifications:', error);
