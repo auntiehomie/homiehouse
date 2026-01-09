@@ -37,7 +37,7 @@ export default function ChannelsList() {
       if (data.ok && data.channels && data.channels.length > 0) {
         // Map channels to our format
         const userChannels = [
-          { name: "Home", url: "/" },
+          { name: "Home", url: "/", id: "home" },
           ...data.channels.map((ch: any) => ({
             name: ch.name || ch.id,
             url: `/channel/${ch.id}`,
@@ -49,12 +49,12 @@ export default function ChannelsList() {
       } else {
         // Fallback to popular channels if user has no followed channels
         const popularChannels = [
-          { name: "Home", url: "/" },
-          { name: "Base", url: "/channel/base" },
-          { name: "Farcaster", url: "/channel/farcaster" },
-          { name: "Dev", url: "/channel/dev" },
-          { name: "Art", url: "/channel/art" },
-          { name: "Music", url: "/channel/music" },
+          { name: "Home", url: "/", id: "home" },
+          { name: "Base", url: "/channel/base", id: "base" },
+          { name: "Farcaster", url: "/channel/farcaster", id: "farcaster" },
+          { name: "Dev", url: "/channel/dev", id: "dev" },
+          { name: "Art", url: "/channel/art", id: "art" },
+          { name: "Music", url: "/channel/music", id: "music" },
         ];
         setChannels(popularChannels);
       }
@@ -64,10 +64,10 @@ export default function ChannelsList() {
       console.error("Error fetching channels:", error);
       // Fallback to popular channels on error
       const popularChannels = [
-        { name: "Home", url: "/" },
-        { name: "Base", url: "/channel/base" },
-        { name: "Farcaster", url: "/channel/farcaster" },
-        { name: "Dev", url: "/channel/dev" },
+        { name: "Home", url: "/", id: "home" },
+        { name: "Base", url: "/channel/base", id: "base" },
+        { name: "Farcaster", url: "/channel/farcaster", id: "farcaster" },
+        { name: "Dev", url: "/channel/dev", id: "dev" },
       ];
       setChannels(popularChannels);
       setLoading(false);
@@ -88,9 +88,9 @@ export default function ChannelsList() {
         Channels
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {channels.map((channel, index) => (
+        {channels.map((channel) => (
           <Link
-            key={index}
+            key={channel.id || channel.url}
             href={channel.url}
             className="channel-link"
           >

@@ -40,12 +40,14 @@ export default function ChannelPage() {
         </p>
       </div>
 
-      <FeedList
-        feedType="channels"
-        isAuthenticated={!!profile}
-        profile={profile}
-        selectedChannel={channelId}
-      />
+      {channelId && (
+        <FeedList
+          feedType="channels"
+          isAuthenticated={!!profile}
+          profile={profile}
+          selectedChannel={channelId}
+        />
+      )}
     </div>
   );
 }
