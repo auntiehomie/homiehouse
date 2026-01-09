@@ -7,14 +7,8 @@ import FeedList from '@/components/FeedList';
 export default function ChannelPage() {
   const params = useParams();
   const channelId = params?.id as string;
-  const [profile, setProfile] = useState<any>(null);
-
-  useEffect(() => {
-    const storedProfile = localStorage.getItem('hh_profile');
-    if (storedProfile) {
-      setProfile(JSON.parse(storedProfile));
-    }
-  }, []);
+  const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
+  const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
 
   return (
     <div style={{ 
@@ -43,9 +37,11 @@ export default function ChannelPage() {
       {channelId && (
         <FeedList
           feedType="channels"
-          isAuthenticated={!!profile}
-          profile={profile}
           selectedChannel={channelId}
+          mutedUsers={mutedUsers}
+          hiddenCasts={hiddenCasts}
+          onMuteUser={(username: string) => setMutedUsers(prev => new Set([...prev, username]))}
+          onHideCast={(hash: string) => setHiddenCasts(prev => new Set([...prev, hash]))}
         />
       )}
     </div>
