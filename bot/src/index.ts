@@ -1,5 +1,6 @@
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
@@ -24,29 +25,31 @@ if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID || !ANTHROPIC_API_KEY) {
 
 const neynar = new NeynarAPIClient({ apiKey: NEYNAR_API_KEY });
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 let memory: Awaited<ReturnType<typeof getMemory>>;
 
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @homiehouse, a friendly and knowledgeable Farcaster community member. You help people understand Farcaster, provide insights, and share useful information.
+const BOT_PERSONALITY = `You are @homiehouse, a friendly and knowledgeable community member. You're helpful, observant, and can discuss anything from everyday life to tech.
 
 Your personality:
-- Friendly and informative, like a helpful friend sharing knowledge
-- Knowledgeable about Farcaster ecosystem (Frames, Channels, SnapChain, Warpcast, tokens like Degen/Moxie/Higher)
+- Friendly and informative, like a helpful friend
+- Knowledgeable about many topics: food, nature, daily life, tech, Farcaster, crypto, art, culture, etc.
+- Observant - you can see and comment on images people share
 - Concise but helpful - keep responses under 280 characters when possible
-- Use emojis sparingly but naturally (🏠 is your signature)
+- Use emojis naturally (🏠 is your signature)
 - Share insights, observations, and useful information
 - Don't ask questions - make statements and share knowledge instead
 - Be natural and conversational, not robotic
-- If you don't know something, admit it honestly
+- If you see food, comment on it! If you see nature, appreciate it!
 
 When replying:
-1. Read the full conversation context
-2. Understand what the person is saying or asking
+1. If there are images, describe what you see and share observations
+2. Understand the full conversation context
 3. Provide helpful, informative responses with facts or insights
 4. Make statements and share knowledge rather than asking questions
-5. Add value - don't just agree or repeat what was said`;
+5. Be relatable - talk about everyday things as much as tech things`;
 
 interface RepliedCast {
   hash: string;
@@ -141,7 +144,8 @@ async function generateReply(
   castContext: string,
   mentionText: string,
   userFid: number,
-  username: string
+  username: string,
+  imageUrls?: string[]
 ): Promise<string> {
   try {
     // Get past interactions with this user
@@ -160,6 +164,42 @@ async function generateReply(
       }
     }
 
+    // If there are images, use GPT-4 Vision instead
+    if (imageUrls && imageUrls.length > 0) {
+      console.log(`🖼️ Analyzing ${imageUrls.length} image(s) with GPT-4 Vision...`);
+      
+      const imageContent: any[] = imageUrls.map(url => ({
+        type: 'image_url',
+        image_url: { url, detail: 'auto' }
+      }));
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        max_tokens: 300,
+        messages: [
+          {
+            role: 'system',
+            content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Always end with a statement or observation.'
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Someone shared this with you. Look at the image(s) and provide a helpful, observant response (under 280 characters). Comment on what you see. Do NOT ask questions. Make statements and share observations.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
+              },
+              ...imageContent
+            ]
+          }
+        ]
+      });
+
+      const reply = completion.choices[0]?.message?.content || '';
+      console.log('✅ Generated reply with GPT-4 Vision');
+      return reply.trim();
+    }
+
+    // No images, use Claude for text
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 300,
@@ -180,8 +220,6 @@ async function generateReply(
     
     // Fallback to OpenAI
     try {
-      const openai = await import('openai');
-      const client = new openai.default({ apiKey: process.env.OPENAI_API_KEY });
       
       const userHistory = memory.getUserHistory(userFid, 3);
       let memoryContext = '';
@@ -192,7 +230,7 @@ async function generateReply(
         });
       }
       
-      const completion = await client.chat.completions.create({
+      const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         max_tokens: 150,
         messages: [
@@ -269,8 +307,27 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       // Get conversation context
       const context = await getConversationContext(cast.hash);
       
+      // Extract image URLs from cast embeds
+      const imageUrls: string[] = [];
+      if (cast.embeds && cast.embeds.length > 0) {
+        for (const embed of cast.embeds) {
+          if (embed.url && (
+            embed.url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+            embed.url.includes('imagedelivery.net') ||
+            embed.url.includes('imgur.com') ||
+            embed.url.includes('i.imgur.com')
+          )) {
+            imageUrls.push(embed.url);
+          }
+        }
+      }
+      
+      if (imageUrls.length > 0) {
+        console.log(`   📸 Found ${imageUrls.length} image(s) in cast`);
+      }
+      
       // Generate reply with memory
-      const reply = await generateReply(context, cast.text, author.fid, author.username);
+      const reply = await generateReply(context, cast.text, author.fid, author.username, imageUrls);
       
       if (!reply) {
         console.log('   ⚠️ Failed to generate reply, skipping');
