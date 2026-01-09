@@ -174,9 +174,39 @@ async function generateReply(
     const textContent = message.content.find((block) => block.type === 'text');
     return textContent && 'text' in textContent ? textContent.text.trim() : '';
   } catch (error: any) {
-    console.error('Error generating reply:', error.message || error);
-    // Fallback to simple response if AI fails
-    return `Thanks for the mention! 🏠`;
+    console.error('Error generating reply with Claude:', error.message || error);
+    console.log('   Falling back to OpenAI...');
+    
+    // Fallback to OpenAI
+    try {
+      const openai = await import('openai');
+      const client = new openai.default({ apiKey: process.env.OPENAI_API_KEY });
+      
+      const userHistory = memory.getUserHistory(userFid, 3);
+      let memoryContext = '';
+      if (userHistory.length > 0) {
+        memoryContext = `\n\nPast conversations with @${username}:\n`;
+        userHistory.reverse().forEach((conv, idx) => {
+          memoryContext += `${idx + 1}. Them: "${conv.user_message}" → You: "${conv.bot_reply}"\n`;
+        });
+      }
+      
+      const completion = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 150,
+        messages: [
+          { role: 'system', content: BOT_PERSONALITY },
+          { 
+            role: 'user', 
+            content: `Someone mentioned you. Generate a helpful, natural reply (under 280 chars).\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
+          },
+        ],
+      });
+      
+      return completion.choices[0]?.message?.content?.trim() || 'Thanks for the mention! 🏠';
+    } catch {
+      return 'Thanks for the mention! 🏠';
+    }
   }
 }
 
