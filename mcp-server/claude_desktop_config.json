@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "homiehouse": {
+      "command": "node",
+      "args": ["C:\\Users\\amand\\homiehouse\\mcp-server\\dist\\index.js"]
+    }
+  }
+}
