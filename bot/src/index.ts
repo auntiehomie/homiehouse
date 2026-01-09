@@ -31,24 +31,29 @@ let memory: Awaited<ReturnType<typeof getMemory>>;
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @homiehouse, a friendly and knowledgeable person who loves all kinds of topics. You're naturally curious and helpful.
+const BOT_PERSONALITY = `You are @homiehouse, a thoughtful and insightful person who really engages with what people share. You look deeper than surface-level observations.
 
 Your personality:
-- Friendly and observant, like chatting with a knowledgeable friend
-- You can talk about ANYTHING: food, cooking, nature, art, music, daily life, hobbies, AND tech/Farcaster/crypto when relevant
-- Concise but helpful - keep responses under 280 characters when possible
+- Thoughtful and observant - you notice details others might miss
+- Knowledgeable across many topics: food, cooking, nature, art, music, life, tech, Farcaster, crypto
+- You provide INSIGHTS, not just descriptions - go beyond "that looks nice"
+- Reference specific details to show you're really paying attention
+- Concise but meaningful - make every word count (under 280 characters)
 - Use emojis naturally (🏠 is your signature)
-- Share interesting facts, observations, and insights
-- Don't ask questions - make statements and share knowledge
-- Be natural and genuine, not robotic
+- Share interesting facts, connections, or deeper observations
+- Don't ask questions - make insightful statements
+- Be genuine and engaged, not generic
 
-IMPORTANT RULES:
-- If someone shares a picture of food, talk about the FOOD (don't mention Farcaster unless they brought it up)
-- If someone shares nature, talk about NATURE
-- If someone shares art, talk about the ART
-- Only mention Farcaster/crypto when it's actually relevant to what they're showing/saying
-- Be a normal person who can appreciate everyday things without connecting everything to tech
-- Don't force connections that aren't natural`;
+IMPORTANT APPROACH:
+- Look at the SPECIFICS - what exactly is in the image or message?
+- Notice details: colors, composition, context, implications
+- Share something interesting or non-obvious about what you see
+- If it's food: comment on preparation, ingredients, cultural context, flavor profiles
+- If it's nature: notice the lighting, species, season, ecological connections
+- If it's art: discuss technique, style, mood, artistic choices
+- If it's about Farcaster/crypto: provide informed analysis when relevant
+- Show you're really thinking, not just reacting
+- Avoid generic phrases like "looks great" or "nice shot"`;
 
 interface RepliedCast {
   hash: string;
@@ -174,18 +179,18 @@ async function generateReply(
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
-        max_tokens: 300,
+        max_tokens: 400,
         messages: [
           {
             role: 'system',
-            content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Always end with a statement or observation.'
+            content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Provide thoughtful insights, not surface reactions.'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Someone shared this with you. Look at the image(s) and comment naturally on what you see (under 280 characters). If it's food, talk about food. If it's nature, talk about nature. If it's art, talk about art. Do NOT force connections to Farcaster or crypto unless they're actually relevant to the image. Be a normal person appreciating what's in front of you. No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
+                text: `Someone shared this with you. Really LOOK at the image(s) and provide a thoughtful, insightful response (under 280 characters).\n\nDon't just say "looks good" or "nice." Notice SPECIFIC details and share something interesting or non-obvious. Show you're really engaging with what they shared, not giving a generic reaction.\n\nIf it's food: talk about preparation, ingredients, cooking technique, flavor profiles\nIf it's nature: notice lighting, species, composition, ecological details\nIf it's art: discuss technique, style, artistic choices\nIf it's everyday life: find something meaningful or interesting about it\n\nBe thoughtful and specific. No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
               },
               ...imageContent
             ]
@@ -201,12 +206,12 @@ async function generateReply(
     // No images, use Claude for text
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 300,
-      system: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Always end with a statement or observation.',
+      max_tokens: 400,
+      system: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Provide thoughtful insights, not surface reactions.',
       messages: [
         {
           role: 'user',
-          content: `Someone mentioned you. Respond naturally to what they're saying. If they're talking about everyday things (food, life, hobbies), respond about that. Only bring up Farcaster/crypto if it's actually relevant to their message. Share knowledge or insights. No questions. Be genuine and conversational.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour reply (under 280 chars, NO QUESTIONS):`,
+          content: `Someone mentioned you. Really engage with what they're saying - don't give a surface-level response.\n\nRead their message carefully and provide a thoughtful, insightful reply that shows you understand the substance of what they're discussing. Reference specific points they made. Share relevant knowledge or interesting connections.\n\nAvoid generic responses. Be specific and meaningful. No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour thoughtful reply (under 280 chars, NO QUESTIONS):`,
         },
       ],
     });
@@ -231,12 +236,12 @@ async function generateReply(
       
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 150,
+        max_tokens: 200,
         messages: [
-          { role: 'system', content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Always end with a statement or observation.' },
+          { role: 'system', content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Provide thoughtful insights, not surface reactions.' },
           { 
             role: 'user', 
-            content: `Someone mentioned you. Respond naturally to what they're saying. If they're talking about everyday things, respond about that. Only bring up Farcaster/crypto if it's relevant. Share knowledge naturally (under 280 chars). No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
+            content: `Someone mentioned you. Really engage with what they're saying - provide a thoughtful, insightful response that shows you understand the substance. Reference specific details. Share relevant knowledge. Avoid generic responses (under 280 chars). No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
           },
         ],
       });
@@ -310,13 +315,14 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       const imageUrls: string[] = [];
       if (cast.embeds && cast.embeds.length > 0) {
         for (const embed of cast.embeds) {
-          if (embed.url && (
-            embed.url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
-            embed.url.includes('imagedelivery.net') ||
-            embed.url.includes('imgur.com') ||
-            embed.url.includes('i.imgur.com')
+          const embedUrl = (embed as any).url;
+          if (embedUrl && (
+            embedUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+            embedUrl.includes('imagedelivery.net') ||
+            embedUrl.includes('imgur.com') ||
+            embedUrl.includes('i.imgur.com')
           )) {
-            imageUrls.push(embed.url);
+            imageUrls.push(embedUrl);
           }
         }
       }
