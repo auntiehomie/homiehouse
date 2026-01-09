@@ -24,12 +24,12 @@ export async function GET(req: NextRequest) {
     let endpoint;
     if (channel) {
       // Channel-specific feed
-      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/channels?channel_ids=${encodeURIComponent(channel)}&limit=50`;
+      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/channels?channel_ids=${encodeURIComponent(channel)}&with_recasts=true&limit=50`;
     } else if (feedType === "following" && fid) {
       // User's following feed
       endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=following&fid=${encodeURIComponent(fid)}&limit=50`;
     } else if (feedType === "channels") {
-      // Popular channels feed
+      // Popular channels feed (show trending from various channels)
       endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=filter&filter_type=channel_id&limit=50`;
     } else {
       // Global feed

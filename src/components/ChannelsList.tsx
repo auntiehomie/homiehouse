@@ -30,22 +30,46 @@ export default function ChannelsList() {
 
   async function fetchChannels(fid: number) {
     try {
-      // For now, show popular channels - you can enhance this to fetch user's actual followed channels
-      const popularChannels = [
-        { name: "Home", url: "/" },
-        { name: "Base", url: "/~/channel/base" },
-        { name: "Farcaster", url: "/~/channel/farcaster" },
-        { name: "Dev", url: "/~/channel/dev" },
-        { name: "Art", url: "/~/channel/art" },
-        { name: "Music", url: "/~/channel/music" },
-        { name: "NFTs", url: "/~/channel/nft" },
-        { name: "Crypto", url: "/~/channel/crypto" },
-      ];
+      // Fetch user's followed channels from API
+      const response = await fetch(`/api/channels?fid=${fid}`);
+      const data = await response.json();
       
-      setChannels(popularChannels);
+      if (data.ok && data.channels && data.channels.length > 0) {
+        // Map channels to our format
+        const userChannels = [
+          { name: "Home", url: "/" },
+          ...data.channels.map((ch: any) => ({
+            name: ch.name || ch.id,
+            url: `/channel/${ch.id}`,
+            id: ch.id
+          }))
+        ];
+        
+        setChannels(userChannels);
+      } else {
+        // Fallback to popular channels if user has no followed channels
+        const popularChannels = [
+          { name: "Home", url: "/" },
+          { name: "Base", url: "/channel/base" },
+          { name: "Farcaster", url: "/channel/farcaster" },
+          { name: "Dev", url: "/channel/dev" },
+          { name: "Art", url: "/channel/art" },
+          { name: "Music", url: "/channel/music" },
+        ];
+        setChannels(popularChannels);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error("Error fetching channels:", error);
+      // Fallback to popular channels on error
+      const popularChannels = [
+        { name: "Home", url: "/" },
+        { name: "Base", url: "/channel/base" },
+        { name: "Farcaster", url: "/channel/farcaster" },
+        { name: "Dev", url: "/channel/dev" },
+      ];
+      setChannels(popularChannels);
       setLoading(false);
     }
   }
