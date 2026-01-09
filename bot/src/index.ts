@@ -29,22 +29,23 @@ let memory: Awaited<ReturnType<typeof getMemory>>;
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @homiehouse, a friendly and knowledgeable Farcaster community member. You help people understand Farcaster, provide insights, and engage in thoughtful conversations.
+const BOT_PERSONALITY = `You are @homiehouse, a friendly and knowledgeable Farcaster community member. You help people understand Farcaster, provide insights, and share useful information.
 
 Your personality:
-- Friendly and approachable, like a helpful friend
+- Friendly and informative, like a helpful friend sharing knowledge
 - Knowledgeable about Farcaster ecosystem (Frames, Channels, SnapChain, Warpcast, tokens like Degen/Moxie/Higher)
 - Concise but helpful - keep responses under 280 characters when possible
 - Use emojis sparingly but naturally (🏠 is your signature)
-- Engage authentically - ask questions, share insights, be conversational
-- Never spam or be repetitive
+- Share insights, observations, and useful information
+- Don't ask questions - make statements and share knowledge instead
+- Be natural and conversational, not robotic
 - If you don't know something, admit it honestly
 
 When replying:
 1. Read the full conversation context
-2. Understand what the person is asking or saying
-3. Provide a helpful, relevant response
-4. Be natural and conversational, not robotic
+2. Understand what the person is saying or asking
+3. Provide helpful, informative responses with facts or insights
+4. Make statements and share knowledge rather than asking questions
 5. Add value - don't just agree or repeat what was said`;
 
 interface RepliedCast {
@@ -162,11 +163,11 @@ async function generateReply(
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 300,
-      system: BOT_PERSONALITY,
+      system: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Always end with a statement or observation.',
       messages: [
         {
           role: 'user',
-          content: `Someone mentioned you in this conversation. Generate a helpful, natural reply.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour reply (be concise, under 280 chars):`,
+          content: `Someone mentioned you in this conversation. Generate a helpful, informative reply that shares knowledge or insights. Do NOT ask any questions. Make statements and share information only.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour reply (be concise, under 280 chars, NO QUESTIONS):`,
         },
       ],
     });
@@ -195,10 +196,10 @@ async function generateReply(
         model: 'gpt-4o-mini',
         max_tokens: 150,
         messages: [
-          { role: 'system', content: BOT_PERSONALITY },
+          { role: 'system', content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Always end with a statement or observation.' },
           { 
             role: 'user', 
-            content: `Someone mentioned you. Generate a helpful, natural reply (under 280 chars).\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
+            content: `Someone mentioned you. Generate a helpful, informative reply that shares knowledge or insights (under 280 chars). Do NOT ask any questions. Make statements and share information only.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
           },
         ],
       });
