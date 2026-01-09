@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getMemory } from './memory.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +24,7 @@ if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID || !ANTHROPIC_API_KEY) {
 
 const neynar = new NeynarAPIClient({ apiKey: NEYNAR_API_KEY });
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+let memory: Awaited<ReturnType<typeof getMemory>>;
 
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
@@ -133,9 +135,30 @@ async function getConversationContext(castHash: string): Promise<string> {
   }
 }
 
-// Generate reply using Claude
-async function generateReply(castContext: string, mentionText: string): Promise<string> {
+// Generate reply using Claude with memory
+async function generateReply(
+  castContext: string,
+  mentionText: string,
+  userFid: number,
+  username: string
+): Promise<string> {
   try {
+    // Get past interactions with this user
+    const userHistory = memory.getUserHistory(userFid, 3);
+    const userProfile = memory.getUserProfile(userFid);
+    
+    let memoryContext = '';
+    if (userHistory.length > 0) {
+      memoryContext = `\n\n**Past conversations with @${username}:**\n`;
+      userHistory.reverse().forEach((conv, idx) => {
+        memoryContext += `${idx + 1}. Them: "${conv.user_message}" → You: "${conv.bot_reply}"\n`;
+      });
+      
+      if (userProfile && userProfile.interaction_count > 1) {
+        memoryContext += `\n(You've talked ${userProfile.interaction_count} times before)`;
+      }
+    }
+
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 300,
@@ -143,7 +166,7 @@ async function generateReply(castContext: string, mentionText: string): Promise<
       messages: [
         {
           role: 'user',
-          content: `Someone mentioned you in this conversation. Generate a helpful, natural reply.\n\nContext:\n${castContext}\n\nTheir message:\n"${mentionText}"\n\nYour reply (be concise, under 280 chars):`,
+          content: `Someone mentioned you in this conversation. Generate a helpful, natural reply.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour reply (be concise, under 280 chars):`,
         },
       ],
     });
@@ -160,15 +183,16 @@ async function generateReply(castContext: string, mentionText: string): Promise<
 // Post reply to Farcaster
 async function postReply(text: string, parentHash: string): Promise<boolean> {
   try {
-    await neynar.publishCast({
+    const result = await neynar.publishCast({
       signerUuid: NEYNAR_SIGNER_UUID!,
       text,
       parent: parentHash,
     });
     console.log(`✅ Posted reply to ${parentHash}: "${text}"`);
+    console.log(`   Cast result:`, result);
     return true;
-  } catch (error) {
-    console.error('Error posting reply:', error);
+  } catch (error: any) {
+    console.error('❌ Error posting reply:', error.response?.data || error.message || error);
     return false;
   }
 }
@@ -208,8 +232,8 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       // Get conversation context
       const context = await getConversationContext(cast.hash);
       
-      // Generate reply
-      const reply = await generateReply(context, cast.text);
+      // Generate reply with memory
+      const reply = await generateReply(context, cast.text, author.fid, author.username);
       
       if (!reply) {
         console.log('   ⚠️ Failed to generate reply, skipping');
@@ -223,6 +247,15 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       
       if (success) {
         await markAsReplied(cast.hash, repliedCasts);
+        // Store in memory
+        await memory.storeConversation(
+          author.fid,
+          author.username,
+          cast.hash,
+          cast.text,
+          reply
+        );
+        console.log(`   💾 Saved to memory`);
       }
 
       // Rate limit: wait 2 seconds between replies
@@ -238,6 +271,12 @@ async function main() {
   console.log(`🏠 Homiehouse Bot starting...`);
   console.log(`   Bot: @${BOT_USERNAME} (FID: ${APP_FID})`);
   console.log(`   Poll interval: ${POLL_INTERVAL}ms`);
+  console.log(`   Memory: Enabled ✅`);
+  
+  // Initialize memory
+  memory = await getMemory();
+  const stats = memory.getStats();
+  console.log(`   📊 Memory: ${stats.totalConversations} conversations with ${stats.uniqueUsers} users`);
   console.log(`   Monitoring for mentions and replies...\n`);
 
   const repliedCasts = await loadRepliedCasts();
