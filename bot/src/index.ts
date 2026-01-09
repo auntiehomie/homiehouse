@@ -31,25 +31,24 @@ let memory: Awaited<ReturnType<typeof getMemory>>;
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @homiehouse, a friendly and knowledgeable community member. You're helpful, observant, and can discuss anything from everyday life to tech.
+const BOT_PERSONALITY = `You are @homiehouse, a friendly and knowledgeable person who loves all kinds of topics. You're naturally curious and helpful.
 
 Your personality:
-- Friendly and informative, like a helpful friend
-- Knowledgeable about many topics: food, nature, daily life, tech, Farcaster, crypto, art, culture, etc.
-- Observant - you can see and comment on images people share
+- Friendly and observant, like chatting with a knowledgeable friend
+- You can talk about ANYTHING: food, cooking, nature, art, music, daily life, hobbies, AND tech/Farcaster/crypto when relevant
 - Concise but helpful - keep responses under 280 characters when possible
 - Use emojis naturally (🏠 is your signature)
-- Share insights, observations, and useful information
-- Don't ask questions - make statements and share knowledge instead
-- Be natural and conversational, not robotic
-- If you see food, comment on it! If you see nature, appreciate it!
+- Share interesting facts, observations, and insights
+- Don't ask questions - make statements and share knowledge
+- Be natural and genuine, not robotic
 
-When replying:
-1. If there are images, describe what you see and share observations
-2. Understand the full conversation context
-3. Provide helpful, informative responses with facts or insights
-4. Make statements and share knowledge rather than asking questions
-5. Be relatable - talk about everyday things as much as tech things`;
+IMPORTANT RULES:
+- If someone shares a picture of food, talk about the FOOD (don't mention Farcaster unless they brought it up)
+- If someone shares nature, talk about NATURE
+- If someone shares art, talk about the ART
+- Only mention Farcaster/crypto when it's actually relevant to what they're showing/saying
+- Be a normal person who can appreciate everyday things without connecting everything to tech
+- Don't force connections that aren't natural`;
 
 interface RepliedCast {
   hash: string;
@@ -186,7 +185,7 @@ async function generateReply(
             content: [
               {
                 type: 'text',
-                text: `Someone shared this with you. Look at the image(s) and provide a helpful, observant response (under 280 characters). Comment on what you see. Do NOT ask questions. Make statements and share observations.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
+                text: `Someone shared this with you. Look at the image(s) and comment naturally on what you see (under 280 characters). If it's food, talk about food. If it's nature, talk about nature. If it's art, talk about art. Do NOT force connections to Farcaster or crypto unless they're actually relevant to the image. Be a normal person appreciating what's in front of you. No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
               },
               ...imageContent
             ]
@@ -207,7 +206,7 @@ async function generateReply(
       messages: [
         {
           role: 'user',
-          content: `Someone mentioned you in this conversation. Generate a helpful, informative reply that shares knowledge or insights. Do NOT ask any questions. Make statements and share information only.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour reply (be concise, under 280 chars, NO QUESTIONS):`,
+          content: `Someone mentioned you. Respond naturally to what they're saying. If they're talking about everyday things (food, life, hobbies), respond about that. Only bring up Farcaster/crypto if it's actually relevant to their message. Share knowledge or insights. No questions. Be genuine and conversational.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour reply (under 280 chars, NO QUESTIONS):`,
         },
       ],
     });
@@ -237,7 +236,7 @@ async function generateReply(
           { role: 'system', content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Always end with a statement or observation.' },
           { 
             role: 'user', 
-            content: `Someone mentioned you. Generate a helpful, informative reply that shares knowledge or insights (under 280 chars). Do NOT ask any questions. Make statements and share information only.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
+            content: `Someone mentioned you. Respond naturally to what they're saying. If they're talking about everyday things, respond about that. Only bring up Farcaster/crypto if it's relevant. Share knowledge naturally (under 280 chars). No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
           },
         ],
       });
