@@ -214,8 +214,8 @@ export async function GET(request: NextRequest) {
     let repliedCount = 0;
 
     // Fetch notifications
-    const notifications = await neynar.fetchAllNotifications(BOT_FID, {
-      type: ['mentions', 'replies']
+    const notifications = await neynar.fetchAllNotifications({ 
+      fid: BOT_FID
     });
 
     console.log(`Found ${notifications.notifications.length} notifications`);
@@ -237,8 +237,10 @@ export async function GET(request: NextRequest) {
         const reply = await generateReply(cast, []);
 
         // Post reply
-        await neynar.publishCast(SIGNER_UUID, reply, {
-          replyTo: cast.hash
+        await neynar.publishCast({
+          signerUuid: SIGNER_UUID,
+          text: reply,
+          parent: cast.hash
         });
 
         console.log(`Posted reply to ${cast.hash}: ${reply}`);

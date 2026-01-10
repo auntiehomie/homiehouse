@@ -36,7 +36,7 @@ export default function ChannelPage() {
 
       {channelId && (
         <FeedList
-          feedType="channels"
+          feedType="global"
           selectedChannel={channelId}
           mutedUsers={mutedUsers}
           hiddenCasts={hiddenCasts}

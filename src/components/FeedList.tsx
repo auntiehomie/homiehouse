@@ -608,9 +608,10 @@ export default function FeedList({
 
               <button
                 onClick={() => {
+                  const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
                   const castData = encodeURIComponent(JSON.stringify({
                     author: authorUsername,
-                    text: cleanCastText,
+                    text: castText,
                     hash: key
                   }));
                   window.location.href = `/ask-homie?cast=${castData}`;
