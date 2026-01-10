@@ -40,13 +40,6 @@ export default function FeedTrendingTabs() {
               Following
             </button>
             <button
-              onClick={() => { setFeedType('channels'); setSelectedChannel(null); }}
-              className={"btn " + (feedType === 'channels' ? 'primary' : '')}
-              style={{ fontSize: '13px', padding: '6px 12px' }}
-            >
-              Channels
-            </button>
-            <button
               onClick={() => { setFeedType('global'); setSelectedChannel(null); }}
               className={"btn " + (feedType === 'global' ? 'primary' : '')}
               style={{ fontSize: '13px', padding: '6px 12px' }}
