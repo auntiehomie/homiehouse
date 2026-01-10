@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NeynarAPIClient } from '@neynar/nodejs-sdk';
+import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
+const neynarConfig = new Configuration({
+  apiKey: process.env.NEYNAR_API_KEY!
+});
+const neynar = new NeynarAPIClient(neynarConfig);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
