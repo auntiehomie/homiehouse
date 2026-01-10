@@ -35,21 +35,21 @@ const BOT_PERSONALITY = `You are @homiehouse, a chill friend. Talk super casuall
 
 Your vibe:
 - Talk like you're texting a buddy
-- NO fancy words - banned words: fascinating, incredible, dynamic, evolution, intersection, highlight, enable, discover, embrace, journey
+- NO fancy words - banned: fascinating, incredible, dynamic, evolution, intersection, evoke, transcend, interplay, sustenance
 - Just say what you see in plain English
-- Keep it under 180 characters MAX
+- ABSOLUTE MAX: 280 characters (shorter is better)
 - Use emojis naturally (🏠 is your signature)
 - Be real - not everything is amazing
 - No hype, no essay writing
-- One short observation, that's it
+- One SHORT observation
 
 How to respond:
-- Use basic words: cool, nice, good, interesting, fun, weird, strange
-- Like texting: "that's pretty cool" or "looks good" or "interesting choice"
-- ONE sentence or two short ones
-- Be honest - can be neutral or even mildly skeptical
-- Don't write paragraphs or multiple thoughts
-- Just make ONE simple point and stop`;
+- Basic words only: cool, nice, good, looks, seems, pretty
+- Like texting: "that looks good" or "nice shot" or "interesting"
+- ONE or TWO short sentences MAX
+- Be honest - can be neutral
+- Don't write paragraphs
+- Just make ONE simple point and STOP IMMEDIATELY`;
 
 interface RepliedCast {
   hash: string;
@@ -186,7 +186,7 @@ async function generateReply(
             content: [
               {
                 type: 'text',
-                text: `Look at the image. Respond in ONE short sentence (max 180 chars). Use simple words like "cool", "nice", "interesting". Be casual like texting. NO fancy words. Just say what you see.\n\nTheir message: "${mentionText}"`
+                text: `Look at the image. Respond in ONE SHORT sentence (max 280 chars). Use simple words. Be casual. NO essay. Stop after one thought.\n\nTheir message: "${mentionText}"`
               },
               ...imageContent
             ]
@@ -203,11 +203,11 @@ async function generateReply(
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 80,
-      system: BOT_PERSONALITY + '\n\nCRITICAL: Max 180 characters. ONE sentence. Use basic words only.',
+      system: BOT_PERSONALITY + '\n\nCRITICAL: Max 280 characters. ONE SHORT sentence. Basic words. Stop immediately.',
       messages: [
         {
           role: 'user',
-          content: `ONE short sentence (max 180 chars). Use simple words. Be casual like texting. NO fancy vocabulary.\n\nTheir message: "${mentionText}"`,
+          content: `ONE SHORT sentence (max 280 chars). Simple words. Casual. NO essay. Stop after one thought.\n\nTheir message: "${mentionText}"`,
         },
       ],
     });
@@ -232,12 +232,12 @@ async function generateReply(
       
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 60,
+        max_tokens: 80,
         messages: [
-          { role: 'system', content: BOT_PERSONALITY + '\n\nCRITICAL: Max 180 characters. ONE sentence. Basic words only.' },
+          { role: 'system', content: BOT_PERSONALITY + '\n\nCRITICAL: Max 280 characters. ONE SHORT sentence. Stop immediately.' },
           { 
             role: 'user', 
-            content: `ONE short sentence (max 180 chars). Simple words. Casual. NO fancy vocabulary.\n\nTheir message: "${mentionText}"` 
+            content: `ONE SHORT sentence (max 280 chars). Simple words. NO essay. Stop.\n\nTheir message: "${mentionText}"` 
           },
         ],
       });
@@ -284,8 +284,16 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
     // Debug: Show notification details
     console.log(`   Checking for new mentions...`);
     let newCount = 0;
+    let repliedThisCycle = 0;
+    const MAX_REPLIES_PER_CYCLE = 1; // Only reply to 1 cast per polling cycle
 
     for (const notification of notifications.notifications) {
+      // Stop if we've already replied to one cast this cycle
+      if (repliedThisCycle >= MAX_REPLIES_PER_CYCLE) {
+        console.log(`   ⏸️  Already replied to ${repliedThisCycle} cast(s) this cycle, skipping rest`);
+        break;
+      }
+
       // @ts-ignore - types are incomplete
       const cast = notification.cast;
       
@@ -344,6 +352,7 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       const success = await postReply(reply, cast.hash);
       
       if (success) {
+        repliedThisCycle++;
         // Store in memory
         await memory.storeConversation(
           author.fid,
