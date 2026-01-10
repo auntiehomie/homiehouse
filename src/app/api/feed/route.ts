@@ -25,14 +25,23 @@ export async function GET(req: NextRequest) {
     if (channel) {
       // Channel-specific feed
       endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/channels?channel_ids=${encodeURIComponent(channel)}&with_recasts=true&limit=50`;
-    } else if (feedType === "following" && fid) {
-      // User's following feed
-      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=following&fid=${encodeURIComponent(fid)}&limit=50`;
+    } else if (feedType === "following") {
+      // User's following feed - requires FID
+      if (!fid) {
+        return NextResponse.json({ 
+          ok: false, 
+          error: "FID required for following feed. Please sign in." 
+        }, { status: 400 });
+      }
+      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=following&fid=${encodeURIComponent(fid)}&limit=50&with_recasts=true`;
     } else if (feedType === "channels") {
       // Popular channels feed (show trending from various channels)
       endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=filter&filter_type=channel_id&limit=50`;
-    } else {
+    } else if (feedType === "global") {
       // Global feed
+      endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=filter&filter_type=global_trending&limit=50`;
+    } else {
+      // Default to global if unknown feed type
       endpoint = `${NEYNAR_BASE}/v2/farcaster/feed/?feed_type=filter&filter_type=global_trending&limit=50`;
     }
     
