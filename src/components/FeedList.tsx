@@ -34,6 +34,7 @@ export default function FeedList({
   const [replyText, setReplyText] = useState("");
   const [replyLoading, setReplyLoading] = useState(false);
   const [showRecastModal, setShowRecastModal] = useState<string | null>(null);
+  const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
 
   const { isAuthenticated, profile } = useProfile();
 
@@ -223,6 +224,17 @@ export default function FeedList({
     }
   };
 
+  // Load see less preferences on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('hh_see_less');
+    if (stored) {
+      try {
+        const authors = JSON.parse(stored);
+        setSeeLessAuthors(new Set(authors));
+      } catch (e) {}
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -263,13 +275,19 @@ export default function FeedList({
   if (!items.length) return <div className="surface">No casts to show. Follow people to populate your feed.</div>;
 
   // Filter out muted users and hidden casts
-  const filteredItems = items.filter((it) => {
+  // Reduce visibility of "see less" authors (show 1 in 4)
+  const filteredItems = items.filter((it, index) => {
     const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
     const authorUsername = authorObj?.username || it.author || it.handle;
     const castHash = it.hash || it.id;
     
     if (authorUsername && mutedUsers.has(authorUsername)) return false;
     if (castHash && hiddenCasts.has(castHash)) return false;
+    
+    // Reduce "see less" authors - only show 25% of their content
+    if (authorUsername && seeLessAuthors.has(authorUsername)) {
+      return index % 4 === 0; // Only show every 4th post
+    }
     
     return true;
   });
@@ -333,6 +351,31 @@ export default function FeedList({
                 zIndex: 10,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
               }}>
+                <button
+                  onClick={() => {
+                    if (authorUsername) {
+                      setSeeLessAuthors(prev => new Set([...prev, authorUsername]));
+                      localStorage.setItem('hh_see_less', JSON.stringify([...seeLessAuthors, authorUsername]));
+                    }
+                    setShowActions(null);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--foreground)',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  👎 See less of this
+                </button>
                 <button
                   onClick={() => {
                     onHideCast(key);
@@ -493,6 +536,40 @@ export default function FeedList({
                 }}
               >
                 💬 Reply
+              </button>
+
+              <button
+                onClick={() => {
+                  const castData = encodeURIComponent(JSON.stringify({
+                    author: authorUsername,
+                    text: cleanCastText,
+                    hash: key
+                  }));
+                  window.location.href = `/ask-homie?cast=${castData}`;
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--muted-on-dark)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)';
+                  e.currentTarget.style.color = '#a855f7';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--muted-on-dark)';
+                }}
+              >
+                🤖 Ask Homie
               </button>
             </div>
             

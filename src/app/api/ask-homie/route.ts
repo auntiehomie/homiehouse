@@ -26,6 +26,13 @@ Key Facts about HomieHouse:
 - Users can view feeds, compose casts, and interact with the Farcaster network
 - Integrates with Farcaster AuthKit for authentication
 
+When analyzing Farcaster casts:
+- Help explain tokens, projects, and crypto concepts mentioned
+- Provide context about users and trends
+- Analyze sentiment and engagement
+- Explain technical terms and abbreviations
+- Identify potential scams or risky content
+
 Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
 
 // Intelligent provider selection based on question content
@@ -77,11 +84,21 @@ function selectBestProvider(question: string): 'claude' | 'openai' {
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, provider: requestedProvider } = await req.json();
+    const { messages, provider: requestedProvider, castContext } = await req.json();
 
     // Get the last user message to analyze
     const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
     const question = lastUserMessage?.content || '';
+
+    // If cast context is provided, prepend it to the conversation
+    let conversationMessages = messages;
+    if (castContext) {
+      const contextMessage = {
+        role: 'user',
+        content: `[CONTEXT: Farcaster cast from @${castContext.author}: "${castContext.text}"]`
+      };
+      conversationMessages = [contextMessage, ...messages];
+    }
 
     // Smart provider selection: use requested provider, or auto-select based on content
     const selectedProvider = requestedProvider || selectBestProvider(question);
@@ -96,7 +113,7 @@ export async function POST(req: NextRequest) {
           model: 'claude-3-5-sonnet-20241022',
           max_tokens: 1024,
           system: SYSTEM_PROMPT,
-          messages: messages.map((msg: any) => ({
+          messages: conversationMessages.map((msg: any) => ({
             role: msg.role === 'system' ? 'user' : msg.role,
             content: msg.content,
           })),
@@ -112,7 +129,7 @@ export async function POST(req: NextRequest) {
               role: 'system',
               content: SYSTEM_PROMPT
             },
-            ...messages
+            ...conversationMessages
           ],
           temperature: 0.7,
           max_tokens: 500,

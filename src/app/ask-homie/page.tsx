@@ -1,12 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from "next/link";
+import { useSearchParams } from 'next/navigation';
 
 export default function AskHomiePage() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [castContext, setCastContext] = useState<any>(null);
+  const searchParams = useSearchParams();
+
+  // Load cast context from URL or localStorage
+  useEffect(() => {
+    const castData = searchParams.get('cast');
+    if (castData) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(castData));
+        setCastContext(decoded);
+        localStorage.setItem('hh_ask_context', castData);
+      } catch (e) {
+        console.error('Failed to parse cast data', e);
+      }
+    } else {
+      const stored = localStorage.getItem('hh_ask_context');
+      if (stored) {
+        try {
+          setCastContext(JSON.parse(decodeURIComponent(stored)));
+        } catch (e) {}
+      }
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +45,10 @@ export default function AskHomiePage() {
       const response = await fetch('/api/ask-homie', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, { role: 'user', content: userMessage }] }),
+        body: JSON.stringify({ 
+          messages: [...messages, { role: 'user', content: userMessage }],
+          castContext 
+        }),
       });
 
       const data = await response.json();
@@ -50,6 +77,27 @@ export default function AskHomiePage() {
       <main className="mx-auto max-w-3xl">
         <h1 className="text-2xl font-semibold mb-2">Ask Homie</h1>
         <p className="mb-6 text-zinc-600 dark:text-zinc-400">Your AI assistant for HomieHouse</p>
+
+        {castContext && (
+          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex justify-between items-start mb-2">
+              <div className="font-medium text-sm text-blue-900 dark:text-blue-100">📌 Asking about this cast:</div>
+              <button
+                onClick={() => {
+                  setCastContext(null);
+                  localStorage.removeItem('hh_ask_context');
+                }}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Clear context
+              </button>
+            </div>
+            <div className="text-sm text-zinc-700 dark:text-zinc-300">
+              <div className="font-medium">@{castContext.author}</div>
+              <div className="mt-1">{castContext.text?.substring(0, 150)}{castContext.text?.length > 150 ? '...' : ''}</div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-6 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 min-h-[400px] max-h-[500px] overflow-y-auto">
           {messages.length === 0 ? (
