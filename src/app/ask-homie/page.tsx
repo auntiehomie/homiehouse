@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from "next/link";
 import { useSearchParams } from 'next/navigation';
 
-export default function AskHomiePage() {
+function AskHomieContent() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -152,5 +152,13 @@ export default function AskHomiePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function AskHomiePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AskHomieContent />
+    </Suspense>
   );
 }
