@@ -265,6 +265,8 @@ nav a:hover { color: var(--accent); }
   padding: 1rem;
   border: 1px solid var(--border);
   min-width: 180px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .channel-link {
@@ -276,6 +278,8 @@ nav a:hover { color: var(--accent); }
   font-size: 15px;
   transition: all 0.2s ease;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .channel-link:hover {

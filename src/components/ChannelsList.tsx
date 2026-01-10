@@ -93,6 +93,13 @@ export default function ChannelsList() {
             key={channel.id || channel.url}
             href={channel.url}
             className="channel-link"
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'block',
+              maxWidth: '100%'
+            }}
           >
             # {channel.name.toLowerCase()}
           </Link>

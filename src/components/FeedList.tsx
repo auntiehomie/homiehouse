@@ -42,7 +42,7 @@ export default function FeedList({
   const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
   const [creatingSignerFor, setCreatingSignerFor] = useState<'like' | 'recast' | null>(null);
 
-  // Get user's signer UUID from localStorage
+  // Get user's signer UUID from localStorage (only if approved)
   const getSignerUuid = () => {
     const storedProfile = localStorage.getItem("hh_profile");
     if (!storedProfile) return null;
@@ -56,7 +56,10 @@ export default function FeedList({
       const stored = localStorage.getItem(key);
       if (stored) {
         const parsed = JSON.parse(stored);
-        return parsed.signer_uuid || null;
+        // Only return signer if it's approved
+        if (parsed.status === 'approved' && parsed.signer_uuid) {
+          return parsed.signer_uuid;
+        }
       }
     } catch {
       return null;
@@ -157,13 +160,20 @@ export default function FeedList({
         const res = await fetch(`/api/like?castHash=${castHash}&signerUuid=${signerUuid}`, {
           method: "DELETE",
         });
-        if (res.ok) {
-          setLikedCasts(prev => {
-            const next = new Set(prev);
-            next.delete(castHash);
-            return next;
-          });
+        if (!res.ok) {
+          const data = await res.json();
+          if (res.status === 403) {
+            alert("Signer not approved. Please approve in Warpcast and try again.");
+          } else {
+            alert(`Failed to unlike: ${data.error || 'Unknown error'}`);
+          }
+          return;
         }
+        setLikedCasts(prev => {
+          const next = new Set(prev);
+          next.delete(castHash);
+          return next;
+        });
       } else {
         // Like
         const res = await fetch("/api/like", {
@@ -171,12 +181,20 @@ export default function FeedList({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ castHash, signerUuid }),
         });
-        if (res.ok) {
-          setLikedCasts(prev => new Set([...prev, castHash]));
+        if (!res.ok) {
+          const data = await res.json();
+          if (res.status === 403) {
+            alert("Signer not approved. Please approve in Warpcast and try again.");
+          } else {
+            alert(`Failed to like: ${data.error || 'Unknown error'}`);
+          }
+          return;
         }
+        setLikedCasts(prev => new Set([...prev, castHash]));
       }
     } catch (error) {
       console.error("Like error:", error);
+      alert("Failed to like cast");
     } finally {
       setActionLoading(null);
     }
@@ -198,13 +216,20 @@ export default function FeedList({
         const res = await fetch(`/api/recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
           method: "DELETE",
         });
-        if (res.ok) {
-          setRecastedCasts(prev => {
-            const next = new Set(prev);
-            next.delete(castHash);
-            return next;
-          });
+        if (!res.ok) {
+          const data = await res.json();
+          if (res.status === 403) {
+            alert("Signer not approved. Please approve in Warpcast and try again.");
+          } else {
+            alert(`Failed to remove recast: ${data.error || 'Unknown error'}`);
+          }
+          return;
         }
+        setRecastedCasts(prev => {
+          const next = new Set(prev);
+          next.delete(castHash);
+          return next;
+        });
       } else {
         // Recast
         const res = await fetch("/api/recast", {
@@ -212,12 +237,20 @@ export default function FeedList({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ castHash, signerUuid }),
         });
-        if (res.ok) {
-          setRecastedCasts(prev => new Set([...prev, castHash]));
+        if (!res.ok) {
+          const data = await res.json();
+          if (res.status === 403) {
+            alert("Signer not approved. Please approve in Warpcast and try again.");
+          } else {
+            alert(`Failed to recast: ${data.error || 'Unknown error'}`);
+          }
+          return;
         }
+        setRecastedCasts(prev => new Set([...prev, castHash]));
       }
     } catch (error) {
       console.error("Recast error:", error);
+      alert("Failed to recast");
     } finally {
       setActionLoading(null);
     }
@@ -252,7 +285,11 @@ export default function FeedList({
         alert("Reply posted successfully!");
       } else {
         const data = await res.json();
-        alert(`Failed to reply: ${data.error || 'Unknown error'}`);
+        if (res.status === 403) {
+          alert("Signer not approved. Please approve in Warpcast and try again.");
+        } else {
+          alert(`Failed to reply: ${data.error || 'Unknown error'}`);
+        }
       }
     } catch (error) {
       console.error("Reply error:", error);
