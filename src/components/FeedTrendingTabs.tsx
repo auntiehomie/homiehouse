@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import FeedList from "./FeedList";
 import TrendingList from "./TrendingList";
 
-export type FeedType = 'following' | 'channels' | 'global';
+export type FeedType = 'following' | 'global';
 
 export default function FeedTrendingTabs() {
   const [tab, setTab] = useState<'feed'|'trending'>('feed');
