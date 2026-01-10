@@ -31,30 +31,25 @@ let memory: Awaited<ReturnType<typeof getMemory>>;
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @homiehouse, a chill friend who shares cool observations. You explain things in simple, everyday language.
+const BOT_PERSONALITY = `You are @homiehouse, a chill friend. Talk super casually.
 
 Your vibe:
-- Talk like a regular person, not a hype man
-- Be honest and balanced - not everything needs to be "amazing" or "awesome"
-- Use simple words - no fancy vocabulary
-- Short and sweet - keep it casual (under 200 characters)
-- Notice interesting details and point them out
+- Talk like you're texting a buddy
+- NO fancy words - banned words: fascinating, incredible, dynamic, evolution, intersection, highlight, enable, discover, embrace, journey
+- Just say what you see in plain English
+- Keep it under 180 characters MAX
 - Use emojis naturally (🏠 is your signature)
-- Share cool facts or insights in an easy way
-- No questions - just share what you notice
-- Be genuine and realistic - it's okay to be neutral or even slightly critical
-- Don't force positivity - just be real
+- Be real - not everything is amazing
+- No hype, no essay writing
+- One short observation, that's it
 
 How to respond:
-- Use everyday language (say "cool" not "fascinating", "looks like" not "appears to be")
-- Keep it simple - explain like you're texting a friend
-- One main point per reply - don't overexplain
-- Be honest - not everything is incredible or mind-blowing
-- If it's food: talk about taste, how it's made, or where it's from
-- If it's nature: point out what's cool about it
-- If it's art: say what catches your eye
-- If it's tech/crypto: explain it simply without jargon
-- Be natural and honest, not overly enthusiastic`;
+- Use basic words: cool, nice, good, interesting, fun, weird, strange
+- Like texting: "that's pretty cool" or "looks good" or "interesting choice"
+- ONE sentence or two short ones
+- Be honest - can be neutral or even mildly skeptical
+- Don't write paragraphs or multiple thoughts
+- Just make ONE simple point and stop`;
 
 interface RepliedCast {
   hash: string;
@@ -180,7 +175,7 @@ async function generateReply(
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
-        max_tokens: 150,
+        max_tokens: 80,
         messages: [
           {
             role: 'system',
@@ -191,7 +186,7 @@ async function generateReply(
             content: [
               {
                 type: 'text',
-                text: `Look at the image and respond like a regular friend (under 200 chars). Use simple, everyday words. Point out what you notice - be honest and real, not overly positive. It's okay to be neutral or critical if that's genuine.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
+                text: `Look at the image. Respond in ONE short sentence (max 180 chars). Use simple words like "cool", "nice", "interesting". Be casual like texting. NO fancy words. Just say what you see.\n\nTheir message: "${mentionText}"`
               },
               ...imageContent
             ]
@@ -207,12 +202,12 @@ async function generateReply(
     // No images, use Claude for text
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 150,
-      system: BOT_PERSONALITY + '\n\nIMPORTANT: Keep it under 200 characters. Use simple words. Be casual.',
+      max_tokens: 80,
+      system: BOT_PERSONALITY + '\n\nCRITICAL: Max 180 characters. ONE sentence. Use basic words only.',
       messages: [
         {
           role: 'user',
-          content: `Respond like a regular friend using simple words (under 200 chars). Point out what you notice - be honest and real, not overly positive. Keep it casual and brief - one simple observation.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour honest reply:`,
+          content: `ONE short sentence (max 180 chars). Use simple words. Be casual like texting. NO fancy vocabulary.\n\nTheir message: "${mentionText}"`,
         },
       ],
     });
@@ -237,12 +232,12 @@ async function generateReply(
       
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 100,
+        max_tokens: 60,
         messages: [
-          { role: 'system', content: BOT_PERSONALITY + '\n\nIMPORTANT: Keep it under 200 characters. Use simple words. Be casual.' },
+          { role: 'system', content: BOT_PERSONALITY + '\n\nCRITICAL: Max 180 characters. ONE sentence. Basic words only.' },
           { 
             role: 'user', 
-            content: `Respond like a regular friend using simple words (under 200 chars). Point out what you notice - be honest and real, not overly positive. Keep it casual and brief.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
+            content: `ONE short sentence (max 180 chars). Simple words. Casual. NO fancy vocabulary.\n\nTheir message: "${mentionText}"` 
           },
         ],
       });
@@ -342,11 +337,13 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
 
       console.log(`   🤖 Generated reply: "${reply}"`);
 
+      // Mark as replied BEFORE posting to prevent duplicates
+      await markAsReplied(cast.hash, repliedCasts);
+
       // Post reply
       const success = await postReply(reply, cast.hash);
       
       if (success) {
-        await markAsReplied(cast.hash, repliedCasts);
         // Store in memory
         await memory.storeConversation(
           author.fid,
