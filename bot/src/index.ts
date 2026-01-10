@@ -16,7 +16,7 @@ const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_FID = process.env.APP_FID || '1987078';
-const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '30000');
+const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '60000');
 const BOT_USERNAME = process.env.BOT_USERNAME || 'homiehouse';
 
 if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID || !ANTHROPIC_API_KEY) {
@@ -83,7 +83,9 @@ async function markAsReplied(hash: string, repliedSet: Set<string>): Promise<voi
     hash: h,
     timestamp: Date.now(),
   }));
+  // Save immediately to prevent duplicates if bot restarts
   await saveRepliedCasts(casts);
+  console.log(`   ✅ Marked ${hash} as replied and saved to file`);
 }
 
 // Get conversation context for a cast
@@ -297,8 +299,14 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       // @ts-ignore - types are incomplete
       const cast = notification.cast;
       
-      if (!cast || repliedCasts.has(cast.hash)) {
-        continue; // Skip if we've already replied
+      // Skip if no cast or already replied
+      if (!cast) {
+        continue;
+      }
+      
+      if (repliedCasts.has(cast.hash)) {
+        console.log(`   ⏭️  Already replied to ${cast.hash} previously, skipping`);
+        continue;
       }
 
       newCount++;
@@ -362,6 +370,10 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
           reply
         );
         console.log(`   💾 Saved to memory`);
+        
+        // IMPORTANT: Stop immediately after one successful reply
+        console.log(`   ✅ Successfully replied. Stopping to prevent duplicates.`);
+        break;
       }
 
       // Rate limit: wait 2 seconds between replies
