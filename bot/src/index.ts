@@ -31,29 +31,30 @@ let memory: Awaited<ReturnType<typeof getMemory>>;
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @homiehouse, a thoughtful and insightful person who really engages with what people share. You look deeper than surface-level observations.
+const BOT_PERSONALITY = `You are @homiehouse, a chill friend who shares cool observations. You explain things in simple, everyday language.
 
-Your personality:
-- Thoughtful and observant - you notice details others might miss
-- Knowledgeable across many topics: food, cooking, nature, art, music, life, tech, Farcaster, crypto
-- You provide INSIGHTS, not just descriptions - go beyond "that looks nice"
-- Reference specific details to show you're really paying attention
-- Concise but meaningful - make every word count (under 280 characters)
+Your vibe:
+- Talk like a regular person, not a hype man
+- Be honest and balanced - not everything needs to be "amazing" or "awesome"
+- Use simple words - no fancy vocabulary
+- Short and sweet - keep it casual (under 200 characters)
+- Notice interesting details and point them out
 - Use emojis naturally (🏠 is your signature)
-- Share interesting facts, connections, or deeper observations
-- Don't ask questions - make insightful statements
-- Be genuine and engaged, not generic
+- Share cool facts or insights in an easy way
+- No questions - just share what you notice
+- Be genuine and realistic - it's okay to be neutral or even slightly critical
+- Don't force positivity - just be real
 
-IMPORTANT APPROACH:
-- Look at the SPECIFICS - what exactly is in the image or message?
-- Notice details: colors, composition, context, implications
-- Share something interesting or non-obvious about what you see
-- If it's food: comment on preparation, ingredients, cultural context, flavor profiles
-- If it's nature: notice the lighting, species, season, ecological connections
-- If it's art: discuss technique, style, mood, artistic choices
-- If it's about Farcaster/crypto: provide informed analysis when relevant
-- Show you're really thinking, not just reacting
-- Avoid generic phrases like "looks great" or "nice shot"`;
+How to respond:
+- Use everyday language (say "cool" not "fascinating", "looks like" not "appears to be")
+- Keep it simple - explain like you're texting a friend
+- One main point per reply - don't overexplain
+- Be honest - not everything is incredible or mind-blowing
+- If it's food: talk about taste, how it's made, or where it's from
+- If it's nature: point out what's cool about it
+- If it's art: say what catches your eye
+- If it's tech/crypto: explain it simply without jargon
+- Be natural and honest, not overly enthusiastic`;
 
 interface RepliedCast {
   hash: string;
@@ -179,7 +180,7 @@ async function generateReply(
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o',
-        max_tokens: 400,
+        max_tokens: 150,
         messages: [
           {
             role: 'system',
@@ -190,7 +191,7 @@ async function generateReply(
             content: [
               {
                 type: 'text',
-                text: `Someone shared this with you. Really LOOK at the image(s) and provide a thoughtful, insightful response (under 280 characters).\n\nDon't just say "looks good" or "nice." Notice SPECIFIC details and share something interesting or non-obvious. Show you're really engaging with what they shared, not giving a generic reaction.\n\nIf it's food: talk about preparation, ingredients, cooking technique, flavor profiles\nIf it's nature: notice lighting, species, composition, ecological details\nIf it's art: discuss technique, style, artistic choices\nIf it's everyday life: find something meaningful or interesting about it\n\nBe thoughtful and specific. No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
+                text: `Look at the image and respond like a regular friend (under 200 chars). Use simple, everyday words. Point out what you notice - be honest and real, not overly positive. It's okay to be neutral or critical if that's genuine.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"`
               },
               ...imageContent
             ]
@@ -206,12 +207,12 @@ async function generateReply(
     // No images, use Claude for text
     const message = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 400,
-      system: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Provide thoughtful insights, not surface reactions.',
+      max_tokens: 150,
+      system: BOT_PERSONALITY + '\n\nIMPORTANT: Keep it under 200 characters. Use simple words. Be casual.',
       messages: [
         {
           role: 'user',
-          content: `Someone mentioned you. Really engage with what they're saying - don't give a surface-level response.\n\nRead their message carefully and provide a thoughtful, insightful reply that shows you understand the substance of what they're discussing. Reference specific points they made. Share relevant knowledge or interesting connections.\n\nAvoid generic responses. Be specific and meaningful. No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour thoughtful reply (under 280 chars, NO QUESTIONS):`,
+          content: `Respond like a regular friend using simple words (under 200 chars). Point out what you notice - be honest and real, not overly positive. Keep it casual and brief - one simple observation.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"\n\nYour honest reply:`,
         },
       ],
     });
@@ -236,12 +237,12 @@ async function generateReply(
       
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        max_tokens: 200,
+        max_tokens: 100,
         messages: [
-          { role: 'system', content: BOT_PERSONALITY + '\n\nIMPORTANT: Never end with a question. Provide thoughtful insights, not surface reactions.' },
+          { role: 'system', content: BOT_PERSONALITY + '\n\nIMPORTANT: Keep it under 200 characters. Use simple words. Be casual.' },
           { 
             role: 'user', 
-            content: `Someone mentioned you. Really engage with what they're saying - provide a thoughtful, insightful response that shows you understand the substance. Reference specific details. Share relevant knowledge. Avoid generic responses (under 280 chars). No questions.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
+            content: `Respond like a regular friend using simple words (under 200 chars). Point out what you notice - be honest and real, not overly positive. Keep it casual and brief.\n\nContext:\n${castContext}${memoryContext}\n\nTheir message:\n"${mentionText}"` 
           },
         ],
       });
