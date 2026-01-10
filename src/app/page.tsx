@@ -74,13 +74,17 @@ export default function Home() {
       <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
         <header className="px-6 py-8 flex justify-end">
           <SignInWithFarcaster onSignInSuccess={() => {
-            setShowLanding(false);
             // Reload profile after sign in
             const storedProfile = localStorage.getItem("hh_profile");
             if (storedProfile) {
               try {
                 setUserProfile(JSON.parse(storedProfile));
-              } catch (e) {}
+                setShowLanding(false);
+                // Force a reload to ensure all components update properly
+                setTimeout(() => window.location.reload(), 100);
+              } catch (e) {
+                console.error('Profile parse error:', e);
+              }
             }
           }} />
         </header>

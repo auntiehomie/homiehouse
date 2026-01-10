@@ -64,6 +64,40 @@ export default function FeedList({
     return null;
   };
 
+  const pollSignerStatus = async (signerUuid: string, fid: number) => {
+    let attempts = 0;
+    const maxAttempts = 30; // Try for 30 seconds
+    
+    const checkStatus = async (): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/signer?signer_uuid=${signerUuid}`);
+        const data = await res.json();
+        
+        if (data.status === 'approved') {
+          // Update localStorage
+          const key = `signer_${fid}`;
+          localStorage.setItem(key, JSON.stringify({
+            signer_uuid: signerUuid,
+            status: 'approved'
+          }));
+          return true;
+        }
+        
+        if (attempts < maxAttempts) {
+          attempts++;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return checkStatus();
+        }
+        return false;
+      } catch (error) {
+        console.error('Poll error:', error);
+        return false;
+      }
+    };
+    
+    return checkStatus();
+  };
+
   const createSignerAutomatically = async (actionType: 'like' | 'recast') => {
     setCreatingSignerFor(actionType);
     try {
@@ -89,9 +123,13 @@ export default function FeedList({
         setSignerApprovalUrl(data.signer_approval_url);
         setShowSignerModal(true);
 
-        // On mobile, auto-redirect
+        // On mobile, auto-redirect and poll for approval
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile && data.signer_approval_url) {
+          // Store pending action
+          localStorage.setItem('hh_pending_action', JSON.stringify({ type: actionType, signerUuid: data.signer_uuid }));
+          
+          // Redirect to Warpcast
           window.location.href = data.signer_approval_url;
         }
       }
@@ -233,6 +271,36 @@ export default function FeedList({
         setSeeLessAuthors(new Set(authors));
       } catch (e) {}
     }
+  }, []);
+
+  // Check for pending signer approval (after returning from Warpcast on mobile)
+  useEffect(() => {
+    const checkPendingApproval = async () => {
+      const pending = localStorage.getItem('hh_pending_action');
+      if (pending) {
+        try {
+          const { signerUuid } = JSON.parse(pending);
+          const storedProfile = localStorage.getItem('hh_profile');
+          if (storedProfile) {
+            const profile = JSON.parse(storedProfile);
+            const fid = profile?.fid;
+            if (fid) {
+              // Poll for approval
+              const approved = await pollSignerStatus(signerUuid, fid);
+              if (approved) {
+                alert('Signer approved! You can now interact with casts.');
+              }
+              // Clear pending action
+              localStorage.removeItem('hh_pending_action');
+            }
+          }
+        } catch (e) {
+          console.error('Error checking pending approval:', e);
+        }
+      }
+    };
+    
+    checkPendingApproval();
   }, []);
 
   useEffect(() => {
