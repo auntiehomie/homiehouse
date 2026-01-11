@@ -34,6 +34,9 @@ export default function FeedList({
   const [replyText, setReplyText] = useState("");
   const [replyLoading, setReplyLoading] = useState(false);
   const [showRecastModal, setShowRecastModal] = useState<string | null>(null);
+  const [showQuoteModal, setShowQuoteModal] = useState<string | null>(null);
+  const [quoteText, setQuoteText] = useState("");
+  const [quoteLoading, setQuoteLoading] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
 
   const { isAuthenticated, profile } = useProfile();
@@ -296,6 +299,50 @@ export default function FeedList({
       alert("Failed to post reply");
     } finally {
       setReplyLoading(false);
+    }
+  };
+
+  const handleQuoteCast = async (castHash: string) => {
+    const signerUuid = getSignerUuid();
+    if (!signerUuid) {
+      await createSignerAutomatically('recast');
+      return;
+    }
+
+    if (!quoteText.trim()) {
+      alert("Please add some text to your quote cast");
+      return;
+    }
+
+    setQuoteLoading(true);
+    try {
+      const res = await fetch("/api/compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          text: quoteText, 
+          signerUuid,
+          embeds: [{ url: `https://warpcast.com/~/conversations/${castHash}` }]
+        }),
+      });
+
+      if (res.ok) {
+        setQuoteText("");
+        setShowQuoteModal(null);
+        alert("Quote cast posted successfully!");
+      } else {
+        const data = await res.json();
+        if (res.status === 403) {
+          alert("Signer not approved. Please approve in Warpcast and try again.");
+        } else {
+          alert(`Failed to post quote cast: ${data.error || 'Unknown error'}`);
+        }
+      }
+    } catch (error) {
+      console.error("Quote cast error:", error);
+      alert("Failed to post quote cast");
+    } finally {
+      setQuoteLoading(false);
     }
   };
 
@@ -862,9 +909,8 @@ export default function FeedList({
               
               <button
                 onClick={() => {
-                  // TODO: Implement quote cast functionality
-                  alert('Quote cast coming soon!');
                   setShowRecastModal(null);
+                  setShowQuoteModal(key);
                 }}
                 className="btn"
                 style={{
@@ -882,6 +928,96 @@ export default function FeedList({
               
               <button
                 onClick={() => setShowRecastModal(null)}
+                className="btn"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  opacity: 0.7
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quote Cast Modal */}
+      {showQuoteModal && (
+        <div
+          onClick={() => setShowQuoteModal(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--surface)',
+              borderRadius: '16px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto'
+            }}
+          >
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>Quote Cast</h3>
+            
+            <textarea
+              value={quoteText}
+              onChange={(e) => setQuoteText(e.target.value)}
+              placeholder="Add your thoughts..."
+              style={{
+                width: '100%',
+                minHeight: '120px',
+                padding: '12px',
+                fontSize: '15px',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                background: 'var(--background)',
+                color: 'var(--text)',
+                resize: 'vertical',
+                marginBottom: '16px',
+                fontFamily: 'inherit'
+              }}
+              autoFocus
+            />
+            
+            <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
+              <button
+                onClick={() => handleQuoteCast(showQuoteModal)}
+                disabled={quoteLoading || !quoteText.trim()}
+                className="btn primary"
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  fontSize: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                {quoteLoading ? 'Posting...' : '💬 Post Quote Cast'}
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowQuoteModal(null);
+                  setQuoteText("");
+                }}
                 className="btn"
                 style={{
                   width: '100%',
