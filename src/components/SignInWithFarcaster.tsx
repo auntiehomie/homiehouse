@@ -68,11 +68,14 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
         localStorage.setItem("hh_profile", JSON.stringify(data.profile));
         
         // Automatically create signer after sign-in for smoother UX
+        // Use setTimeout to avoid blocking the UI
         setTimeout(() => {
           createSignerProactively(data.profile.fid);
         }, 500);
         
-        onSignInSuccess?.(); // Notify parent component
+        if (onSignInSuccess) {
+          onSignInSuccess(); // Notify parent component
+        }
       } else {
         console.warn("/api/siwf returned no profile", data);
         alert("Sign-in verification failed. Check server logs for details.");
@@ -90,20 +93,33 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
       const key = `signer_${fid}`;
       const stored = localStorage.getItem(key);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.signer_uuid) {
-          // Signer exists, check if approved
-          const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
-          const checkData = await checkRes.json();
-          if (checkData.ok && checkData.status === "approved") {
-            // Already approved, nothing to do
-            return;
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.signer_uuid) {
+            // Signer exists, check if approved
+            const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              if (checkData.ok && checkData.status === "approved") {
+                console.log('[SignIn] Signer already approved, skipping creation');
+                // Already approved, nothing to do
+                return;
+              }
+            }
           }
+        } catch (parseErr) {
+          console.error('[SignIn] Error parsing stored signer:', parseErr);
         }
       }
 
+      console.log('[SignIn] Creating new signer proactively');
       // Create new signer
       const res = await fetch("/api/signer", { method: "POST" });
+      if (!res.ok) {
+        console.error('[SignIn] Failed to create signer:', res.status);
+        return;
+      }
+      
       const data = await res.json();
 
       if (data.ok && data.signer_uuid) {
@@ -122,7 +138,7 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
         }
       }
     } catch (error) {
-      console.error("Proactive signer creation failed:", error);
+      console.error("[SignIn] Proactive signer creation failed:", error);
       // Silent fail - user can still create signer on first action
     }
   };
