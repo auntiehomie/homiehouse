@@ -164,6 +164,9 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
   }
 }
 
+// Track casts we've checked in this run to avoid duplicates
+const checkedInThisRun = new Set<string>();
+
 export async function GET(request: NextRequest) {
   try {
     // Verify cron secret if configured
@@ -172,6 +175,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Clear the checked set for this run
+    checkedInThisRun.clear();
     let repliedCount = 0;
 
     // Fetch notifications
@@ -182,12 +187,22 @@ export async function GET(request: NextRequest) {
     console.log(`Found ${notifications.notifications.length} notifications`);
 
     for (const notification of notifications.notifications) {
-      if (repliedCount >= 1) break; // Only reply to 1 per run
+      if (repliedCount >= 1) {
+        console.log('Already replied to 1 cast in this run, stopping');
+        break; // Only reply to 1 per run
+      }
 
       const cast = notification.cast;
-      if (!cast) {
+      if (!cast || !cast.hash) {
         continue;
       }
+
+      // Skip if we've already checked this cast in this run
+      if (checkedInThisRun.has(cast.hash)) {
+        console.log(`Already checked ${cast.hash} in this run, skipping`);
+        continue;
+      }
+      checkedInThisRun.add(cast.hash);
 
       // Check if bot has already replied by fetching cast conversation
       try {
@@ -197,9 +212,9 @@ export async function GET(request: NextRequest) {
         });
         
         // Check if any replies are from the bot
-        const botAlreadyReplied = conversation.cast?.direct_replies?.some(
+        const botAlreadyReplied = (conversation.cast as any)?.direct_replies?.some(
           (reply: any) => reply.author?.fid === BOT_FID
-        );
+        ) || false;
 
         if (botAlreadyReplied) {
           console.log(`Already replied to ${cast.hash}, skipping`);
