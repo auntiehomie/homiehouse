@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
 
       // Check if bot has already replied by fetching cast conversation
       try {
-        const conversation = await neynar.lookUpCastByHashOrWarpcastUrl({
+        const conversation = await neynar.lookupCastByHashOrUrl({
           identifier: cast.hash,
           type: 'hash'
         });
