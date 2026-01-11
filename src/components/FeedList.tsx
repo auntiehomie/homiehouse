@@ -104,26 +104,58 @@ export default function FeedList({
     return checkStatus();
   };
 
-  const createSignerAutomatically = async (actionType: 'like' | 'recast') => {
-    setCreatingSignerFor(actionType);
+  const createSignerAutomatically = async (actionType?: 'like' | 'recast') => {
     try {
+      const storedProfile = localStorage.getItem("hh_profile");
+      if (!storedProfile) {
+        alert("Please sign in first");
+        return;
+      }
+      
+      const profile = JSON.parse(storedProfile);
+      const fid = profile?.fid;
+      if (!fid) {
+        alert("Profile FID not found");
+        return;
+      }
+
+      const key = `signer_${fid}`;
+      
+      // Check if we already have a signer (even if pending)
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.signer_uuid) {
+          // Check its status
+          const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
+          const checkData = await checkRes.json();
+          
+          if (checkData.ok) {
+            if (checkData.status === "approved") {
+              // Already approved, just return
+              return;
+            } else if (checkData.status === "pending_approval") {
+              // Still pending, show the approval modal again
+              setSignerApprovalUrl(checkData.signer_approval_url);
+              setShowSignerModal(true);
+              setCreatingSignerFor(actionType || 'recast');
+              return;
+            }
+          }
+        }
+      }
+
+      // No existing signer or it's invalid, create a new one
+      setCreatingSignerFor(actionType || 'recast');
       const res = await fetch("/api/signer", { method: "POST" });
       const data = await res.json();
 
       if (data.ok && data.signer_uuid) {
-        const storedProfile = localStorage.getItem("hh_profile");
-        if (storedProfile) {
-          const profile = JSON.parse(storedProfile);
-          const fid = profile?.fid;
-          if (fid) {
-            const key = `signer_${fid}`;
-            localStorage.setItem(key, JSON.stringify({
-              signer_uuid: data.signer_uuid,
-              status: data.status,
-              signer_approval_url: data.signer_approval_url
-            }));
-          }
-        }
+        localStorage.setItem(key, JSON.stringify({
+          signer_uuid: data.signer_uuid,
+          status: data.status,
+          signer_approval_url: data.signer_approval_url
+        }));
 
         // Show approval modal
         setSignerApprovalUrl(data.signer_approval_url);
@@ -133,7 +165,7 @@ export default function FeedList({
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile && data.signer_approval_url) {
           // Store pending action
-          localStorage.setItem('hh_pending_action', JSON.stringify({ type: actionType, signerUuid: data.signer_uuid }));
+          localStorage.setItem('hh_pending_action', JSON.stringify({ type: actionType || 'recast', signerUuid: data.signer_uuid }));
           
           // Redirect to Warpcast
           window.location.href = data.signer_approval_url;
@@ -827,8 +859,8 @@ export default function FeedList({
                 Approve Posting Permissions
               </h3>
               <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
-                To {creatingSignerFor} casts, you need to approve posting permissions in Warpcast.
-                This only needs to be done once.
+                To interact with casts (like, recast, reply, quote), you need to approve posting permissions in Warpcast.
+                This only needs to be done once for all actions.
               </p>
               
               {signerApprovalUrl && (
