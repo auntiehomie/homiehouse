@@ -348,12 +348,31 @@ export default function FeedList({
 
     setQuoteLoading(true);
     try {
+      // Get FID for the compose API
+      let fid: number | undefined = undefined;
+      try {
+        const storedProfile = localStorage.getItem("hh_profile");
+        if (storedProfile) {
+          const parsed = JSON.parse(storedProfile);
+          fid = parsed?.fid;
+        }
+      } catch (e) {
+        console.error('Error getting FID:', e);
+      }
+
+      if (!fid) {
+        alert("Please sign in first");
+        setQuoteLoading(false);
+        return;
+      }
+
       const res = await fetch("/api/compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           text: quoteText, 
           signerUuid,
+          fid,
           embeds: [{ url: `https://warpcast.com/~/conversations/${castHash}` }]
         }),
       });

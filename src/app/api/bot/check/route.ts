@@ -204,25 +204,33 @@ export async function GET(request: NextRequest) {
       }
       checkedInThisRun.add(cast.hash);
 
-      // Check if bot has already replied by fetching cast conversation
       try {
+        console.log(`Checking if already replied to ${cast.hash}`);
+        
         const conversation = await neynar.lookupCastByHashOrUrl({
           identifier: cast.hash,
           type: 'hash'
         });
         
         // Check if any replies are from the bot
-        const botAlreadyReplied = (conversation.cast as any)?.direct_replies?.some(
-          (reply: any) => reply.author?.fid === BOT_FID
-        ) || false;
+        const replies = (conversation.cast as any)?.direct_replies || [];
+        const botAlreadyReplied = replies.some(
+          (reply: any) => {
+            const replyFid = reply.author?.fid || reply.fid;
+            return replyFid === BOT_FID;
+          }
+        );
 
         if (botAlreadyReplied) {
-          console.log(`Already replied to ${cast.hash}, skipping`);
+          console.log(`✓ Already replied to ${cast.hash}, skipping`);
           continue;
         }
+        
+        console.log(`No existing reply found for ${cast.hash}, proceeding to reply`);
       } catch (error) {
         console.error(`Error checking replies for ${cast.hash}:`, error);
-        // If we can't check, skip to be safe
+        // If we can't check reliably, skip to be safe
+        console.log('Skipping cast due to check error');
         continue;
       }
 
