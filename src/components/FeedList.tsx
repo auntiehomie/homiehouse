@@ -347,23 +347,33 @@ export default function FeedList({
       try {
         const fid = (profile?.fid as any) ?? undefined;
         
+        console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, isAuthenticated });
+        
         // Build query params based on feed type and channel
         let url = `/api/feed?feed_type=${feedType}`;
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
         
+        console.log('[FeedList] API URL:', url);
+        
         const feedRes = await fetch(url);
+        console.log('[FeedList] API response status:', feedRes.status);
+        
         if (feedRes.ok) {
           res = await feedRes.json();
+          console.log('[FeedList] API response data:', res);
           if (res?.data) res = res.data;
         } else {
           // fallback to host SDK if server can't provide feed
+          console.log('[FeedList] API failed, using fallback fetchFeed');
           res = await fetchFeed(20);
         }
       } catch (e) {
+        console.error('[FeedList] Error fetching feed:', e);
         res = await fetchFeed(20);
       }
 
+      console.log('[FeedList] Final items count:', res?.length || 0);
       if (mounted) setItems(res);
     })();
     return () => {
