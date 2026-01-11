@@ -2,12 +2,16 @@
 
 import React, { useState, useEffect } from "react";
 import { SignInButton } from "@farcaster/auth-kit";
+import { QRCodeSVG } from 'qrcode.react';
 
-type Profile = { username: string; displayName?: string; avatar?: string } | null;
+type Profile = { username: string; displayName?: string; avatar?: string; fid?: number } | null;
 
 export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSuccess?: () => void } = {}) {
   const [profile, setProfile] = useState<Profile>(null);
   const [loading, setLoading] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
+  const [checkingApproval, setCheckingApproval] = useState(false);
 
   // Load profile from localStorage on mount
   useEffect(() => {
@@ -67,11 +71,8 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
         setProfile(data.profile);
         localStorage.setItem("hh_profile", JSON.stringify(data.profile));
         
-        // Automatically create signer after sign-in for smoother UX
-        // Use setTimeout to avoid blocking the UI
-        setTimeout(() => {
-          createSignerProactively(data.profile.fid);
-        }, 500);
+        // Immediately create signer and show approval modal
+        await createSignerAndShowApproval(data.profile.fid);
         
         if (onSignInSuccess) {
           onSignInSuccess(); // Notify parent component
@@ -87,33 +88,31 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
     }
   }
 
-  const createSignerProactively = async (fid: number) => {
+  const createSignerAndShowApproval = async (fid: number) => {
     try {
-      // Check if signer already exists
       const key = `signer_${fid}`;
+      
+      // Check if signer already exists and is approved
       const stored = localStorage.getItem(key);
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
           if (parsed.signer_uuid) {
-            // Signer exists, check if approved
             const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
             if (checkRes.ok) {
               const checkData = await checkRes.json();
               if (checkData.ok && checkData.status === "approved") {
-                console.log('[SignIn] Signer already approved, skipping creation');
-                // Already approved, nothing to do
+                console.log('[SignIn] Signer already approved');
                 return;
               }
             }
           }
         } catch (parseErr) {
-          console.error('[SignIn] Error parsing stored signer:', parseErr);
+          console.error('[SignIn] Error checking existing signer:', parseErr);
         }
       }
 
-      console.log('[SignIn] Creating new signer proactively');
-      // Create new signer
+      console.log('[SignIn] Creating new signer');
       const res = await fetch("/api/signer", { method: "POST" });
       if (!res.ok) {
         console.error('[SignIn] Failed to create signer:', res.status);
@@ -129,17 +128,52 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
           signer_approval_url: data.signer_approval_url
         }));
 
-        // Show welcome modal with approval instructions
+        // Show approval modal immediately if not approved
         if (data.status !== "approved") {
-          sessionStorage.setItem("pending_approval_url", data.signer_approval_url);
-          window.dispatchEvent(new CustomEvent("showWelcomeModal", { 
-            detail: { approvalUrl: data.signer_approval_url } 
-          }));
+          setApprovalUrl(data.signer_approval_url);
+          setShowApprovalModal(true);
         }
       }
     } catch (error) {
-      console.error("[SignIn] Proactive signer creation failed:", error);
-      // Silent fail - user can still create signer on first action
+      console.error("[SignIn] Signer creation failed:", error);
+    }
+  };
+
+  const handleCheckApproval = async () => {
+    setCheckingApproval(true);
+    try {
+      const storedProfile = localStorage.getItem("hh_profile");
+      if (storedProfile) {
+        const profile = JSON.parse(storedProfile);
+        const fid = profile?.fid;
+        if (fid) {
+          const key = `signer_${fid}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
+            const checkData = await checkRes.json();
+            
+            if (checkData.ok && checkData.status === "approved") {
+              // Update localStorage
+              localStorage.setItem(key, JSON.stringify({
+                signer_uuid: parsed.signer_uuid,
+                status: 'approved'
+              }));
+              
+              alert('✓ Signer approved! You can now interact with casts.');
+              setShowApprovalModal(false);
+            } else {
+              alert('Signer not approved yet. Please approve in Warpcast first.');
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Check approval error:', error);
+      alert('Failed to check approval status. Please try again.');
+    } finally {
+      setCheckingApproval(false);
     }
   };
 
@@ -157,18 +191,96 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
 
   if (profile) {
     return (
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {profile.avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.avatar} alt={profile.username} className="w-8 h-8 rounded-full" />
-        ) : (
-          <div className="w-8 h-8 rounded-full bg-zinc-700" />
+      <>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {profile.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.avatar} alt={profile.username} className="w-8 h-8 rounded-full" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-zinc-700" />
+          )}
+          <div style={{ fontWeight: 700 }}>{profile.displayName ?? profile.username}</div>
+          <button onClick={signOut} className="px-3 py-1 rounded-md border">
+            Sign out
+          </button>
+        </div>
+
+        {/* Signer Approval Modal */}
+        {showApprovalModal && approvalUrl && (
+          <div 
+            onClick={() => setShowApprovalModal(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.8)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10000,
+              padding: '20px'
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'var(--surface)',
+                borderRadius: '16px',
+                padding: '32px',
+                maxWidth: '500px',
+                width: '100%',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
+              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
+                One More Step!
+              </h3>
+              <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
+                To interact with casts (like, recast, reply, quote), approve posting permissions in Warpcast.
+                This only needs to be done once.
+              </p>
+              
+              <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '16px' }}>
+                <QRCodeSVG value={approvalUrl} size={200} />
+              </div>
+              
+              <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
+                Scan this QR code or click below:
+              </p>
+              
+              <a 
+                href={approvalUrl} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="btn primary" 
+                style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '14px', width: '100%', textDecoration: 'none' }}
+              >
+                Open Warpcast to Approve →
+              </a>
+              
+              <button 
+                onClick={handleCheckApproval}
+                disabled={checkingApproval}
+                className="btn primary" 
+                style={{ width: '100%', padding: '14px', marginBottom: '8px' }}
+              >
+                {checkingApproval ? 'Checking...' : "✓ I've Approved - Check Status"}
+              </button>
+              
+              <button 
+                onClick={() => setShowApprovalModal(false)}
+                className="btn" 
+                style={{ width: '100%', padding: '12px' }}
+              >
+                I'll Do This Later
+              </button>
+            </div>
+          </div>
         )}
-        <div style={{ fontWeight: 700 }}>{profile.displayName ?? profile.username}</div>
-        <button onClick={signOut} className="px-3 py-1 rounded-md border">
-          Sign out
-        </button>
-      </div>
+      </>
     );
   }
 

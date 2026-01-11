@@ -897,14 +897,41 @@ export default function FeedList({
                         const stored = localStorage.getItem(key);
                         if (stored) {
                           const parsed = JSON.parse(stored);
-                          const approved = await pollSignerStatus(parsed.signer_uuid, fid);
+                          
+                          // Show checking status
+                          const button = document.activeElement as HTMLButtonElement;
+                          const originalText = button?.textContent;
+                          if (button) button.textContent = 'Checking...';
+                          
+                          // Poll for approval (try up to 5 times with 2 second gaps)
+                          let approved = false;
+                          for (let i = 0; i < 5; i++) {
+                            const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
+                            if (checkRes.ok) {
+                              const checkData = await checkRes.json();
+                              if (checkData.ok && checkData.status === 'approved') {
+                                // Update localStorage with approved status
+                                localStorage.setItem(key, JSON.stringify({
+                                  signer_uuid: parsed.signer_uuid,
+                                  status: 'approved'
+                                }));
+                                approved = true;
+                                break;
+                              }
+                            }
+                            // Wait 2 seconds before next check
+                            if (i < 4) await new Promise(resolve => setTimeout(resolve, 2000));
+                          }
+                          
+                          if (button) button.textContent = originalText || 'Check Status';
+                          
                           if (approved) {
-                            alert('Signer approved! You can now try your action again.');
+                            alert('✓ Signer approved! You can now interact with casts.');
                             setShowSignerModal(false);
-                            // Refresh the page to update state
+                            // Reload to ensure everything is fresh
                             window.location.reload();
                           } else {
-                            alert('Signer not approved yet. Please approve in Warpcast first.');
+                            alert('⚠️ Signer not approved yet. Please make sure you approved it in Warpcast, then try again in a few seconds.');
                           }
                         }
                       }
