@@ -345,7 +345,11 @@ export default function FeedList({
     (async () => {
       let res;
       try {
-        const fid = (profile?.fid as any) ?? undefined;
+        console.log('[FeedList] Profile object:', profile);
+        console.log('[FeedList] Profile.fid:', profile?.fid);
+        console.log('[FeedList] IsAuthenticated:', isAuthenticated);
+        
+        const fid = profile?.fid ?? undefined;
         
         console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, isAuthenticated });
         
