@@ -817,15 +817,51 @@ export default function FeedList({
               )}
               
               <button 
+                className="btn primary" 
+                onClick={async () => {
+                  // Try to get the signer and check if it's approved
+                  try {
+                    const storedProfile = localStorage.getItem("hh_profile");
+                    if (storedProfile) {
+                      const profile = JSON.parse(storedProfile);
+                      const fid = profile?.fid;
+                      if (fid) {
+                        const key = `signer_${fid}`;
+                        const stored = localStorage.getItem(key);
+                        if (stored) {
+                          const parsed = JSON.parse(stored);
+                          const approved = await pollSignerStatus(parsed.signer_uuid, fid);
+                          if (approved) {
+                            alert('Signer approved! You can now try your action again.');
+                            setShowSignerModal(false);
+                            // Refresh the page to update state
+                            window.location.reload();
+                          } else {
+                            alert('Signer not approved yet. Please approve in Warpcast first.');
+                          }
+                        }
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Check approval error:', error);
+                    alert('Failed to check approval status. Please try again.');
+                  }
+                }}
+                style={{ width: '100%', padding: '12px', marginBottom: '8px' }}
+              >
+                ✓ I've Approved - Check Status
+              </button>
+              
+              <button 
                 className="btn" 
                 onClick={() => setShowSignerModal(false)}
                 style={{ width: '100%', padding: '12px' }}
               >
-                Close
+                Cancel
               </button>
               
               <p style={{ fontSize: '13px', color: 'var(--muted-on-dark)', marginTop: '16px' }}>
-                After approving, refresh the page and try again.
+                After approving in Warpcast, click "Check Status" to verify.
               </p>
             </div>
           </div>
