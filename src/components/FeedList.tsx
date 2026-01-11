@@ -316,6 +316,30 @@ export default function FeedList({
 
     setQuoteLoading(true);
     try {
+      // Double-check signer is actually approved before posting
+      try {
+        const storedProfile = localStorage.getItem("hh_profile");
+        if (storedProfile) {
+          const profile = JSON.parse(storedProfile);
+          const fid = profile?.fid;
+          if (fid) {
+            const checkRes = await fetch(`/api/signer?signer_uuid=${signerUuid}`);
+            if (checkRes.ok) {
+              const signerData = await checkRes.json();
+              if (signerData.status !== 'approved') {
+                alert("Signer not fully approved yet. Please approve in Warpcast and wait a moment.");
+                setQuoteLoading(false);
+                setShowQuoteModal(null);
+                await createSignerAutomatically('recast');
+                return;
+              }
+            }
+          }
+        }
+      } catch (checkError) {
+        console.error('Signer check error:', checkError);
+      }
+
       const res = await fetch("/api/compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -333,7 +357,18 @@ export default function FeedList({
       } else {
         const data = await res.json();
         if (res.status === 403) {
-          alert("Signer not approved. Please approve in Warpcast and try again.");
+          // Clear the bad signer and prompt to recreate
+          const storedProfile = localStorage.getItem("hh_profile");
+          if (storedProfile) {
+            const profile = JSON.parse(storedProfile);
+            const fid = profile?.fid;
+            if (fid) {
+              localStorage.removeItem(`signer_${fid}`);
+            }
+          }
+          setShowQuoteModal(null);
+          alert("Signer not approved. Please approve in Warpcast. Creating new signer...");
+          await createSignerAutomatically('recast');
         } else {
           alert(`Failed to post quote cast: ${data.error || 'Unknown error'}`);
         }
