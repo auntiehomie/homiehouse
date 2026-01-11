@@ -8,8 +8,8 @@ const authSessions = new Map<string, {
   createdAt: number;
 }>();
 
-// Clean up old sessions every minute
-setInterval(() => {
+// Clean up old sessions on each request (serverless compatible)
+function cleanupSessions() {
   const now = Date.now();
   const fiveMinutesAgo = now - 5 * 60 * 1000;
   
@@ -18,9 +18,10 @@ setInterval(() => {
       authSessions.delete(token);
     }
   }
-}, 60000);
+}
 
 export async function POST() {
+  cleanupSessions();
   try {
     const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
     if (!NEYNAR_API_KEY) {
@@ -82,6 +83,8 @@ export async function POST() {
 }
 
 export async function GET(req: NextRequest) {
+  cleanupSessions();
+  
   try {
     const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
     if (!NEYNAR_API_KEY) {
