@@ -345,11 +345,17 @@ export default function FeedList({
     (async () => {
       let res;
       try {
-        console.log('[FeedList] Profile object:', profile);
-        console.log('[FeedList] Profile.fid:', profile?.fid);
-        console.log('[FeedList] IsAuthenticated:', isAuthenticated);
-        
-        const fid = profile?.fid ?? undefined;
+        // Get FID from localStorage since auth-kit profile doesn't include it
+        let fid: number | undefined = undefined;
+        try {
+          const storedProfile = localStorage.getItem("hh_profile");
+          if (storedProfile) {
+            const parsed = JSON.parse(storedProfile);
+            fid = parsed?.fid;
+          }
+        } catch (e) {
+          console.error('[FeedList] Error reading FID from localStorage:', e);
+        }
         
         console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, isAuthenticated });
         

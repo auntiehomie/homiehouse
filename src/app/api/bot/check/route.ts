@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { promises as fs } from 'fs';
-import path from 'path';
 
 const neynarConfig = new Configuration({
   apiKey: process.env.NEYNAR_API_KEY!
@@ -21,42 +19,6 @@ const BOT_PERSONALITY = `You are a chill friend on Farcaster. Reply naturally an
 BANNED WORDS (never use): fascinating, incredible, amazing, dynamic, evolution, evoke, transcend, interplay, ecosystem, tapestry, intriguing, profound, mundane
 
 Talk like a real person texting a friend. Be helpful but laid-back.`;
-
-interface RepliedCast {
-  hash: string;
-  timestamp: number;
-}
-
-let repliedCastsCache: Set<string> | null = null;
-
-async function loadRepliedCasts(): Promise<Set<string>> {
-  if (repliedCastsCache) return repliedCastsCache;
-  
-  try {
-    const filePath = path.join('/tmp', 'replied_casts.json');
-    const data = await fs.readFile(filePath, 'utf-8');
-    const casts: RepliedCast[] = JSON.parse(data);
-    repliedCastsCache = new Set(casts.map(c => c.hash));
-    return repliedCastsCache;
-  } catch (error) {
-    repliedCastsCache = new Set();
-    return repliedCastsCache;
-  }
-}
-
-async function saveRepliedCasts(repliedSet: Set<string>): Promise<void> {
-  try {
-    const filePath = path.join('/tmp', 'replied_casts.json');
-    const casts: RepliedCast[] = Array.from(repliedSet).map(hash => ({
-      hash,
-      timestamp: Date.now()
-    }));
-    await fs.writeFile(filePath, JSON.stringify(casts, null, 2));
-    repliedCastsCache = repliedSet;
-  } catch (error) {
-    console.error('Error saving replied casts:', error);
-  }
-}
 
 function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUrl?: string } {
   const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
@@ -210,7 +172,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const repliedSet = await loadRepliedCasts();
     let repliedCount = 0;
 
     // Fetch notifications
@@ -224,15 +185,35 @@ export async function GET(request: NextRequest) {
       if (repliedCount >= 1) break; // Only reply to 1 per run
 
       const cast = notification.cast;
-      if (!cast || repliedSet.has(cast.hash)) {
+      if (!cast) {
         continue;
       }
 
-      // Mark as replied BEFORE generating to prevent duplicates
-      repliedSet.add(cast.hash);
-      await saveRepliedCasts(repliedSet);
+      // Check if bot has already replied by fetching cast conversation
+      try {
+        const conversation = await neynar.lookUpCastByHashOrWarpcastUrl({
+          identifier: cast.hash,
+          type: 'hash'
+        });
+        
+        // Check if any replies are from the bot
+        const botAlreadyReplied = conversation.cast?.direct_replies?.some(
+          (reply: any) => reply.author?.fid === BOT_FID
+        );
+
+        if (botAlreadyReplied) {
+          console.log(`Already replied to ${cast.hash}, skipping`);
+          continue;
+        }
+      } catch (error) {
+        console.error(`Error checking replies for ${cast.hash}:`, error);
+        // If we can't check, skip to be safe
+        continue;
+      }
 
       try {
+        console.log(`Generating reply for ${cast.hash}`);
+        
         // Generate reply
         const reply = await generateReply(cast, []);
 
@@ -248,7 +229,6 @@ export async function GET(request: NextRequest) {
 
       } catch (error) {
         console.error(`Error replying to ${cast.hash}:`, error);
-        // Keep it marked as replied to avoid retry loops
       }
     }
 
