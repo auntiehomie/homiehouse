@@ -909,8 +909,9 @@ export default function FeedList({
               
               <button
                 onClick={() => {
+                  const castHash = showRecastModal;
                   setShowRecastModal(null);
-                  setShowQuoteModal(key);
+                  setShowQuoteModal(castHash);
                 }}
                 className="btn"
                 style={{
