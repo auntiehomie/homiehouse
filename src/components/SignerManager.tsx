@@ -1,32 +1,41 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useProfile } from "@farcaster/auth-kit";
 
 export default function SignerManager() {
-  const { isAuthenticated, profile } = useProfile();
+  const [profile, setProfile] = useState<any>(null);
   const [signerUuid, setSignerUuid] = useState<string | null>(null);
   const [signerStatus, setSignerStatus] = useState<string | null>(null);
   const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  // Load signer from localStorage
+  // Load profile and signer from localStorage
   useEffect(() => {
-    if (isAuthenticated && profile?.fid) {
-      const key = `signer_${profile.fid}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setSignerUuid(parsed.signer_uuid);
-          setSignerStatus(parsed.status);
-        } catch (e) {
-          console.error("Failed to parse stored signer", e);
+    const storedProfile = localStorage.getItem("hh_profile");
+    if (storedProfile) {
+      try {
+        const parsed = JSON.parse(storedProfile);
+        setProfile(parsed);
+        
+        if (parsed?.fid) {
+          const key = `signer_${parsed.fid}`;
+          const stored = localStorage.getItem(key);
+          if (stored) {
+            try {
+              const signerData = JSON.parse(stored);
+              setSignerUuid(signerData.signer_uuid);
+              setSignerStatus(signerData.status);
+            } catch (e) {
+              console.error("Failed to parse stored signer", e);
+            }
+          }
         }
+      } catch (e) {
+        console.error("Failed to parse stored profile", e);
       }
     }
-  }, [isAuthenticated, profile?.fid]);
+  }, []);
 
   async function createSigner() {
     if (!profile?.fid) {
@@ -93,7 +102,7 @@ export default function SignerManager() {
     }
   }
 
-  if (!isAuthenticated) {
+  if (!profile) {
     return null;
   }
 

@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { fetchFeed } from "../lib/farcaster";
-import { useProfile } from "@farcaster/auth-kit";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import { FeedType } from "./FeedTrendingTabs";
@@ -39,11 +38,20 @@ export default function FeedList({
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
 
-  const { isAuthenticated, profile } = useProfile();
-
   const [showSignerModal, setShowSignerModal] = useState(false);
   const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
   const [creatingSignerFor, setCreatingSignerFor] = useState<'like' | 'recast' | null>(null);
+
+  // Get profile from localStorage
+  const getProfile = () => {
+    const storedProfile = localStorage.getItem("hh_profile");
+    if (!storedProfile) return null;
+    try {
+      return JSON.parse(storedProfile);
+    } catch {
+      return null;
+    }
+  };
 
   // Get user's signer UUID from localStorage (only if approved)
   const getSignerUuid = () => {
@@ -466,7 +474,8 @@ export default function FeedList({
           console.error('[FeedList] Error reading FID from localStorage:', e);
         }
         
-        console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, isAuthenticated });
+        const profile = getProfile();
+        console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, hasProfile: !!profile });
         
         // Build query params based on feed type and channel
         let url = `/api/feed?feed_type=${feedType}`;
@@ -498,7 +507,7 @@ export default function FeedList({
     return () => {
       mounted = false;
     };
-  }, [isAuthenticated, profile, feedType, selectedChannel]);
+  }, [feedType, selectedChannel]);
 
   if (items === null)
     return (

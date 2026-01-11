@@ -3,18 +3,27 @@
 import React, { useEffect, useState } from "react";
 import { TrendingSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
-import { useProfile } from "@farcaster/auth-kit";
 
 export default function TrendingList() {
   const [items, setItems] = useState<any[] | null>(null);
-  const { isAuthenticated, profile } = useProfile();
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const params = new URLSearchParams({ limit: String(10), time_window: "24h" });
-        if (isAuthenticated && profile?.fid) params.set("viewer_fid", String(profile.fid));
+        
+        // Get FID from localStorage if available
+        const storedProfile = localStorage.getItem("hh_profile");
+        if (storedProfile) {
+          try {
+            const profile = JSON.parse(storedProfile);
+            if (profile?.fid) {
+              params.set("viewer_fid", String(profile.fid));
+            }
+          } catch {}
+        }
+        
         const res = await fetch(`/api/trending?${params.toString()}`);
         const data = await res.json();
         const casts = data?.data ?? [];
@@ -24,7 +33,7 @@ export default function TrendingList() {
       }
     })();
     return () => { mounted = false; };
-  }, [isAuthenticated, profile?.fid]);
+  }, []);
 
   if (items === null)
     return (

@@ -9,7 +9,6 @@ import SignInWithFarcaster from "../components/SignInWithFarcaster";
 import WalletButton from "../components/WalletButton";
 import WalletDashboard from "../components/WalletDashboard";
 import ChannelsList from "../components/ChannelsList";
-import { useProfile } from "@farcaster/auth-kit";
 import WelcomeModal from "../components/WelcomeModal";
 
 const MESSAGES = [
