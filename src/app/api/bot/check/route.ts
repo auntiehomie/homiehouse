@@ -164,8 +164,21 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
   }
 }
 
-// Track casts we've checked in this run to avoid duplicates
-const checkedInThisRun = new Set<string>();
+// In-memory cache to track recently replied casts (per serverless instance)
+// This helps prevent duplicate replies within the same instance lifetime
+const repliedCastsCache = new Map<string, number>();
+
+// Clean up old entries from cache (older than 24 hours)
+function cleanupCache() {
+  const now = Date.now();
+  const oneDayAgo = now - 24 * 60 * 60 * 1000;
+  
+  for (const [hash, timestamp] of repliedCastsCache.entries()) {
+    if (timestamp < oneDayAgo) {
+      repliedCastsCache.delete(hash);
+    }
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -175,8 +188,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Clear the checked set for this run
-    checkedInThisRun.clear();
+    cleanupCache();
     let repliedCount = 0;
 
     // Fetch notifications
@@ -197,24 +209,28 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Skip if we've already checked this cast in this run
-      if (checkedInThisRun.has(cast.hash)) {
-        console.log(`Already checked ${cast.hash} in this run, skipping`);
+      // Check in-memory cache first (fast check)
+      if (repliedCastsCache.has(cast.hash)) {
+        console.log(`✓ Already replied to ${cast.hash} (in cache), skipping`);
         continue;
       }
-      checkedInThisRun.add(cast.hash);
 
       try {
         console.log(`Checking if already replied to ${cast.hash}`);
         
+        // Fetch the cast with all replies to check if bot already replied
         const conversation = await neynar.lookupCastByHashOrUrl({
           identifier: cast.hash,
           type: 'hash'
         });
         
-        // Check if any replies are from the bot
-        const replies = (conversation.cast as any)?.direct_replies || [];
-        const botAlreadyReplied = replies.some(
+        // Check BOTH direct replies and all replies in the thread
+        const allReplies = [
+          ...((conversation.cast as any)?.direct_replies || []),
+          ...((conversation.cast as any)?.replies?.casts || [])
+        ];
+        
+        const botAlreadyReplied = allReplies.some(
           (reply: any) => {
             const replyFid = reply.author?.fid || reply.fid;
             return replyFid === BOT_FID;
@@ -222,15 +238,17 @@ export async function GET(request: NextRequest) {
         );
 
         if (botAlreadyReplied) {
-          console.log(`✓ Already replied to ${cast.hash}, skipping`);
+          console.log(`✓ Already replied to ${cast.hash}, adding to cache and skipping`);
+          repliedCastsCache.set(cast.hash, Date.now());
           continue;
         }
         
         console.log(`No existing reply found for ${cast.hash}, proceeding to reply`);
       } catch (error) {
         console.error(`Error checking replies for ${cast.hash}:`, error);
-        // If we can't check reliably, skip to be safe
-        console.log('Skipping cast due to check error');
+        // If we can't check reliably, assume we've replied to be safe
+        console.log('Skipping cast due to check error (being conservative)');
+        repliedCastsCache.set(cast.hash, Date.now());
         continue;
       }
 
@@ -248,10 +266,15 @@ export async function GET(request: NextRequest) {
         });
 
         console.log(`Posted reply to ${cast.hash}: ${reply}`);
+        
+        // Add to cache after successful reply
+        repliedCastsCache.set(cast.hash, Date.now());
         repliedCount++;
 
       } catch (error) {
         console.error(`Error replying to ${cast.hash}:`, error);
+        // Even on error, mark as attempted to avoid retry loops
+        repliedCastsCache.set(cast.hash, Date.now());
       }
     }
 
