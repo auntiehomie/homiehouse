@@ -24,11 +24,16 @@ export async function POST() {
   cleanupSessions();
   try {
     const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+    console.log("[Neynar Auth] POST request received");
+    console.log("[Neynar Auth] API Key exists:", !!NEYNAR_API_KEY);
+    
     if (!NEYNAR_API_KEY) {
+      console.error("[Neynar Auth] NEYNAR_API_KEY not configured");
       return NextResponse.json({ ok: false, error: "NEYNAR_API_KEY not configured" }, { status: 500 });
     }
 
     // Create a managed signer with Neynar
+    console.log("[Neynar Auth] Creating signer...");
     const signerRes = await fetch("https://api.neynar.com/v2/farcaster/signer", {
       method: "POST",
       headers: {
@@ -38,12 +43,15 @@ export async function POST() {
       body: JSON.stringify({}),
     });
 
+    console.log("[Neynar Auth] Signer response status:", signerRes.status);
+    
     if (!signerRes.ok) {
       const errorText = await signerRes.text();
       console.error("[Neynar Auth] Failed to create signer:", errorText);
       return NextResponse.json({ 
         ok: false, 
-        error: `Failed to create signer: ${signerRes.status}` 
+        error: `Failed to create signer: ${signerRes.status}`,
+        details: errorText
       }, { status: 500 });
     }
 
@@ -75,9 +83,11 @@ export async function POST() {
     });
   } catch (error) {
     console.error("[Neynar Auth] Error:", error);
+    console.error("[Neynar Auth] Error stack:", error instanceof Error ? error.stack : "No stack");
     return NextResponse.json({ 
       ok: false, 
-      error: error instanceof Error ? error.message : "Unknown error" 
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined
     }, { status: 500 });
   }
 }
