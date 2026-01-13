@@ -48,10 +48,20 @@ export async function POST() {
     if (!signerRes.ok) {
       const errorText = await signerRes.text();
       console.error("[Neynar Auth] Failed to create signer:", errorText);
+      
+      // Handle specific error codes
+      let errorMessage = `Failed to create signer: ${signerRes.status}`;
+      if (signerRes.status === 402) {
+        errorMessage = "Neynar API quota exceeded. Please try again later or upgrade your plan.";
+      } else if (signerRes.status === 429) {
+        errorMessage = "Rate limit exceeded. Please try again in a few minutes.";
+      }
+      
       return NextResponse.json({ 
         ok: false, 
-        error: `Failed to create signer: ${signerRes.status}`,
-        details: errorText
+        error: errorMessage,
+        details: errorText,
+        statusCode: signerRes.status
       }, { status: 500 });
     }
 
