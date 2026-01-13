@@ -35,6 +35,7 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
       });
       
       const data = await res.json();
+      console.log("Neynar auth response:", data);
       
       if (data.ok && data.signerUrl) {
         // Open Neynar auth in new window
@@ -86,7 +87,8 @@ export default function SignInWithFarcaster({ onSignInSuccess }: { onSignInSucce
           setSigningIn(false);
         }, 300000);
       } else {
-        alert("Failed to start authentication");
+        console.error("Auth failed:", data);
+        alert(`Failed to start authentication: ${data.error || 'Unknown error'}`);
         setSigningIn(false);
       }
     } catch (error) {
