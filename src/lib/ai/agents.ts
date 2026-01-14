@@ -1,7 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
-import { BufferMemory, ChatMessageHistory } from 'langchain/memory';
-import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 
 // User profile schema
@@ -40,8 +39,8 @@ export interface AgentMessage {
 // Base Agent Class
 export class BaseAgent {
   protected llm: ChatOpenAI | ChatAnthropic;
-  protected memory: BufferMemory;
   protected systemPrompt: string;
+  protected conversationHistory: BaseMessage[] = [];
 
   constructor(
     provider: 'openai' | 'anthropic' = 'anthropic',
@@ -62,35 +61,29 @@ export class BaseAgent {
     }
 
     this.systemPrompt = systemPrompt;
-    this.memory = new BufferMemory({
-      chatHistory: new ChatMessageHistory(),
-      returnMessages: true,
-      memoryKey: 'history'
-    });
   }
 
   async chat(message: string, context?: string): Promise<string> {
-    const messages: any[] = [new SystemMessage(this.systemPrompt)];
+    const messages: BaseMessage[] = [new SystemMessage(this.systemPrompt)];
     
     if (context) {
       messages.push(new SystemMessage(`Context: ${context}`));
     }
 
-    // Add memory
-    const memoryVars = await this.memory.loadMemoryVariables({});
-    if (memoryVars.history) {
-      messages.push(...memoryVars.history);
-    }
-
+    // Add conversation history
+    messages.push(...this.conversationHistory);
     messages.push(new HumanMessage(message));
 
     const response = await this.llm.invoke(messages);
     
-    // Save to memory
-    await this.memory.saveContext(
-      { input: message },
-      { output: response.content as string }
-    );
+    // Update history
+    this.conversationHistory.push(new HumanMessage(message));
+    this.conversationHistory.push(new AIMessage(response.content as string));
+
+    // Keep only last 10 messages to avoid token limits
+    if (this.conversationHistory.length > 10) {
+      this.conversationHistory = this.conversationHistory.slice(-10);
+    }
 
     return response.content as string;
   }
