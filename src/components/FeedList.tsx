@@ -995,10 +995,32 @@ export default function FeedList({
             }}
           >
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>
-              Recast Options
+              Cast Options
             </h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Quote Cast */}
+              <button
+                onClick={() => {
+                  const castHash = showRecastModal;
+                  setShowRecastModal(null);
+                  setShowQuoteModal(castHash);
+                }}
+                className="btn"
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  fontSize: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                💬 Quote Cast
+              </button>
+
+              {/* Recast or Undo Recast */}
               {recastedCasts.has(showRecastModal) ? (
                 <button
                   onClick={async () => {
@@ -1040,12 +1062,35 @@ export default function FeedList({
                   🔄 Recast
                 </button>
               )}
-              
+
+              {/* Undo Quote Cast - only show if user has quoted this cast */}
+              {/* For now we'll show it always - you can add tracking similar to recastedCasts if needed */}
               <button
                 onClick={() => {
-                  const castHash = showRecastModal;
+                  alert('Undo Quote Cast - coming soon!');
                   setShowRecastModal(null);
-                  setShowQuoteModal(castHash);
+                }}
+                className="btn"
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  fontSize: '15px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444'
+                }}
+              >
+                🗑️ Undo Quote Cast
+              </button>
+
+              {/* Reply */}
+              <button
+                onClick={() => {
+                  setShowRecastModal(null);
+                  setReplyingTo(showRecastModal);
                 }}
                 className="btn"
                 style={{
@@ -1058,7 +1103,7 @@ export default function FeedList({
                   gap: '8px'
                 }}
               >
-                💬 Quote Cast
+                💬 Reply
               </button>
               
               <button
