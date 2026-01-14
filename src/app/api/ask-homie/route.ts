@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { AgentOrchestrator } from '@/lib/ai/agents';
+import { UserProfileStorage } from '@/lib/ai/storage';
 
 const AI_PROVIDER = process.env.AI_PROVIDER || 'openai'; // 'openai' or 'claude'
 
@@ -84,8 +86,68 @@ function selectBestProvider(question: string): 'claude' | 'openai' {
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, provider: requestedProvider, castContext } = await req.json();
+    const { 
+      messages, 
+      provider: requestedProvider, 
+      castContext,
+      mode = 'agent', // 'agent' or 'legacy'
+      userId,
+      intent,
+      feedback
+    } = await req.json();
 
+    // Get or create user ID (from auth or generate temporary)
+    const userIdentifier = userId || `temp_${Date.now()}`;
+
+    // If using new agent mode
+    if (mode === 'agent') {
+      try {
+        // Get user profile
+        const userProfile = UserProfileStorage.getProfile(userIdentifier);
+        
+        // Create orchestrator
+        const orchestrator = new AgentOrchestrator(userProfile);
+
+        // Get the last user message
+        const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
+        const userMessage = lastUserMessage?.content || '';
+
+        // Add cast context if provided
+        let contextualMessage = userMessage;
+        if (castContext) {
+          contextualMessage = `[Context: Cast from @${castContext.author}: "${castContext.text}"]\n\n${userMessage}`;
+        }
+
+        // Process with feedback if provided
+        if (feedback) {
+          UserProfileStorage.addFeedback(userIdentifier, feedback.cast, feedback.feedback);
+        }
+
+        // Process the request
+        const result = await orchestrator.processRequest(contextualMessage, intent || 'auto');
+
+        // If this was a composition, save it
+        if (result.role === 'composer' && result.suggestions && result.suggestions.length > 0) {
+          result.suggestions.forEach(cast => {
+            UserProfileStorage.addCast(userIdentifier, cast);
+          });
+        }
+
+        return NextResponse.json({
+          response: result.content,
+          suggestions: result.suggestions,
+          agentRole: result.role,
+          metadata: result.metadata,
+          mode: 'agent',
+          userStats: UserProfileStorage.getStats(userIdentifier)
+        });
+      } catch (agentError) {
+        console.error('Agent mode error, falling back to legacy:', agentError);
+        // Fall through to legacy mode
+      }
+    }
+
+    // Legacy mode (original implementation)
     // Get the last user message to analyze
     const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
     const question = lastUserMessage?.content || '';
@@ -174,11 +236,62 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ response, provider: usedProvider });
+    return NextResponse.json({ response, provider: usedProvider, mode: 'legacy' });
   } catch (error) {
-    console.error(`Error calling AI providers:`, error);
+    console.error(`Error calling AI:`, error);
     return NextResponse.json(
       { error: `Failed to get response from AI` },
+      { status: 500 }
+    );
+  }
+}
+
+// New endpoint for profile management
+export async function PATCH(req: NextRequest) {
+  try {
+    const { userId, updates } = await req.json();
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'userId required' }, { status: 400 });
+    }
+
+    const updatedProfile = UserProfileStorage.updateProfile(userId, updates);
+    const stats = UserProfileStorage.getStats(userId);
+
+    return NextResponse.json({
+      profile: updatedProfile,
+      stats
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update profile' },
+      { status: 500 }
+    );
+  }
+}
+
+// Get user stats
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get('userId');
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'userId required' }, { status: 400 });
+    }
+
+    const profile = UserProfileStorage.getProfile(userId);
+    const stats = UserProfileStorage.getStats(userId);
+
+    return NextResponse.json({
+      profile,
+      stats
+    });
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch profile' },
       { status: 500 }
     );
   }

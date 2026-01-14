@@ -3,13 +3,27 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from "next/link";
 import { useSearchParams } from 'next/navigation';
+import AgentChat from '@/components/AgentChat';
 
 function AskHomieContent() {
-  const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [castContext, setCastContext] = useState<any>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const searchParams = useSearchParams();
+
+  // Load user ID from profile if available
+  useEffect(() => {
+    try {
+      const profile = localStorage.getItem('hh_profile');
+      if (profile) {
+        const parsed = JSON.parse(profile);
+        if (parsed.fid) {
+          setUserId(`fid_${parsed.fid}`);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load user profile', e);
+    }
+  }, []);
 
   // Load cast context from URL or localStorage
   useEffect(() => {
@@ -32,61 +46,47 @@ function AskHomieContent() {
     }
   }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!question.trim()) return;
+  const handleCastSelect = (cast: string) => {
+    // Copy to clipboard
+    navigator.clipboard.writeText(cast);
+    alert('Cast copied to clipboard! You can now paste it in the compose view.');
+  };
 
-    const userMessage = question;
-    setQuestion('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('/api/ask-homie', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          messages: [...messages, { role: 'user', content: userMessage }],
-          castContext 
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: data.response 
-      }]);
-    } catch (error) {
-      console.error('Error:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Sorry, I encountered an error. Please try again.' 
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
+  const clearContext = () => {
+    setCastContext(null);
+    localStorage.removeItem('hh_ask_context');
   };
 
   return (
-    <div className="min-h-screen p-8 bg-zinc-50 dark:bg-black text-black dark:text-white">
-      <main className="mx-auto max-w-3xl">
-        <h1 className="text-2xl font-semibold mb-2">Ask Homie</h1>
-        <p className="mb-6 text-zinc-600 dark:text-zinc-400">Your AI assistant for HomieHouse</p>
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-black text-black dark:text-white">
+      <header className="border-b border-zinc-200 dark:border-zinc-800 p-4">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div>
+            <Link href="/" className="text-2xl font-semibold hover:opacity-80">
+              HomieHouse
+            </Link>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+              AI-powered Farcaster assistant
+            </p>
+          </div>
+          <Link
+            href="/"
+            className="text-sm text-blue-500 hover:underline"
+          >
+            ← Back to Home
+          </Link>
+        </div>
+      </header>
 
+      <main className="flex-1 max-w-6xl w-full mx-auto flex flex-col">
         {castContext && (
-          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="m-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex justify-between items-start mb-2">
-              <div className="font-medium text-sm text-blue-900 dark:text-blue-100">📌 Asking about this cast:</div>
+              <div className="font-medium text-sm text-blue-900 dark:text-blue-100">
+                📌 Analyzing this cast:
+              </div>
               <button
-                onClick={() => {
-                  setCastContext(null);
-                  localStorage.removeItem('hh_ask_context');
-                }}
+                onClick={clearContext}
                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Clear context
@@ -94,61 +94,20 @@ function AskHomieContent() {
             </div>
             <div className="text-sm text-zinc-700 dark:text-zinc-300">
               <div className="font-medium">@{castContext.author}</div>
-              <div className="mt-1">{castContext.text?.substring(0, 150)}{castContext.text?.length > 150 ? '...' : ''}</div>
+              <div className="mt-1">
+                {castContext.text?.substring(0, 200)}
+                {castContext.text?.length > 200 ? '...' : ''}
+              </div>
             </div>
           </div>
         )}
 
-        <div className="mb-6 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 p-4 min-h-[400px] max-h-[500px] overflow-y-auto">
-          {messages.length === 0 ? (
-            <div className="text-center text-zinc-500 mt-20">
-              <p className="text-lg mb-2">👋 Hey there!</p>
-              <p>Ask me anything about HomieHouse, Farcaster, or crypto.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block px-4 py-2 rounded-lg ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-zinc-200 dark:bg-zinc-800 text-black dark:text-white'
-                  }`}>
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              {isLoading && (
-                <div className="text-left">
-                  <div className="inline-block px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-800">
-                    <span className="animate-pulse">Thinking...</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask Homie a question..."
-            className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
+        <div className="flex-1 m-4 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-white dark:bg-zinc-900 shadow-lg">
+          <AgentChat
+            userId={userId || undefined}
+            castContext={castContext}
+            onCastSelect={handleCastSelect}
           />
-          <button
-            type="submit"
-            disabled={isLoading || !question.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
-        </form>
-
-        <div style={{ marginTop: 16 }}>
-          <Link href="/">← Back to Home</Link>
         </div>
       </main>
     </div>
@@ -157,7 +116,7 @@ function AskHomieContent() {
 
 export default function AskHomiePage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <AskHomieContent />
     </Suspense>
   );
