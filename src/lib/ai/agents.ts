@@ -21,7 +21,11 @@ export const UserProfileSchema = z.object({
       timestamp: z.number()
     })).default([]),
     commonPatterns: z.array(z.string()).default([])
-  }).default({})
+  }).default({
+    previousCasts: [],
+    feedbackHistory: [],
+    commonPatterns: []
+  })
 });
 
 export type UserProfile = z.infer<typeof UserProfileSchema>;
