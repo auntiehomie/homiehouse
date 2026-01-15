@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAccount, useBalance, useSendTransaction, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther, formatEther } from "viem";
+import SwapWidget from "./SwapWidget";
 
 interface FarcasterFriend {
   fid: number;
@@ -16,6 +17,7 @@ export default function WalletDashboard() {
   const { address, isConnected, chain } = useAccount();
   const { data: balance } = useBalance({ address });
   const [showSendModal, setShowSendModal] = useState(false);
+  const [showSwapWidget, setShowSwapWidget] = useState(false);
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [sendStatus, setSendStatus] = useState<string | null>(null);
@@ -133,9 +135,17 @@ export default function WalletDashboard() {
             <button 
               className="btn primary" 
               onClick={() => setShowSendModal(true)}
-              style={{ width: '100%' }}
+              style={{ width: '100%', marginBottom: '8px' }}
             >
               Send Crypto
+            </button>
+            
+            <button 
+              className="btn" 
+              onClick={() => setShowSwapWidget(!showSwapWidget)}
+              style={{ width: '100%' }}
+            >
+              {showSwapWidget ? 'Hide Swap' : '💱 Swap Tokens'}
             </button>
           </div>
 
@@ -149,6 +159,13 @@ export default function WalletDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Swap Widget */}
+      {showSwapWidget && (
+        <div style={{ marginTop: '20px' }}>
+          <SwapWidget />
+        </div>
+      )}
 
       {showSendModal && (
         <div className="modal-overlay" onClick={() => setShowSendModal(false)}>
