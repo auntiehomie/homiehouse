@@ -1,41 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrivyClient } from "@privy-io/server-auth";
 
-const privy = new PrivyClient(
-  process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-  process.env.PRIVY_APP_SECRET!
-);
+const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
 
 export async function POST(request: NextRequest) {
+  console.log("[API /privy-reply] ========== REQUEST START ==========");
   try {
     const body = await request.json();
-    const { text, castHash, accessToken } = body;
+    const { text, parentHash } = body;
 
-    if (!accessToken) {
-      return NextResponse.json({ error: "Access token required" }, { status: 401 });
-    }
-
-    // Verify the user's access token
-    const authTokenClaims = await privy.verifyAuthToken(accessToken);
-    const userId = authTokenClaims.userId;
-
-    // Get user's linked Farcaster account
-    const user = await privy.getUser(userId);
-    const farcasterAccount = user.linkedAccounts.find(
-      (account: any) => account.type === "farcaster"
-    ) as any;
-
-    if (!farcasterAccount) {
-      return NextResponse.json({ error: "No Farcaster account linked" }, { status: 400 });
-    }
-
-    const fid = farcasterAccount.fid;
-
-    // Use Neynar's API to publish reply
-    const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-    const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
+    console.log("[API /privy-reply] Request:", { text: text?.substring(0, 50), parentHash });
 
     if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID) {
+      console.error("[API /privy-reply] Neynar credentials not configured");
       return NextResponse.json(
         { error: "Neynar API not configured for publishing" },
         { status: 500 }
@@ -52,13 +29,25 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         signer_uuid: NEYNAR_SIGNER_UUID,
         text,
-        parent: castHash,
+        parent: parentHash,
       }),
     });
 
+    console.log("[API /privy-reply] Response status:", response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[Privy Reply] Neynar API error:", response.status, errorText);
+      console.error("[API /privy-reply] ❌ Neynar API error:");
+      console.error("[API /privy-reply] Status:", response.status);
+      console.error("[API /privy-reply] Error body:", errorText);
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error("[API /privy-reply] Parsed error:", JSON.stringify(errorJson, null, 2));
+      } catch (e) {
+        console.error("[API /privy-reply] Could not parse error as JSON");
+      }
+      
       return NextResponse.json(
         { error: "Failed to publish reply", details: errorText },
         { status: response.status }
@@ -66,13 +55,14 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json();
-    return NextResponse.json({
-      success: true,
-      cast: result.cast,
-    });
+    console.log("[API /privy-reply] ✅ Reply published successfully:", result?.cast?.hash);
+    console.log("[API /privy-reply] ========== REQUEST END ==========");
 
+    return NextResponse.json({ ok: true, cast: result.cast });
   } catch (error: any) {
-    console.error("[Privy Reply] Error:", error);
+    console.error("[API /privy-reply] ❌ EXCEPTION:", error);
+    console.error("[API /privy-reply] Error message:", error.message);
+    console.error("[API /privy-reply] ========== REQUEST END (ERROR) ==========");
     return NextResponse.json(
       { error: error.message || "Failed to publish reply" },
       { status: 500 }
