@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
@@ -18,33 +19,17 @@ const MESSAGES = [
 ];
 
 export default function Home() {
+  const { ready, authenticated } = usePrivy();
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
-  const [showLanding, setShowLanding] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
 
   // Wait for client-side mount
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Check if user has previously signed in - only check localStorage
-  useEffect(() => {
-    if (!mounted) return;
-    
-    const storedProfile = localStorage.getItem("hh_profile");
-    if (storedProfile) {
-      try {
-        setUserProfile(JSON.parse(storedProfile));
-        setShowLanding(false);
-      } catch (e) {
-        setShowLanding(true);
-      }
-    } else {
-      setShowLanding(true);
-    }
-  }, [mounted]);
+  const showLanding = !authenticated;
 
   useEffect(() => {
     if (!showLanding) return; // Stop animation when logged in
@@ -62,8 +47,8 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [showLanding]);
 
-  // Prevent hydration mismatch - show nothing until mounted
-  if (!mounted) {
+  // Prevent hydration mismatch - show nothing until mounted and Privy ready
+  if (!mounted || !ready) {
     return null;
   }
 
