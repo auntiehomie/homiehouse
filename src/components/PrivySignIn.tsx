@@ -19,6 +19,8 @@ export default function PrivySignIn() {
           bio: user.farcaster.bio,
         };
         localStorage.setItem('hh_profile', JSON.stringify(profile));
+        // Refresh page to load components with profile data
+        window.location.reload();
       }
     },
     onError: (error) => {
