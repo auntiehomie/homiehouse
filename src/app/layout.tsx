@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   description: "Your place to share what's on your mind",
 };
 
+// Force dynamic rendering since we use client-side auth providers
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: Readonly<{
