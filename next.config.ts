@@ -14,6 +14,13 @@ const nextConfig: NextConfig = {
   },
   webpack: (config) => {
     config.externals.push('pino-pretty', 'lokijs', 'encoding');
+    // Ignore test files from dependencies
+    config.module = config.module || {};
+    config.module.rules = config.module.rules || [];
+    config.module.rules.push({
+      test: /\.test\.(js|ts|mjs)$/,
+      loader: 'ignore-loader',
+    });
     return config;
   },
   // Exclude problematic packages from server component bundling

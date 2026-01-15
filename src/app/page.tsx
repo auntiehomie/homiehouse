@@ -5,7 +5,7 @@ import Link from "next/link";
 import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import TrendingList from "../components/TrendingList";
-import SignInWithFarcaster from "../components/SignInWithFarcaster";
+import PrivySignIn from "../components/PrivySignIn";
 import WalletButton from "../components/WalletButton";
 import WalletDashboard from "../components/WalletDashboard";
 import ChannelsList from "../components/ChannelsList";
@@ -72,20 +72,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
         <header className="px-6 py-8 flex justify-end">
-          <SignInWithFarcaster onSignInSuccess={() => {
-            // Reload profile after sign in
-            const storedProfile = localStorage.getItem("hh_profile");
-            if (storedProfile) {
-              try {
-                setUserProfile(JSON.parse(storedProfile));
-                setShowLanding(false);
-                // Force a reload to ensure all components update properly
-                setTimeout(() => window.location.reload(), 100);
-              } catch (e) {
-                console.error('Profile parse error:', e);
-              }
-            }
-          }} />
+          <PrivySignIn />
         </header>
         
         <main className="flex-1 flex items-center justify-center px-6">
@@ -120,7 +107,7 @@ export default function Home() {
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
           <ComposeModal />
-          <SignInWithFarcaster />
+          <PrivySignIn />
         </div>
       </header>
 
