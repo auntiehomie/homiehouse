@@ -8,24 +8,18 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Exclude problematic packages from server component bundling
+  serverExternalPackages: ['pino', 'thread-stream', '@walletconnect/logger', '@privy-io/react-auth'],
   turbopack: {
     // Use absolute root to avoid warnings in Vercel
     root: process.cwd(),
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
-  webpack: (config) => {
-    config.externals.push('pino-pretty', 'lokijs', 'encoding');
-    // Ignore test files from dependencies
-    config.module = config.module || {};
-    config.module.rules = config.module.rules || [];
-    config.module.rules.push({
-      test: /\.test\.(js|ts|mjs)$/,
-      loader: 'ignore-loader',
-    });
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push('pino-pretty', 'lokijs', 'encoding', '@privy-io/react-auth');
+    }
     return config;
-  },
-  // Exclude problematic packages from server component bundling
-  experimental: {
-    serverComponentsExternalPackages: ['pino', 'thread-stream'],
   },
 };
 

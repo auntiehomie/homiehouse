@@ -1,2 +1,7 @@
 # Exclude the nested Vite mini-app from Vercel build context
 homiehouse/
+
+# Exclude test files from Privy dependencies
+node_modules/@privy-io/react-auth/node_modules/thread-stream/test/
+node_modules/@privy-io/react-auth/node_modules/thread-stream/bench.js
+node_modules/@privy-io/react-auth/node_modules/thread-stream/LICENSE
