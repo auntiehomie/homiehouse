@@ -22,21 +22,22 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Use Neynar's trending feed endpoint
+    // Use Neynar's filter feed with global_trending (free tier)
     const params = new URLSearchParams({
       limit: limit.toString(),
-      time_window: timeWindow,
+      filter_type: "global_trending",
     });
 
     if (viewerFid) {
-      params.set("viewer_fid", viewerFid);
+      params.set("fid", viewerFid);
     }
 
     if (channelId) {
       params.set("channel_id", channelId);
+      params.set("filter_type", "channel_id");
     }
 
-    const url = `https://api.neynar.com/v2/farcaster/feed/trending?${params.toString()}`;
+    const url = `https://api.neynar.com/v2/farcaster/feed/filter?${params.toString()}`;
     console.log("[API /trending] Fetching from Neynar:", url);
 
     const response = await fetch(url, {
