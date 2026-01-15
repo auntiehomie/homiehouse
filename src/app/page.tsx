@@ -19,10 +19,27 @@ const MESSAGES = [
 ];
 
 export default function Home() {
-  const { ready, authenticated } = usePrivy();
+  const [mounted, setMounted] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  
+  // Safe Privy hook usage with fallback
+  let ready = false;
+  let authenticated = false;
+  
+  try {
+    const privyState = usePrivy();
+    ready = privyState.ready;
+    authenticated = privyState.authenticated;
+  } catch (error) {
+    console.error('[Home] Error using Privy hook:', error);
+    // Fallback to checking localStorage
+    if (typeof window !== 'undefined') {
+      const profile = localStorage.getItem('hh_profile');
+      authenticated = !!profile;
+      ready = true;
+    }
+  }
 
   // Wait for client-side mount
   useEffect(() => {
