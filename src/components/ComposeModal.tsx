@@ -168,7 +168,7 @@ export default function ComposeModal() {
       console.log("Posting with:", { userFid, signerUuid, signerStatus, text });
 
       // Use user's signer or fallback to env
-      const res = await fetch("/api/compose", {
+      const res = await fetch("/api/privy-compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 

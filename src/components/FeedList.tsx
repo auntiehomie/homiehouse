@@ -200,7 +200,7 @@ export default function FeedList({
       
       if (isLiked) {
         // Unlike
-        const res = await fetch(`/api/like?castHash=${castHash}&signerUuid=${signerUuid}`, {
+        const res = await fetch(`/api/privy-like?castHash=${castHash}&signerUuid=${signerUuid}`, {
           method: "DELETE",
         });
         if (!res.ok) {
@@ -219,7 +219,7 @@ export default function FeedList({
         });
       } else {
         // Like
-        const res = await fetch("/api/like", {
+        const res = await fetch("/api/privy-like", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ castHash, signerUuid }),
@@ -256,7 +256,7 @@ export default function FeedList({
       
       if (isRecasted) {
         // Remove recast
-        const res = await fetch(`/api/recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
+        const res = await fetch(`/api/privy-recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
           method: "DELETE",
         });
         if (!res.ok) {
@@ -275,7 +275,7 @@ export default function FeedList({
         });
       } else {
         // Recast
-        const res = await fetch("/api/recast", {
+        const res = await fetch("/api/privy-recast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ castHash, signerUuid }),
@@ -312,7 +312,7 @@ export default function FeedList({
 
     setReplyLoading(true);
     try {
-      const res = await fetch("/api/reply", {
+      const res = await fetch("/api/privy-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -374,7 +374,7 @@ export default function FeedList({
         return;
       }
 
-      const res = await fetch("/api/compose", {
+      const res = await fetch("/api/privy-compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
