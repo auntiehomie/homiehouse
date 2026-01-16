@@ -26,23 +26,26 @@ export async function GET(req: NextRequest) {
     let url: string;
     let params = new URLSearchParams({ limit: limit.toString() });
 
-    // Use free tier endpoints - filter feed with different filter types
+    // Use Neynar v2 feed endpoints
     if (channel) {
       // Channel feed - use filter with channel
-      url = `https://api.neynar.com/v2/farcaster/feed/filter`;
+      url = `https://api.neynar.com/v2/farcaster/feed`;
+      params.set("feed_type", "filter");
       params.set("filter_type", "channel_id");
       params.set("channel_id", channel);
-      if (fid) params.set("fid", fid);
+      if (fid) params.set("viewer_fid", fid);
     } else if (feedType === "following" && fid) {
-      // Following feed - use filter with fid
-      url = `https://api.neynar.com/v2/farcaster/feed/filter`;
-      params.set("filter_type", "fids");
-      params.set("fids", fid);
+      // Following feed
+      url = `https://api.neynar.com/v2/farcaster/feed`;
+      params.set("feed_type", "following");
+      params.set("fid", fid);
+      if (fid) params.set("viewer_fid", fid);
     } else {
-      // Default to global trending (free tier)
-      url = `https://api.neynar.com/v2/farcaster/feed/filter`;
+      // Default to global trending
+      url = `https://api.neynar.com/v2/farcaster/feed`;
+      params.set("feed_type", "filter");
       params.set("filter_type", "global_trending");
-      if (fid) params.set("fid", fid);
+      if (fid) params.set("viewer_fid", fid);
     }
 
     const neynarUrl = `${url}?${params.toString()}`;
