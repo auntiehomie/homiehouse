@@ -39,6 +39,7 @@ export default function FeedList({
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
+  const [expandedCasts, setExpandedCasts] = useState<Set<string>>(new Set());
 
   const [showSignerModal, setShowSignerModal] = useState(false);
   const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
@@ -687,7 +688,38 @@ export default function FeedList({
               overflowWrap: 'break-word',
               whiteSpace: 'pre-wrap'
             }}>
-              {text}
+              {(() => {
+                const words = text.split(' ');
+                const isLongCast = words.length > 15;
+                const isExpanded = expandedCasts.has(key);
+                
+                if (!isLongCast || isExpanded) {
+                  return text;
+                }
+                
+                // Show first 15 words
+                const preview = words.slice(0, 15).join(' ');
+                return (
+                  <>
+                    {preview}
+                    <button
+                      onClick={() => setExpandedCasts(prev => new Set([...prev, key]))}
+                      style={{
+                        marginLeft: '4px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--muted-on-dark)',
+                        cursor: 'pointer',
+                        fontSize: 'inherit',
+                        padding: '0',
+                      }}
+                      className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                    >
+                      ... <span style={{ textDecoration: 'underline' }}>more</span>
+                    </button>
+                  </>
+                );
+              })()}
             </div>
             <div style={{ 
               marginTop: 8, 
@@ -698,17 +730,26 @@ export default function FeedList({
               alignItems: 'center'
             }}>
               <span>{timeLabel}</span>
-              <Link 
-                href={`/cast/${key}`}
-                style={{
-                  color: 'var(--muted-on-dark)',
-                  textDecoration: 'none',
-                  fontSize: '12px'
-                }}
-                className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
-              >
-                View details →
-              </Link>
+              {expandedCasts.has(key) && (
+                <button
+                  onClick={() => setExpandedCasts(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(key);
+                    return newSet;
+                  })}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--muted-on-dark)',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    padding: '0'
+                  }}
+                  className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                >
+                  Show less
+                </button>
+              )}
             </div>
             
             {/* Like and Recast buttons */}

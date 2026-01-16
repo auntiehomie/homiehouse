@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import Link from 'next/link';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
@@ -24,8 +24,8 @@ interface AgentChatProps {
 }
 
 // Helper function to parse text and make @mentions clickable
-function parseTextWithMentions(text: string) {
-  const parts: (string | JSX.Element)[] = [];
+function parseTextWithMentions(text: string): ReactNode[] {
+  const parts: ReactNode[] = [];
   const regex = /@([a-zA-Z0-9_-]+)/g;
   let lastIndex = 0;
   let match;
