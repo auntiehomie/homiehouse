@@ -261,24 +261,31 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Check persistent storage first
-      if (repliedCasts.has(cast.hash)) {
-        console.log(`✓ Already replied to ${cast.hash} (in persistent storage), skipping`);
+      // IMPORTANT: Track the parent hash (the cast we're replying to)
+      // not the notification hash, to prevent multiple replies to the same conversation
+      const parentHash = cast.parent_hash || cast.hash;
+      const trackingKey = `parent_${parentHash}`;
+      
+      console.log(`Processing notification for cast ${cast.hash}, parent: ${parentHash}`);
+
+      // Check persistent storage first (check parent hash)
+      if (repliedCasts.has(trackingKey)) {
+        console.log(`✓ Already replied to parent ${parentHash} (in persistent storage), skipping`);
         continue;
       }
 
       // Check in-memory cache as well
-      if (repliedCastsCache.has(cast.hash)) {
-        console.log(`✓ Already replied to ${cast.hash} (in cache), skipping`);
+      if (repliedCastsCache.has(trackingKey)) {
+        console.log(`✓ Already replied to parent ${parentHash} (in cache), skipping`);
         continue;
       }
 
       try {
-        console.log(`Checking if already replied to ${cast.hash}`);
+        console.log(`Checking if already replied to parent ${parentHash}`);
         
-        // Fetch the cast with all replies to check if bot already replied
+        // Fetch the parent cast with all replies to check if bot already replied
         const conversation = await neynar.lookupCastByHashOrUrl({
-          identifier: cast.hash,
+          identifier: parentHash,
           type: 'hash'
         });
         
@@ -294,54 +301,54 @@ export async function GET(request: NextRequest) {
             const replyFid = reply.author?.fid || reply.fid;
             const didReply = replyFid === BOT_FID;
             if (didReply) {
-              console.log(`Found existing bot reply in cast ${cast.hash}`);
+              console.log(`Found existing bot reply to parent ${parentHash}`);
             }
             return didReply;
           }
         );
 
         if (botAlreadyReplied) {
-          console.log(`✓ Already replied to ${cast.hash}, adding to storage and skipping`);
-          saveRepliedCast(cast.hash);
-          repliedCastsCache.set(cast.hash, Date.now());
+          console.log(`✓ Already replied to parent ${parentHash}, adding to storage and skipping`);
+          saveRepliedCast(trackingKey);
+          repliedCastsCache.set(trackingKey, Date.now());
           continue;
         }
         
-        console.log(`No existing reply found for ${cast.hash}, proceeding to reply`);
+        console.log(`No existing reply found for parent ${parentHash}, proceeding to reply`);
       } catch (error) {
-        console.error(`Error checking replies for ${cast.hash}:`, error);
+        console.error(`Error checking replies for parent ${parentHash}:`, error);
         // If we can't check reliably, assume we've replied to be safe
         console.log('Skipping cast due to check error (being conservative)');
-        saveRepliedCast(cast.hash);
-        repliedCastsCache.set(cast.hash, Date.now());
+        saveRepliedCast(trackingKey);
+        repliedCastsCache.set(trackingKey, Date.now());
         continue;
       }
 
       try {
-        console.log(`Generating reply for ${cast.hash}`);
+        console.log(`Generating reply for parent ${parentHash}`);
         
         // Generate reply
         const reply = await generateReply(cast, []);
 
-        // Post reply
+        // Post reply (reply to the parent, not the notification)
         await neynar.publishCast({
           signerUuid: SIGNER_UUID,
           text: reply,
-          parent: cast.hash
+          parent: parentHash
         });
 
-        console.log(`Posted reply to ${cast.hash}: ${reply}`);
+        console.log(`Posted reply to parent ${parentHash}: ${reply}`);
         
-        // Save to persistent storage and cache after successful reply
-        saveRepliedCast(cast.hash);
-        repliedCastsCache.set(cast.hash, Date.now());
+        // Save to persistent storage and cache after successful reply (save parent hash)
+        saveRepliedCast(trackingKey);
+        repliedCastsCache.set(trackingKey, Date.now());
         repliedCount++;
 
       } catch (error) {
-        console.error(`Error replying to ${cast.hash}:`, error);
+        console.error(`Error replying to parent ${parentHash}:`, error);
         // Even on error, mark as attempted to avoid retry loops
-        saveRepliedCast(cast.hash);
-        repliedCastsCache.set(cast.hash, Date.now());
+        saveRepliedCast(trackingKey);
+        repliedCastsCache.set(trackingKey, Date.now());
       }
     }
 
