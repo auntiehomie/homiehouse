@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import fs from 'fs';
+import path from 'path';
 
 const neynarConfig = new Configuration({
   apiKey: process.env.NEYNAR_API_KEY!
@@ -12,6 +14,51 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
+
+// Path to persistent storage
+const REPLIED_CASTS_FILE = path.join(process.cwd(), 'bot', 'replied_casts.json');
+
+// Load replied casts from file
+function loadRepliedCasts(): Set<string> {
+  try {
+    if (fs.existsSync(REPLIED_CASTS_FILE)) {
+      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
+      const casts = JSON.parse(data);
+      return new Set(casts.map((c: any) => c.hash));
+    }
+  } catch (error) {
+    console.error('Error loading replied casts:', error);
+  }
+  return new Set();
+}
+
+// Save replied casts to file
+function saveRepliedCast(castHash: string) {
+  try {
+    let casts: any[] = [];
+    
+    if (fs.existsSync(REPLIED_CASTS_FILE)) {
+      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
+      casts = JSON.parse(data);
+    }
+    
+    // Add new cast with timestamp
+    casts.push({
+      hash: castHash,
+      timestamp: Date.now()
+    });
+    
+    // Keep only last 500 entries to prevent file from growing too large
+    if (casts.length > 500) {
+      casts = casts.slice(-500);
+    }
+    
+    fs.writeFileSync(REPLIED_CASTS_FILE, JSON.stringify(casts, null, 2));
+    console.log(`Saved replied cast ${castHash} to persistent storage`);
+  } catch (error) {
+    console.error('Error saving replied cast:', error);
+  }
+}
 
 // Simple, casual bot personality - no fancy words
 const BOT_PERSONALITY = `You are a chill friend on Farcaster. Reply naturally and casually. Keep it SHORT - max 280 characters. No hashtags unless the user uses them first.
@@ -189,6 +236,11 @@ export async function GET(request: NextRequest) {
     }
 
     cleanupCache();
+    
+    // Load persistent replied casts
+    const repliedCasts = loadRepliedCasts();
+    console.log(`Loaded ${repliedCasts.size} previously replied casts from storage`);
+    
     let repliedCount = 0;
 
     // Fetch notifications
@@ -209,7 +261,13 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Check in-memory cache first (fast check)
+      // Check persistent storage first
+      if (repliedCasts.has(cast.hash)) {
+        console.log(`✓ Already replied to ${cast.hash} (in persistent storage), skipping`);
+        continue;
+      }
+
+      // Check in-memory cache as well
       if (repliedCastsCache.has(cast.hash)) {
         console.log(`✓ Already replied to ${cast.hash} (in cache), skipping`);
         continue;
@@ -243,7 +301,8 @@ export async function GET(request: NextRequest) {
         );
 
         if (botAlreadyReplied) {
-          console.log(`✓ Already replied to ${cast.hash}, adding to cache and skipping`);
+          console.log(`✓ Already replied to ${cast.hash}, adding to storage and skipping`);
+          saveRepliedCast(cast.hash);
           repliedCastsCache.set(cast.hash, Date.now());
           continue;
         }
@@ -253,6 +312,7 @@ export async function GET(request: NextRequest) {
         console.error(`Error checking replies for ${cast.hash}:`, error);
         // If we can't check reliably, assume we've replied to be safe
         console.log('Skipping cast due to check error (being conservative)');
+        saveRepliedCast(cast.hash);
         repliedCastsCache.set(cast.hash, Date.now());
         continue;
       }
@@ -272,13 +332,15 @@ export async function GET(request: NextRequest) {
 
         console.log(`Posted reply to ${cast.hash}: ${reply}`);
         
-        // Add to cache after successful reply
+        // Save to persistent storage and cache after successful reply
+        saveRepliedCast(cast.hash);
         repliedCastsCache.set(cast.hash, Date.now());
         repliedCount++;
 
       } catch (error) {
         console.error(`Error replying to ${cast.hash}:`, error);
         // Even on error, mark as attempted to avoid retry loops
+        saveRepliedCast(cast.hash);
         repliedCastsCache.set(cast.hash, Date.now());
       }
     }

@@ -122,20 +122,32 @@ function detectProfileRequest(question: string): string | null {
   return null;
 }
 
-// Fetch profile from our API
+// Fetch profile directly from Neynar API
 async function fetchUserProfile(username: string) {
   try {
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000';
+    const apiKey = process.env.NEYNAR_API_KEY;
+    if (!apiKey) {
+      console.error('NEYNAR_API_KEY not configured');
+      return null;
+    }
+
+    const url = `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`;
+    console.log(`Fetching profile for ${username} from Neynar API`);
     
-    const response = await fetch(`${baseUrl}/api/profile?username=${username}`);
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': apiKey,
+      },
+    });
     
     if (!response.ok) {
+      console.error(`Profile fetch failed: ${response.status} ${response.statusText}`);
       return null;
     }
     
     const data = await response.json();
+    console.log(`Profile fetched successfully for ${username}`);
     return data.user;
   } catch (error) {
     console.error('Error fetching profile:', error);
