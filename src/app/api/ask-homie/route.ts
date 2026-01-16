@@ -28,12 +28,17 @@ Key Facts about HomieHouse:
 - Users can view feeds, compose casts, and interact with the Farcaster network
 - Integrates with Farcaster AuthKit for authentication
 
-When analyzing Farcaster casts:
-- Help explain tokens, projects, and crypto concepts mentioned
+Your Capabilities:
+- When asked about a Farcaster user profile (e.g., "who is @username" or "profile of username"), you can fetch and display their profile information
+- Analyze casts, explain tokens and crypto concepts
 - Provide context about users and trends
 - Analyze sentiment and engagement
 - Explain technical terms and abbreviations
 - Identify potential scams or risky content
+
+When asked for a profile:
+- If you receive profile data, format it nicely with their bio, follower count, and verified addresses
+- If you don't have the data, politely say you can look it up but need the username
 
 Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
 
@@ -82,6 +87,60 @@ function selectBestProvider(question: string): 'claude' | 'openai' {
   
   // Default to Claude if no clear winner (Claude handles general questions well)
   return openaiScore > claudeScore ? 'openai' : 'claude';
+}
+
+// Detect if user is asking for a profile and extract username
+function detectProfileRequest(question: string): string | null {
+  const lowerQuestion = question.toLowerCase();
+  
+  // Profile request patterns
+  const patterns = [
+    /profile (?:of|for) @?(\w+)/i,
+    /who is @?(\w+)/i,
+    /tell me about @?(\w+)/i,
+    /info (?:on|about) @?(\w+)/i,
+    /pull (?:the )?profile (?:of|for) @?(\w+)/i,
+    /get (?:the )?profile (?:of|for) @?(\w+)/i,
+    /show me @?(\w+)(?:'s| )?(?:profile)?/i,
+    /look up @?(\w+)/i,
+    /find @?(\w+)(?:'s| )?(?:profile)?/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = question.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  // Check for standalone @mention or username in question
+  const mentionMatch = question.match(/@(\w+)/);
+  if (mentionMatch && (lowerQuestion.includes('profile') || lowerQuestion.includes('who'))) {
+    return mentionMatch[1];
+  }
+  
+  return null;
+}
+
+// Fetch profile from our API
+async function fetchUserProfile(username: string) {
+  try {
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000';
+    
+    const response = await fetch(`${baseUrl}/api/profile?username=${username}`);
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json();
+    return data.user;
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -152,6 +211,15 @@ export async function POST(req: NextRequest) {
     const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
     const question = lastUserMessage?.content || '';
 
+    // Check if this is a profile request
+    const requestedUsername = detectProfileRequest(question);
+    let profileData = null;
+    
+    if (requestedUsername) {
+      console.log(`Profile request detected for: ${requestedUsername}`);
+      profileData = await fetchUserProfile(requestedUsername);
+    }
+
     // If cast context is provided, prepend it to the conversation
     let conversationMessages = messages;
     if (castContext) {
@@ -160,6 +228,24 @@ export async function POST(req: NextRequest) {
         content: `[CONTEXT: Farcaster cast from @${castContext.author}: "${castContext.text}"]`
       };
       conversationMessages = [contextMessage, ...messages];
+    }
+
+    // If we have profile data, inject it into the conversation
+    if (profileData) {
+      const verifiedAddresses = profileData.verified_addresses?.eth_addresses || [];
+      const profileContext = {
+        role: 'user',
+        content: `[PROFILE DATA for @${profileData.username}:
+Username: ${profileData.username}
+Display Name: ${profileData.display_name || 'N/A'}
+FID: ${profileData.fid}
+Bio: ${profileData.profile?.bio?.text || 'No bio'}
+Followers: ${profileData.follower_count || 0}
+Following: ${profileData.following_count || 0}
+Verified Addresses: ${verifiedAddresses.length > 0 ? verifiedAddresses.join(', ') : 'None'}
+Profile URL: https://warpcast.com/${profileData.username}]`
+      };
+      conversationMessages = [profileContext, ...conversationMessages];
     }
 
     // Smart provider selection: use requested provider, or auto-select based on content
