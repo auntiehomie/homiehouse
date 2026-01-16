@@ -224,16 +224,21 @@ export async function GET(request: NextRequest) {
           type: 'hash'
         });
         
-        // Check BOTH direct replies and all replies in the thread
-        const allReplies = [
-          ...((conversation.cast as any)?.direct_replies || []),
-          ...((conversation.cast as any)?.replies?.casts || [])
-        ];
+        // Check all possible reply structures
+        const directReplies = (conversation.cast as any)?.direct_replies || [];
+        const threadReplies = (conversation.cast as any)?.replies?.casts || [];
+        
+        // Combine all replies and check if bot already replied
+        const allReplies = [...directReplies, ...threadReplies];
         
         const botAlreadyReplied = allReplies.some(
           (reply: any) => {
             const replyFid = reply.author?.fid || reply.fid;
-            return replyFid === BOT_FID;
+            const didReply = replyFid === BOT_FID;
+            if (didReply) {
+              console.log(`Found existing bot reply in cast ${cast.hash}`);
+            }
+            return didReply;
           }
         );
 

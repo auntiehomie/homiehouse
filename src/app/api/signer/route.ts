@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mnemonicToAccount } from "viem/accounts";
-import { keccak256, toBytes, toHex } from "viem";
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const APP_FID = process.env.APP_FID;
 const APP_MNEMONIC = process.env.APP_MNEMONIC;
+
+// EIP-712 Domain for Farcaster SignedKeyRequestValidator
+const SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN = {
+  name: "Farcaster SignedKeyRequestValidator",
+  version: "1",
+  chainId: 10,
+  verifyingContract: "0x00000000fc700472606ed4fa22623acf62c60553" as `0x${string}`,
+} as const;
+
+const SIGNED_KEY_REQUEST_TYPE = [
+  { name: "requestFid", type: "uint256" },
+  { name: "key", type: "bytes" },
+  { name: "deadline", type: "uint256" },
+] as const;
 
 /**
  * POST /api/signer
@@ -72,7 +85,7 @@ export async function POST(req: NextRequest) {
       public_key: createData.public_key
     });
 
-    // Step 2: Generate signature using app's mnemonic
+    // Step 2: Generate signature using app's mnemonic and EIP-712
     console.log("[API /signer POST] Generating signature...");
     
     const deadline = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours from now
@@ -81,18 +94,18 @@ export async function POST(req: NextRequest) {
     // Create account from mnemonic
     const account = mnemonicToAccount(APP_MNEMONIC);
     
-    // Create the message to sign: app_fid + deadline + public_key
-    const message = toHex(
-      new Uint8Array([
-        ...toBytes(BigInt(appFid)),
-        ...toBytes(BigInt(deadline)),
-        ...toBytes(createData.public_key as `0x${string}`)
-      ])
-    );
-    
-    // Sign the message
-    const signature = await account.signMessage({
-      message: { raw: toBytes(keccak256(toBytes(message))) }
+    // Sign using EIP-712 typed data
+    const signature = await account.signTypedData({
+      domain: SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN,
+      types: {
+        SignedKeyRequest: SIGNED_KEY_REQUEST_TYPE,
+      },
+      primaryType: "SignedKeyRequest",
+      message: {
+        requestFid: BigInt(appFid),
+        key: createData.public_key as `0x${string}`,
+        deadline: BigInt(deadline),
+      },
     });
     
     console.log("[API /signer POST] Signature generated");
