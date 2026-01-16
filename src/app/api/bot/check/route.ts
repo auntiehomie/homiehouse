@@ -18,6 +18,19 @@ const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 // Path to persistent storage
 const REPLIED_CASTS_FILE = path.join(process.cwd(), 'bot', 'replied_casts.json');
 
+// ⚠️ WARNING: File-based storage does NOT work reliably in serverless environments like Vercel
+// Each serverless function has its own ephemeral filesystem that gets wiped periodically
+// For production, you MUST use a database like:
+// - Vercel KV (Redis): https://vercel.com/docs/storage/vercel-kv
+// - Supabase: https://supabase.com
+// - Planetscale: https://planetscale.com
+// - Any other cloud database
+// 
+// To use Vercel KV (recommended):
+// 1. Install: npm install @vercel/kv
+// 2. Set up KV in Vercel dashboard
+// 3. Replace loadRepliedCasts() and saveRepliedCast() with KV operations
+
 // Load replied casts from file
 function loadRepliedCasts(): Set<string> {
   try {
@@ -261,22 +274,31 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // IMPORTANT: Track the parent hash (the cast we're replying to)
-      // not the notification hash, to prevent multiple replies to the same conversation
-      const parentHash = cast.parent_hash || cast.hash;
-      const trackingKey = `parent_${parentHash}`;
+      // Track multiple hashes to prevent any duplicate replies
+      const castHash = cast.hash;
+      const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
+      const rootParentHash = cast.root_parent_url || parentHash;
       
-      console.log(`Processing notification for cast ${cast.hash}, parent: ${parentHash}`);
+      // Create multiple tracking keys
+      const trackingKeys = [
+        `cast_${castHash}`,
+        `parent_${parentHash}`,
+        `root_${rootParentHash}`
+      ];
+      
+      console.log(`Processing: cast=${castHash}, parent=${parentHash}, root=${rootParentHash}`);
 
-      // Check persistent storage first (check parent hash)
-      if (repliedCasts.has(trackingKey)) {
-        console.log(`✓ Already replied to parent ${parentHash} (in persistent storage), skipping`);
-        continue;
+      // Check if we've already replied to ANY of these keys
+      let alreadyReplied = false;
+      for (const key of trackingKeys) {
+        if (repliedCasts.has(key) || repliedCastsCache.has(key)) {
+          console.log(`✓ Already replied to ${key}, skipping entire thread`);
+          alreadyReplied = true;
+          break;
+        }
       }
-
-      // Check in-memory cache as well
-      if (repliedCastsCache.has(trackingKey)) {
-        console.log(`✓ Already replied to parent ${parentHash} (in cache), skipping`);
+      
+      if (alreadyReplied) {
         continue;
       }
 
@@ -308,9 +330,12 @@ export async function GET(request: NextRequest) {
         );
 
         if (botAlreadyReplied) {
-          console.log(`✓ Already replied to parent ${parentHash}, adding to storage and skipping`);
-          saveRepliedCast(trackingKey);
-          repliedCastsCache.set(trackingKey, Date.now());
+          console.log(`✓ Already replied to parent ${parentHash}, saving all tracking keys and skipping`);
+          // Save ALL tracking keys to prevent any future duplicates
+          trackingKeys.forEach(key => {
+            saveRepliedCast(key);
+            repliedCastsCache.set(key, Date.now());
+          });
           continue;
         }
         
@@ -319,8 +344,10 @@ export async function GET(request: NextRequest) {
         console.error(`Error checking replies for parent ${parentHash}:`, error);
         // If we can't check reliably, assume we've replied to be safe
         console.log('Skipping cast due to check error (being conservative)');
-        saveRepliedCast(trackingKey);
-        repliedCastsCache.set(trackingKey, Date.now());
+        trackingKeys.forEach(key => {
+          saveRepliedCast(key);
+          repliedCastsCache.set(key, Date.now());
+        });
         continue;
       }
 
@@ -339,16 +366,20 @@ export async function GET(request: NextRequest) {
 
         console.log(`Posted reply to parent ${parentHash}: ${reply}`);
         
-        // Save to persistent storage and cache after successful reply (save parent hash)
-        saveRepliedCast(trackingKey);
-        repliedCastsCache.set(trackingKey, Date.now());
+        // Save ALL tracking keys after successful reply to prevent duplicates
+        trackingKeys.forEach(key => {
+          saveRepliedCast(key);
+          repliedCastsCache.set(key, Date.now());
+        });
         repliedCount++;
 
       } catch (error) {
         console.error(`Error replying to parent ${parentHash}:`, error);
         // Even on error, mark as attempted to avoid retry loops
-        saveRepliedCast(trackingKey);
-        repliedCastsCache.set(trackingKey, Date.now());
+        trackingKeys.forEach(key => {
+          saveRepliedCast(key);
+          repliedCastsCache.set(key, Date.now());
+        });
       }
     }
 
