@@ -6,6 +6,7 @@ import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import { FeedType } from "./FeedTrendingTabs";
 import { QRCodeSVG } from 'qrcode.react';
+import Link from "next/link";
 
 interface FeedListProps {
   feedType: FeedType;
@@ -570,7 +571,17 @@ export default function FeedList({
         return (
           <article key={key} className="surface" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-              <div style={{ fontWeight: 700 }}>{authorName}</div>
+              <Link 
+                href={`/profile?user=${authorUsername}`}
+                style={{ 
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  color: 'inherit'
+                }}
+                className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+              >
+                {authorName}
+              </Link>
               <button
                 onClick={() => setShowActions(showActions === key ? null : key)}
                 style={{
@@ -678,7 +689,27 @@ export default function FeedList({
             }}>
               {text}
             </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted-on-dark)' }}>{timeLabel}</div>
+            <div style={{ 
+              marginTop: 8, 
+              fontSize: 12, 
+              color: 'var(--muted-on-dark)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span>{timeLabel}</span>
+              <Link 
+                href={`/cast/${key}`}
+                style={{
+                  color: 'var(--muted-on-dark)',
+                  textDecoration: 'none',
+                  fontSize: '12px'
+                }}
+                className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+              >
+                View details →
+              </Link>
+            </div>
             
             {/* Like and Recast buttons */}
             <div style={{ 
