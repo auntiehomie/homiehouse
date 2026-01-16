@@ -235,8 +235,8 @@ export async function checkForMentions() {
       try {
         const conversation = await neynar.lookUpCastByHash(parentHash);
         
-        const directReplies = (conversation.cast as any)?.direct_replies || [];
-        const threadReplies = (conversation.cast as any)?.replies?.casts || [];
+        const directReplies = (conversation as any)?.direct_replies || [];
+        const threadReplies = (conversation as any)?.replies?.casts || [];
         const allReplies = [...directReplies, ...threadReplies];
         
         const botAlreadyReplied = allReplies.some((reply: any) => {
