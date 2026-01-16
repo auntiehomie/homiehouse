@@ -1,13 +1,10 @@
-import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
+import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 
-const neynarConfig = new Configuration({
-  apiKey: process.env.NEYNAR_API_KEY!
-});
-const neynar = new NeynarAPIClient(neynarConfig);
+const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -192,9 +189,7 @@ export async function checkForMentions() {
     let repliedCount = 0;
 
     // Fetch notifications
-    const notifications = await neynar.fetchAllNotifications({ 
-      fid: BOT_FID
-    });
+    const notifications = await neynar.fetchAllNotifications(BOT_FID);
 
     console.log(`📬 Found ${notifications.notifications.length} notifications`);
 
@@ -238,10 +233,7 @@ export async function checkForMentions() {
 
       // Double-check by fetching the cast and looking for bot replies
       try {
-        const conversation = await neynar.lookupCastByHashOrUrl({
-          identifier: parentHash,
-          type: 'hash'
-        });
+        const conversation = await neynar.lookUpCastByHash(parentHash);
         
         const directReplies = (conversation.cast as any)?.direct_replies || [];
         const threadReplies = (conversation.cast as any)?.replies?.casts || [];
@@ -270,11 +262,7 @@ export async function checkForMentions() {
         
         const reply = await generateReply(cast);
 
-        await neynar.publishCast({
-          signerUuid: SIGNER_UUID,
-          text: reply,
-          parent: parentHash
-        });
+        await neynar.publishCast(SIGNER_UUID, reply, { replyTo: parentHash });
 
         console.log(`✅ Posted reply: ${reply}`);
         
