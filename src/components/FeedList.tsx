@@ -28,6 +28,7 @@ export default function FeedList({
   const [showActions, setShowActions] = useState<string | null>(null);
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
   const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
+  const [quotedCasts, setQuotedCasts] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -388,6 +389,8 @@ export default function FeedList({
       if (res.ok) {
         setQuoteText("");
         setShowQuoteModal(null);
+        // Add to quoted casts
+        setQuotedCasts(prev => new Set([...prev, castHash]));
         alert("Quote cast posted successfully!");
       } else {
         const data = await res.json();
@@ -1063,29 +1066,6 @@ export default function FeedList({
                 </button>
               )}
 
-              {/* Undo Quote Cast - only show if user has quoted this cast */}
-              {/* For now we'll show it always - you can add tracking similar to recastedCasts if needed */}
-              <button
-                onClick={() => {
-                  alert('Undo Quote Cast - coming soon!');
-                  setShowRecastModal(null);
-                }}
-                className="btn"
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  fontSize: '15px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  color: '#ef4444'
-                }}
-              >
-                🗑️ Undo Quote Cast
-              </button>
-
               {/* Reply */}
               <button
                 onClick={() => {
@@ -1154,6 +1134,81 @@ export default function FeedList({
             }}
           >
             <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>Quote Cast</h3>
+            
+            {/* Cast Preview */}
+            {(() => {
+              const cast = items?.find(item => item.hash === showQuoteModal);
+              console.log('Quote modal - showing cast:', cast?.hash, 'from', cast?.author?.username);
+              if (cast) {
+                return (
+                  <div style={{
+                    background: '#1a1a1a',
+                    border: '2px solid #333',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    marginBottom: '16px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      {cast.author?.pfp_url && (
+                        <img
+                          src={cast.author.pfp_url}
+                          alt={cast.author.username || 'user'}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '15px', color: '#fff' }}>
+                          {cast.author?.display_name || cast.author?.username || 'Unknown'}
+                        </div>
+                        <div style={{ color: '#999', fontSize: '13px' }}>@{cast.author?.username || 'unknown'}</div>
+                      </div>
+                    </div>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '15px',
+                      lineHeight: '1.5',
+                      color: '#e0e0e0',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word'
+                    }}>
+                      {cast.text || '(No text)'}
+                    </p>
+                    {cast.embeds && cast.embeds.length > 0 && cast.embeds[0]?.url && (
+                      <div style={{ marginTop: '12px' }}>
+                        {cast.embeds[0].url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                          <img 
+                            src={cast.embeds[0].url} 
+                            alt="embed"
+                            style={{ 
+                              maxWidth: '100%', 
+                              borderRadius: '8px',
+                              maxHeight: '200px',
+                              objectFit: 'cover'
+                            }} 
+                          />
+                        ) : (
+                          <div style={{ 
+                            fontSize: '13px', 
+                            color: '#888',
+                            fontStyle: 'italic'
+                          }}>
+                            🔗 {cast.embeds[0].url.substring(0, 50)}...
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              } else {
+                console.log('No cast found for hash:', showQuoteModal, 'in items:', items?.length);
+              }
+              return null;
+            })()}
             
             <textarea
               value={quoteText}

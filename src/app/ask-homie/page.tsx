@@ -93,7 +93,14 @@ function AskHomieContent() {
               </button>
             </div>
             <div className="text-sm text-zinc-700 dark:text-zinc-300">
-              <div className="font-medium">@{castContext.author}</div>
+              <div className="font-medium">
+                <Link
+                  href={`/profile?user=${castContext.author}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  @{castContext.author}
+                </Link>
+              </div>
               <div className="mt-1">
                 {castContext.text?.substring(0, 200)}
                 {castContext.text?.length > 200 ? '...' : ''}

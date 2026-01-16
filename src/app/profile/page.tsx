@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 interface UserProfile {
@@ -22,32 +22,45 @@ interface UserProfile {
   power_badge: boolean;
 }
 
-export default function ProfilePage() {
+function ProfileContent() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        // Get user from localStorage
-        const storedProfile = localStorage.getItem('hh_profile');
-        if (!storedProfile) {
-          router.push('/');
-          return;
+        const username = searchParams.get('user');
+        
+        if (username) {
+          // Fetch profile by username
+          const response = await fetch(`/api/profile?username=${username}`);
+          if (!response.ok) {
+            throw new Error('Failed to fetch profile');
+          }
+          const data = await response.json();
+          setProfile(data);
+        } else {
+          // Get current user from localStorage
+          const storedProfile = localStorage.getItem('hh_profile');
+          if (!storedProfile) {
+            router.push('/');
+            return;
+          }
+
+          const { fid } = JSON.parse(storedProfile);
+
+          // Fetch full profile from API
+          const response = await fetch(`/api/profile?fid=${fid}`);
+          if (!response.ok) {
+            throw new Error('Failed to fetch profile');
+          }
+
+          const data = await response.json();
+          setProfile(data);
         }
-
-        const { fid } = JSON.parse(storedProfile);
-
-        // Fetch full profile from API
-        const response = await fetch(`/api/profile?fid=${fid}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch profile');
-        }
-
-        const data = await response.json();
-        setProfile(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load profile');
       } finally {
@@ -56,7 +69,7 @@ export default function ProfilePage() {
     };
 
     loadProfile();
-  }, [router]);
+  }, [router, searchParams]);
 
   if (loading) {
     return (
@@ -179,5 +192,17 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading profile...</div>
+      </div>
+    }>
+      <ProfileContent />
+    </Suspense>
   );
 }

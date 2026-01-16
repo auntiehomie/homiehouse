@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
 type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
@@ -20,6 +21,42 @@ interface AgentChatProps {
     text: string;
   };
   onCastSelect?: (cast: string) => void;
+}
+
+// Helper function to parse text and make @mentions clickable
+function parseTextWithMentions(text: string) {
+  const parts: (string | JSX.Element)[] = [];
+  const regex = /@([a-zA-Z0-9_-]+)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the mention
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    
+    // Add the clickable mention
+    const username = match[1];
+    parts.push(
+      <Link
+        key={match.index}
+        href={`/profile?user=${username}`}
+        className="text-blue-500 hover:text-blue-600 hover:underline font-medium"
+      >
+        @{username}
+      </Link>
+    );
+    
+    lastIndex = regex.lastIndex;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+  
+  return parts.length > 0 ? parts : [text];
 }
 
 export default function AgentChat({ userId, castContext, onCastSelect }: AgentChatProps) {
@@ -311,7 +348,9 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
                 </div>
               )}
               
-              <div className="whitespace-pre-wrap">{msg.content}</div>
+              <div className="whitespace-pre-wrap">
+                {parseTextWithMentions(msg.content)}
+              </div>
 
               {/* Show suggestions */}
               {msg.suggestions && msg.suggestions.length > 0 && (
