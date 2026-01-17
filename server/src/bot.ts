@@ -132,7 +132,7 @@ async function getUserContext(authorFid: number, authorUsername: string): Promis
     // Fetch user's recent casts to understand their style and interests
     const userCasts = await neynar.fetchFeed('filter', {
       filterType: 'fids',
-      fids: authorFid.toString(),
+      fids: [authorFid],
       limit: 10
     });
 
@@ -152,7 +152,7 @@ async function getUserContext(authorFid: number, authorUsername: string): Promis
     let totalLength = 0;
     recentTexts.forEach((text: string) => {
       totalLength += text.length;
-      if (/[😀-🙏🌀-🗿🚀-🛿]/.test(text)) style.usesEmojis = true;
+      if (/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}]/u.test(text)) style.usesEmojis = true;
       
       // Extract hashtags
       const hashtags = text.match(/#\w+/g) || [];
