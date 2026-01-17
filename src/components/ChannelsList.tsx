@@ -8,70 +8,76 @@ export default function ChannelsList() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const storedProfile = localStorage.getItem("hh_profile");
-    if (storedProfile) {
-      try {
-        const profile = JSON.parse(storedProfile);
-        const fid = profile?.fid;
-        
-        if (fid) {
-          // Fetch user's followed channels
-          fetchChannels(fid);
-        } else {
-          setLoading(false);
+    const loadUserChannels = () => {
+      const storedProfile = localStorage.getItem("hh_profile");
+      if (storedProfile) {
+        try {
+          const profile = JSON.parse(storedProfile);
+          const fid = profile?.fid;
+          
+          if (fid) {
+            console.log('[ChannelsList] Fetching channels for FID:', fid);
+            fetchChannels(fid);
+            return;
+          }
+        } catch (err) {
+          console.error('[ChannelsList] Error parsing profile:', err);
         }
-      } catch {
-        setLoading(false);
       }
-    } else {
-      setLoading(false);
-    }
+      
+      // If no profile, show popular channels
+      console.log('[ChannelsList] No profile found, showing popular channels');
+      showPopularChannels();
+    };
+
+    loadUserChannels();
   }, []);
 
   async function fetchChannels(fid: number) {
     try {
-      // Fetch user's followed channels from API
+      console.log('[ChannelsList] Fetching channels for FID:', fid);
       const response = await fetch(`/api/channels?fid=${fid}`);
       const data = await response.json();
+      
+      console.log('[ChannelsList] API response:', data);
       
       if (data.ok && data.channels && data.channels.length > 0) {
         // Map channels to our format
         const userChannels = [
           { name: "Home", url: "/", id: "home" },
-          ...data.channels.map((ch: any) => ({
+          ...data.channels.slice(0, 10).map((ch: any) => ({
             name: ch.name || ch.id,
             url: `/channel/${ch.id}`,
             id: ch.id
           }))
         ];
         
+        console.log('[ChannelsList] Loaded user channels:', userChannels.length);
         setChannels(userChannels);
       } else {
-        // Fallback to popular channels if user has no followed channels
-        const popularChannels = [
-          { name: "Home", url: "/", id: "home" },
-          { name: "Base", url: "/channel/base", id: "base" },
-          { name: "Farcaster", url: "/channel/farcaster", id: "farcaster" },
-          { name: "Dev", url: "/channel/dev", id: "dev" },
-          { name: "Art", url: "/channel/art", id: "art" },
-          { name: "Music", url: "/channel/music", id: "music" },
-        ];
-        setChannels(popularChannels);
+        console.log('[ChannelsList] No channels found, using popular');
+        showPopularChannels();
       }
       
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching channels:", error);
-      // Fallback to popular channels on error
-      const popularChannels = [
-        { name: "Home", url: "/", id: "home" },
-        { name: "Base", url: "/channel/base", id: "base" },
-        { name: "Farcaster", url: "/channel/farcaster", id: "farcaster" },
-        { name: "Dev", url: "/channel/dev", id: "dev" },
-      ];
-      setChannels(popularChannels);
+      console.error("[ChannelsList] Error fetching channels:", error);
+      showPopularChannels();
       setLoading(false);
     }
+  }
+
+  function showPopularChannels() {
+    const popularChannels = [
+      { name: "Home", url: "/", id: "home" },
+      { name: "Base", url: "/channel/base", id: "base" },
+      { name: "Farcaster", url: "/channel/farcaster", id: "farcaster" },
+      { name: "Dev", url: "/channel/dev", id: "dev" },
+      { name: "Art", url: "/channel/art", id: "art" },
+      { name: "Music", url: "/channel/music", id: "music" },
+    ];
+    setChannels(popularChannels);
+    setLoading(false);
   }
 
   if (loading) {

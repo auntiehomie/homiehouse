@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     const channels = data?.channels || [];
     console.log("[API /channels] Success, channels:", channels.length);
 
-    return NextResponse.json({ data: channels });
+    return NextResponse.json({ ok: true, channels });
   } catch (error: any) {
     console.error("[API /channels] Error:", error);
     return NextResponse.json(
