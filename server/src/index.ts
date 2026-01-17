@@ -47,12 +47,17 @@ cron.schedule('*/15 * * * *', async () => {
   }
 });
 
-// Run once on startup
-setTimeout(async () => {
-  console.log('🚀 Running initial bot check...');
-  try {
-    await checkForMentions();
-  } catch (error) {
-    console.error('Initial check failed:', error);
-  }
-}, 5000); // Wait 5 seconds after startup
+// Run once on startup (but only if ENABLE_STARTUP_CHECK is true)
+if (process.env.ENABLE_STARTUP_CHECK === 'true') {
+  setTimeout(async () => {
+    console.log('🚀 Running initial bot check (ENABLE_STARTUP_CHECK=true)...');
+    try {
+      await checkForMentions();
+    } catch (error) {
+      console.error('Initial check failed:', error);
+    }
+  }, 10000); // Wait 10 seconds after startup
+} else {
+  console.log('⏭️  Skipping startup check (set ENABLE_STARTUP_CHECK=true to enable)');
+  console.log('⏰ Bot will wait for first scheduled check in 15 minutes');
+}

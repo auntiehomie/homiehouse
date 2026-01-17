@@ -1,8 +1,7 @@
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import fs from 'fs';
-import path from 'path';
+import { BotReplyService } from './db';
 
 const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -11,11 +10,8 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
-// Persistent storage file (works on Render!)
-const REPLIED_CASTS_FILE = path.join(process.cwd(), 'replied_casts.json');
-
-// In-memory cache for quick lookups
-const repliedCastsCache = new Map<string, number>();
+// In-memory cache for quick lookups during a single run
+const repliedCastsCache = new Set<string>();
 const userProfileCache = new Map<number, { context: string; timestamp: number }>();
 const PROFILE_CACHE_TTL = 3600000; // 1 hour
 
@@ -34,61 +30,6 @@ CRITICAL RULES:
 - Use lowercase more than uppercase (it's more chill)
 
 Look at their tone and mirror it. Short reply? You go short. Excited? Match that energy (but don't overdo it).`;
-
-// Load replied casts from file
-function loadRepliedCasts(): Set<string> {
-  try {
-    if (fs.existsSync(REPLIED_CASTS_FILE)) {
-      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
-      const casts = JSON.parse(data);
-      
-      // Also populate in-memory cache
-      casts.forEach((c: any) => {
-        repliedCastsCache.set(c.hash, c.timestamp);
-      });
-      
-      return new Set(casts.map((c: any) => c.hash));
-    }
-  } catch (error) {
-    console.error('Error loading replied casts:', error);
-  }
-  return new Set();
-}
-
-// Save replied cast to file
-function saveRepliedCast(castHash: string) {
-  try {
-    let casts: any[] = [];
-    
-    if (fs.existsSync(REPLIED_CASTS_FILE)) {
-      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
-      casts = JSON.parse(data);
-    }
-    
-    // Check if already saved
-    if (casts.some(c => c.hash === castHash)) {
-      console.log(`💾 ${castHash} already in file, skipping save`);
-      return;
-    }
-    
-    // Add new cast with timestamp
-    casts.push({
-      hash: castHash,
-      timestamp: Date.now()
-    });
-    
-    // Keep only last 2000 entries (increased from 1000)
-    if (casts.length > 2000) {
-      casts = casts.slice(-2000);
-    }
-    
-    fs.writeFileSync(REPLIED_CASTS_FILE, JSON.stringify(casts, null, 2));
-    repliedCastsCache.set(castHash, Date.now());
-    console.log(`💾 Saved ${castHash} to persistent storage (total: ${casts.length})`);
-  } catch (error) {
-    console.error('❌ Error saving replied cast:', error);
-  }
-}
 
 // Check if image URL
 function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUrl?: string } {
@@ -369,16 +310,15 @@ async function generateReply(cast: any): Promise<string> {
 // Main function to check for mentions
 export async function checkForMentions() {
   try {
-    // Load previously replied casts
-    const repliedCasts = loadRepliedCasts();
-    console.log(`📂 Loaded ${repliedCasts.size} previously replied casts`);
+    console.log(`🔍 Starting mention check...`);
     
     let repliedCount = 0;
+    let skippedAlreadyReplied = 0;
 
     // Fetch notifications
     const notifications = await neynar.fetchAllNotifications(BOT_FID);
 
-    console.log(`📬 Found ${notifications.notifications.length} notifications`);
+    console.log(`📬 Found ${notifications.notifications.length} total notifications`);
 
     for (const notification of notifications.notifications) {
       if (repliedCount >= 1) {
@@ -393,17 +333,21 @@ export async function checkForMentions() {
 
       const castHash = cast.hash;
       
-      console.log(`🔍 Checking mention cast: ${castHash}`);
-      console.log(`📊 Currently tracking ${repliedCasts.size} replied casts`);
+      console.log(`🔍 Checking mention cast: ${castHash.slice(0, 10)}...`);
 
-      // Simple check: have we replied to this exact cast hash?
-      if (repliedCasts.has(castHash)) {
-        console.log(`✓ Already replied to ${castHash}, skipping`);
+      // Check in-memory cache first (for this run)
+      if (repliedCastsCache.has(castHash)) {
+        console.log(`✓ Already replied in this run, skipping`);
+        skippedAlreadyReplied++;
         continue;
       }
-      
-      if (repliedCastsCache.has(castHash)) {
-        console.log(`✓ Found in cache: ${castHash}, skipping`);
+
+      // Check database if bot has already replied to this cast
+      const hasReplied = await BotReplyService.hasRepliedTo(castHash);
+      if (hasReplied) {
+        console.log(`✓ Already replied to ${castHash.slice(0, 10)} (found in DB), skipping`);
+        repliedCastsCache.add(castHash);
+        skippedAlreadyReplied++;
         continue;
       }
 
@@ -422,30 +366,32 @@ export async function checkForMentions() {
         });
 
         if (botAlreadyReplied) {
-          console.log(`✓ Found existing bot reply to this mention cast, marking as replied`);
-          saveRepliedCast(castHash);
-          repliedCasts.add(castHash);
+          console.log(`✓ Found existing bot reply via API, recording in DB`);
+          await BotReplyService.recordReply(castHash, 'existing', 'mention', 'Found existing reply');
+          repliedCastsCache.add(castHash);
+          skippedAlreadyReplied++;
           continue;
         }
       } catch (error) {
         console.error(`⚠️ Error checking replies for mention cast:`, error);
-        // Continue - don't skip on error, let the tracking handle duplicates
+        // Continue - don't skip on error, let the database handle duplicates
       }
 
       // Generate and post reply
       try {
-        // CRITICAL: Mark as replied BEFORE generating to prevent race conditions
-        console.log(`🔒 Marking ${castHash} as replied (pre-lock)`);
-        saveRepliedCast(castHash);
-        repliedCasts.add(castHash);
-        
         console.log(`💭 Generating reply for cast ${castHash.slice(0, 10)}...`);
         const reply = await generateReply(cast);
 
         // Reply to the mention cast (castHash)
-        await neynar.publishCast(SIGNER_UUID, reply, { replyTo: castHash });
+        const replyResult = await neynar.publishCast(SIGNER_UUID, reply, { replyTo: castHash });
+        const replyHash = replyResult?.hash || castHash;
 
         console.log(`✅ Posted reply to ${castHash.slice(0, 10)}: ${reply.slice(0, 50)}...`);
+        
+        // Record in database - IMPORTANT: track by parent (mention) hash
+        await BotReplyService.recordReply(castHash, replyHash, 'mention', reply.slice(0, 280));
+        repliedCastsCache.add(castHash);
+        
         repliedCount++;
 
       } catch (error) {
@@ -454,9 +400,12 @@ export async function checkForMentions() {
       }
     }
 
+    console.log(`\n📊 Summary: Checked ${notifications.notifications.length} notifications, skipped ${skippedAlreadyReplied} already replied, posted ${repliedCount} new replies\n`);
+
     return {
       success: true,
       checked: notifications.notifications.length,
+      skipped_already_replied: skippedAlreadyReplied,
       replied: repliedCount,
       timestamp: new Date().toISOString()
     };
