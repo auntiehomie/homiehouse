@@ -414,12 +414,12 @@ export async function checkForMentions() {
         continue;
       }
 
-      // Double-check by fetching the cast and looking for bot replies
+      // Double-check by fetching the MENTION cast (not parent) and looking for bot replies
       try {
-        const conversation = await neynar.lookUpCastByHash(parentHash);
+        const mentionCast = await neynar.lookUpCastByHash(castHash);
         
-        const directReplies = (conversation as any)?.direct_replies || [];
-        const threadReplies = (conversation as any)?.replies?.casts || [];
+        const directReplies = (mentionCast as any)?.direct_replies || [];
+        const threadReplies = (mentionCast as any)?.replies?.casts || [];
         const allReplies = [...directReplies, ...threadReplies];
         
         const botAlreadyReplied = allReplies.some((reply: any) => {
@@ -428,29 +428,28 @@ export async function checkForMentions() {
         });
 
         if (botAlreadyReplied) {
-          console.log(`✓ Found existing bot reply in thread, saving and skipping`);
+          console.log(`✓ Found existing bot reply to this mention cast, saving and skipping`);
           trackingKeys.forEach(key => saveRepliedCast(key));
           continue;
         }
       } catch (error) {
-        console.error(`⚠️ Error checking replies:`, error);
-        // Be conservative - skip if we can't check
-        trackingKeys.forEach(key => saveRepliedCast(key));
-        continue;
+        console.error(`⚠️ Error checking replies for mention cast:`, error);
+        // Continue - don't skip on error, let the tracking keys handle duplicates
       }
 
       // Generate and post reply
       try {
         // CRITICAL: Mark as replied BEFORE generating to prevent race conditions
         trackingKeys.forEach(key => saveRepliedCast(key));
-        console.log(`🔒 Locked reply for ${castHash.slice(0, 10)}...`);
+        console.log(`🔒 Locked reply for cast ${castHash.slice(0, 10)}...`);
         
-        console.log(`💭 Generating reply for ${castHash.slice(0, 10)}...`);
+        console.log(`💭 Generating reply for cast ${castHash.slice(0, 10)}...`);
         const reply = await generateReply(cast);
 
-        await neynar.publishCast(SIGNER_UUID, reply, { replyTo: parentHash });
+        // Reply to the mention cast (castHash), not the parent
+        await neynar.publishCast(SIGNER_UUID, reply, { replyTo: castHash });
 
-        console.log(`✅ Posted reply: ${reply}`);
+        console.log(`✅ Posted reply to ${castHash.slice(0, 10)}: ${reply}`);
         repliedCount++;
 
       } catch (error) {
