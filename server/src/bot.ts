@@ -20,11 +20,20 @@ const userProfileCache = new Map<number, { context: string; timestamp: number }>
 const PROFILE_CACHE_TTL = 3600000; // 1 hour
 
 // Bot personality
-const BOT_PERSONALITY = `You are a chill friend on Farcaster. Reply naturally and casually. Keep it SHORT - max 280 characters. No hashtags unless the user uses them first.
+const BOT_PERSONALITY = `You're homie on Farcaster. Match their vibe - if they're casual, you're casual. If they're serious, be thoughtful. 
 
-BANNED WORDS (never use): fascinating, incredible, amazing, dynamic, evolution, evoke, transcend, interplay, ecosystem, tapestry, intriguing, profound, mundane
+CRITICAL RULES:
+- Read their message first. Actually respond to what they said
+- Keep it under 200 chars unless they wrote something long
+- Sound like you're texting, not writing an essay
+- No cringe words: fascinating, incredible, amazing, dynamic, evolution, evoke, transcend, interplay, ecosystem, tapestry, intriguing, profound, mundane, delve, leverage, unlock, seamless
+- Skip emojis unless they use them. One emoji max if you do
+- Don't be overly helpful or cheerful. Just be real
+- If they're asking something, answer it directly. No fluff
+- If they're sharing, react naturally like you would to a friend's text
+- Use lowercase more than uppercase (it's more chill)
 
-Talk like a real person texting a friend. Be helpful but laid-back.`;
+Look at their tone and mirror it. Short reply? You go short. Excited? Match that energy (but don't overdo it).`;
 
 // Load replied casts from file
 function loadRepliedCasts(): Set<string> {
@@ -254,6 +263,12 @@ async function generateReply(cast: any): Promise<string> {
   if (hasImage && imageUrl) {
     try {
       const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext;
+      
+      // Analyze the message and image together
+      const userMessage = castText 
+        ? `@${authorUsername} posted with text: "${castText}"\n\nLook at their image and respond naturally. What would you say to a friend who just sent you this?`
+        : `@${authorUsername} posted an image with no text.\n\nCheck it out and react naturally. What do you notice? What would you say?`;
+      
       const response = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [
@@ -266,7 +281,7 @@ async function generateReply(cast: any): Promise<string> {
             content: [
               {
                 type: 'text',
-                text: `@${authorUsername} says: ${castText}`
+                text: userMessage
               },
               {
                 type: 'image_url',
@@ -276,7 +291,7 @@ async function generateReply(cast: any): Promise<string> {
           }
         ],
         max_tokens: 150,
-        temperature: 0.8
+        temperature: 0.9
       });
 
       return response.choices[0]?.message?.content?.trim() || "Hey! 🏠";
@@ -288,14 +303,24 @@ async function generateReply(cast: any): Promise<string> {
   // Use Claude for text
   try {
     const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext;
+    
+    // Create more natural user message
+    let userMessage = `Message from @${authorUsername}: "${castText}"`;
+    if (castText.length < 50) {
+      userMessage += `\n\n(They kept it short. Match their energy - keep your reply brief and natural.)`;
+    } else if (castText.includes('?')) {
+      userMessage += `\n\n(They asked a question. Answer it directly, no need for extra stuff.)`;
+    }
+    
     const response = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-latest',
       max_tokens: 150,
+      temperature: 0.9,
       system: systemPrompt,
       messages: [
         {
           role: 'user',
-          content: `@${authorUsername} says: ${castText}`
+          content: userMessage
         }
       ]
     });
@@ -311,14 +336,21 @@ async function generateReply(cast: any): Promise<string> {
   // Fallback to OpenAI
   try {
     const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext;
+    
+    // More natural formatting
+    let userMessage = `@${authorUsername}: "${castText}"`;
+    if (castText.length < 50) {
+      userMessage += `\n\nKeep it short like they did.`;
+    }
+    
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `@${authorUsername} says: ${castText}` }
+        { role: 'user', content: userMessage }
       ],
       max_tokens: 80,
-      temperature: 0.8
+      temperature: 0.9
     });
 
     return response.choices[0]?.message?.content?.trim() || "Hey! 🏠";

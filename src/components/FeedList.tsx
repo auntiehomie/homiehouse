@@ -38,6 +38,8 @@ export default function FeedList({
   const [showQuoteModal, setShowQuoteModal] = useState<string | null>(null);
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteSuccess, setQuoteSuccess] = useState(false);
+  const [replySuccess, setReplySuccess] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
   const [expandedCasts, setExpandedCasts] = useState<Set<string>>(new Set());
 
@@ -326,9 +328,12 @@ export default function FeedList({
       });
 
       if (res.ok) {
-        setReplyText("");
-        setReplyingTo(null);
-        alert("Reply posted successfully!");
+        setReplySuccess(true);
+        setTimeout(() => {
+          setReplyText("");
+          setReplyingTo(null);
+          setReplySuccess(false);
+        }, 2000);
       } else {
         const data = await res.json();
         if (res.status === 403) {
@@ -389,11 +394,14 @@ export default function FeedList({
       });
 
       if (res.ok) {
-        setQuoteText("");
-        setShowQuoteModal(null);
+        setQuoteSuccess(true);
         // Add to quoted casts
         setQuotedCasts(prev => new Set([...prev, castHash]));
-        alert("Quote cast posted successfully!");
+        setTimeout(() => {
+          setQuoteText("");
+          setShowQuoteModal(null);
+          setQuoteSuccess(false);
+        }, 2000);
       } else {
         const data = await res.json();
         if (res.status === 403) {
@@ -903,6 +911,20 @@ export default function FeedList({
                   autoFocus
                   style={{ minHeight: '80px', fontSize: '14px' }}
                 />
+                {replySuccess && (
+                  <div style={{
+                    padding: '12px',
+                    background: '#10b981',
+                    color: 'white',
+                    borderRadius: '8px',
+                    textAlign: 'center',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    marginTop: '8px'
+                  }}>
+                    ✓ Reply posted successfully!
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
                   <button 
                     className="btn" 
@@ -917,7 +939,7 @@ export default function FeedList({
                   <button 
                     className="btn primary" 
                     onClick={() => handleReply(key)}
-                    disabled={replyLoading || !replyText.trim()}
+                    disabled={replyLoading || !replyText.trim() || replySuccess}
                   >
                     {replyLoading ? "Posting..." : "Post Reply"}
                   </button>
@@ -1302,10 +1324,24 @@ export default function FeedList({
               autoFocus
             />
             
+            {quoteSuccess && (
+              <div style={{
+                padding: '12px',
+                background: '#10b981',
+                color: 'white',
+                borderRadius: '8px',
+                textAlign: 'center',
+                fontSize: '14px',
+                fontWeight: 500
+              }}>
+                ✓ Quote cast posted successfully!
+              </div>
+            )}
+            
             <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
               <button
                 onClick={() => handleQuoteCast(showQuoteModal)}
-                disabled={quoteLoading || !quoteText.trim()}
+                disabled={quoteLoading || !quoteText.trim() || quoteSuccess}
                 className="btn primary"
                 style={{
                   width: '100%',
