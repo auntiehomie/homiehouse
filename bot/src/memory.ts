@@ -23,6 +23,7 @@ export interface UserProfile {
   username: string;
   display_name: string;
   topics: string; // JSON array of topics they discuss
+  posting_style: string; // JSON object with style info (emoji usage, length, tone)
   last_interaction: number;
   interaction_count: number;
 }
@@ -72,6 +73,7 @@ class Memory {
         username TEXT NOT NULL,
         display_name TEXT,
         topics TEXT DEFAULT '[]',
+        posting_style TEXT DEFAULT '{}',
         last_interaction INTEGER NOT NULL,
         interaction_count INTEGER DEFAULT 1
       )
@@ -183,6 +185,50 @@ class Memory {
     }
     stmt.free();
     return null;
+  }
+
+  // Update user profile with learned insights
+  async updateUserProfile(
+    userFid: number,
+    username: string,
+    topics?: string[],
+    postingStyle?: { usesEmojis?: boolean; avgLength?: number; tone?: string }
+  ): Promise<void> {
+    if (!this.db) return;
+
+    const profile = this.getUserProfile(userFid);
+    const timestamp = Date.now();
+
+    let updatedTopics = topics ? JSON.stringify(topics) : '[]';
+    let updatedStyle = postingStyle ? JSON.stringify(postingStyle) : '{}';
+
+    // Merge with existing data if available
+    if (profile) {
+      const existingTopics = JSON.parse(profile.topics || '[]');
+      const existingStyle = JSON.parse(profile.posting_style || '{}');
+      
+      if (topics) {
+        const mergedTopics = [...new Set([...existingTopics, ...topics])];
+        updatedTopics = JSON.stringify(mergedTopics.slice(-10)); // Keep last 10 topics
+      }
+      
+      if (postingStyle) {
+        updatedStyle = JSON.stringify({ ...existingStyle, ...postingStyle });
+      }
+    }
+
+    this.db.run(
+      `INSERT INTO user_profiles (fid, username, topics, posting_style, last_interaction, interaction_count)
+      VALUES (?, ?, ?, ?, ?, 1)
+      ON CONFLICT(fid) DO UPDATE SET
+        username = excluded.username,
+        topics = excluded.topics,
+        posting_style = excluded.posting_style,
+        last_interaction = excluded.last_interaction`,
+      [userFid, username, updatedTopics, updatedStyle, timestamp]
+    );
+
+    await this.saveToFile();
   }
 
   // Search conversations by keyword
