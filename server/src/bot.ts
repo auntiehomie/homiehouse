@@ -65,22 +65,28 @@ function saveRepliedCast(castHash: string) {
       casts = JSON.parse(data);
     }
     
+    // Check if already saved
+    if (casts.some(c => c.hash === castHash)) {
+      console.log(`💾 ${castHash} already in file, skipping save`);
+      return;
+    }
+    
     // Add new cast with timestamp
     casts.push({
       hash: castHash,
       timestamp: Date.now()
     });
     
-    // Keep only last 1000 entries
-    if (casts.length > 1000) {
-      casts = casts.slice(-1000);
+    // Keep only last 2000 entries (increased from 1000)
+    if (casts.length > 2000) {
+      casts = casts.slice(-2000);
     }
     
     fs.writeFileSync(REPLIED_CASTS_FILE, JSON.stringify(casts, null, 2));
     repliedCastsCache.set(castHash, Date.now());
-    console.log(`💾 Saved ${castHash} to persistent storage`);
+    console.log(`💾 Saved ${castHash} to persistent storage (total: ${casts.length})`);
   } catch (error) {
-    console.error('Error saving replied cast:', error);
+    console.error('❌ Error saving replied cast:', error);
   }
 }
 
@@ -385,37 +391,25 @@ export async function checkForMentions() {
         continue;
       }
 
-      // Track multiple hashes to prevent duplicates
       const castHash = cast.hash;
-      const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
-      const rootParentHash = cast.root_parent_url || parentHash;
       
-      // IMPORTANT: Include notification ID to prevent processing same notification twice
-      const trackingKeys = [
-        `notification_${(notification as any).id || castHash}`,
-        `cast_${castHash}`,
-        `parent_${parentHash}`,
-        `root_${rootParentHash}`
-      ];
-      
-      console.log(`🔍 Checking cast=${castHash.slice(0, 10)}..., parent=${parentHash.slice(0, 10)}...`);
+      console.log(`🔍 Checking mention cast: ${castHash}`);
+      console.log(`📊 Currently tracking ${repliedCasts.size} replied casts`);
 
-      // Check if already replied to any of these keys
-      let alreadyReplied = false;
-      for (const key of trackingKeys) {
-        if (repliedCasts.has(key) || repliedCastsCache.has(key)) {
-          console.log(`✓ Already replied to ${key}, skipping`);
-          alreadyReplied = true;
-          break;
-        }
+      // Simple check: have we replied to this exact cast hash?
+      if (repliedCasts.has(castHash)) {
+        console.log(`✓ Already replied to ${castHash}, skipping`);
+        continue;
       }
       
-      if (alreadyReplied) {
+      if (repliedCastsCache.has(castHash)) {
+        console.log(`✓ Found in cache: ${castHash}, skipping`);
         continue;
       }
 
-      // Double-check by fetching the MENTION cast (not parent) and looking for bot replies
+      // Double-check by fetching the MENTION cast and looking for bot replies
       try {
+        console.log(`🔎 Double-checking cast ${castHash.slice(0, 10)}... for existing replies`);
         const mentionCast = await neynar.lookUpCastByHash(castHash);
         
         const directReplies = (mentionCast as any)?.direct_replies || [];
@@ -428,28 +422,30 @@ export async function checkForMentions() {
         });
 
         if (botAlreadyReplied) {
-          console.log(`✓ Found existing bot reply to this mention cast, saving and skipping`);
-          trackingKeys.forEach(key => saveRepliedCast(key));
+          console.log(`✓ Found existing bot reply to this mention cast, marking as replied`);
+          saveRepliedCast(castHash);
+          repliedCasts.add(castHash);
           continue;
         }
       } catch (error) {
         console.error(`⚠️ Error checking replies for mention cast:`, error);
-        // Continue - don't skip on error, let the tracking keys handle duplicates
+        // Continue - don't skip on error, let the tracking handle duplicates
       }
 
       // Generate and post reply
       try {
         // CRITICAL: Mark as replied BEFORE generating to prevent race conditions
-        trackingKeys.forEach(key => saveRepliedCast(key));
-        console.log(`🔒 Locked reply for cast ${castHash.slice(0, 10)}...`);
+        console.log(`🔒 Marking ${castHash} as replied (pre-lock)`);
+        saveRepliedCast(castHash);
+        repliedCasts.add(castHash);
         
         console.log(`💭 Generating reply for cast ${castHash.slice(0, 10)}...`);
         const reply = await generateReply(cast);
 
-        // Reply to the mention cast (castHash), not the parent
+        // Reply to the mention cast (castHash)
         await neynar.publishCast(SIGNER_UUID, reply, { replyTo: castHash });
 
-        console.log(`✅ Posted reply to ${castHash.slice(0, 10)}: ${reply}`);
+        console.log(`✅ Posted reply to ${castHash.slice(0, 10)}: ${reply.slice(0, 50)}...`);
         repliedCount++;
 
       } catch (error) {
