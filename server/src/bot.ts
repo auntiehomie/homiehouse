@@ -209,7 +209,9 @@ export async function checkForMentions() {
       const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
       const rootParentHash = cast.root_parent_url || parentHash;
       
+      // IMPORTANT: Include notification ID to prevent processing same notification twice
       const trackingKeys = [
+        `notification_${(notification as any).id || castHash}`,
         `cast_${castHash}`,
         `parent_${parentHash}`,
         `root_${rootParentHash}`
@@ -258,22 +260,21 @@ export async function checkForMentions() {
 
       // Generate and post reply
       try {
-        console.log(`💭 Generating reply for ${castHash.slice(0, 10)}...`);
+        // CRITICAL: Mark as replied BEFORE generating to prevent race conditions
+        trackingKeys.forEach(key => saveRepliedCast(key));
+        console.log(`🔒 Locked reply for ${castHash.slice(0, 10)}...`);
         
+        console.log(`💭 Generating reply for ${castHash.slice(0, 10)}...`);
         const reply = await generateReply(cast);
 
         await neynar.publishCast(SIGNER_UUID, reply, { replyTo: parentHash });
 
         console.log(`✅ Posted reply: ${reply}`);
-        
-        // Save all tracking keys
-        trackingKeys.forEach(key => saveRepliedCast(key));
         repliedCount++;
 
       } catch (error) {
         console.error(`❌ Error replying:`, error);
-        // Mark as attempted even on error
-        trackingKeys.forEach(key => saveRepliedCast(key));
+        // Already marked as attempted above
       }
     }
 
