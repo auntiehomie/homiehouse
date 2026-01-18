@@ -500,7 +500,15 @@ export async function checkForMentions() {
         
         // 🔒 LOCK THIS CAST FIRST by recording intent to reply
         // This prevents duplicate replies if the bot runs again during posting
-        await BotReplyService.recordReply(castHash, 'pending', 'mention', 'Reply in progress...');
+        const lockAcquired = await BotReplyService.recordReply(castHash, 'pending', 'mention', 'Reply in progress...');
+        
+        if (!lockAcquired) {
+          console.log(`🔒 Lock failed for ${castHash.slice(0, 10)} - another instance is handling this cast`);
+          repliedCastsCache.add(castHash);
+          skippedAlreadyReplied++;
+          continue;
+        }
+        
         repliedCastsCache.add(castHash);
         
         const reply = await generateReply(cast);
