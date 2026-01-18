@@ -15,7 +15,9 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const gemini = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '');
+// Only initialize Gemini if API key is available
+const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const gemini = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 
 const SYSTEM_PROMPT = `You are Homie, a helpful AI assistant for HomieHouse - a Farcaster-based social platform. 
 
@@ -290,7 +292,7 @@ Profile URL: https://warpcast.com/${profileData.username}]`
     let usedProvider = selectedProvider;
 
     try {
-      if (selectedProvider === 'gemini') {
+      if (selectedProvider === 'gemini' && gemini) {
         // Use Gemini with web search capability
         console.log('Using Gemini for web-enhanced response');
         const model = gemini.getGenerativeModel({ 
@@ -315,6 +317,21 @@ Profile URL: https://warpcast.com/${profileData.username}]`
         });
         
         response = result.response.text();
+      } else if (selectedProvider === 'gemini' && !gemini) {
+        // Fallback to Claude if Gemini is not available
+        console.log('Gemini not available, falling back to Claude');
+        const completion = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: conversationMessages.map((msg: any) => ({
+            role: msg.role === 'system' ? 'user' : msg.role,
+            content: msg.content,
+          })),
+        });
+
+        response = completion.content[0].type === 'text' ? completion.content[0].text : '';
+        usedProvider = 'claude';
       } else if (selectedProvider === 'claude') {
         // Use Claude (Anthropic)
         const completion = await anthropic.messages.create({
