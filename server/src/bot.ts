@@ -449,6 +449,14 @@ export async function checkForMentions() {
       }
 
       const castHash = cast.hash;
+      const authorFid = cast.author?.fid;
+      const parentHash = cast.parent_hash;
+      
+      // Skip if this is the bot's own cast (prevent self-replies)
+      if (authorFid === BOT_FID) {
+        console.log(`⏭️ Skipping own cast ${castHash.slice(0, 10)}`);
+        continue;
+      }
       
       console.log(`🔍 Checking mention cast: ${castHash.slice(0, 10)}...`);
 
@@ -466,6 +474,17 @@ export async function checkForMentions() {
         repliedCastsCache.add(castHash);
         skippedAlreadyReplied++;
         continue;
+      }
+
+      // Also check if bot has already replied to the parent hash (avoid multiple replies in same thread)
+      if (parentHash) {
+        const hasRepliedToParent = await BotReplyService.hasRepliedTo(parentHash);
+        if (hasRepliedToParent) {
+          console.log(`✓ Already replied to parent thread ${parentHash.slice(0, 10)}, skipping`);
+          repliedCastsCache.add(castHash);
+          skippedAlreadyReplied++;
+          continue;
+        }
       }
 
       // Double-check by fetching the MENTION cast and looking for bot replies
