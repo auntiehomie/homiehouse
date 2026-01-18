@@ -93,7 +93,7 @@ export default function TrendingList() {
               wordBreak: 'break-word',
               lineHeight: 1.5
             }}>
-              {text}
+              {text.split(' ').slice(0, 10).join(' ')}{text.split(' ').length > 10 ? '...' : ''}
             </div>
             
             {/* Timestamp */}

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 
-function CastDetailContent() {
-  const searchParams = useSearchParams();
-  const hash = searchParams.get("hash");
+export default function CastDetailPage() {
+  const params = useParams();
+  const hash = params?.hash as string;
   const [cast, setCast] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -247,20 +247,5 @@ function CastDetailContent() {
         )}
       </div>
     </div>
-  );
-}
-
-export default function CastDetailPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⏳</div>
-          <div className="text-gray-400 dark:text-gray-500">Loading cast...</div>
-        </div>
-      </div>
-    }>
-      <CastDetailContent />
-    </Suspense>
   );
 }
