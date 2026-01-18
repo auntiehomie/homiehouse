@@ -12,6 +12,10 @@ const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
+// Constant for pending reply hash (before actual reply is posted)
+// Using a distinctive format to avoid conflicts with actual Farcaster hashes
+const PENDING_REPLY_HASH = 'PENDING_REPLY_IN_PROGRESS';
+
 // In-memory cache for quick lookups during a single run
 const repliedCastsCache = new Set<string>();
 const userProfileCache = new Map<number, { context: string; timestamp: number }>();
@@ -484,7 +488,10 @@ export async function checkForMentions() {
 
         if (botAlreadyReplied) {
           console.log(`✓ Found existing bot reply via API, recording in DB`);
-          await BotReplyService.recordReply(castHash, 'existing', 'mention', 'Found existing reply');
+          const recorded = await BotReplyService.recordReply(castHash, 'existing', 'mention', 'Found existing reply');
+          if (!recorded) {
+            console.log(`  (Record already exists or failed to record)`);
+          }
           repliedCastsCache.add(castHash);
           skippedAlreadyReplied++;
           continue;
@@ -497,6 +504,20 @@ export async function checkForMentions() {
       // Generate and post reply
       try {
         console.log(`💭 Generating reply for cast ${castHash.slice(0, 10)}...`);
+        
+        // 🔒 LOCK THIS CAST FIRST by recording intent to reply
+        // This prevents duplicate replies if the bot runs again during posting
+        const lockAcquired = await BotReplyService.recordReply(castHash, PENDING_REPLY_HASH, 'mention', 'Reply in progress...');
+        
+        if (!lockAcquired) {
+          console.log(`🔒 Lock failed for ${castHash.slice(0, 10)} - another instance is handling this cast`);
+          repliedCastsCache.add(castHash);
+          skippedAlreadyReplied++;
+          continue;
+        }
+        
+        repliedCastsCache.add(castHash);
+        
         const reply = await generateReply(cast);
 
         // Reply to the mention cast (castHash)
@@ -505,15 +526,14 @@ export async function checkForMentions() {
 
         console.log(`✅ Posted reply to ${castHash.slice(0, 10)}: ${reply.slice(0, 50)}...`);
         
-        // Record in database - IMPORTANT: track by parent (mention) hash
-        await BotReplyService.recordReply(castHash, replyHash, 'mention', reply.slice(0, 280));
-        repliedCastsCache.add(castHash);
+        // Update the database record with actual reply details
+        await BotReplyService.updateReply(castHash, replyHash, reply.slice(0, 280));
         
         repliedCount++;
 
       } catch (error) {
         console.error(`❌ Error replying:`, error);
-        // Already marked as attempted above
+        // If posting failed, we still keep the lock to prevent retry spam
       }
     }
 

@@ -54,12 +54,13 @@ export class BotReplyService {
   }
   
   // Record a bot reply
+  // Returns true if record was successfully created, false if it already exists
   static async recordReply(
     parentHash: string, 
     replyHash: string, 
     commandType: string = 'mention', 
     replyText: string = ''
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       console.log(`💾 Recording reply: parent=${parentHash.slice(0, 10)}, reply=${replyHash.slice(0, 10)}`);
       const { error } = await supabase
@@ -75,15 +76,50 @@ export class BotReplyService {
         // Check if it's a duplicate key error (already exists)
         if (error.code === '23505') {
           console.log(`⚠️ Reply already recorded for parent ${parentHash.slice(0, 10)}`);
+          return false; // Record already exists
         } else {
           console.error('❌ Error recording bot reply:', error);
           console.error('   Error details:', JSON.stringify(error));
+          return false; // Error occurred
         }
       } else {
         console.log(`✅ DB: Successfully recorded reply for parent ${parentHash.slice(0, 10)}`);
+        return true; // Successfully created
       }
     } catch (error) {
       console.error('💥 Exception recording bot reply:', error);
+      console.error('   Exception details:', error);
+      return false; // Exception occurred
+    }
+  }
+  
+  // Update an existing bot reply record
+  static async updateReply(
+    parentHash: string, 
+    replyHash: string, 
+    replyText: string = ''
+  ): Promise<void> {
+    try {
+      console.log(`🔄 Updating reply record: parent=${parentHash.slice(0, 10)}`);
+      const { data, error } = await supabase
+        .from('bot_replies')
+        .update({
+          reply_hash: replyHash,
+          reply_text: replyText
+        })
+        .eq('parent_hash', parentHash)
+        .select();
+      
+      if (error) {
+        console.error('❌ Error updating bot reply:', error);
+        console.error('   Error details:', JSON.stringify(error));
+      } else if (!data || data.length === 0) {
+        console.warn(`⚠️ No record found to update for parent ${parentHash.slice(0, 10)}`);
+      } else {
+        console.log(`✅ DB: Successfully updated reply for parent ${parentHash.slice(0, 10)}`);
+      }
+    } catch (error) {
+      console.error('💥 Exception updating bot reply:', error);
       console.error('   Exception details:', error);
     }
   }
