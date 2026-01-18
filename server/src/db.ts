@@ -101,7 +101,7 @@ export class BotReplyService {
   ): Promise<void> {
     try {
       console.log(`🔄 Updating reply record: parent=${parentHash.slice(0, 10)}`);
-      const { data, error, count } = await supabase
+      const { data, error } = await supabase
         .from('bot_replies')
         .update({
           reply_hash: replyHash,
