@@ -33,13 +33,17 @@ Look at their tone and mirror it. Short reply? You go short. Excited? Match that
 
 // Check if image URL
 function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUrl?: string } {
-  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
-  const imageHosts = /imagedelivery\.net|imgur\.com|i\.imgur\.com/i;
+  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i;
+  const imageHosts = /imagedelivery\.net|imgur\.com|i\.imgur\.com|pbs\.twimg\.com|media\.giphy\.com|cdn\.discordapp\.com|raw\.githubusercontent\.com/i;
 
   if (embeds && embeds.length > 0) {
     for (const embed of embeds) {
       if (embed.url && (imageExtensions.test(embed.url) || imageHosts.test(embed.url))) {
         return { hasImage: true, imageUrl: embed.url };
+      }
+      // Check for Warpcast image embeds
+      if (embed.metadata?.image || embed.metadata?.content_type?.includes('image')) {
+        return { hasImage: true, imageUrl: embed.url || embed.metadata?.image };
       }
     }
   }
@@ -53,6 +57,70 @@ function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUr
   }
 
   return { hasImage: false };
+}
+
+// Extract external links from cast
+function getExternalLinks(text: string, embeds?: any[]): string[] {
+  const links: string[] = [];
+  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i;
+  
+  // Get links from embeds first
+  if (embeds && embeds.length > 0) {
+    for (const embed of embeds) {
+      if (embed.url && !imageExtensions.test(embed.url)) {
+        links.push(embed.url);
+      }
+    }
+  }
+  
+  // Get links from text
+  const urlRegex = /https?:\/\/[^\s]+/g;
+  const urls = text.match(urlRegex) || [];
+  for (const url of urls) {
+    if (!imageExtensions.test(url) && !links.includes(url)) {
+      links.push(url);
+    }
+  }
+  
+  return links.slice(0, 2); // Limit to 2 links to avoid slowdown
+}
+
+// Fetch content from external link
+async function fetchLinkContent(url: string): Promise<string | null> {
+  try {
+    console.log(`🔗 Fetching content from ${url.slice(0, 50)}...`);
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; HomieHouseBot/1.0)'
+      },
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
+    
+    if (!response.ok) return null;
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType?.includes('text/html')) return null;
+    
+    const html = await response.text();
+    
+    // Extract title
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    
+    // Extract meta description
+    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+                     html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
+    const description = descMatch ? descMatch[1].trim() : '';
+    
+    if (title || description) {
+      return `Link content: "${title}"${description ? ` - ${description.slice(0, 150)}` : ''}`;
+    }
+    
+    return null;
+  } catch (error) {
+    console.log(`⚠️ Could not fetch link: ${error}`);
+    return null;
+  }
 }
 
 // Fetch and analyze user profile
@@ -204,12 +272,26 @@ async function generateReply(cast: any): Promise<string> {
     }
   }
   
+  // Fetch external link content if present
+  let linkContext = '';
+  const externalLinks = getExternalLinks(castText, cast.embeds);
+  if (externalLinks.length > 0) {
+    console.log(`🔗 Found ${externalLinks.length} external link(s)`);
+    const linkPromises = externalLinks.map(url => fetchLinkContent(url));
+    const linkResults = await Promise.all(linkPromises);
+    const validLinks = linkResults.filter(Boolean);
+    if (validLinks.length > 0) {
+      linkContext = `\n\nLINKED CONTENT:\n${validLinks.join('\n')}`;
+      console.log(`✓ Fetched ${validLinks.length} link preview(s)`);
+    }
+  }
+  
   const { hasImage, imageUrl } = hasImageUrl(castText, cast.embeds);
 
   // Use GPT-4 Vision for images
   if (hasImage && imageUrl) {
     try {
-      const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext;
+      const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + linkContext;
       
       // Analyze the message and image together
       const userMessage = castText 
@@ -249,7 +331,7 @@ async function generateReply(cast: any): Promise<string> {
 
   // Use Claude for text
   try {
-    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext;
+    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + linkContext;
     
     // Create more natural user message
     let userMessage = `Message from @${authorUsername}: "${castText}"`;
