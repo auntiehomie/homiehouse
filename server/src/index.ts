@@ -36,8 +36,18 @@ app.listen(PORT, () => {
   console.log(`🤖 Bot will check for mentions every 15 minutes`);
 });
 
+// Track startup time to avoid immediate checks after deploy
+const startupTime = Date.now();
+const STARTUP_GRACE_PERIOD = 3 * 60 * 1000; // 3 minutes
+
 // Schedule bot to check for mentions every 15 minutes
 cron.schedule('*/15 * * * *', async () => {
+  // Skip checks within 3 minutes of startup (prevents deploy-triggered replies)
+  if (Date.now() - startupTime < STARTUP_GRACE_PERIOD) {
+    console.log('⏭️  Skipping check (within startup grace period)');
+    return;
+  }
+  
   console.log('⏰ Scheduled bot check starting...');
   try {
     const result = await checkForMentions();
