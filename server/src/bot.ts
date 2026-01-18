@@ -13,7 +13,8 @@ const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
 // Constant for pending reply hash (before actual reply is posted)
-const PENDING_REPLY_HASH = 'pending';
+// Using a distinctive format to avoid conflicts with actual Farcaster hashes
+const PENDING_REPLY_HASH = 'PENDING_REPLY_IN_PROGRESS';
 
 // In-memory cache for quick lookups during a single run
 const repliedCastsCache = new Set<string>();
