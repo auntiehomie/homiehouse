@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
 
@@ -13,6 +14,8 @@ const openai = new OpenAI({
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+const gemini = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '');
 
 const SYSTEM_PROMPT = `You are Homie, a helpful AI assistant for HomieHouse - a Farcaster-based social platform. 
 
@@ -43,8 +46,16 @@ When asked for a profile:
 Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
 
 // Intelligent provider selection based on question content
-function selectBestProvider(question: string): 'claude' | 'openai' {
+function selectBestProvider(question: string): 'gemini' | 'claude' | 'openai' {
   const lowerQuestion = question.toLowerCase();
+  
+  // Keywords that suggest Gemini with web search would be better
+  const geminiKeywords = [
+    'search', 'find', 'latest', 'current', 'news', 'recent', 'today',
+    'what is', 'explain', 'tell me about', 'link', 'url', 'website',
+    'https://', 'http://', '.com', 'article', 'documentation',
+    'weather', 'price', 'trending', 'happening', 'now'
+  ];
   
   // Keywords that suggest Claude would be better
   const claudeKeywords = [
@@ -62,16 +73,26 @@ function selectBestProvider(question: string): 'claude' | 'openai' {
     'parse', 'regex', 'syntax', 'compile', 'implement'
   ];
   
+  let geminiScore = 0;
   let claudeScore = 0;
   let openaiScore = 0;
   
   // Count keyword matches
+  for (const keyword of geminiKeywords) {
+    if (lowerQuestion.includes(keyword)) geminiScore++;
+  }
+  
   for (const keyword of claudeKeywords) {
     if (lowerQuestion.includes(keyword)) claudeScore++;
   }
   
   for (const keyword of openaiKeywords) {
     if (lowerQuestion.includes(keyword)) openaiScore++;
+  }
+  
+  // Check for URLs in the question - strong signal for Gemini
+  if (/https?:\/\/[^\s]+/.test(question)) {
+    geminiScore += 3;
   }
   
   // Additional heuristics
@@ -85,8 +106,10 @@ function selectBestProvider(question: string): 'claude' | 'openai' {
     openaiScore += 2;
   }
   
-  // Default to Claude if no clear winner (Claude handles general questions well)
-  return openaiScore > claudeScore ? 'openai' : 'claude';
+  // Return provider with highest score
+  if (geminiScore > claudeScore && geminiScore > openaiScore) return 'gemini';
+  if (openaiScore > claudeScore) return 'openai';
+  return 'claude'; // Default to Claude for general questions
 }
 
 // Detect if user is asking for a profile and extract username
@@ -267,7 +290,32 @@ Profile URL: https://warpcast.com/${profileData.username}]`
     let usedProvider = selectedProvider;
 
     try {
-      if (selectedProvider === 'claude') {
+      if (selectedProvider === 'gemini') {
+        // Use Gemini with web search capability
+        console.log('Using Gemini for web-enhanced response');
+        const model = gemini.getGenerativeModel({ 
+          model: 'gemini-2.0-flash-exp',
+          systemInstruction: SYSTEM_PROMPT
+        });
+        
+        // Build conversation history for Gemini
+        const geminiHistory = conversationMessages
+          .filter((msg: any) => msg.role !== 'system')
+          .map((msg: any) => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+          }));
+        
+        const result = await model.generateContent({
+          contents: geminiHistory,
+          generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: 1024,
+          }
+        });
+        
+        response = result.response.text();
+      } else if (selectedProvider === 'claude') {
         // Use Claude (Anthropic)
         const completion = await anthropic.messages.create({
           model: 'claude-3-5-sonnet-20241022',
