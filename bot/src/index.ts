@@ -311,14 +311,49 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
 
       newCount++;
       const author = cast.author;
+      const castText = cast.text || '';
       
       // Don't reply to our own casts
       if (author.fid === parseInt(APP_FID)) {
+        console.log(`   ⏭️  Skipping own cast`);
+        continue;
+      }
+      
+      // Only process casts that mention "homiehouse"
+      const mentionsBot = castText.toLowerCase().includes('homiehouse') || 
+                          castText.toLowerCase().includes('@homiehouse');
+      
+      if (!mentionsBot) {
+        console.log(`   ⏭️  Skipping cast - does not mention homiehouse`);
         continue;
       }
 
       console.log(`\n💬 New notification from @${author.username}:`);
       console.log(`   "${cast.text}"`);
+
+      // Check if bot has already replied to this cast by looking at direct replies
+      try {
+        console.log(`   🔎 Checking for existing bot replies...`);
+        const castDetails = await neynar.lookupCastConversation({
+          identifier: cast.hash,
+          type: 'hash' as any,
+          replyDepth: 1,
+        });
+        
+        const directReplies = castDetails?.conversation?.cast?.direct_replies || [];
+        const botAlreadyReplied = directReplies.some((reply: any) => {
+          return reply.author?.fid === parseInt(APP_FID);
+        });
+        
+        if (botAlreadyReplied) {
+          console.log(`   ✓ Bot already replied to this cast, skipping`);
+          await markAsReplied(cast.hash, repliedCasts);
+          continue;
+        }
+      } catch (error) {
+        console.error('   ⚠️ Error checking for existing replies:', error);
+        // Continue anyway - will rely on local tracking
+      }
 
       // Get conversation context
       const context = await getConversationContext(cast.hash);
