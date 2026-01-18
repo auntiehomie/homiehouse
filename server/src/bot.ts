@@ -467,29 +467,9 @@ export async function checkForMentions() {
         continue;
       }
 
-      // Check database if bot has already replied to this cast
-      const hasReplied = await BotReplyService.hasRepliedTo(castHash);
-      if (hasReplied) {
-        console.log(`✓ Already replied to ${castHash.slice(0, 10)} (found in DB), skipping`);
-        repliedCastsCache.add(castHash);
-        skippedAlreadyReplied++;
-        continue;
-      }
-
-      // Also check if bot has already replied to the parent hash (avoid multiple replies in same thread)
-      if (parentHash) {
-        const hasRepliedToParent = await BotReplyService.hasRepliedTo(parentHash);
-        if (hasRepliedToParent) {
-          console.log(`✓ Already replied to parent thread ${parentHash.slice(0, 10)}, skipping`);
-          repliedCastsCache.add(castHash);
-          skippedAlreadyReplied++;
-          continue;
-        }
-      }
-
-      // Double-check by fetching the MENTION cast and looking for bot replies
+      // FIRST: Check the actual cast replies to see if bot already replied (most reliable)
       try {
-        console.log(`🔎 Double-checking cast ${castHash.slice(0, 10)}... for existing replies`);
+        console.log(`🔎 Fetching cast ${castHash.slice(0, 10)} to check for existing bot replies...`);
         const mentionCast = await neynar.lookUpCastByHash(castHash);
         
         const directReplies = (mentionCast as any)?.direct_replies || [];
@@ -502,15 +482,36 @@ export async function checkForMentions() {
         });
 
         if (botAlreadyReplied) {
-          console.log(`✓ Found existing bot reply via API, recording in DB`);
-          await BotReplyService.recordReply(castHash, 'existing', 'mention', 'Found existing reply');
+          console.log(`✅ ALREADY REPLIED: Bot found in replies via API, skipping ${castHash.slice(0, 10)}`);
+          repliedCastsCache.add(castHash);
+          skippedAlreadyReplied++;
+          continue;
+        } else {
+          console.log(`✓ No bot reply found in cast replies, checking database...`);
+        }
+      } catch (error) {
+        console.error(`⚠️ Error fetching cast replies:`, error);
+        // Continue to database check as fallback
+      }
+
+      // SECOND: Check database if bot has already replied to this cast
+      const hasReplied = await BotReplyService.hasRepliedTo(castHash);
+      if (hasReplied) {
+        console.log(`✓ Already replied to ${castHash.slice(0, 10)} (found in DB), skipping`);
+        repliedCastsCache.add(castHash);
+        skippedAlreadyReplied++;
+        continue;
+      }
+
+      // THIRD: Check if bot has already replied to the parent hash (avoid multiple replies in same thread)
+      if (parentHash) {
+        const hasRepliedToParent = await BotReplyService.hasRepliedTo(parentHash);
+        if (hasRepliedToParent) {
+          console.log(`✓ Already replied to parent thread ${parentHash.slice(0, 10)}, skipping`);
           repliedCastsCache.add(castHash);
           skippedAlreadyReplied++;
           continue;
         }
-      } catch (error) {
-        console.error(`⚠️ Error checking replies for mention cast:`, error);
-        // Continue - don't skip on error, let the database handle duplicates
       }
 
       // Generate and post reply
