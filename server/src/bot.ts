@@ -497,6 +497,12 @@ export async function checkForMentions() {
       // Generate and post reply
       try {
         console.log(`💭 Generating reply for cast ${castHash.slice(0, 10)}...`);
+        
+        // 🔒 LOCK THIS CAST FIRST by recording intent to reply
+        // This prevents duplicate replies if the bot runs again during posting
+        await BotReplyService.recordReply(castHash, 'pending', 'mention', 'Reply in progress...');
+        repliedCastsCache.add(castHash);
+        
         const reply = await generateReply(cast);
 
         // Reply to the mention cast (castHash)
@@ -505,15 +511,14 @@ export async function checkForMentions() {
 
         console.log(`✅ Posted reply to ${castHash.slice(0, 10)}: ${reply.slice(0, 50)}...`);
         
-        // Record in database - IMPORTANT: track by parent (mention) hash
-        await BotReplyService.recordReply(castHash, replyHash, 'mention', reply.slice(0, 280));
-        repliedCastsCache.add(castHash);
+        // Update the database record with actual reply details
+        await BotReplyService.updateReply(castHash, replyHash, reply.slice(0, 280));
         
         repliedCount++;
 
       } catch (error) {
         console.error(`❌ Error replying:`, error);
-        // Already marked as attempted above
+        // If posting failed, we still keep the lock to prevent retry spam
       }
     }
 

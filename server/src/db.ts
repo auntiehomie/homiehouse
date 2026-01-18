@@ -87,4 +87,32 @@ export class BotReplyService {
       console.error('   Exception details:', error);
     }
   }
+  
+  // Update an existing bot reply record
+  static async updateReply(
+    parentHash: string, 
+    replyHash: string, 
+    replyText: string = ''
+  ): Promise<void> {
+    try {
+      console.log(`🔄 Updating reply record: parent=${parentHash.slice(0, 10)}`);
+      const { error } = await supabase
+        .from('bot_replies')
+        .update({
+          reply_hash: replyHash,
+          reply_text: replyText
+        })
+        .eq('parent_hash', parentHash);
+      
+      if (error) {
+        console.error('❌ Error updating bot reply:', error);
+        console.error('   Error details:', JSON.stringify(error));
+      } else {
+        console.log(`✅ DB: Successfully updated reply for parent ${parentHash.slice(0, 10)}`);
+      }
+    } catch (error) {
+      console.error('💥 Exception updating bot reply:', error);
+      console.error('   Exception details:', error);
+    }
+  }
 }
