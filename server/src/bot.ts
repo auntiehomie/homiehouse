@@ -472,13 +472,21 @@ export async function checkForMentions() {
         console.log(`🔎 Fetching cast ${castHash.slice(0, 10)} to check for existing bot replies...`);
         const mentionCast = await neynar.lookUpCastByHash(castHash);
         
+        // Check multiple possible reply locations in the cast object
         const directReplies = (mentionCast as any)?.direct_replies || [];
         const threadReplies = (mentionCast as any)?.replies?.casts || [];
-        const allReplies = [...directReplies, ...threadReplies];
+        const castReplies = (mentionCast as any)?.cast?.replies || [];
+        const allReplies = [...directReplies, ...threadReplies, ...castReplies];
+        
+        console.log(`   Found ${allReplies.length} total replies to check`);
         
         const botAlreadyReplied = allReplies.some((reply: any) => {
           const replyFid = reply.author?.fid || reply.fid;
-          return replyFid === BOT_FID;
+          if (replyFid === BOT_FID) {
+            console.log(`   🔍 Found bot reply from FID ${replyFid}: ${(reply.text || '').slice(0, 30)}...`);
+            return true;
+          }
+          return false;
         });
 
         if (botAlreadyReplied) {
@@ -530,6 +538,10 @@ export async function checkForMentions() {
         repliedCastsCache.add(castHash);
         
         repliedCount++;
+        
+        // IMPORTANT: Break immediately after posting to ensure we only reply once per run
+        console.log(`✋ Replied to 1 cast, stopping to prevent duplicates`);
+        break;
 
       } catch (error) {
         console.error(`❌ Error replying:`, error);
