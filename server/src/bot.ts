@@ -1,11 +1,13 @@
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BotReplyService } from './db';
 
 const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
@@ -326,6 +328,39 @@ async function generateReply(cast: any): Promise<string> {
       return response.choices[0]?.message?.content?.trim() || "Hey! 🏠";
     } catch (error) {
       console.error('Error with GPT-4 Vision:', error);
+    }
+  }
+
+  // Use Gemini with Google Search for external links (better web context)
+  if (externalLinks.length > 0) {
+    try {
+      console.log('🌐 Using Gemini with Google Search for external links...');
+      const model = gemini.getGenerativeModel({ 
+        model: 'gemini-2.0-flash-exp',
+        systemInstruction: BOT_PERSONALITY + userContext + threadContext + channelContext
+      });
+      
+      const userMessage = castText 
+        ? `@${authorUsername} shared: "${castText}"\n\nLinks: ${externalLinks.join(', ')}\n\nLook up these links and respond naturally based on what you find. What would you say?`
+        : `@${authorUsername} shared these links: ${externalLinks.join(', ')}\n\nLook them up and respond naturally.`;
+      
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+        generationConfig: {
+          temperature: 0.9,
+          maxOutputTokens: 150,
+        }
+      });
+      
+      const response = result.response;
+      const text = response.text();
+      if (text) {
+        console.log('✓ Gemini response generated');
+        return text.trim();
+      }
+    } catch (error: any) {
+      console.error('Error with Gemini:', error?.message);
+      // Fall through to Claude
     }
   }
 
