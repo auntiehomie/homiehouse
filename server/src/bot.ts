@@ -451,10 +451,20 @@ export async function checkForMentions() {
       const castHash = cast.hash;
       const authorFid = cast.author?.fid;
       const parentHash = cast.parent_hash;
+      const castText = cast.text || '';
       
       // Skip if this is the bot's own cast (prevent self-replies)
       if (authorFid === BOT_FID) {
         console.log(`⏭️ Skipping own cast ${castHash.slice(0, 10)}`);
+        continue;
+      }
+      
+      // Only process casts that mention "homiehouse"
+      const mentionsBot = castText.toLowerCase().includes('homiehouse') || 
+                          castText.toLowerCase().includes('@homiehouse');
+      
+      if (!mentionsBot) {
+        console.log(`⏭️ Skipping cast ${castHash.slice(0, 10)} - does not mention homiehouse`);
         continue;
       }
       
