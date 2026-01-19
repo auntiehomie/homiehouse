@@ -253,7 +253,7 @@ async function generateReply(cast: any): Promise<string> {
   try {
     const parentHash = cast.parent_hash || cast.parent_url;
     if (parentHash) {
-      const conversation = await neynar.lookUpCastByHash(parentHash);
+      const conversation = await neynar.lookUpCastByHashOrWarpcastUrl(parentHash, 'hash');
       const parentCast = (conversation as any)?.cast;
       
       if (parentCast && parentCast.text) {
@@ -470,7 +470,7 @@ export async function checkForMentions() {
       // FIRST: Check the actual cast replies to see if bot already replied (most reliable)
       try {
         console.log(`🔎 Fetching cast ${castHash.slice(0, 10)} to check for existing bot replies...`);
-        const mentionCast = await neynar.lookUpCastByHash(castHash);
+        const mentionCast = await neynar.lookUpCastByHashOrWarpcastUrl(castHash, 'hash');
         
         // Check multiple possible reply locations in the cast object
         const directReplies = (mentionCast as any)?.direct_replies || [];
