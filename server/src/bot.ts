@@ -429,6 +429,9 @@ export async function checkForMentions() {
   try {
     console.log(`🔍 Starting mention check...`);
     
+    // Clear the cache at the start of each check to allow processing new mentions
+    repliedCastsCache.clear();
+    
     let repliedCount = 0;
     let skippedAlreadyReplied = 0;
 
