@@ -7,8 +7,6 @@ import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import TrendingList from "../components/TrendingList";
 import PrivySignIn from "../components/PrivySignIn";
-import WalletButton from "../components/WalletButton";
-import WalletDashboard from "../components/WalletDashboard";
 import ChannelsList from "../components/ChannelsList";
 import WelcomeModal from "../components/WelcomeModal";
 
@@ -102,10 +100,21 @@ export default function Home() {
             <nav className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
               <Link href="/">Home</Link>
               <span className="px-2">·</span>
-              <Link href="/ask-homie">Ask Homie</Link>              <span className="px-2">·</span>
-              <Link href="/profile" className="hover:text-purple-600">Profile</Link>            </nav>
+              <Link href="/ask-homie">Ask Homie</Link>
+              <span className="px-2">·</span>
+              <Link href="/wallet" className="hover:text-purple-600">Wallet</Link>
+              <span className="px-2">·</span>
+              <Link href="/profile" className="hover:text-purple-600">Profile</Link>
+            </nav>
           </div>
-          <WalletButton />
+          <div className="flex items-center gap-2">
+            <Link 
+              href="/wallet"
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              💼 Wallet
+            </Link>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
           <ComposeModal />
@@ -115,9 +124,8 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-          {/* Left Sidebar - Wallet + Channels */}
+          {/* Left Sidebar - Channels */}
           <aside className="md:col-span-2 flex flex-col gap-6">
-            <WalletDashboard />
             <ChannelsList />
           </aside>
 
