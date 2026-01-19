@@ -24,20 +24,21 @@ const userProfileCache = new Map<number, { context: string; timestamp: number }>
 const PROFILE_CACHE_TTL = 3600000; // 1 hour
 
 // Bot personality
-const BOT_PERSONALITY = `You're homie on Farcaster. Match their vibe - if they're casual, you're casual. If they're serious, be thoughtful. 
+const BOT_PERSONALITY = `You're homie on Farcaster. Match their vibe - if they're casual, you're casual. If they're asking real questions, be thorough and informative.
 
 CRITICAL RULES:
 - Read their message first. Actually respond to what they said
-- Keep it under 200 chars unless they wrote something long
-- Sound like you're texting, not writing an essay
+- If they're asking about a topic (like Worldcoin, crypto projects, etc), give detailed, factual information
+- For casual chat: keep it under 200 chars
+- For questions or topics: be thorough (300-500 chars) with specifics, facts, and context
+- Sound natural, not like ChatGPT
 - No cringe words: fascinating, incredible, amazing, dynamic, evolution, evoke, transcend, interplay, ecosystem, tapestry, intriguing, profound, mundane, delve, leverage, unlock, seamless
 - Skip emojis unless they use them. One emoji max if you do
-- Don't be overly helpful or cheerful. Just be real
-- If they're asking something, answer it directly. No fluff
+- If they're asking something, answer it directly with details. Include facts, numbers, recent developments
 - If they're sharing, react naturally like you would to a friend's text
 - Use lowercase more than uppercase (it's more chill)
 
-Look at their tone and mirror it. Short reply? You go short. Excited? Match that energy (but don't overdo it).`;
+When someone asks about a topic: give them real info, not fluff. Be the friend who actually knows stuff and explains it clearly.`;
 
 // Check if image URL
 function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUrl?: string } {
@@ -251,30 +252,38 @@ function needsRealTimeData(text: string): boolean {
     'latest', 'current', 'now', 'today', 'tonight', 'recent', 'just',
     'happening', 'live', 'right now', 'this week', 'this month',
     'price', 'score', 'weather', 'news', 'trending', 'update',
-    'what is', 'who is', 'when is', 'where is', 'how is'
+    'what is', 'who is', 'when is', 'where is', 'how is', 'tell me about',
+    'explain', 'info about', 'information', 'details', 'worldcoin',
+    'bitcoin', 'ethereum', 'crypto', 'project', 'protocol', 'token'
   ];
   
   const lowerText = text.toLowerCase();
+  
+  // Check for question marks with substantive topics
+  if (lowerText.includes('?') && lowerText.split(' ').length > 3) {
+    return true;
+  }
+  
   return realTimeKeywords.some(keyword => lowerText.includes(keyword));
 }
 
 // Use Perplexity for real-time research
 async function getPerplexityContext(query: string): Promise<string> {
   try {
-    console.log(`🔍 Using Perplexity for real-time research...`);
+    console.log(`🔍 Using Perplexity for in-depth research...`);
     const response = await perplexity.chat.completions.create({
-      model: 'llama-3.1-sonar-small-128k-online',
+      model: 'llama-3.1-sonar-large-128k-online',
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant that provides concise, factual information. Keep responses under 200 characters.'
+          content: 'You are a research assistant providing detailed, factual information with key details and context. Include specific facts, numbers, and recent developments when available.'
         },
         {
           role: 'user',
-          content: query
+          content: `Provide detailed information about: ${query}. Include key facts, recent developments, and relevant context.`
         }
       ],
-      max_tokens: 150,
+      max_tokens: 500,
       temperature: 0.2
     });
     
@@ -448,15 +457,15 @@ async function generateReply(cast: any): Promise<string> {
     
     // Create more natural user message
     let userMessage = `Message from @${authorUsername}: "${castText}"`;
-    if (castText.length < 50) {
+    if (castText.length < 50 && !castText.includes('?')) {
       userMessage += `\n\n(They kept it short. Match their energy - keep your reply brief and natural.)`;
-    } else if (castText.includes('?')) {
-      userMessage += `\n\n(They asked a question. Answer it directly, no need for extra stuff.)`;
+    } else if (castText.includes('?') || needsRealTimeData(castText)) {
+      userMessage += `\n\n(They asked a question or mentioned a topic. Give them detailed, factual information. Be thorough.)`;
     }
     
     const response = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-latest',
-      max_tokens: 150,
+      max_tokens: 300,
       temperature: 0.9,
       system: systemPrompt,
       messages: [
@@ -491,7 +500,7 @@ async function generateReply(cast: any): Promise<string> {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage }
       ],
-      max_tokens: 80,
+      max_tokens: 250,
       temperature: 0.9
     });
 
