@@ -259,6 +259,19 @@ async function generateReply(cast: any): Promise<string> {
       if (parentCast && parentCast.text) {
         const parentAuthor = parentCast.author?.username || 'someone';
         threadContext = `\n\nTHREAD CONTEXT:\nThis is a reply to @${parentAuthor}: "${parentCast.text.slice(0, 150)}${parentCast.text.length > 150 ? '...' : ''}"`;
+        
+        // Also include recent replies in the thread for more context
+        const directReplies = (conversation as any)?.cast?.direct_replies || [];
+        if (directReplies.length > 0) {
+          threadContext += `\n\nOther replies in this thread:`;
+          directReplies.slice(0, 3).forEach((reply: any) => {
+            const replyAuthor = reply.author?.username || 'someone';
+            const replyText = reply.text || '';
+            if (replyText && reply.author?.fid !== BOT_FID) {
+              threadContext += `\n- @${replyAuthor}: "${replyText.slice(0, 80)}${replyText.length > 80 ? '...' : ''}"`;
+            }
+          });
+        }
       }
     }
   } catch (err) {
@@ -278,13 +291,24 @@ async function generateReply(cast: any): Promise<string> {
   let linkContext = '';
   const externalLinks = getExternalLinks(castText, cast.embeds);
   if (externalLinks.length > 0) {
-    console.log(`🔗 Found ${externalLinks.length} external link(s)`);
-    const linkPromises = externalLinks.map(url => fetchLinkContent(url));
-    const linkResults = await Promise.all(linkPromises);
-    const validLinks = linkResults.filter(Boolean);
-    if (validLinks.length > 0) {
-      linkContext = `\n\nLINKED CONTENT:\n${validLinks.join('\n')}`;
-      console.log(`✓ Fetched ${validLinks.length} link preview(s)`);
+    console.log(`🔗 Found ${externalLinks.length} external link(s), using Gemini for web search`);
+    try {
+      // Use Gemini to understand the links and provide context
+      const model = gemini.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+      const linkQuery = `Briefly summarize what's at these links for context (1-2 sentences each): ${externalLinks.join(', ')}`;
+      const result = await model.generateContent(linkQuery);
+      linkContext = `\n\nLINKED CONTENT:\n${result.response.text()}`;
+      console.log(`✓ Gemini analyzed ${externalLinks.length} link(s)`);
+    } catch (error) {
+      console.log(`⚠️ Gemini link analysis failed, trying basic fetch`);
+      // Fallback to basic fetch
+      const linkPromises = externalLinks.map(url => fetchLinkContent(url));
+      const linkResults = await Promise.all(linkPromises);
+      const validLinks = linkResults.filter(Boolean);
+      if (validLinks.length > 0) {
+        linkContext = `\n\nLINKED CONTENT:\n${validLinks.join('\n')}`;
+        console.log(`✓ Fetched ${validLinks.length} link preview(s)`);
+      }
     }
   }
   
