@@ -83,6 +83,16 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
     auto: 'Auto-detect what I need'
   };
 
+  // Add initial message when cast context is provided
+  useEffect(() => {
+    if (castContext && messages.length === 0) {
+      setMessages([{
+        role: 'assistant',
+        content: `I'm analyzing the cast from @${castContext.author}. What would you like to know about it? I can help you understand what it's about, analyze the sentiment, identify key points, or answer specific questions.`
+      }]);
+    }
+  }, [castContext]);
+
   // Load user profile
   useEffect(() => {
     if (userId) {

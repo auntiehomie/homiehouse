@@ -229,10 +229,17 @@ export async function POST(req: NextRequest) {
         const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
         const userMessage = lastUserMessage?.content || '';
 
-        // Add cast context if provided
+        // Add cast context if provided - make it more prominent
         let contextualMessage = userMessage;
         if (castContext) {
-          contextualMessage = `[Context: Cast from @${castContext.author}: "${castContext.text}"]\n\n${userMessage}`;
+          contextualMessage = `IMPORTANT CONTEXT - User is analyzing this Farcaster cast:
+
+Cast Author: @${castContext.author}
+Cast Content: "${castContext.text}"
+
+User's Question: ${userMessage}
+
+Please analyze the cast above and respond to the user's question about it. If the user asks "what do you think?" or similar, they are asking about this specific cast.`;
         }
 
         // Process with feedback if provided
@@ -282,8 +289,13 @@ export async function POST(req: NextRequest) {
     let conversationMessages = messages;
     if (castContext) {
       const contextMessage = {
-        role: 'user',
-        content: `[CONTEXT: Farcaster cast from @${castContext.author}: "${castContext.text}"]`
+        role: 'system',
+        content: `CAST ANALYSIS CONTEXT:
+The user is analyzing a Farcaster cast with the following details:
+- Author: @${castContext.author}
+- Content: "${castContext.text}"
+
+When the user asks questions, they are referring to this cast. Provide thoughtful analysis about the cast's content, sentiment, purpose, and implications.`
       };
       conversationMessages = [contextMessage, ...messages];
     }
