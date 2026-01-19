@@ -19,6 +19,13 @@ const anthropic = new Anthropic({
 const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 const gemini = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 
+// Perplexity for real-time data
+const perplexityApiKey = process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
+const perplexity = perplexityApiKey ? new OpenAI({
+  apiKey: perplexityApiKey,
+  baseURL: 'https://api.perplexity.ai'
+}) : null;
+
 const SYSTEM_PROMPT = `You are Homie, a helpful AI assistant for HomieHouse - a Farcaster-based social platform. 
 
 Key Facts about Farcaster:
@@ -48,15 +55,23 @@ When asked for a profile:
 Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
 
 // Intelligent provider selection based on question content
-function selectBestProvider(question: string): 'gemini' | 'claude' | 'openai' {
+function selectBestProvider(question: string): 'perplexity' | 'gemini' | 'claude' | 'openai' {
   const lowerQuestion = question.toLowerCase();
+  
+  // Keywords that suggest Perplexity would be best (real-time data)
+  const perplexityKeywords = [
+    'latest', 'current', 'now', 'today', 'tonight', 'recent', 'just',
+    'live', 'right now', 'this week', 'this month', 'this year',
+    'price', 'score', 'weather', 'news', 'breaking', 'update',
+    'happening', 'trending', 'what happened', 'did', 'market',
+    'stock', 'crypto', 'bitcoin', 'eth', 'when did', 'who won'
+  ];
   
   // Keywords that suggest Gemini with web search would be better
   const geminiKeywords = [
-    'search', 'find', 'latest', 'current', 'news', 'recent', 'today',
-    'what is', 'explain', 'tell me about', 'link', 'url', 'website',
-    'https://', 'http://', '.com', 'article', 'documentation',
-    'weather', 'price', 'trending', 'happening', 'now'
+    'search', 'find', 'what is', 'explain', 'tell me about', 
+    'link', 'url', 'website', 'https://', 'http://', '.com', 
+    'article', 'documentation', 'guide', 'tutorial', 'how to'
   ];
   
   // Keywords that suggest Claude would be better
@@ -75,11 +90,16 @@ function selectBestProvider(question: string): 'gemini' | 'claude' | 'openai' {
     'parse', 'regex', 'syntax', 'compile', 'implement'
   ];
   
+  let perplexityScore = 0;
   let geminiScore = 0;
   let claudeScore = 0;
   let openaiScore = 0;
   
   // Count keyword matches
+  for (const keyword of perplexityKeywords) {
+    if (lowerQuestion.includes(keyword)) perplexityScore++;
+  }
+  
   for (const keyword of geminiKeywords) {
     if (lowerQuestion.includes(keyword)) geminiScore++;
   }
@@ -109,6 +129,7 @@ function selectBestProvider(question: string): 'gemini' | 'claude' | 'openai' {
   }
   
   // Return provider with highest score
+  if (perplexityScore > 0 && perplexity) return 'perplexity';
   if (geminiScore > claudeScore && geminiScore > openaiScore) return 'gemini';
   if (openaiScore > claudeScore) return 'openai';
   return 'claude'; // Default to Claude for general questions
@@ -292,7 +313,49 @@ Profile URL: https://warpcast.com/${profileData.username}]`
     let usedProvider = selectedProvider;
 
     try {
-      if (selectedProvider === 'gemini' && gemini) {
+      if (selectedProvider === 'perplexity' && perplexity) {
+        // Use Perplexity for real-time data
+        console.log('Using Perplexity for real-time data');
+        const completion = await perplexity.chat.completions.create({
+          model: 'llama-3.1-sonar-large-128k-online',
+          messages: [
+            {
+              role: 'system',
+              content: SYSTEM_PROMPT
+            },
+            ...conversationMessages
+          ],
+          temperature: 0.2,
+          max_tokens: 1024,
+        });
+        response = completion.choices[0].message.content || '';
+      } else if (selectedProvider === 'perplexity' && !perplexity) {
+        // Fallback to Gemini if Perplexity not available
+        console.log('Perplexity not available, falling back to Gemini');
+        usedProvider = 'gemini';
+        if (gemini) {
+          const model = gemini.getGenerativeModel({ 
+            model: 'gemini-2.0-flash-exp',
+            systemInstruction: SYSTEM_PROMPT
+          });
+          const geminiHistory = conversationMessages
+            .filter((msg: any) => msg.role !== 'system')
+            .map((msg: any) => ({
+              role: msg.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: msg.content }]
+            }));
+          const result = await model.generateContent({
+            contents: geminiHistory,
+            generationConfig: {
+              temperature: 0.8,
+              maxOutputTokens: 1024,
+            }
+          });
+          response = result.response.text();
+        } else {
+          throw new Error('No AI provider available');
+        }
+      } else if (selectedProvider === 'gemini' && gemini) {
         // Use Gemini with web search capability
         console.log('Using Gemini for web-enhanced response');
         const model = gemini.getGenerativeModel({ 

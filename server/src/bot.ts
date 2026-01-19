@@ -9,6 +9,12 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
+// Perplexity for real-time data (uses OpenAI-compatible API)
+const perplexity = new OpenAI({
+  apiKey: process.env.PERPLEXITY_API_KEY,
+  baseURL: 'https://api.perplexity.ai'
+});
+
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
@@ -239,6 +245,48 @@ async function getUserContext(authorFid: number, authorUsername: string): Promis
   }
 }
 
+// Check if query needs real-time data
+function needsRealTimeData(text: string): boolean {
+  const realTimeKeywords = [
+    'latest', 'current', 'now', 'today', 'tonight', 'recent', 'just',
+    'happening', 'live', 'right now', 'this week', 'this month',
+    'price', 'score', 'weather', 'news', 'trending', 'update',
+    'what is', 'who is', 'when is', 'where is', 'how is'
+  ];
+  
+  const lowerText = text.toLowerCase();
+  return realTimeKeywords.some(keyword => lowerText.includes(keyword));
+}
+
+// Use Perplexity for real-time research
+async function getPerplexityContext(query: string): Promise<string> {
+  try {
+    console.log(`🔍 Using Perplexity for real-time research...`);
+    const response = await perplexity.chat.completions.create({
+      model: 'llama-3.1-sonar-small-128k-online',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that provides concise, factual information. Keep responses under 200 characters.'
+        },
+        {
+          role: 'user',
+          content: query
+        }
+      ],
+      max_tokens: 150,
+      temperature: 0.2
+    });
+    
+    const result = response.choices[0]?.message?.content || '';
+    console.log(`✓ Perplexity research complete`);
+    return result ? `\n\nREAL-TIME DATA:\n${result}` : '';
+  } catch (error) {
+    console.error('⚠️ Perplexity error:', error);
+    return '';
+  }
+}
+
 // Generate reply
 async function generateReply(cast: any): Promise<string> {
   const castText = cast.text || '';
@@ -287,6 +335,12 @@ async function generateReply(cast: any): Promise<string> {
     }
   }
   
+  // Check if query needs real-time data (Perplexity)
+  let perplexityContext = '';
+  if (needsRealTimeData(castText)) {
+    perplexityContext = await getPerplexityContext(castText);
+  }
+  
   // Fetch external link content if present
   let linkContext = '';
   const externalLinks = getExternalLinks(castText, cast.embeds);
@@ -317,7 +371,7 @@ async function generateReply(cast: any): Promise<string> {
   // Use GPT-4 Vision for images
   if (hasImage && imageUrl) {
     try {
-      const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + linkContext;
+      const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + perplexityContext + linkContext;
       
       // Analyze the message and image together
       const userMessage = castText 
@@ -390,7 +444,7 @@ async function generateReply(cast: any): Promise<string> {
 
   // Use Claude for text
   try {
-    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + linkContext;
+    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + perplexityContext + linkContext;
     
     // Create more natural user message
     let userMessage = `Message from @${authorUsername}: "${castText}"`;
@@ -423,7 +477,7 @@ async function generateReply(cast: any): Promise<string> {
 
   // Fallback to OpenAI
   try {
-    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext;
+    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + perplexityContext + linkContext;
     
     // More natural formatting
     let userMessage = `@${authorUsername}: "${castText}"`;
