@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
 
 interface UserProfile {
   fid: number;
@@ -22,9 +23,20 @@ interface UserProfile {
   power_badge: boolean;
 }
 
+interface Cast {
+  hash: string;
+  text: string;
+  timestamp: string;
+  replies: { count: number };
+  reactions: { likes_count: number; recasts_count: number };
+  embeds?: any[];
+}
+
 function ProfileContent() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [casts, setCasts] = useState<Cast[]>([]);
   const [loading, setLoading] = useState(true);
+  const [castsLoading, setCastsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -42,6 +54,9 @@ function ProfileContent() {
           }
           const data = await response.json();
           setProfile(data);
+          
+          // Fetch user's casts
+          loadUserCasts(data.fid);
         } else {
           // Get current user from localStorage
           const storedProfile = localStorage.getItem('hh_profile');
@@ -60,6 +75,9 @@ function ProfileContent() {
 
           const data = await response.json();
           setProfile(data);
+          
+          // Fetch user's casts
+          loadUserCasts(fid);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load profile');
@@ -68,12 +86,32 @@ function ProfileContent() {
       }
     };
 
+    const loadUserCasts = async (fid: number) => {
+      try {
+        const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/${fid}/casts?limit=25`, {
+          headers: {
+            'accept': 'application/json',
+            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '8C6F1E4E-677E-419A-A8C7-EF849B0E366B'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setCasts(data.casts || []);
+        }
+      } catch (err) {
+        console.error('Failed to load user casts:', err);
+      } finally {
+        setCastsLoading(false);
+      }
+    };
+
     loadProfile();
   }, [router, searchParams]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
         <div className="text-gray-600 dark:text-gray-400">Loading profile...</div>
       </div>
     );
@@ -81,10 +119,10 @@ function ProfileContent() {
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Profile not found'}</p>
-          <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
+          <Link href="/" className="text-orange-600 dark:text-orange-400 hover:underline">
             Go back home
           </Link>
         </div>
@@ -93,18 +131,18 @@ function ProfileContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-black py-8 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-white dark:bg-black pb-20">
+      <div className="px-2">
         {/* Back button */}
         <Link
           href="/"
-          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mb-6"
+          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 py-4"
         >
           ← Back to feed
         </Link>
 
         {/* Profile card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 overflow-hidden mb-6">
           {/* Header with gradient */}
           <div className="h-32 bg-gradient-to-r from-purple-500 to-blue-500"></div>
 
@@ -115,11 +153,11 @@ function ProfileContent() {
               <img
                 src={profile.pfp_url}
                 alt={profile.display_name}
-                className="w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 shadow-lg"
+                className="w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900"
               />
               {profile.power_badge && (
                 <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full w-10 h-10 flex items-center justify-center border-4 border-white dark:border-zinc-900">
-                  <span className="text-white text-xl">🔵</span>
+                  <span className="text-white text-xl">✓</span>
                 </div>
               )}
             </div>
@@ -152,43 +190,54 @@ function ProfileContent() {
 
             {/* Bio */}
             {profile.profile?.bio?.text && (
-              <div className="mb-6">
+              <div>
                 <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Bio</h2>
                 <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
                   {profile.profile.bio.text}
                 </p>
               </div>
             )}
-
-            {/* Verified addresses */}
-            {profile.verified_addresses?.eth_addresses?.length > 0 && (
-              <div className="mb-6">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  💎 Verified Ethereum Addresses
-                </h2>
-                <div className="space-y-2">
-                  {profile.verified_addresses.eth_addresses.map((address, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-gray-50 dark:bg-zinc-800 rounded px-3 py-2 font-mono text-sm text-gray-700 dark:text-gray-300 break-all"
-                    >
-                      {address}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* View on Warpcast */}
-            <a
-              href={`https://warpcast.com/${profile.username}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-            >
-              View on Warpcast →
-            </a>
           </div>
+        </div>
+
+        {/* User's Casts */}
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 px-2">Recent Casts</h2>
+          
+          {castsLoading ? (
+            <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+              Loading casts...
+            </div>
+          ) : casts.length === 0 ? (
+            <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+              No casts yet
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {casts.map((cast) => {
+                const timeLabel = formatDistanceToNow(new Date(cast.timestamp), { addSuffix: true });
+                
+                return (
+                  <Link
+                    key={cast.hash}
+                    href={`/cast/${cast.hash}`}
+                    className="block bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 p-4 hover:border-orange-500 dark:hover:border-orange-600 transition-colors"
+                  >
+                    <p className="text-gray-900 dark:text-white mb-3 whitespace-pre-wrap break-words">
+                      {cast.text}
+                    </p>
+                    
+                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                      <span>{timeLabel}</span>
+                      <span>💬 {cast.replies?.count || 0}</span>
+                      <span>❤️ {cast.reactions?.likes_count || 0}</span>
+                      <span>🔄 {cast.reactions?.recasts_count || 0}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -198,8 +247,8 @@ function ProfileContent() {
 export default function ProfilePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading profile...</div>
+      <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
+        <div className="text-gray-600 dark:text-gray-400">Loading profile...</div>
       </div>
     }>
       <ProfileContent />
