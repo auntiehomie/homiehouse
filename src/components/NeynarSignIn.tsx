@@ -65,20 +65,30 @@ export default function NeynarSignIn() {
         const response = await fetch(`/api/signer?signer_uuid=${uuid}`);
         const data = await response.json();
 
-        if (data.status === 'approved' && data.user) {
+        if (data.status === 'approved' && data.fid) {
+          // Fetch full user profile using FID
+          const profileResponse = await fetch(`/api/profile?fid=${data.fid}`);
+          
+          if (!profileResponse.ok) {
+            console.error('Failed to fetch user profile');
+            return false;
+          }
+          
+          const userData = await profileResponse.json();
+          
           // Store profile
           const profile = {
-            fid: data.user.fid,
-            username: data.user.username,
-            displayName: data.user.display_name,
-            pfpUrl: data.user.pfp_url,
-            bio: data.user.profile?.bio?.text || '',
+            fid: userData.fid,
+            username: userData.username,
+            displayName: userData.display_name,
+            pfpUrl: userData.pfp_url,
+            bio: userData.profile?.bio?.text || '',
           };
           
           localStorage.setItem('hh_profile', JSON.stringify(profile));
           
           // Store signer info
-          localStorage.setItem(`signer_${data.user.fid}`, JSON.stringify({
+          localStorage.setItem(`signer_${userData.fid}`, JSON.stringify({
             signer_uuid: uuid,
             status: 'approved'
           }));
