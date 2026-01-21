@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
 import WalletProvider from "../components/WalletProvider";
-import PrivyAuthProvider from "../components/PrivyAuthProvider";
 import BottomNav from "../components/BottomNav";
 
 export const metadata: Metadata = {
@@ -21,15 +20,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`antialiased`}>
-        <PrivyAuthProvider>
-          <WalletProvider>
-            <SdkDevMock />
-            <div className="pb-20">
-              {children}
-            </div>
-            <BottomNav />
-          </WalletProvider>
-        </PrivyAuthProvider>
+        <WalletProvider>
+          <SdkDevMock />
+          <div className="pb-20">
+            {children}
+          </div>
+          <BottomNav />
+        </WalletProvider>
       </body>
     </html>
   );

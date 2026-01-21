@@ -3,42 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const [showCompose, setShowCompose] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
-  // Safe Privy hook usage with fallback
-  let ready = false;
-  let authenticated = false;
-  
-  try {
-    const privyState = usePrivy();
-    ready = privyState.ready;
-    authenticated = privyState.authenticated;
-  } catch (error) {
-    console.error('[BottomNav] Error using Privy hook:', error);
-    // Fallback to checking localStorage
-    if (typeof window !== 'undefined') {
-      const profile = localStorage.getItem('hh_profile');
-      authenticated = !!profile;
-      ready = true;
-    }
-  }
-
-  // Wait for client-side mount
+  // Check authentication from localStorage
   useEffect(() => {
     setMounted(true);
+    const profile = localStorage.getItem('hh_profile');
+    setAuthenticated(!!profile);
   }, []);
 
   const isActive = (path: string) => {
     return pathname === path;
   };
 
-  // Don't render until mounted and ready, and only if authenticated
-  if (!mounted || !ready || !authenticated) {
+  // Don't render until mounted and only if authenticated
+  if (!mounted || !authenticated) {
     return null;
   }
 

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import TrendingList from "../components/TrendingList";
-import PrivySignIn from "../components/PrivySignIn";
+import NeynarSignIn from "../components/NeynarSignIn";
 import ChannelsList from "../components/ChannelsList";
 import WelcomeModal from "../components/WelcomeModal";
 
@@ -21,27 +20,13 @@ export default function Home() {
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
   
-  // Safe Privy hook usage with fallback
-  let ready = false;
-  let authenticated = false;
+  // Check authentication from localStorage
+  const [authenticated, setAuthenticated] = useState(false);
   
-  try {
-    const privyState = usePrivy();
-    ready = privyState.ready;
-    authenticated = privyState.authenticated;
-  } catch (error) {
-    console.error('[Home] Error using Privy hook:', error);
-    // Fallback to checking localStorage
-    if (typeof window !== 'undefined') {
-      const profile = localStorage.getItem('hh_profile');
-      authenticated = !!profile;
-      ready = true;
-    }
-  }
-
-  // Wait for client-side mount
   useEffect(() => {
     setMounted(true);
+    const profile = localStorage.getItem('hh_profile');
+    setAuthenticated(!!profile);
   }, []);
 
   const showLanding = !authenticated;
@@ -62,8 +47,8 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [showLanding]);
 
-  // Prevent hydration mismatch - show nothing until mounted and Privy ready
-  if (!mounted || !ready) {
+  // Prevent hydration mismatch - show nothing until mounted
+  if (!mounted) {
     return null;
   }
 
@@ -72,7 +57,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
         <header className="px-6 py-8 flex justify-end">
-          <PrivySignIn />
+          <NeynarSignIn />
         </header>
         
         <main className="flex-1 flex items-center justify-center px-6">
@@ -96,7 +81,7 @@ export default function Home() {
       <header className="px-2 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">HomieHouse</h1>
-          <PrivySignIn />
+          <NeynarSignIn />
         </div>
       </header>
 
