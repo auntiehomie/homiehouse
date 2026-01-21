@@ -3,6 +3,7 @@ import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
 import WalletProvider from "../components/WalletProvider";
 import PrivyAuthProvider from "../components/PrivyAuthProvider";
+import BottomNav from "../components/BottomNav";
 
 export const metadata: Metadata = {
   title: "HomieHouse - Your Social Hub",
@@ -23,7 +24,10 @@ export default function RootLayout({
         <PrivyAuthProvider>
           <WalletProvider>
             <SdkDevMock />
-            {children}
+            <div className="pb-20">
+              {children}
+            </div>
+            <BottomNav />
           </WalletProvider>
         </PrivyAuthProvider>
       </body>

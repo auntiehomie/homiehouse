@@ -93,47 +93,25 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-semibold">HomieHouse</h1>
-            <nav className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              <Link href="/">Home</Link>
-              <span className="px-2">·</span>
-              <Link href="/ask-homie">Ask Homie</Link>
-              <span className="px-2">·</span>
-              <Link href="/wallet" className="hover:text-purple-600">Wallet</Link>
-              <span className="px-2">·</span>
-              <Link href="/profile" className="hover:text-purple-600">Profile</Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link 
-              href="/wallet"
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              💼 Wallet
-            </Link>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
-          <ComposeModal />
+      <header className="max-w-4xl mx-auto px-6 py-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">HomieHouse</h1>
           <PrivySignIn />
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <main className="max-w-7xl mx-auto px-6 pb-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-          {/* Left Sidebar - Channels */}
-          <aside className="md:col-span-2 flex flex-col gap-6">
+          {/* Left Sidebar - Channels (hidden on mobile) */}
+          <aside className="hidden md:flex md:col-span-2 flex-col gap-6">
             <ChannelsList />
           </aside>
 
           {/* Main Content */}
           <div className="md:col-span-9 md:col-start-4">
-            <section className="mb-8 text-center">
-              <h2 className="text-3xl font-bold mb-2">HomieHouse - Your Social Hub</h2>
-              <p className="text-lg text-zinc-600 dark:text-zinc-400">Your place to share what's on your mind</p>
+            <section className="mb-6 text-center">
+              <h2 className="text-2xl md:text-3xl font-bold mb-2">Your Social Hub</h2>
+              <p className="text-base md:text-lg text-zinc-600 dark:text-zinc-400">Share what's on your mind</p>
             </section>
 
             <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -142,7 +120,7 @@ export default function Home() {
                 <FeedTrendingTabs />
               </div>
 
-              <aside className="p-4 border rounded-md">
+              <aside className="hidden lg:block p-4 border rounded-md">
                 <h3 className="font-medium">Trending</h3>
                 <TrendingList />
               </aside>
