@@ -115,11 +115,11 @@ export default function BottomNav() {
               </svg>
             </Link>
 
-            {/* Notifications - For now links to friends */}
+            {/* Notifications */}
             <Link
-              href="/friends"
+              href="/notifications"
               className={`flex flex-col items-center gap-1 transition-colors ${
-                isActive("/friends")
+                isActive("/notifications")
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
