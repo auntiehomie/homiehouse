@@ -67,17 +67,22 @@ export default function NotificationsPage() {
   }, [router]);
 
   const getNotificationText = (notification: Notification) => {
+    const getUserName = (user: any) => {
+      if (!user) return 'Someone';
+      return user.display_name || user.username || user.fname || 'Someone';
+    };
+
     switch (notification.type) {
       case 'likes':
-        return `${notification.user?.display_name || notification.user?.username} liked your cast`;
+        return `${getUserName(notification.user)} liked your cast`;
       case 'recasts':
-        return `${notification.user?.display_name || notification.user?.username} recasted your cast`;
+        return `${getUserName(notification.user)} recasted your cast`;
       case 'follows':
-        return `${notification.user?.display_name || notification.user?.username} followed you`;
+        return `${getUserName(notification.user)} followed you`;
       case 'mention':
-        return `${notification.cast?.author?.display_name || notification.cast?.author?.username} mentioned you`;
+        return `${getUserName(notification.cast?.author)} mentioned you`;
       case 'reply':
-        return `${notification.cast?.author?.display_name || notification.cast?.author?.username} replied to your cast`;
+        return `${getUserName(notification.cast?.author)} replied to your cast`;
       default:
         return 'New notification';
     }

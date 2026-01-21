@@ -31,6 +31,10 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await response.json();
+    
+    // Log the raw data to help debug
+    console.log('[Notifications] Raw Neynar response sample:', JSON.stringify(data.notifications?.[0], null, 2));
+    
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching notifications:', error);
