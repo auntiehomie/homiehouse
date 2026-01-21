@@ -93,14 +93,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="max-w-[1600px] mx-auto px-6 py-6">
+      <header className="px-4 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">HomieHouse</h1>
           <PrivySignIn />
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-6 pb-6">
+      <main className="px-4 pb-6">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
           {/* Left Sidebar - Channels (hidden on mobile) */}
           <aside className="hidden md:flex md:col-span-2 flex-col gap-6">
