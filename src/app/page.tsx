@@ -93,15 +93,15 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="px-3 py-6">
+      <header className="px-2 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">HomieHouse</h1>
           <PrivySignIn />
         </div>
       </header>
 
-      <main className="px-3 pb-6">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+      <main className="px-2 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
           {/* Left Sidebar - Channels (hidden on mobile) */}
           <aside className="hidden md:flex md:col-span-2 flex-col gap-6">
             <ChannelsList />
@@ -114,7 +114,7 @@ export default function Home() {
               <p className="text-base md:text-lg text-zinc-600 dark:text-zinc-400">Share what's on your mind</p>
             </section>
 
-            <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <h3 className="text-xl font-semibold mb-4">Explore</h3>
                 <FeedTrendingTabs />
