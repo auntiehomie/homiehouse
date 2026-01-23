@@ -5,14 +5,18 @@ import { TrendingSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 
-export default function TrendingList() {
+interface TrendingListProps {
+  limit?: number;
+}
+
+export default function TrendingList({ limit = 10 }: TrendingListProps) {
   const [items, setItems] = useState<any[] | null>(null);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const params = new URLSearchParams({ limit: String(10), time_window: "24h" });
+        const params = new URLSearchParams({ limit: String(limit), time_window: "24h" });
         
         // Get FID from localStorage if available
         const storedProfile = localStorage.getItem("hh_profile");
@@ -34,7 +38,7 @@ export default function TrendingList() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [limit]);
 
   if (items === null)
     return (

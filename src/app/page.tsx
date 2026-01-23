@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import ComposeModal from "../components/ComposeModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
-import TrendingList from "../components/TrendingList";
-import NeynarSignIn from "../components/NeynarSignIn";
+import PrivySignIn from "../components/PrivySignIn";
 import ChannelsList from "../components/ChannelsList";
 import WelcomeModal from "../components/WelcomeModal";
 
@@ -20,13 +20,27 @@ export default function Home() {
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
   
-  // Check authentication from localStorage
-  const [authenticated, setAuthenticated] = useState(false);
+  // Safe Privy hook usage with fallback
+  let ready = false;
+  let authenticated = false;
   
+  try {
+    const privyState = usePrivy();
+    ready = privyState.ready;
+    authenticated = privyState.authenticated;
+  } catch (error) {
+    console.error('[Home] Error using Privy hook:', error);
+    // Fallback to checking localStorage
+    if (typeof window !== 'undefined') {
+      const profile = localStorage.getItem('hh_profile');
+      authenticated = !!profile;
+      ready = true;
+    }
+  }
+
+  // Wait for client-side mount
   useEffect(() => {
     setMounted(true);
-    const profile = localStorage.getItem('hh_profile');
-    setAuthenticated(!!profile);
   }, []);
 
   const showLanding = !authenticated;
@@ -47,8 +61,8 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [showLanding]);
 
-  // Prevent hydration mismatch - show nothing until mounted
-  if (!mounted) {
+  // Prevent hydration mismatch - show nothing until mounted and Privy ready
+  if (!mounted || !ready) {
     return null;
   }
 
@@ -57,7 +71,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
         <header className="px-6 py-8 flex justify-end">
-          <NeynarSignIn />
+          <PrivySignIn />
         </header>
         
         <main className="flex-1 flex items-center justify-center px-6">
@@ -78,15 +92,15 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="px-2 py-6">
+      <header className="max-w-4xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">HomieHouse</h1>
-          <NeynarSignIn />
+          <PrivySignIn />
         </div>
       </header>
 
-      <main className="px-2 pb-6">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+      <main className="max-w-7xl mx-auto px-6 pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
           {/* Left Sidebar - Channels (hidden on mobile) */}
           <aside className="hidden md:flex md:col-span-2 flex-col gap-6">
             <ChannelsList />
@@ -99,16 +113,9 @@ export default function Home() {
               <p className="text-base md:text-lg text-zinc-600 dark:text-zinc-400">Share what's on your mind</p>
             </section>
 
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <h3 className="text-xl font-semibold mb-4">Explore</h3>
-                <FeedTrendingTabs />
-              </div>
-
-              <aside className="hidden lg:block p-4 border rounded-md">
-                <h3 className="font-medium">Trending</h3>
-                <TrendingList />
-              </aside>
+            <section>
+              <h3 className="text-xl font-semibold mb-4">Explore</h3>
+              <FeedTrendingTabs />
             </section>
           </div>
         </div>

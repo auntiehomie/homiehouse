@@ -38,8 +38,13 @@ export default function BottomNav() {
     return pathname === path;
   };
 
-  // Don't render until mounted and ready, and only if authenticated
-  if (!mounted || !ready || !authenticated) {
+  // Don't render until mounted and ready
+  if (!mounted || !ready) {
+    return null;
+  }
+
+  // Only show bottom nav if authenticated
+  if (!authenticated) {
     return null;
   }
 
@@ -92,6 +97,30 @@ export default function BottomNav() {
                   strokeLinejoin="round"
                   strokeWidth={2}
                   d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </Link>
+
+            {/* Trending */}
+            <Link
+              href="/trending"
+              className={`flex flex-col items-center gap-1 transition-colors ${
+                isActive("/trending")
+                  ? "text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
                 />
               </svg>
             </Link>
