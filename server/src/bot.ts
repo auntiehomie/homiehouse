@@ -3,6 +3,12 @@ import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BotReplyService } from './db';
+import { 
+  getComprehensiveContext, 
+  getFeedIntelligence, 
+  getChannelContext,
+  searchRelevantCasts 
+} from './feed-intelligence';
 
 const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -267,6 +273,38 @@ function needsRealTimeData(text: string): boolean {
   return realTimeKeywords.some(keyword => lowerText.includes(keyword));
 }
 
+// Extract main topic from text for context searching
+function extractTopicFromText(text: string): string | null {
+  const lowerText = text.toLowerCase();
+  
+  // Common topics in Farcaster
+  const topics = [
+    'worldcoin', 'world chain', 'orb', 'world id',
+    'bitcoin', 'btc', 'ethereum', 'eth', 'base', 'solana', 'avax',
+    'crypto', 'defi', 'nft', 'nfts', 'dao', 'web3', 'onchain',
+    'farcaster', 'warpcast', 'degen', 'frames', 'moxie',
+    'ai', 'artificial intelligence', 'llm', 'chatgpt', 'claude',
+    'music', 'art', 'gaming', 'sports', 'nba', 'nfl',
+    'coding', 'developer', 'programming', 'typescript', 'python'
+  ];
+  
+  for (const topic of topics) {
+    if (lowerText.includes(topic)) {
+      return topic;
+    }
+  }
+  
+  // Look for capitalized words (likely topics/names)
+  const words = text.split(' ');
+  for (const word of words) {
+    if (word.length > 4 && word[0] === word[0].toUpperCase() && word.slice(1) === word.slice(1).toLowerCase()) {
+      return word;
+    }
+  }
+  
+  return null;
+}
+
 // Use Perplexity for real-time research
 async function getPerplexityContext(query: string): Promise<string> {
   try {
@@ -337,10 +375,37 @@ async function generateReply(cast: any): Promise<string> {
   
   // Add channel context if available
   let channelContext = '';
+  let channelId = '';
   if (cast.parent_url && cast.parent_url.includes('/channels/')) {
-    const channelId = cast.parent_url.split('/channels/')[1]?.split('/')[0];
+    channelId = cast.parent_url.split('/channels/')[1]?.split('/')[0];
     if (channelId) {
       channelContext = `\n\nCHANNEL: /${channelId}`;
+      // Enhance with actual channel activity context
+      const enhancedChannelContext = await getChannelContext(channelId);
+      if (enhancedChannelContext) {
+        channelContext += enhancedChannelContext;
+      }
+    }
+  }
+  
+  // 🔥 NEW: Get Farcaster feed intelligence for broader context
+  let feedContext = '';
+  const isQuestion = castText.includes('?') || needsRealTimeData(castText);
+  const mentionsTopic = extractTopicFromText(castText);
+  
+  if (isQuestion || mentionsTopic) {
+    console.log('🌐 Getting Farcaster feed context for smarter response...');
+    
+    // Get comprehensive context including feed intelligence
+    feedContext = await getComprehensiveContext({
+      userFid: authorFid,
+      channelId: channelId || undefined,
+      searchQuery: mentionsTopic || castText.slice(0, 100),
+      includeFeed: true
+    });
+    
+    if (feedContext) {
+      console.log('✓ Enhanced with Farcaster feed intelligence');
     }
   }
   
@@ -380,7 +445,7 @@ async function generateReply(cast: any): Promise<string> {
   // Use GPT-4 Vision for images
   if (hasImage && imageUrl) {
     try {
-      const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + perplexityContext + linkContext;
+      const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext + perplexityContext + linkContext;
       
       // Analyze the message and image together
       const userMessage = castText 
@@ -424,7 +489,7 @@ async function generateReply(cast: any): Promise<string> {
       console.log('🌐 Using Gemini with Google Search for external links...');
       const model = gemini.getGenerativeModel({ 
         model: 'gemini-2.0-flash-exp',
-        systemInstruction: BOT_PERSONALITY + userContext + threadContext + channelContext
+        systemInstruction: BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext
       });
       
       const userMessage = castText 
@@ -453,7 +518,7 @@ async function generateReply(cast: any): Promise<string> {
 
   // Use Claude for text
   try {
-    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + perplexityContext + linkContext;
+    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext + perplexityContext + linkContext;
     
     // Create more natural user message
     let userMessage = `Message from @${authorUsername}: "${castText}"`;
@@ -486,7 +551,7 @@ async function generateReply(cast: any): Promise<string> {
 
   // Fallback to OpenAI
   try {
-    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + perplexityContext + linkContext;
+    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext + perplexityContext + linkContext;
     
     // More natural formatting
     let userMessage = `@${authorUsername}: "${castText}"`;

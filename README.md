@@ -1,6 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HomieHouse
 
-## Getting Started
+A Next.js-based Farcaster social hub with AI integration, feed curation, and comprehensive notifications.
+
+## Features
+
+- 🏠 **Social Hub** - Complete Farcaster feed integration
+- 🤖 **Ask Homie** - AI-powered assistant using multiple LLM providers
+- 🎯 **Feed Curation** - Customize your feed with advanced filters
+- 🔔 **Notifications** - Detailed notifications with actor information
+- 💬 **Compose** - Create and share casts
+- 👤 **Profiles** - View user profiles and activity
+- 💰 **Wallet** - Integrated wallet functionality
+- 🔄 **Swap** - Token swapping capabilities
+
+## Documentation
+
+All detailed documentation is available in the [`docs/`](./docs) directory:
+
+### Getting Started
+- [Curation Setup](./docs/CURATION_SETUP.md) - Quick setup for feed curation
+- [Notifications Quickstart](./docs/NOTIFICATIONS_QUICKSTART.md) - Get started with notifications
+- [Supabase Setup](./docs/SUPABASE_SETUP.md) - Database configuration
+- [Render Deployment](./docs/RENDER_ENV_SETUP.md) - Deploy to Render
+
+### Feature Guides
+- [Curation Guide](./docs/CURATION_GUIDE.md) - Complete feed curation documentation
+- [Notifications Guide](./docs/NOTIFICATIONS_GUIDE.md) - Comprehensive notifications guide
+- [AI Framework](./docs/AI_FRAMEWORK.md) - AI integration documentation
+- [Bot Intelligence](./docs/BOT_INTELLIGENCE.md) - Feed intelligence & context awareness
+- [Bot Testing Guide](./docs/BOT_TESTING.md) - Testing bot enhancements
+
+### Technical Documentation
+- [Curation Architecture](./docs/CURATION_ARCHITECTURE.md) - Technical architecture details
+- [Bot Enhancement Summary](./docs/BOT_ENHANCEMENT_SUMMARY.md) - Latest bot improvements
+
+## Quick Start
 
 First, run the development server:
 
@@ -19,6 +53,44 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Environment Setup
+
+### Client Environment Variables
+
+Create `.env.local` in the root directory:
+
+```bash
+cp .env.local.example .env.local
+```
+
+Required variables:
+- `NEYNAR_API_KEY` - Your Neynar API key for Farcaster data
+
+### Server Environment Variables
+
+The `server/` directory needs its own `.env` file with:
+- `NEYNAR_API_KEY` - Neynar API key
+- `NEYNAR_SIGNER_UUID` - Signer UUID for bot interactions
+- `APP_FID` - Your app's Farcaster ID
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_KEY` - Supabase anon/public key
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `PERPLEXITY_API_KEY` - AI provider keys
+
+## Project Structure
+
+```
+homiehouse/
+├── docs/                  # All documentation
+├── src/
+│   ├── app/              # Next.js app directory
+│   ├── components/       # React components
+│   └── lib/              # Utility libraries
+├── server/               # Express backend server
+│   └── src/              # Server source code
+├── public/               # Static assets
+└── README.md             # This file
+```
 
 ## Learn More
 

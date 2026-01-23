@@ -3,26 +3,43 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import NotificationBadge from "./NotificationBadge";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const [showCompose, setShowCompose] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
 
-  // Check authentication from localStorage
+  // Safe Privy hook usage with fallback
+  let ready = false;
+  let authenticated = false;
+  
+  try {
+    const privyState = usePrivy();
+    ready = privyState.ready;
+    authenticated = privyState.authenticated;
+  } catch (error) {
+    console.error('[BottomNav] Error using Privy hook:', error);
+    // Fallback to checking localStorage
+    if (typeof window !== 'undefined') {
+      const profile = localStorage.getItem('hh_profile');
+      authenticated = !!profile;
+      ready = true;
+    }
+  }
+
+  // Wait for client-side mount
   useEffect(() => {
     setMounted(true);
-    const profile = localStorage.getItem('hh_profile');
-    setAuthenticated(!!profile);
   }, []);
 
   const isActive = (path: string) => {
     return pathname === path;
   };
 
-  // Don't render until mounted and only if authenticated
-  if (!mounted || !authenticated) {
+  // Don't render until mounted and ready, and only if authenticated
+  if (!mounted || !ready || !authenticated) {
     return null;
   }
 
@@ -100,28 +117,18 @@ export default function BottomNav() {
             </Link>
 
             {/* Notifications */}
-            <Link
-              href="/notifications"
-              className={`flex flex-col items-center gap-1 transition-colors ${
-                isActive("/notifications")
-                  ? "text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="relative">
+              <Link
+                href="/notifications"
+                className={`flex flex-col items-center gap-1 transition-colors ${
+                  isActive("/notifications")
+                    ? "text-white"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                />
-              </svg>
-            </Link>
+                <NotificationBadge className="w-6 h-6" />
+              </Link>
+            </div>
 
             {/* Profile */}
             <Link

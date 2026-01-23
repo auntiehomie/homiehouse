@@ -3,6 +3,7 @@ import cors from 'cors';
 import cron from 'node-cron';
 import dotenv from 'dotenv';
 import { checkForMentions } from './bot';
+import { CurationService, CurationPreference } from './curation';
 
 dotenv.config();
 
@@ -35,6 +36,78 @@ app.post('/trigger-bot', async (req, res) => {
   } catch (error: any) {
     console.error(`[${INSTANCE_ID}] Manual trigger error:`, error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Curation API endpoints
+app.get('/api/curation', async (req, res) => {
+  try {
+    const fid = req.query.fid ? parseInt(req.query.fid as string) : null;
+    const type = req.query.type as string;
+
+    if (!fid) {
+      return res.status(400).json({ ok: false, error: 'FID required' });
+    }
+
+    let preferences;
+    if (type) {
+      preferences = await CurationService.getPreferencesByType(fid, type);
+    } else {
+      preferences = await CurationService.getPreferences(fid);
+    }
+
+    res.json({ ok: true, preferences });
+  } catch (error: any) {
+    console.error('Error fetching curation preferences:', error);
+    res.status(500).json({ ok: false, error: error?.message || 'Failed to fetch preferences' });
+  }
+});
+
+app.post('/api/curation', async (req, res) => {
+  try {
+    const preference: CurationPreference = req.body;
+
+    if (!preference.fid || !preference.preference_type || !preference.preference_value || !preference.action) {
+      return res.status(400).json({ ok: false, error: 'Missing required fields' });
+    }
+
+    const result = await CurationService.addPreference(preference);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error adding curation preference:', error);
+    res.status(500).json({ ok: false, error: error?.message || 'Failed to add preference' });
+  }
+});
+
+app.put('/api/curation', async (req, res) => {
+  try {
+    const { id, ...updates } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ ok: false, error: 'Preference ID required' });
+    }
+
+    const result = await CurationService.updatePreference(id, updates);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error updating curation preference:', error);
+    res.status(500).json({ ok: false, error: error?.message || 'Failed to update preference' });
+  }
+});
+
+app.delete('/api/curation', async (req, res) => {
+  try {
+    const id = req.query.id ? parseInt(req.query.id as string) : null;
+
+    if (!id) {
+      return res.status(400).json({ ok: false, error: 'Preference ID required' });
+    }
+
+    const result = await CurationService.deletePreference(id);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error deleting curation preference:', error);
+    res.status(500).json({ ok: false, error: error?.message || 'Failed to delete preference' });
   }
 });
 

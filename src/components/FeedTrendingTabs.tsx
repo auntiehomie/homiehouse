@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import FeedList from "./FeedList";
 import TrendingList from "./TrendingList";
+import CurationSettings from "./CurationSettings";
 
 export type FeedType = 'following' | 'global';
 
@@ -12,10 +13,11 @@ export default function FeedTrendingTabs() {
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
+  const [showCurationSettings, setShowCurationSettings] = useState(false);
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <button
           onClick={() => setTab('feed')}
           className={"btn " + (tab === 'feed' ? 'primary' : '')}
@@ -45,6 +47,15 @@ export default function FeedTrendingTabs() {
               style={{ fontSize: '13px', padding: '6px 12px' }}
             >
               Global
+            </button>
+            <div style={{ width: '1px', background: 'var(--border)', margin: '0 4px' }} />
+            <button
+              onClick={() => setShowCurationSettings(true)}
+              className="btn"
+              style={{ fontSize: '13px', padding: '6px 12px' }}
+              title="Customize your feed"
+            >
+              ⚙️ Curate
             </button>
           </>
         )}
@@ -93,6 +104,10 @@ export default function FeedTrendingTabs() {
           <TrendingList />
         )}
       </div>
+
+      {showCurationSettings && (
+        <CurationSettings onClose={() => setShowCurationSettings(false)} />
+      )}
     </div>
   );
 }

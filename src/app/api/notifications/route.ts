@@ -4,6 +4,8 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const fid = searchParams.get('fid');
+    const cursor = searchParams.get('cursor'); // For pagination
+    const type = searchParams.get('type'); // Filter by notification type
     
     if (!fid) {
       return NextResponse.json({ error: 'FID is required' }, { status: 400 });
@@ -15,31 +17,51 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Neynar API key not configured' }, { status: 500 });
     }
 
-    // Fetch notifications from Neynar
-    const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/notifications?fid=${fid}&priority_mode=true`,
-      {
-        headers: {
-          'accept': 'application/json',
-          'api_key': NEYNAR_API_KEY,
-        },
-      }
-    );
+    // Fetch notifications from Neynar with enhanced parameters
+    let url = `https://api.neynar.com/v2/farcaster/notifications?fid=${fid}&priority_mode=true`;
+    if (cursor) url += `&cursor=${cursor}`;
+    if (type) url += `&type=${type}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': NEYNAR_API_KEY,
+      },
+    });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Neynar API error: ${response.status}`, errorText);
       throw new Error(`Neynar API error: ${response.status}`);
     }
 
     const data = await response.json();
     
-    // Log the raw data to help debug
-    console.log('[Notifications] Raw Neynar response sample:', JSON.stringify(data.notifications?.[0], null, 2));
-    
-    return NextResponse.json(data);
-  } catch (error) {
+    // Transform the data to make it easier to work with
+    const transformedNotifications = data.notifications?.map((notif: any) => ({
+      ...notif,
+      actor: notif.most_recent_timestamp ? {
+        fid: notif.user?.fid,
+        username: notif.user?.username,
+        display_name: notif.user?.display_name,
+        pfp_url: notif.user?.pfp_url,
+        follower_count: notif.user?.follower_count,
+        following_count: notif.user?.following_count,
+        power_badge: notif.user?.power_badge
+      } : (notif.cast?.author || notif.user),
+      // Add timestamp for easier sorting
+      timestamp: notif.most_recent_timestamp || notif.timestamp
+    })) || [];
+
+    return NextResponse.json({
+      notifications: transformedNotifications,
+      next_cursor: data.next?.cursor,
+      has_more: !!data.next?.cursor
+    });
+  } catch (error: any) {
     console.error('Error fetching notifications:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch notifications' },
+      { error: error?.message || 'Failed to fetch notifications' },
       { status: 500 }
     );
   }

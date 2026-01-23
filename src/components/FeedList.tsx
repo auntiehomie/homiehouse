@@ -8,6 +8,15 @@ import { FeedType } from "./FeedTrendingTabs";
 import { QRCodeSVG } from 'qrcode.react';
 import Link from "next/link";
 
+interface CurationPreference {
+  id?: number;
+  fid: number;
+  preference_type: 'keyword' | 'channel' | 'author' | 'content_type' | 'min_likes' | 'max_length';
+  preference_value: string;
+  action: 'include' | 'exclude';
+  priority?: number;
+}
+
 interface FeedListProps {
   feedType: FeedType;
   selectedChannel: string | null;
@@ -42,6 +51,7 @@ export default function FeedList({
   const [replySuccess, setReplySuccess] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
   const [expandedCasts, setExpandedCasts] = useState<Set<string>>(new Set());
+  const [curationPreferences, setCurationPreferences] = useState<CurationPreference[]>([]);
 
   const [showSignerModal, setShowSignerModal] = useState(false);
   const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
@@ -440,6 +450,27 @@ export default function FeedList({
     }
   }, []);
 
+  // Load curation preferences
+  useEffect(() => {
+    const loadCurationPreferences = async () => {
+      const profile = getProfile();
+      if (!profile?.fid) return;
+
+      try {
+        const res = await fetch(`/api/curation?fid=${profile.fid}`);
+        const data = await res.json();
+        
+        if (data.ok && data.preferences) {
+          setCurationPreferences(data.preferences);
+        }
+      } catch (error) {
+        console.error('Error loading curation preferences:', error);
+      }
+    };
+
+    loadCurationPreferences();
+  }, []);
+
   // Check for pending signer approval (after returning from Warpcast on mobile)
   useEffect(() => {
     const checkPendingApproval = async () => {
@@ -530,6 +561,87 @@ export default function FeedList({
     );
   if (!items.length) return <div className="surface">No casts to show. Follow people to populate your feed.</div>;
 
+  // Apply curation filters
+  const applyCurationFilters = (itemsList: any[]): any[] => {
+    if (!curationPreferences || curationPreferences.length === 0) {
+      return itemsList;
+    }
+
+    // Separate include and exclude preferences
+    const includePrefs = curationPreferences.filter(p => p.action === 'include');
+    const excludePrefs = curationPreferences.filter(p => p.action === 'exclude');
+
+    let filtered = [...itemsList];
+
+    // Apply exclude filters first (remove unwanted content)
+    for (const pref of excludePrefs) {
+      filtered = filtered.filter(item => !matchesPreference(item, pref));
+    }
+
+    // If there are include filters, boost matching items
+    if (includePrefs.length > 0) {
+      filtered = filtered.map(item => {
+        let boostScore = 0;
+        for (const pref of includePrefs) {
+          if (matchesPreference(item, pref)) {
+            boostScore += (pref.priority || 0) + 1;
+          }
+        }
+        return { ...item, _curationScore: boostScore };
+      });
+
+      // Sort by curation score (higher first)
+      filtered.sort((a, b) => (b._curationScore || 0) - (a._curationScore || 0));
+    }
+
+    return filtered;
+  };
+
+  const matchesPreference = (item: any, pref: CurationPreference): boolean => {
+    const value = pref.preference_value.toLowerCase();
+
+    switch (pref.preference_type) {
+      case 'keyword':
+        const text = (item.text || '').toLowerCase();
+        return text.includes(value);
+
+      case 'channel':
+        const channel = (item.channel?.id || item.channel?.name || '').toLowerCase();
+        return channel === value;
+
+      case 'author':
+        const authorFid = String(item.author?.fid || '');
+        const authorUsername = (item.author?.username || '').toLowerCase();
+        return authorFid === value || authorUsername === value;
+
+      case 'content_type':
+        if (value === 'has_image') {
+          return item.embeds && item.embeds.some((e: any) => e.url && /\.(jpg|jpeg|png|gif|webp)$/i.test(e.url));
+        }
+        if (value === 'has_video') {
+          return item.embeds && item.embeds.some((e: any) => e.url && /\.(mp4|mov|webm)$/i.test(e.url));
+        }
+        if (value === 'has_link') {
+          return item.embeds && item.embeds.some((e: any) => e.url);
+        }
+        if (value === 'text_only') {
+          return !item.embeds || item.embeds.length === 0;
+        }
+        return false;
+
+      case 'min_likes':
+        const minLikes = parseInt(value);
+        return (item.reactions?.likes_count || 0) >= minLikes;
+
+      case 'max_length':
+        const maxLength = parseInt(value);
+        return (item.text || '').length <= maxLength;
+
+      default:
+        return false;
+    }
+  };
+
   // Filter out muted users and hidden casts
   // Reduce visibility of "see less" authors (show 1 in 4)
   const filteredItems = items.filter((it, index) => {
@@ -548,9 +660,12 @@ export default function FeedList({
     return true;
   });
 
+  // Apply curation after basic filtering
+  const curatedItems = applyCurationFilters(filteredItems);
+
   return (
     <div className="space-y-4">
-      {filteredItems.map((it) => {
+      {curatedItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
         const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
         const authorName = authorObj?.display_name || authorObj?.username || it.author || it.handle || 'Unknown';

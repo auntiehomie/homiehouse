@@ -168,6 +168,62 @@ function detectProfileRequest(question: string): string | null {
   return null;
 }
 
+// Extract cast hash or URL from question
+function extractCastReference(question: string): string | null {
+  // Match cast URLs: https://warpcast.com/username/0x123...
+  const warpcastUrlMatch = question.match(/warpcast\.com\/\w+\/(0x[a-fA-F0-9]+)/);
+  if (warpcastUrlMatch) {
+    return warpcastUrlMatch[1];
+  }
+  
+  // Match direct hash references: 0x followed by hex
+  const hashMatch = question.match(/(0x[a-fA-F0-9]{8,})/);
+  if (hashMatch) {
+    return hashMatch[1];
+  }
+  
+  // Match HomieHouse cast URLs: /cast/0x123...
+  const homieUrlMatch = question.match(/\/cast\/(0x[a-fA-F0-9]+)/);
+  if (homieUrlMatch) {
+    return homieUrlMatch[1];
+  }
+  
+  return null;
+}
+
+// Fetch cast data from Neynar API
+async function fetchCastData(castHash: string) {
+  try {
+    const apiKey = process.env.NEYNAR_API_KEY;
+    if (!apiKey) {
+      console.error('NEYNAR_API_KEY not configured');
+      return null;
+    }
+
+    const url = `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash`;
+    console.log(`Fetching cast ${castHash} from Neynar API`);
+    
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': apiKey,
+      },
+    });
+    
+    if (!response.ok) {
+      console.error(`Cast fetch failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    console.log(`Cast fetched successfully: ${castHash}`);
+    return data.cast;
+  } catch (error) {
+    console.error('Error fetching cast:', error);
+    return null;
+  }
+}
+
 // Fetch profile directly from Neynar API
 async function fetchUserProfile(username: string) {
   try {
@@ -229,13 +285,28 @@ export async function POST(req: NextRequest) {
         const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
         const userMessage = lastUserMessage?.content || '';
 
+        // Check if user is asking about a cast (by URL or hash)
+        const castHash = extractCastReference(userMessage);
+        let fetchedCastData = null;
+        
+        if (castHash) {
+          console.log(`Cast reference detected in agent mode: ${castHash}`);
+          fetchedCastData = await fetchCastData(castHash);
+        }
+
+        // Use fetched cast data if available, otherwise use provided castContext
+        const activeCastContext = fetchedCastData || castContext;
+
         // Add cast context if provided - make it more prominent
         let contextualMessage = userMessage;
-        if (castContext) {
-          contextualMessage = `IMPORTANT CONTEXT - User is analyzing this Farcaster cast:
+        if (activeCastContext) {
+          contextualMessage = `IMPORTANT CONTEXT - User ${fetchedCastData ? 'provided a cast link/hash and' : ''} is analyzing this Farcaster cast:
 
-Cast Author: @${castContext.author}
-Cast Content: "${castContext.text}"
+Cast Author: @${activeCastContext.author?.username || activeCastContext.author}
+Display Name: ${activeCastContext.author?.display_name || activeCastContext.author}
+Cast Content: "${activeCastContext.text}"
+Timestamp: ${activeCastContext.timestamp ? new Date(activeCastContext.timestamp).toLocaleString() : 'N/A'}
+Engagement: ${activeCastContext.reactions?.likes_count || 0} likes, ${activeCastContext.reactions?.recasts_count || 0} recasts, ${activeCastContext.replies?.count || 0} replies
 
 User's Question: ${userMessage}
 
@@ -285,17 +356,35 @@ Please analyze the cast above and respond to the user's question about it. If th
       profileData = await fetchUserProfile(requestedUsername);
     }
 
+    // Check if user is asking about a cast (by URL or hash)
+    const castHash = extractCastReference(question);
+    let fetchedCastData = null;
+    
+    if (castHash) {
+      console.log(`Cast reference detected: ${castHash}`);
+      fetchedCastData = await fetchCastData(castHash);
+    }
+
     // If cast context is provided, prepend it to the conversation
     let conversationMessages = messages;
-    if (castContext) {
+    
+    // Use fetched cast data if available, otherwise use provided castContext
+    const activeCastContext = fetchedCastData || castContext;
+    
+    if (activeCastContext) {
       const contextMessage = {
         role: 'system',
         content: `CAST ANALYSIS CONTEXT:
-The user is analyzing a Farcaster cast with the following details:
-- Author: @${castContext.author}
-- Content: "${castContext.text}"
+The user ${fetchedCastData ? 'provided a cast link/hash and' : ''} is analyzing a Farcaster cast with the following details:
+- Author: @${activeCastContext.author?.username || activeCastContext.author}
+- Display Name: ${activeCastContext.author?.display_name || activeCastContext.author}
+- Content: "${activeCastContext.text}"
+- Timestamp: ${activeCastContext.timestamp ? new Date(activeCastContext.timestamp).toLocaleString() : 'N/A'}
+- Likes: ${activeCastContext.reactions?.likes_count || 0}
+- Recasts: ${activeCastContext.reactions?.recasts_count || 0}
+- Replies: ${activeCastContext.replies?.count || 0}
 
-When the user asks questions, they are referring to this cast. Provide thoughtful analysis about the cast's content, sentiment, purpose, and implications.`
+When the user asks questions like "what do you think?" or "analyze this", they are referring to this cast. Provide thoughtful analysis about the cast's content, sentiment, purpose, engagement, and implications.`
       };
       conversationMessages = [contextMessage, ...messages];
     }
