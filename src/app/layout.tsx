@@ -3,9 +3,8 @@ import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
 import WalletProvider from "../components/WalletProvider";
 import NeynarAuthProvider from "../components/NeynarAuthProvider";
+import NeynarProvider from "../components/NeynarProvider";
 import BottomNav from "../components/BottomNav";
-import { NeynarContextProvider, Theme } from "@neynar/react";
-import "@neynar/react/dist/style.css";
 
 export const metadata: Metadata = {
   title: "HomieHouse - Your Social Hub",
@@ -23,12 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`antialiased`}>
-        <NeynarContextProvider
-          settings={{
-            clientId: process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID || "",
-            defaultTheme: Theme.Dark,
-          }}
-        >
+        <NeynarProvider>
           <NeynarAuthProvider>
             <WalletProvider>
               <SdkDevMock />
@@ -38,7 +32,7 @@ export default function RootLayout({
               <BottomNav />
             </WalletProvider>
           </NeynarAuthProvider>
-        </NeynarContextProvider>
+        </NeynarProvider>
       </body>
     </html>
   );
