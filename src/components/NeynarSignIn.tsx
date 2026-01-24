@@ -1,153 +1,43 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { NeynarAuthButton, useNeynarContext } from "@neynar/react";
+import "@neynar/react/dist/style.css";
 
 export default function NeynarSignIn() {
-  const [profile, setProfile] = useState<any>(null);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
-  const [signerUuid, setSignerUuid] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
+  const { user, isAuthenticated } = useNeynarContext();
 
-  useEffect(() => {
-    // Check if user is already logged in
-    const storedProfile = localStorage.getItem('hh_profile');
-    if (storedProfile) {
-      try {
-        const parsedProfile = JSON.parse(storedProfile);
-        setProfile(parsedProfile);
-      } catch (err) {
-        console.error('Failed to parse stored profile:', err);
-        localStorage.removeItem('hh_profile');
-      }
-    }
-  }, []);
-
-  const handleLogin = async () => {
-    setShowLoginModal(true);
-    
-    try {
-      // Create a new signer
-      const response = await fetch('/api/signer', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create signer');
-      }
-
-      const data = await response.json();
-      
-      if (data.ok && data.signer_approval_url && data.signer_uuid) {
-        setSignerApprovalUrl(data.signer_approval_url);
-        setSignerUuid(data.signer_uuid);
-        
-        // Start polling for signer status
-        pollSignerStatus(data.signer_uuid);
-      } else {
-        throw new Error('Invalid signer response');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Failed to initiate login. Please try again.');
-      setShowLoginModal(false);
-    }
-  };
-
-  const pollSignerStatus = async (uuid: string) => {
-    setPolling(true);
-    let attempts = 0;
-    const maxAttempts = 60; // Poll for 60 seconds
-
-    const checkStatus = async (): Promise<boolean> => {
-      try {
-        const response = await fetch(`/api/signer?signer_uuid=${uuid}`);
-        const data = await response.json();
-
-        if (data.status === 'approved' && data.fid) {
-          // Fetch full user profile using FID
-          const profileResponse = await fetch(`/api/profile?fid=${data.fid}`);
-          
-          if (!profileResponse.ok) {
-            console.error('Failed to fetch user profile');
-            return false;
-          }
-          
-          const userData = await profileResponse.json();
-          
-          // Store profile
-          const profile = {
-            fid: userData.fid,
-            username: userData.username,
-            displayName: userData.display_name,
-            pfpUrl: userData.pfp_url,
-            bio: userData.profile?.bio?.text || '',
-          };
-          
-          localStorage.setItem('hh_profile', JSON.stringify(profile));
-          
-          // Store signer info
-          localStorage.setItem(`signer_${userData.fid}`, JSON.stringify({
-            signer_uuid: uuid,
-            status: 'approved'
-          }));
-
-          setProfile(profile);
-          setShowLoginModal(false);
-          setPolling(false);
-          
-          // Reload to refresh all components
-          window.location.reload();
-          
-          return true;
-        }
-
-        return false;
-      } catch (error) {
-        console.error('Error checking signer status:', error);
-        return false;
-      }
-    };
-
-    const interval = setInterval(async () => {
-      attempts++;
-      
-      if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        setPolling(false);
-        alert('Login timeout. Please try again.');
-        setShowLoginModal(false);
-        return;
-      }
-
-      const approved = await checkStatus();
-      if (approved) {
-        clearInterval(interval);
-      }
-    }, 1000);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('hh_profile');
-    // Clear all signer data
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('signer_')) {
-        localStorage.removeItem(key);
-      }
-    });
-    setProfile(null);
-    window.location.reload();
-  };
-
-  if (profile) {
+  if (isAuthenticated && user) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {profile.pfpUrl && (
+          {user.pfp_url && (
             <img
-              src={profile.pfpUrl}
-              alt={profile.displayName}
+              src={user.pfp_url}
+              alt={user.display_name}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+              }}
+            />
+          )}
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '14px' }}>
+              {user.display_name}
+            </div>
+            <div style={{ fontSize: '12px', opacity: 0.7 }}>
+              @{user.username}
+            </div>
+          </div>
+        </div>
+        <NeynarAuthButton />
+      </div>
+    );
+  }
+
+  return <NeynarAuthButton />;
+}
               style={{
                 width: '32px',
                 height: '32px',

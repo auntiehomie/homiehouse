@@ -1,6 +1,6 @@
 'use client';
 
-import { usePrivy } from '@privy-io/react-auth';
+import { useNeynarContext } from '@neynar/react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
@@ -13,7 +13,7 @@ const TOKENS = [
 ];
 
 export default function SwapPage() {
-  const { user, authenticated, ready } = usePrivy();
+  const { user, isAuthenticated } = useNeynarContext();
   const router = useRouter();
   
   const [fromToken, setFromToken] = useState(TOKENS[0]);
@@ -25,10 +25,10 @@ export default function SwapPage() {
   const [quote, setQuote] = useState<any>(null);
 
   useEffect(() => {
-    if (ready && !authenticated) {
+    if (!isAuthenticated) {
       router.push('/');
     }
-  }, [ready, authenticated, router]);
+  }, [isAuthenticated, router]);
 
   // Fetch quote from 1inch API
   const fetchQuote = async () => {
@@ -83,7 +83,7 @@ export default function SwapPage() {
     setSwapStatus('Preparing swap...');
 
     try {
-      const walletAddress = user?.wallet?.address;
+      const walletAddress = user?.verified_addresses?.eth_addresses?.[0];
       if (!walletAddress) {
         setSwapStatus('Please connect wallet');
         return;
@@ -139,7 +139,7 @@ export default function SwapPage() {
     setToAmount('');
   };
 
-  if (!ready || !authenticated) {
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>

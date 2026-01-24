@@ -17,6 +17,7 @@
     "@langchain/core": "^1.1.13",
     "@langchain/openai": "^1.2.2",
     "@neynar/nodejs-sdk": "^3.120.0",
+    "@neynar/react": "^1.2.22",
     "@noble/ed25519": "^3.0.0",
     "@privy-io/react-auth": "^3.10.2",
     "@privy-io/server-auth": "^1.32.5",

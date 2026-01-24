@@ -1,44 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useNeynarContext } from "@neynar/react";
 import Link from "next/link";
 import TrendingList from "../../components/TrendingList";
-import PrivySignIn from "../../components/PrivySignIn";
+import NeynarSignIn from "../../components/NeynarSignIn";
 
 export default function TrendingPage() {
   const [mounted, setMounted] = useState(false);
-  
-  // Safe Privy hook usage with fallback
-  let ready = false;
-  let authenticated = false;
-  
-  try {
-    const privyState = usePrivy();
-    ready = privyState.ready;
-    authenticated = privyState.authenticated;
-  } catch (error) {
-    console.error('[Trending] Error using Privy hook:', error);
-    // Fallback to checking localStorage
-    if (typeof window !== 'undefined') {
-      const profile = localStorage.getItem('hh_profile');
-      authenticated = !!profile;
-      ready = true;
-    }
-  }
+  const { isAuthenticated } = useNeynarContext();
 
   // Wait for client-side mount
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Prevent hydration mismatch - show nothing until mounted and Privy ready
-  if (!mounted || !ready) {
+  // Prevent hydration mismatch - show nothing until mounted
+  if (!mounted) {
     return null;
   }
 
   // Redirect to home if not authenticated
-  if (!authenticated) {
+  if (!isAuthenticated) {
     if (typeof window !== 'undefined') {
       window.location.href = '/';
     }
@@ -57,7 +40,7 @@ export default function TrendingPage() {
             </Link>
             <h1 className="text-2xl font-bold">Trending</h1>
           </div>
-          <PrivySignIn />
+          <NeynarSignIn />
         </div>
       </header>
 
