@@ -25,6 +25,8 @@ interface Notification {
   };
   user?: Actor;
   actor?: Actor;
+  actors?: Actor[]; // Multiple actors for group notifications
+  actorCount?: number;
   timestamp: string;
   most_recent_timestamp?: string;
   reactions?: {
@@ -288,6 +290,11 @@ export default function NotificationsPage() {
                           <span className="text-purple-500" title="Power user">⚡</span>
                         )}
                       </Link>
+                      {notification.actorCount && notification.actorCount > 1 && (
+                        <span className="text-zinc-500 text-sm">
+                          and {notification.actorCount - 1} other{notification.actorCount - 1 > 1 ? 's' : ''}
+                        </span>
+                      )}
                       <span className="text-zinc-500 text-sm">
                         {notifText}
                       </span>
