@@ -285,6 +285,14 @@ export async function POST(req: NextRequest) {
         const lastUserMessage = [...messages].reverse().find((m: any) => m.role === 'user');
         const userMessage = lastUserMessage?.content || '';
 
+        // Log cast context if present
+        if (castContext) {
+          console.log('📋 Cast context received:', {
+            author: castContext.author?.username || castContext.author,
+            textPreview: castContext.text?.slice(0, 100)
+          });
+        }
+
         // Check if user is asking about a cast (by URL or hash)
         const castHash = extractCastReference(userMessage);
         let fetchedCastData = null;

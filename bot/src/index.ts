@@ -88,6 +88,94 @@ async function markAsReplied(hash: string, repliedSet: Set<string>): Promise<voi
   console.log(`   ✅ Marked ${hash} as replied and saved to file`);
 }
 
+// Search for similar casts to build context
+async function searchSimilarCasts(castText: string, channelId?: string): Promise<string> {
+  try {
+    // Extract key topics from the cast
+    const keywords = extractKeywords(castText);
+    if (keywords.length === 0) return '';
+
+    console.log(`   🔍 Searching for similar casts about: ${keywords.slice(0, 3).join(', ')}`);
+
+    // Search for casts with similar content
+    const searchQuery = keywords.slice(0, 3).join(' '); // Use top 3 keywords
+    const searchResponse: any = await neynar.searchCasts({
+      q: searchQuery,
+      limit: 10,
+    });
+
+    if (!searchResponse.casts || searchResponse.casts.length === 0) {
+      console.log(`   📭 No similar casts found`);
+      return '';
+    }
+
+    // Filter for relevant, engaging casts
+    const relevantCasts = searchResponse.casts
+      .filter((c: any) => {
+        // Skip if it's too short or too old
+        const hoursOld = (Date.now() - new Date(c.timestamp).getTime()) / (1000 * 60 * 60);
+        return c.text.length > 50 && hoursOld < 48; // Last 48 hours, minimum length
+      })
+      .slice(0, 5); // Top 5 most relevant
+
+    if (relevantCasts.length === 0) {
+      console.log(`   📭 No recent relevant casts found`);
+      return '';
+    }
+
+    console.log(`   ✅ Found ${relevantCasts.length} similar casts for context`);
+
+    let similarContext = '\n\n**Related discussions on Farcaster:**\n';
+    relevantCasts.forEach((cast: any, idx: number) => {
+      const preview = cast.text.slice(0, 120).replace(/\n/g, ' ');
+      const engagement = cast.reactions.likes_count + cast.replies.count;
+      similarContext += `${idx + 1}. @${cast.author.username}: "${preview}..." (${engagement} engagement)\n`;
+    });
+
+    return similarContext;
+  } catch (error) {
+    console.error('Error searching similar casts:', error);
+    return '';
+  }
+}
+
+// Extract keywords from text for search
+function extractKeywords(text: string): string[] {
+  // Remove URLs, mentions, and common words
+  const cleanText = text
+    .toLowerCase()
+    .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+    .replace(/@\w+/g, '') // Remove mentions
+    .replace(/[^\w\s]/g, ' '); // Remove punctuation
+
+  // Common stop words to filter out
+  const stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during',
+    'it', 'is', 'was', 'are', 'were', 'be', 'been', 'being', 'have', 'has',
+    'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can',
+    'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they',
+    'what', 'which', 'who', 'when', 'where', 'why', 'how', 'just', 'im', 'its'
+  ]);
+
+  // Split into words and filter
+  const words = cleanText
+    .split(/\s+/)
+    .filter(word => word.length > 3 && !stopWords.has(word));
+
+  // Count word frequency
+  const wordCount = new Map<string, number>();
+  words.forEach(word => {
+    wordCount.set(word, (wordCount.get(word) || 0) + 1);
+  });
+
+  // Return top keywords by frequency
+  return Array.from(wordCount.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word);
+}
+
 // Get conversation context for a cast
 async function getConversationContext(castHash: string): Promise<string> {
   try {
@@ -147,7 +235,8 @@ async function generateReply(
   mentionText: string,
   userFid: number,
   username: string,
-  imageUrls?: string[]
+  imageUrls?: string[],
+  channelId?: string
 ): Promise<string> {
   try {
     // Get past interactions with this user
@@ -165,6 +254,10 @@ async function generateReply(
         memoryContext += `\n(You've talked ${userProfile.interaction_count} times before)`;
       }
     }
+
+    // Search for similar casts to build richer context
+    const similarCastsContext = await searchSimilarCasts(mentionText, channelId);
+    const fullContext = castContext + memoryContext + similarCastsContext;
 
     // If there are images, use GPT-4 Vision instead
     if (imageUrls && imageUrls.length > 0) {
@@ -209,7 +302,7 @@ async function generateReply(
       messages: [
         {
           role: 'user',
-          content: `ONE SHORT sentence (max 280 chars). Simple words. Casual. NO essay. Stop after one thought.\n\nTheir message: "${mentionText}"`,
+          content: `${fullContext}\n\nONE SHORT sentence (max 280 chars). Simple words. Casual. NO essay. Stop after one thought.\n\nTheir message: "${mentionText}"`,
         },
       ],
     });
@@ -217,7 +310,7 @@ async function generateReply(
     const textContent = message.content.find((block) => block.type === 'text');
     return textContent && 'text' in textContent ? textContent.text.trim() : '';
   } catch (error: any) {
-    console.error('Error generating reply with Claude:', error.message || error);
+    console.log('Error generating reply with Claude:', error.message || error);
     console.log('   Falling back to OpenAI...');
     
     // Fallback to OpenAI
@@ -232,6 +325,9 @@ async function generateReply(
         });
       }
       
+      // Use same full context for fallback
+      const fallbackContext = castContext + memoryContext;
+      
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         max_tokens: 80,
@@ -239,7 +335,7 @@ async function generateReply(
           { role: 'system', content: BOT_PERSONALITY + '\n\nCRITICAL: Max 280 characters. ONE SHORT sentence. Stop immediately.' },
           { 
             role: 'user', 
-            content: `ONE SHORT sentence (max 280 chars). Simple words. NO essay. Stop.\n\nTheir message: "${mentionText}"` 
+            content: `${fallbackContext}\n\nONE SHORT sentence (max 280 chars). Simple words. NO essay. Stop.\n\nTheir message: "${mentionText}"` 
           },
         ],
       });
@@ -343,8 +439,14 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
         console.log(`   📸 Found ${imageUrls.length} image(s) in cast`);
       }
       
-      // Generate reply with memory
-      const reply = await generateReply(context, cast.text, author.fid, author.username, imageUrls);
+      // Get channel ID if cast is in a channel
+      const channelId = cast.channel?.id;
+      if (channelId) {
+        console.log(`   📺 Cast is in channel: /${channelId}`);
+      }
+      
+      // Generate reply with memory and similar casts context
+      const reply = await generateReply(context, cast.text, author.fid, author.username, imageUrls, channelId);
       
       if (!reply) {
         console.log('   ⚠️ Failed to generate reply, skipping');

@@ -266,6 +266,112 @@ Be accurate, cite what you know, and admit when you're not certain.`;
   }
 }
 
+// Search for similar casts to enrich context
+async function searchSimilarCasts(castText: string): Promise<string> {
+  try {
+    const apiKey = process.env.NEYNAR_API_KEY;
+    if (!apiKey) {
+      console.log('NEYNAR_API_KEY not configured for cast search');
+      return '';
+    }
+
+    // Extract keywords from the cast
+    const keywords = extractKeywordsForSearch(castText);
+    if (keywords.length === 0) return '';
+
+    console.log(`🔍 Searching for similar casts about: ${keywords.slice(0, 3).join(', ')}`);
+
+    // Search for casts with similar content
+    const searchQuery = keywords.slice(0, 3).join(' ');
+    const url = `https://api.neynar.com/v2/farcaster/cast/search?q=${encodeURIComponent(searchQuery)}&limit=10`;
+
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+        'api_key': apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      console.error(`Cast search failed: ${response.status}`);
+      return '';
+    }
+
+    const data = await response.json();
+    const casts = data.casts || [];
+
+    if (casts.length === 0) {
+      console.log('📭 No similar casts found');
+      return '';
+    }
+
+    // Filter for relevant, engaging casts
+    const relevantCasts = casts
+      .filter((c: any) => {
+        // Skip if it's too short or too old
+        const hoursOld = (Date.now() - new Date(c.timestamp).getTime()) / (1000 * 60 * 60);
+        return c.text.length > 50 && hoursOld < 48; // Last 48 hours
+      })
+      .slice(0, 5);
+
+    if (relevantCasts.length === 0) {
+      console.log('📭 No recent relevant casts found');
+      return '';
+    }
+
+    console.log(`✅ Found ${relevantCasts.length} similar casts for context`);
+
+    let similarContext = '\n\n**Related discussions on Farcaster:**\n';
+    relevantCasts.forEach((cast: any, idx: number) => {
+      const preview = cast.text.slice(0, 120).replace(/\n/g, ' ');
+      const engagement = cast.reactions.likes_count + cast.replies.count;
+      similarContext += `${idx + 1}. @${cast.author.username}: "${preview}..." (${engagement} engagement)\n`;
+    });
+
+    return similarContext;
+  } catch (error) {
+    console.error('Error searching similar casts:', error);
+    return '';
+  }
+}
+
+// Extract keywords from text for search
+function extractKeywordsForSearch(text: string): string[] {
+  // Remove URLs, mentions, and common words
+  const cleanText = text
+    .toLowerCase()
+    .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+    .replace(/@\w+/g, '') // Remove mentions
+    .replace(/[^\w\s]/g, ' '); // Remove punctuation
+
+  // Common stop words to filter out
+  const stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during',
+    'it', 'is', 'was', 'are', 'were', 'be', 'been', 'being', 'have', 'has',
+    'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can',
+    'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they',
+    'what', 'which', 'who', 'when', 'where', 'why', 'how', 'just', 'im', 'its'
+  ]);
+
+  // Split into words and filter
+  const words = cleanText
+    .split(/\s+/)
+    .filter(word => word.length > 3 && !stopWords.has(word));
+
+  // Count word frequency
+  const wordCount = new Map<string, number>();
+  words.forEach(word => {
+    wordCount.set(word, (wordCount.get(word) || 0) + 1);
+  });
+
+  // Return top keywords by frequency
+  return Array.from(wordCount.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word);
+}
+
 // Agent Orchestrator - Coordinates multiple agents
 export class AgentOrchestrator {
   private composer: CastComposerAgent;
@@ -289,9 +395,46 @@ export class AgentOrchestrator {
       intent = this.detectIntent(message);
     }
 
+    // Check if message contains cast context (for analysis)
+    const hasCastContext = message.includes('Cast Author:') || 
+                           message.includes('Cast Content:') || 
+                           message.includes('IMPORTANT CONTEXT');
+    let enrichedMessage = message;
+
+    // If analyzing a cast, search for similar casts to enrich context
+    if (hasCastContext) {
+      console.log('📊 Detected cast context, searching for similar casts...');
+      
+      // Extract the cast text from the context - try multiple patterns
+      let castText = '';
+      
+      // Pattern 1: Cast Content: "..."
+      const contentMatch = message.match(/Cast Content: "([^"]+)"/);
+      if (contentMatch && contentMatch[1]) {
+        castText = contentMatch[1];
+      }
+      
+      // Pattern 2: text field in context
+      const textMatch = message.match(/text:\s*"([^"]+)"/i);
+      if (!castText && textMatch && textMatch[1]) {
+        castText = textMatch[1];
+      }
+
+      if (castText && castText.length > 20) {
+        console.log(`🔍 Searching for similar casts to: "${castText.slice(0, 80)}..."`);
+        const similarCastsContext = await searchSimilarCasts(castText);
+        if (similarCastsContext) {
+          enrichedMessage = message + similarCastsContext;
+          console.log('✅ Enriched context with similar casts');
+        }
+      } else {
+        console.log('⚠️ Could not extract cast text for similar search');
+      }
+    }
+
     switch (intent) {
       case 'compose':
-        const composerResult = await this.composer.composeCast(message);
+        const composerResult = await this.composer.composeCast(enrichedMessage);
         return {
           role: 'composer',
           content: composerResult.reasoning,
@@ -300,7 +443,7 @@ export class AgentOrchestrator {
         };
 
       case 'analyze':
-        const analysis = await this.coach.analyzeCast(message);
+        const analysis = await this.coach.analyzeCast(enrichedMessage);
         return {
           role: 'coach',
           content: analysis
@@ -317,7 +460,7 @@ export class AgentOrchestrator {
         };
 
       case 'research':
-        const research = await this.researcher.research(message);
+        const research = await this.researcher.research(enrichedMessage);
         return {
           role: 'researcher',
           content: research
