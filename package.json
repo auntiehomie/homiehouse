@@ -34,6 +34,9 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.1",
     "react-dom": "19.2.1",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "viem": "^2.43.3",
     "wagmi": "^2.19.5",
     "zod": "^4.3.5"

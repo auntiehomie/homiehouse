@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
     // Fetch user's channels (channels they follow/are members of)
     let url: string;
     if (fid) {
-      url = `https://api.neynar.com/v2/farcaster/channel/user?fid=${fid}&limit=${limit}`;
+      // Use the correct endpoint for user's followed channels
+      url = `https://api.neynar.com/v2/farcaster/user/channels?fid=${fid}&limit=${limit}`;
     } else {
       // If no FID, return popular channels
       url = `https://api.neynar.com/v2/farcaster/channel/list?limit=${limit}`;
