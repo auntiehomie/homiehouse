@@ -38,20 +38,26 @@ export async function GET(req: NextRequest) {
     const data = await response.json();
     
     // Transform the data to make it easier to work with
-    const transformedNotifications = data.notifications?.map((notif: any) => ({
-      ...notif,
-      actor: notif.most_recent_timestamp ? {
-        fid: notif.user?.fid,
-        username: notif.user?.username,
-        display_name: notif.user?.display_name,
-        pfp_url: notif.user?.pfp_url,
-        follower_count: notif.user?.follower_count,
-        following_count: notif.user?.following_count,
-        power_badge: notif.user?.power_badge
-      } : (notif.cast?.author || notif.user),
-      // Add timestamp for easier sorting
-      timestamp: notif.most_recent_timestamp || notif.timestamp
-    })) || [];
+    const transformedNotifications = data.notifications?.map((notif: any) => {
+      // Extract actor from various possible fields
+      let actor = null;
+      
+      if (notif.reactor) {
+        actor = notif.reactor;
+      } else if (notif.user) {
+        actor = notif.user;
+      } else if (notif.author) {
+        actor = notif.author;
+      } else if (notif.cast?.author) {
+        actor = notif.cast.author;
+      }
+      
+      return {
+        ...notif,
+        actor: actor,
+        timestamp: notif.most_recent_timestamp || notif.timestamp
+      };
+    }) || [];
 
     return NextResponse.json({
       notifications: transformedNotifications,
