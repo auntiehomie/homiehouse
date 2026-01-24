@@ -47,16 +47,19 @@ function ProfileContent() {
         const username = searchParams.get('user');
         
         if (username) {
-          // Fetch profile by username
-          const response = await fetch(`/api/profile?username=${username}`);
+          // Fetch profile by username with casts
+          const response = await fetch(`/api/profile?username=${username}&casts=true`);
           if (!response.ok) {
             throw new Error('Failed to fetch profile');
           }
           const data = await response.json();
           setProfile(data);
           
-          // Fetch user's casts
-          loadUserCasts(data.fid);
+          // Set casts if included
+          if (data.casts) {
+            setCasts(data.casts);
+            setCastsLoading(false);
+          }
         } else {
           // Get current user from localStorage
           const storedProfile = localStorage.getItem('hh_profile');
@@ -67,8 +70,8 @@ function ProfileContent() {
 
           const { fid } = JSON.parse(storedProfile);
 
-          // Fetch full profile from API
-          const response = await fetch(`/api/profile?fid=${fid}`);
+          // Fetch full profile from API with casts
+          const response = await fetch(`/api/profile?fid=${fid}&casts=true`);
           if (!response.ok) {
             throw new Error('Failed to fetch profile');
           }
@@ -76,33 +79,17 @@ function ProfileContent() {
           const data = await response.json();
           setProfile(data);
           
-          // Fetch user's casts
-          loadUserCasts(fid);
+          // Set casts if included
+          if (data.casts) {
+            setCasts(data.casts);
+            setCastsLoading(false);
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load profile');
+        setCastsLoading(false);
       } finally {
         setLoading(false);
-      }
-    };
-
-    const loadUserCasts = async (fid: number) => {
-      try {
-        const response = await fetch(`https://api.neynar.com/v2/farcaster/feed/user/${fid}/casts?limit=25`, {
-          headers: {
-            'accept': 'application/json',
-            'api_key': process.env.NEXT_PUBLIC_NEYNAR_API_KEY || '8C6F1E4E-677E-419A-A8C7-EF849B0E366B'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setCasts(data.casts || []);
-        }
-      } catch (err) {
-        console.error('Failed to load user casts:', err);
-      } finally {
-        setCastsLoading(false);
       }
     };
 
