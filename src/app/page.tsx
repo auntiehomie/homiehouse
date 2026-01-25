@@ -82,7 +82,29 @@ export default function Home() {
             <h1 className="text-2xl font-bold">HomieHouse</h1>
             <p className="text-sm text-zinc-600 dark:text-zinc-400">Your Social Hub</p>
           </div>
-          <NeynarSignIn />
+          <div className="flex items-center gap-4">
+            <Link
+              href="/wallet"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title="Wallet"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                />
+              </svg>
+              <span className="hidden sm:inline text-sm font-medium">Wallet</span>
+            </Link>
+            <NeynarSignIn />
+          </div>
         </div>
       </header>
 
