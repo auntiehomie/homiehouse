@@ -12,6 +12,10 @@ export default function ComposeModal() {
   const [signerStatus, setSignerStatus] = useState<string | null>(null);
   const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
   const [userFid, setUserFid] = useState<number | null>(null);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [mentionResults, setMentionResults] = useState<any[]>([]);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -64,6 +68,67 @@ export default function ComposeModal() {
       }
     }
   }, [open, userFid]);
+
+  // Search for users when typing @mentions
+  useEffect(() => {
+    const searchMentions = async () => {
+      if (!mentionSearch || mentionSearch.length < 2) {
+        setMentionResults([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/search-users?q=${encodeURIComponent(mentionSearch)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setMentionResults(data.users || []);
+        }
+      } catch (error) {
+        console.error('Error searching users:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(searchMentions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [mentionSearch]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    
+    setText(newText);
+
+    // Check for @ mention
+    const textBeforeCursor = newText.substring(0, cursorPos);
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+    
+    if (lastAtSymbol !== -1) {
+      const textAfterAt = textBeforeCursor.substring(lastAtSymbol + 1);
+      // Check if there's a space after @ (which would end the mention)
+      if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+        setMentionSearch(textAfterAt);
+        setMentionStartPos(lastAtSymbol);
+        setShowMentions(true);
+        return;
+      }
+    }
+    
+    setShowMentions(false);
+    setMentionSearch('');
+  };
+
+  const insertMention = (user: any) => {
+    if (mentionStartPos === null) return;
+    
+    const beforeMention = text.substring(0, mentionStartPos);
+    const afterMention = text.substring(mentionStartPos + mentionSearch.length + 1);
+    const newText = `${beforeMention}@${user.username} ${afterMention}`;
+    
+    setText(newText);
+    setShowMentions(false);
+    setMentionSearch('');
+    setMentionStartPos(null);
+  };
 
   async function createSigner() {
     if (!userFid) {
@@ -316,14 +381,73 @@ export default function ComposeModal() {
             ) : (
               /* Normal compose interface */
               <>
-                <div style={{ marginTop: 16 }}>
+                <div style={{ marginTop: 16, position: 'relative' }}>
                   <textarea
                     className="compose-textarea"
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={handleTextChange}
                     placeholder="Write a cast..."
                     autoFocus
                   />
+                  
+                  {/* Mention autocomplete dropdown */}
+                  {showMentions && mentionResults.length > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      background: 'var(--card-bg)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      marginTop: '4px',
+                      zIndex: 1000,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                    }}>
+                      {mentionResults.slice(0, 5).map((user) => (
+                        <button
+                          key={user.fid}
+                          onClick={() => insertMention(user)}
+                          style={{
+                            width: '100%',
+                            padding: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          {user.pfp_url && (
+                            <img 
+                              src={user.pfp_url} 
+                              alt={user.username}
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                objectFit: 'cover'
+                              }}
+                            />
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                              {user.display_name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--muted-on-dark)' }}>
+                              @{user.username}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
                   <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
