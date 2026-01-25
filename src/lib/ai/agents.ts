@@ -52,7 +52,7 @@ export class BaseAgent {
   ) {
     if (provider === 'anthropic') {
       this.llm = new ChatAnthropic({
-        modelName: 'claude-3-5-sonnet-20241022',
+        modelName: 'claude-3-5-sonnet-20240620',
         temperature: 0.7,
         anthropicApiKey: process.env.ANTHROPIC_API_KEY
       });
