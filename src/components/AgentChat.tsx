@@ -2,6 +2,8 @@
 
 import { useState, useEffect, ReactNode } from 'react';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
 type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
@@ -348,9 +350,42 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
                 </div>
               )}
               
-              <div className="whitespace-pre-wrap">
-                {parseTextWithMentions(msg.content)}
-              </div>
+              {msg.role === 'assistant' ? (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ node, ...props }) => (
+                      <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline" />
+                    ),
+                    code: ({ node, className, children, ...props }) => {
+                      const match = /language-(\w+)/.exec(className || '');
+                      return match ? (
+                        <code className={`${className} block bg-zinc-800 text-zinc-100 p-2 rounded my-2 overflow-x-auto`} {...props}>
+                          {children}
+                        </code>
+                      ) : (
+                        <code className="bg-zinc-200 dark:bg-zinc-700 px-1 py-0.5 rounded text-sm" {...props}>
+                          {children}
+                        </code>
+                      );
+                    },
+                    h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mt-4 mb-2" {...props} />,
+                    h2: ({ node, ...props }) => <h2 className="text-xl font-bold mt-3 mb-2" {...props} />,
+                    h3: ({ node, ...props }) => <h3 className="text-lg font-bold mt-2 mb-1" {...props} />,
+                    ul: ({ node, ...props }) => <ul className="list-disc list-inside my-2 space-y-1" {...props} />,
+                    ol: ({ node, ...props }) => <ol className="list-decimal list-inside my-2 space-y-1" {...props} />,
+                    p: ({ node, ...props }) => <p className="my-2" {...props} />,
+                    strong: ({ node, ...props }) => <strong className="font-bold" {...props} />,
+                    em: ({ node, ...props }) => <em className="italic" {...props} />,
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              ) : (
+                <div className="whitespace-pre-wrap">
+                  {parseTextWithMentions(msg.content)}
+                </div>
+              )}
 
               {/* Show suggestions */}
               {msg.suggestions && msg.suggestions.length > 0 && (
