@@ -53,11 +53,21 @@ function ProfileContent() {
             throw new Error('Failed to fetch profile');
           }
           const data = await response.json();
+          console.log('[Profile Page] Profile data received:', {
+            fid: data.fid,
+            username: data.username,
+            hasCasts: !!data.casts,
+            castsCount: data.casts?.length || 0
+          });
           setProfile(data);
           
           // Set casts if included
           if (data.casts) {
+            console.log('[Profile Page] Setting casts:', data.casts.length);
             setCasts(data.casts);
+            setCastsLoading(false);
+          } else {
+            console.log('[Profile Page] No casts in response');
             setCastsLoading(false);
           }
         } else {
@@ -71,17 +81,28 @@ function ProfileContent() {
           const { fid } = JSON.parse(storedProfile);
 
           // Fetch full profile from API with casts
+          console.log('[Profile Page] Fetching profile for FID:', fid);
           const response = await fetch(`/api/profile?fid=${fid}&casts=true`);
           if (!response.ok) {
             throw new Error('Failed to fetch profile');
           }
 
           const data = await response.json();
+          console.log('[Profile Page] Profile data received:', {
+            fid: data.fid,
+            username: data.username,
+            hasCasts: !!data.casts,
+            castsCount: data.casts?.length || 0
+          });
           setProfile(data);
           
           // Set casts if included
           if (data.casts) {
+            console.log('[Profile Page] Setting casts:', data.casts.length);
             setCasts(data.casts);
+            setCastsLoading(false);
+          } else {
+            console.log('[Profile Page] No casts in response');
             setCastsLoading(false);
           }
         }

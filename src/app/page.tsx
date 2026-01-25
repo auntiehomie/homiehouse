@@ -76,9 +76,12 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="max-w-4xl mx-auto px-6 py-6">
+      <header className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">HomieHouse</h1>
+          <div>
+            <h1 className="text-2xl font-bold">HomieHouse</h1>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">Your Social Hub</p>
+          </div>
           <NeynarSignIn />
         </div>
       </header>
@@ -93,7 +96,6 @@ export default function Home() {
           {/* Main Content */}
           <div className="md:col-span-10">
             <section className="mb-6 text-center">
-              <h2 className="text-2xl md:text-3xl font-bold mb-2">Your Social Hub</h2>
               <p className="text-base md:text-lg text-zinc-600 dark:text-zinc-400">Share what's on your mind</p>
             </section>
 

@@ -4,10 +4,12 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from "next/link";
 import { useSearchParams } from 'next/navigation';
 import AgentChat from '@/components/AgentChat';
+import FeedCurationChat from '@/components/FeedCurationChat';
 
 function AskHomieContent() {
   const [castContext, setCastContext] = useState<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showCurationModal, setShowCurationModal] = useState(false);
   const searchParams = useSearchParams();
 
   // Load user ID from profile if available
@@ -69,17 +71,24 @@ function AskHomieContent() {
               AI-powered Farcaster assistant
             </p>
           </div>
-          <Link
-            href="/"
-            className="text-sm text-blue-500 hover:underline"
-          >
-            ← Back to Home
-          </Link>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowCurationModal(true)}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              ⚙️ Curate Feed
+            </button>
+            <Link
+              href="/"
+              className="text-sm text-blue-500 hover:underline"
+            >
+              ← Back to Home
+            </Link>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto flex flex-col">
-        {castContext && (
+      <main className="flex-1 max-w-6xl w-full mx-auto flex flex-col">{castContext && (
           <div className="m-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="flex justify-between items-start mb-2">
               <div className="font-medium text-sm text-blue-900 dark:text-blue-100">
@@ -117,6 +126,11 @@ function AskHomieContent() {
           />
         </div>
       </main>
+
+      {/* Curation Modal */}
+      {showCurationModal && (
+        <FeedCurationChat onClose={() => setShowCurationModal(false)} />
+      )}
     </div>
   );
 }

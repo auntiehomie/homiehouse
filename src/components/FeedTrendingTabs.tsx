@@ -48,15 +48,6 @@ export default function FeedTrendingTabs() {
             >
               Global
             </button>
-            <div style={{ width: '1px', background: 'var(--border)', margin: '0 4px' }} />
-            <button
-              onClick={() => setShowCurationSettings(true)}
-              className="btn"
-              style={{ fontSize: '13px', padding: '6px 12px' }}
-              title="Customize your feed"
-            >
-              ⚙️ Curate
-            </button>
           </>
         )}
       </div>

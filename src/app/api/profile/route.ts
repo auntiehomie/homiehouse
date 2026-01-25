@@ -61,9 +61,11 @@ export async function GET(request: NextRequest) {
     let casts = null;
     if (includeCasts && userFid) {
       try {
-        console.log(`Fetching casts for FID ${userFid}...`);
+        console.log(`[Profile API] Fetching casts for FID ${userFid}...`);
         // Use direct API call for user casts
         const url = `https://api.neynar.com/v2/farcaster/feed/user/${userFid}/casts?limit=25`;
+        console.log(`[Profile API] URL: ${url}`);
+        
         const response = await fetch(url, {
           headers: {
             'accept': 'application/json',
@@ -71,16 +73,26 @@ export async function GET(request: NextRequest) {
           },
         });
         
+        console.log(`[Profile API] Response status: ${response.status}`);
+        
         if (response.ok) {
           const data = await response.json();
           casts = data.casts || [];
-          console.log(`✅ Found ${casts.length} casts for FID ${userFid}`);
+          console.log(`[Profile API] ✅ Found ${casts.length} casts for FID ${userFid}`);
+          if (casts.length > 0) {
+            console.log(`[Profile API] First cast sample:`, {
+              hash: casts[0].hash,
+              text: casts[0].text?.substring(0, 50),
+              timestamp: casts[0].timestamp
+            });
+          }
         } else {
-          console.error(`Failed to fetch casts: ${response.status}`);
+          const errorText = await response.text();
+          console.error(`[Profile API] ❌ Failed to fetch casts: ${response.status} - ${errorText}`);
           casts = [];
         }
       } catch (castError) {
-        console.error('Error fetching user casts:', castError);
+        console.error('[Profile API] Error fetching user casts:', castError);
         // Don't fail the whole request if casts fail
         casts = [];
       }
