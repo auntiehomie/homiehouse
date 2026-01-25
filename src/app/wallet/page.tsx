@@ -3,14 +3,18 @@
 import { useNeynarContext } from '@neynar/react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { useAccount, useDisconnect } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 export default function WalletPage() {
   const { user, isAuthenticated } = useNeynarContext();
   const router = useRouter();
   const [balance, setBalance] = useState<string>('0');
   const [isLoading, setIsLoading] = useState(true);
+  const { address: wagmiAddress, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
 
-  const walletAddress = user?.verified_addresses?.eth_addresses?.[0];
+  const walletAddress = wagmiAddress || user?.verified_addresses?.eth_addresses?.[0];
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -75,7 +79,24 @@ export default function WalletPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Wallet Balance Card */}
+        {/* Connect Wallet Section - Show when no wallet connected */}
+        {!isConnected && (
+          <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-lg p-8 mb-6">
+            <div className="text-center">
+              <div className="text-6xl mb-4">💼</div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Connect Your Wallet</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Connect your wallet to view balance, send tokens, and swap
+              </p>
+              <div className="flex justify-center">
+                <ConnectButton />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Wallet Balance Card - Show when connected */}
+        {isConnected && (
         <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-lg p-8 mb-6">
           <div className="text-center mb-6">
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-2">Total Balance</p>
@@ -107,21 +128,7 @@ export default function WalletPage() {
           {/* Disconnect Button */}
           <div className="mb-6">
             <button
-              onClick={() => {
-                // Disconnect wallet - this will vary based on your wallet provider
-                // For now, we'll use window.ethereum disconnect if available
-                if ((window as any).ethereum) {
-                  (window as any).ethereum.request({
-                    method: 'wallet_revokePermissions',
-                    params: [{ eth_accounts: {} }]
-                  }).catch(() => {
-                    // Fallback: just reload the page which will clear the connection
-                    window.location.reload();
-                  });
-                } else {
-                  window.location.reload();
-                }
-              }}
+              onClick={() => disconnect()}
               className="w-full py-2 px-4 bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
               Disconnect Wallet
@@ -147,8 +154,10 @@ export default function WalletPage() {
             </button>
           </div>
         </div>
+        )}
 
-        {/* Send to Friends Section */}
+        {/* Send to Friends Section - Only show when connected */}
+        {isConnected && (
         <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">💫 Send to Friends</h3>
           <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
@@ -162,14 +171,17 @@ export default function WalletPage() {
             View Friends
           </button>
         </div>
+        )}
 
-        {/* Transaction History (Coming Soon) */}
+        {/* Transaction History - Only show when connected */}
+        {isConnected && (
         <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-lg p-6 mt-6">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">📜 Recent Transactions</h3>
           <div className="text-center py-8 text-gray-400 dark:text-gray-500">
             <p>Transaction history coming soon</p>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
