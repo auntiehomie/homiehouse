@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import FeedList from "./FeedList";
 import TrendingList from "./TrendingList";
-import CurationSettings from "./CurationSettings";
+import FeedCurationChat from "./FeedCurationChat";
 
 export type FeedType = 'following' | 'global';
 
@@ -106,7 +106,7 @@ export default function FeedTrendingTabs() {
       </div>
 
       {showCurationSettings && (
-        <CurationSettings onClose={() => setShowCurationSettings(false)} />
+        <FeedCurationChat onClose={() => setShowCurationSettings(false)} />
       )}
     </div>
   );

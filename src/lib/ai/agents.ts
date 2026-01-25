@@ -388,7 +388,7 @@ export class AgentOrchestrator {
 
   async processRequest(
     message: string,
-    intent: 'compose' | 'analyze' | 'learn' | 'research' | 'auto' = 'auto'
+    intent: 'compose' | 'analyze' | 'learn' | 'research' | 'curate' | 'auto' = 'auto'
   ): Promise<AgentMessage> {
     // Auto-detect intent if not specified
     if (intent === 'auto') {
@@ -466,6 +466,14 @@ export class AgentOrchestrator {
           content: research
         };
 
+      case 'curate':
+        const curationResponse = await this.handleFeedCuration(enrichedMessage);
+        return {
+          role: 'coach',
+          content: curationResponse.content,
+          metadata: curationResponse.metadata
+        };
+
       default:
         return {
           role: 'coach',
@@ -474,8 +482,59 @@ export class AgentOrchestrator {
     }
   }
 
-  private detectIntent(message: string): 'compose' | 'analyze' | 'learn' | 'research' {
+  private async handleFeedCuration(message: string): Promise<{ content: string; metadata: any }> {
+    const systemPrompt = `You are a helpful Farcaster feed curation assistant. Your job is to help users customize their home feed by suggesting topics, channels, and interests they might want to see more of.
+
+When users ask about feed customization, suggest specific interests as single-word or short phrases (e.g., "crypto", "nft", "art", "trading", "tech", "politics", "music").
+
+If users mention specific topics they like or want to see more of, extract those as interest keywords.
+
+Be conversational and helpful. Explain how their interests will help prioritize relevant content in their feed.`;
+
+    const contextMessage = `The user currently wants to customize their Farcaster feed. ${message}
+
+Based on what they've said, suggest 3-5 specific interests they might want to add to their feed. Format your response as a friendly explanation followed by a list of suggested interests.`;
+
+    const tempAgent = new BaseAgent('anthropic', systemPrompt);
+    const response = await tempAgent.chat(contextMessage);
+
+    // Extract suggested interests from response (look for common patterns)
+    const suggestedInterests: string[] = [];
+    const interestMatches = response.match(/["']([a-zA-Z0-9\-]+)["']/g);
+    if (interestMatches) {
+      interestMatches.forEach(match => {
+        const interest = match.replace(/["']/g, '');
+        if (interest.length >= 3 && interest.length <= 20) {
+          suggestedInterests.push(interest);
+        }
+      });
+    }
+
+    return {
+      content: response,
+      metadata: {
+        suggestedInterests: suggestedInterests.slice(0, 5)
+      }
+    };
+  }
+
+  private detectIntent(message: string): 'compose' | 'analyze' | 'learn' | 'research' | 'curate' {
     const lower = message.toLowerCase();
+
+    // Curate intent (feed customization)
+    if (
+      lower.includes('curate') ||
+      lower.includes('customize my feed') ||
+      lower.includes('feed preferences') ||
+      lower.includes('what should i follow') ||
+      lower.includes('topics i like') ||
+      lower.includes('interests') ||
+      lower.includes('show me more') ||
+      lower.includes('see less') ||
+      lower.includes('filter my feed')
+    ) {
+      return 'curate';
+    }
 
     // Compose intent
     if (
