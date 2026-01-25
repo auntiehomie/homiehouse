@@ -88,10 +88,24 @@ export default function SwapWidget() {
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  const { data: balance } = useBalance({ 
+  const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance({ 
     address,
     token: fromToken.symbol === 'ETH' ? undefined : fromToken.address as `0x${string}`,
+    chainId: 8453, // Explicitly set Base network
   });
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Swap Widget State:', {
+      isConnected,
+      address,
+      chain: chain?.name,
+      chainId: chain?.id,
+      balance: balance ? formatUnits(balance.value, balance.decimals) : 'none',
+      balanceError,
+      balanceLoading
+    });
+  }, [isConnected, address, chain, balance, balanceError, balanceLoading]);
 
   // Get quote from 0x API (DEX aggregator)
   const getQuote = async () => {
@@ -207,11 +221,61 @@ export default function SwapWidget() {
   if (!isConnected) {
     return (
       <div style={{ 
-        padding: '24px', 
+        padding: '32px', 
         textAlign: 'center',
-        color: 'var(--muted-on-dark)'
+        background: 'var(--card-bg)',
+        borderRadius: '16px',
+        maxWidth: '480px',
+        margin: '0 auto'
       }}>
-        Connect your wallet to start trading
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔌</div>
+        <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '12px' }}>
+          Wallet Not Connected
+        </h3>
+        <p style={{ color: 'var(--muted-on-dark)', marginBottom: '20px' }}>
+          Connect your wallet to start swapping tokens
+        </p>
+        <p style={{ 
+          fontSize: '14px', 
+          color: 'var(--muted-on-dark)',
+          background: 'var(--background)',
+          padding: '12px',
+          borderRadius: '8px'
+        }}>
+          💡 Go to the Wallet page to connect
+        </p>
+      </div>
+    );
+  }
+
+  // Check if on correct network
+  if (chain?.id !== 8453) {
+    return (
+      <div style={{ 
+        padding: '32px', 
+        textAlign: 'center',
+        background: 'var(--card-bg)',
+        borderRadius: '16px',
+        maxWidth: '480px',
+        margin: '0 auto'
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '12px' }}>
+          Wrong Network
+        </h3>
+        <p style={{ color: 'var(--muted-on-dark)', marginBottom: '12px' }}>
+          Please switch to Base network in your wallet
+        </p>
+        <p style={{ 
+          fontSize: '14px', 
+          color: 'var(--muted-on-dark)',
+          background: 'var(--background)',
+          padding: '12px',
+          borderRadius: '8px'
+        }}>
+          Current: {chain?.name || 'Unknown'}<br />
+          Required: Base (Chain ID: 8453)
+        </p>
       </div>
     );
   }
@@ -240,7 +304,8 @@ export default function SwapWidget() {
         background: 'var(--background)',
         borderRadius: '12px',
         padding: '16px',
-        marginBottom: '8px'
+        marginBottom: '8px',
+        position: 'relative'
       }}>
         <div style={{ 
           display: 'flex', 
@@ -250,17 +315,33 @@ export default function SwapWidget() {
           color: 'var(--muted-on-dark)'
         }}>
           <span>From</span>
-          {balance && (
-            <span>Balance: {parseFloat(formatUnits(balance.value, balance.decimals)).toFixed(4)} {fromToken.symbol}</span>
-          )}
+          <span>
+            {balanceLoading ? (
+              'Loading...'
+            ) : balanceError ? (
+              'Error loading balance'
+            ) : balance ? (
+              `Balance: ${parseFloat(formatUnits(balance.value, balance.decimals)).toFixed(4)} ${fromToken.symbol}`
+            ) : (
+              'No balance'
+            )}
+          </span>
         </div>
         
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', position: 'relative', zIndex: 1 }}>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={fromAmount}
-            onChange={(e) => setFromAmount(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              // Allow only numbers and one decimal point
+              if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                setFromAmount(value);
+              }
+            }}
             placeholder="0.0"
+            disabled={!isConnected || !balance}
             style={{
               flex: 1,
               background: 'transparent',
@@ -268,7 +349,11 @@ export default function SwapWidget() {
               fontSize: '24px',
               fontWeight: 600,
               outline: 'none',
-              color: 'var(--foreground)'
+              color: 'var(--foreground)',
+              WebkitAppearance: 'none',
+              MozAppearance: 'textfield',
+              cursor: 'text',
+              pointerEvents: 'auto',
             }}
           />
           

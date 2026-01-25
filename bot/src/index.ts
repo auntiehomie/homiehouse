@@ -6,6 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getMemory } from './memory.js';
+import { CuratedListService, BotConversationService } from './curated-lists.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -174,6 +175,205 @@ function extractKeywords(text: string): string[] {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(([word]) => word);
+}
+
+// Detect if message is requesting curation
+function detectCurationIntent(text: string): boolean {
+  const curationKeywords = [
+    /curate\s+this/i,
+    /add\s+this\s+to/i,
+    /save\s+this\s+to/i,
+    /add\s+to\s+(my\s+)?list/i,
+    /save\s+to\s+(my\s+)?list/i,
+  ];
+  return curationKeywords.some(pattern => pattern.test(text));
+}
+
+// Handle curation conversation flow
+async function handleCurationRequest(
+  cast: any,
+  author: any,
+  repliedCasts: Set<string>
+): Promise<{ reply: string; shouldContinue: boolean }> {
+  try {
+    console.log(`   🎯 Detected curation intent`);
+    
+    // Check if this is a continuation of an existing conversation
+    const existingConv = await BotConversationService.getActiveConversation(
+      author.fid,
+      'curation'
+    );
+    
+    if (existingConv) {
+      console.log(`   💬 Continuing curation conversation (ID: ${existingConv.id})`);
+      
+      // User is responding with a list name
+      const listName = cast.text
+        .replace(/@\w+/g, '') // Remove mentions
+        .trim();
+      
+      console.log(`   📝 User specified list: "${listName}"`);
+      
+      // Get the original cast details from conversation context
+      const contextData = existingConv.context_data;
+      const originalCastHash = contextData?.cast_hash;
+      
+      if (!originalCastHash || !existingConv.id) {
+        if (existingConv.id) {
+          await BotConversationService.endConversation(existingConv.id);
+        }
+        return {
+          reply: "oops, lost track of which cast we were talking about 😅 try again?",
+          shouldContinue: true
+        };
+      }
+      
+      // Find or create the list
+      let list = await CuratedListService.getListByName(author.fid, listName);
+      
+      if (!list) {
+        console.log(`   ✨ Creating new list: "${listName}"`);
+        const createResult = await CuratedListService.createList(
+          author.fid,
+          listName,
+          `Created via @${BOT_USERNAME}`
+        );
+        
+        if (!createResult.ok || !existingConv.id) {
+          if (existingConv.id) {
+            await BotConversationService.endConversation(existingConv.id);
+          }
+          return {
+            reply: `couldn't create that list: ${createResult.error} 😕`,
+            shouldContinue: true
+          };
+        }
+        list = createResult.data;
+      }
+      
+      console.log(`   📋 Adding cast to list: "${list.list_name}" (ID: ${list.id})`);
+      
+      // Add the cast to the list
+      const addResult = await CuratedListService.addCastToList(
+        list.id!,
+        originalCastHash,
+        author.fid,
+        {
+          author_fid: contextData?.cast_author_fid,
+          text: contextData?.cast_text,
+          timestamp: contextData?.cast_timestamp
+        }
+      );
+      
+      // End the conversation
+      if (existingConv.id) {
+        await BotConversationService.endConversation(existingConv.id);
+      }
+      
+      if (!addResult.ok) {
+        if (addResult.error === 'Cast already in this list') {
+          return {
+            reply: `that cast is already in "${list.list_name}" 👍`,
+            shouldContinue: true
+          };
+        }
+        return {
+          reply: `couldn't add it: ${addResult.error} 😕`,
+          shouldContinue: true
+        };
+      }
+      
+      console.log(`   ✅ Successfully added cast to list`);
+      return {
+        reply: `added to "${list.list_name}" 🏠✨`,
+        shouldContinue: true
+      };
+      
+    } else {
+      console.log(`   🆕 Starting new curation conversation`);
+      
+      // Get the parent cast (the one they want to curate)
+      let parentCastHash = cast.parent_hash;
+      let parentCastData: any = null;
+      
+      // If they mentioned us in a cast without a parent, they might be referring to their own cast
+      if (!parentCastHash) {
+        console.log(`   ⚠️  No parent cast found - assuming they want to curate their own cast`);
+        parentCastHash = cast.hash;
+        parentCastData = {
+          author_fid: author.fid,
+          text: cast.text,
+          timestamp: cast.timestamp
+        };
+      } else {
+        // Fetch parent cast details
+        try {
+          const parentResponse = await fetch(
+            `https://api.neynar.com/v2/farcaster/cast?identifier=${parentCastHash}&type=hash`,
+            {
+              headers: {
+                accept: 'application/json',
+                api_key: NEYNAR_API_KEY!,
+              },
+            }
+          );
+          if (parentResponse.ok) {
+            const parentData = await parentResponse.json();
+            parentCastData = {
+              author_fid: parentData.cast.author.fid,
+              text: parentData.cast.text,
+              timestamp: parentData.cast.timestamp
+            };
+          }
+        } catch (error) {
+          console.error('Error fetching parent cast:', error);
+        }
+      }
+      
+      // Get user's existing lists to suggest
+      const userLists = await CuratedListService.getUserLists(author.fid);
+      
+      let reply = "which list? 📝";
+      if (userLists.length > 0) {
+        const listNames = userLists.slice(0, 3).map(l => `"${l.list_name}"`).join(', ');
+        reply = `which list? you have: ${listNames} (or say a new name) 📝`;
+      }
+      
+      // Start a conversation
+      const convResult = await BotConversationService.startConversation(
+        author.fid,
+        'curation',
+        'awaiting_list_name',
+        {
+          cast_hash: parentCastHash,
+          cast_author_fid: parentCastData?.author_fid,
+          cast_text: parentCastData?.text,
+          cast_timestamp: parentCastData?.timestamp
+        },
+        cast.hash
+      );
+      
+      if (!convResult.ok) {
+        console.error('Error starting conversation:', convResult.error);
+        return {
+          reply: "oops, something went wrong 😅",
+          shouldContinue: true
+        };
+      }
+      
+      console.log(`   ✅ Started conversation (ID: ${convResult.data.id})`);
+      return {
+        reply,
+        shouldContinue: true
+      };
+    }
+  } catch (error) {
+    console.error('Error handling curation request:', error);
+    return {
+      reply: "oops, something went wrong with that 😅",
+      shouldContinue: true
+    };
+  }
 }
 
 // Get conversation context for a cast
@@ -416,7 +616,45 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       console.log(`\n💬 New notification from @${author.username}:`);
       console.log(`   "${cast.text}"`);
 
-      // Get conversation context
+      // Check if this is a curation request or continuation
+      const isCurationRequest = detectCurationIntent(cast.text);
+      const hasActiveCuration = await BotConversationService.getActiveConversation(
+        author.fid,
+        'curation'
+      );
+      
+      if (isCurationRequest || hasActiveCuration) {
+        console.log(`   🎨 Handling curation conversation...`);
+        const curationResult = await handleCurationRequest(cast, author, repliedCasts);
+        
+        if (curationResult.shouldContinue) {
+          // Mark as replied BEFORE posting
+          await markAsReplied(cast.hash, repliedCasts);
+          
+          // Post the reply
+          const success = await postReply(curationResult.reply, cast.hash);
+          
+          if (success) {
+            repliedThisCycle++;
+            // Store in memory
+            await memory.storeConversation(
+              author.fid,
+              author.username,
+              cast.hash,
+              cast.text,
+              curationResult.reply
+            );
+            console.log(`   ✅ Curation response posted successfully`);
+            break;
+          }
+        }
+        
+        // Rate limit
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        continue;
+      }
+
+      // Get conversation context for regular replies
       const context = await getConversationContext(cast.hash);
       
       // Extract image URLs from cast embeds

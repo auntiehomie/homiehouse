@@ -31,6 +31,11 @@ export default function ComposeModal() {
               setSignerUuid(parsed.signer_uuid || null);
               setSignerStatus(parsed.status || null);
               setApprovalUrl(parsed.signer_approval_url || null);
+              
+              // If we have a signer UUID and status is approved, we're ready to post
+              if (parsed.signer_uuid && parsed.status === 'approved') {
+                console.log('Neynar signer ready:', parsed.signer_uuid);
+              }
             } catch {
               // ignore
             }

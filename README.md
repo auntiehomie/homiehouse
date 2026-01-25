@@ -56,16 +56,29 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Environment Setup
 
+### ⚠️ Critical Setup Required
+
+The app will **not work** without proper environment configuration.
+
 ### Client Environment Variables
 
 Create `.env.local` in the root directory:
 
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
-Required variables:
+**Required variables:**
+- `NEXT_PUBLIC_NEYNAR_CLIENT_ID` - **REQUIRED** for user authentication
+  - Get it at: https://dev.neynar.com/
+  - Sign in → Create/Select App → Copy Client ID
 - `NEYNAR_API_KEY` - Your Neynar API key for Farcaster data
+
+**Minimum .env.local setup:**
+```env
+NEXT_PUBLIC_NEYNAR_CLIENT_ID=your_client_id_here
+NEYNAR_API_KEY=your_api_key_here
+```
 
 ### Server Environment Variables
 

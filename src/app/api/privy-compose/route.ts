@@ -7,21 +7,42 @@ export async function POST(request: NextRequest) {
   console.log("[API /privy-compose] ========== REQUEST START ==========");
   try {
     const body = await request.json();
-    const { text, embeds, channelKey, parentUrl } = body;
+    const { text, embeds, channelKey, parentUrl, signerUuid, fid } = body;
 
-    console.log("[API /privy-compose] Request body:", { text: text?.substring(0, 50), embeds, channelKey, parentUrl });
+    console.log("[API /privy-compose] Request body:", { 
+      text: text?.substring(0, 50), 
+      embeds, 
+      channelKey, 
+      parentUrl,
+      signerUuid,
+      fid
+    });
 
-    if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID) {
-      console.error("[API /privy-compose] Neynar credentials not configured");
+    if (!NEYNAR_API_KEY) {
+      console.error("[API /privy-compose] NEYNAR_API_KEY not configured");
       return NextResponse.json(
-        { error: "Neynar API not configured for publishing" },
+        { error: "Neynar API not configured" },
         { status: 500 }
       );
     }
 
+    // Use user's signer if provided, otherwise fallback to bot signer
+    const effectiveSignerUuid = signerUuid || NEYNAR_SIGNER_UUID;
+    
+    if (!effectiveSignerUuid) {
+      console.error("[API /privy-compose] No signer UUID available");
+      return NextResponse.json(
+        { error: "No signer UUID available. Please create a signer first." },
+        { status: 400 }
+      );
+    }
+
+    console.log("[API /privy-compose] Using signer UUID:", effectiveSignerUuid);
+    console.log("[API /privy-compose] For FID:", fid || "not specified");
+
     // Publish cast via Neynar
     const castPayload: any = {
-      signer_uuid: NEYNAR_SIGNER_UUID,
+      signer_uuid: effectiveSignerUuid,
       text,
     };
 
