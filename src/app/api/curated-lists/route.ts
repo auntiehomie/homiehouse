@@ -4,15 +4,21 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Initialize supabase client only if credentials are available
+const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 // GET /api/curated-lists - Get user's curated lists
 export async function GET(request: NextRequest) {
   try {
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Supabase not configured' },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const fid = searchParams.get('fid');
     
@@ -50,6 +56,13 @@ export async function GET(request: NextRequest) {
 // POST /api/curated-lists - Create a new list
 export async function POST(request: NextRequest) {
   try {
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Supabase not configured' },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { fid, listName, description, isPublic } = body;
     
@@ -98,6 +111,13 @@ export async function POST(request: NextRequest) {
 // DELETE /api/curated-lists - Delete a list
 export async function DELETE(request: NextRequest) {
   try {
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Supabase not configured' },
+        { status: 503 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const listId = searchParams.get('id');
     const fid = searchParams.get('fid');
