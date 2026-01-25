@@ -84,6 +84,30 @@ export default function BottomNav() {
               </svg>
             </Link>
 
+            {/* Lists */}
+            <Link
+              href="/lists"
+              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[60px] ${
+                isActive("/lists")
+                  ? "text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              <svg
+                className="w-6 h-6 sm:w-7 sm:h-7"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 10h16M4 14h16M4 18h16"
+                />
+              </svg>
+            </Link>
+
             {/* Trending */}
             <Link
               href="/trending"
