@@ -40,6 +40,9 @@
 /* Base page styles */
 html, body {
   height: 100%;
+  /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
+  width: 100%;
 }
 body {
   margin: 0;
@@ -50,6 +53,10 @@ body {
   font-family: 'Montserrat', var(--font-geist-sans, Inter, system-ui, Avenir, Helvetica, Arial, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Better touch scrolling on mobile */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
 }
 
 /* Headings */
@@ -80,6 +87,11 @@ h1, h2, h3 {
   cursor: pointer;
   background: transparent;
   color: inherit;
+  /* Better touch targets on mobile (min 44x44px) */
+  min-height: 44px;
+  min-width: 44px;
+  /* Prevent tap highlight */
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn.primary {
@@ -98,6 +110,94 @@ main { margin-top: 1rem; }
 /* Header/layout spacing (match Vite app) */
 .app-header { margin-bottom: 0.5rem; }
 .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+
+/* Mobile optimizations for iPhone/Android 6.1-6.7" screens */
+@media (max-width: 768px) {
+  /* Safe area support for notched phones */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Larger text on mobile for readability */
+  body {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  /* Better spacing on mobile */
+  h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+  
+  h3 {
+    font-size: 1.25rem;
+    line-height: 1.4;
+  }
+  
+  /* Touch-friendly inputs */
+  input, textarea, select, button {
+    font-size: 16px; /* Prevents zoom on iOS */
+    touch-action: manipulation;
+  }
+  
+  /* Reduce padding on mobile */
+  .surface {
+    padding: 0.5rem;
+  }
+  
+  /* Full-width buttons on mobile */
+  .btn {
+    padding: 0.75rem 1rem;
+  }
+}
+
+/* Safe area utilities for notched devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Additional mobile optimizations */
+@media (max-width: 640px) {
+  /* Ensure modals work well on mobile */
+  .modal-overlay {
+    align-items: flex-end;
+  }
+  
+  .modal {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+  }
+  
+  /* Better text rendering on mobile */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Prevent double-tap zoom on buttons */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+  
+  /* Improve touch targets for links */
+  a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
 .header-row h1 { margin-bottom: 0.25rem; }
 .header-actions { display: flex; align-items: center; gap: 0.75rem; }
 .connect-container { display: flex; flex-direction: column; align-items: flex-end; }

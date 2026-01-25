@@ -54,15 +54,24 @@ export default function Home() {
   if (showLanding) {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
-        <header className="px-6 py-8 flex justify-end">
+        <header className="px-4 sm:px-6 py-6 sm:py-8 flex justify-end">
           <NeynarSignIn />
         </header>
         
-        <main className="flex-1 flex items-center justify-center px-6">
-          <div className="text-center max-w-5xl w-full" style={{ marginLeft: '5%' }}>
+        <main className="flex-1 flex items-center justify-center px-4 sm:px-6">
+          <div className="text-center max-w-5xl w-full">
             <h1 
-              className={`text-6xl md:text-7xl font-bold transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}
-              style={{ minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', margin: '0 auto' }}
+              className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold transition-opacity duration-500 px-4 ${
+                fade ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{ 
+                minHeight: '120px',
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                textAlign: 'center', 
+                margin: '0 auto' 
+              }}
             >
               {MESSAGES[currentMessageIndex]}
             </h1>
@@ -76,20 +85,20 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="max-w-7xl mx-auto px-6 py-6">
-        <div className="flex items-center justify-between">
+      <header className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-2xl font-bold">HomieHouse</h1>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">Your Social Hub</p>
+            <h1 className="text-xl sm:text-2xl font-bold">HomieHouse</h1>
+            <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Your Social Hub</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Link
               href="/wallet"
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               title="Wallet"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4 sm:w-5 sm:h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
