@@ -16,6 +16,7 @@ export default function ComposeModal() {
   const [mentionResults, setMentionResults] = useState<any[]>([]);
   const [showMentions, setShowMentions] = useState(false);
   const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -238,14 +239,21 @@ export default function ComposeModal() {
       console.log("Posting with:", { userFid, signerUuid, signerStatus, text });
 
       // Use user's signer or fallback to env
+      const body: any = { 
+        text, 
+        signerUuid: signerUuid || undefined,
+        fid: userFid 
+      };
+
+      // Add image embed if provided
+      if (imageUrl.trim()) {
+        body.embeds = [{ url: imageUrl.trim() }];
+      }
+
       const res = await fetch("/api/privy-compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          text, 
-          signerUuid: signerUuid || undefined,
-          fid: userFid 
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -449,11 +457,52 @@ export default function ComposeModal() {
                     </div>
                   )}
                 </div>
+                
+                {/* Image URL input */}
+                <div style={{ marginTop: 12 }}>
+                  <input
+                    type="text"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="Add image URL (optional)"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      fontSize: '14px'
+                    }}
+                  />
+                  {imageUrl && (
+                    <div style={{ marginTop: 8 }}>
+                      <img
+                        src={imageUrl}
+                        alt="Preview"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '200px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)'
+                        }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-                  <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
+                  <button className="btn" onClick={() => {
+                    setOpen(false);
+                    setText('');
+                    setImageUrl('');
+                  }}>Cancel</button>
                   <button
                     className="btn primary"
-                    disabled={loading || !text.trim()}
+                    disabled={loading || (!text.trim() && !imageUrl.trim())}
                     onClick={async () => {
                       await handlePost();
                     }}
