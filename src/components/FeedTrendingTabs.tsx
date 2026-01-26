@@ -17,7 +17,7 @@ export default function FeedTrendingTabs() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="flex gap-2 mb-4 flex-wrap items-center">
         <button
           onClick={() => setTab('feed')}
           className={"btn " + (tab === 'feed' ? 'primary' : '')}
@@ -33,18 +33,18 @@ export default function FeedTrendingTabs() {
         
         {tab === 'feed' && (
           <>
-            <div style={{ width: '1px', background: 'var(--border)', margin: '0 4px' }} />
+            <div className="w-px bg-zinc-200 dark:bg-zinc-800 h-6 mx-1" />
             <button
               onClick={() => { setFeedType('following'); setSelectedChannel(null); }}
-              className={"btn " + (feedType === 'following' ? 'primary' : '')}
-              style={{ fontSize: '13px', padding: '6px 12px' }}
+              className={"btn text-sm " + (feedType === 'following' ? 'primary' : '')}
+              style={{ padding: '6px 12px' }}
             >
               Following
             </button>
             <button
               onClick={() => { setFeedType('global'); setSelectedChannel(null); }}
-              className={"btn " + (feedType === 'global' ? 'primary' : '')}
-              style={{ fontSize: '13px', padding: '6px 12px' }}
+              className={"btn text-sm " + (feedType === 'global' ? 'primary' : '')}
+              style={{ padding: '6px 12px' }}
             >
               Global
             </button>

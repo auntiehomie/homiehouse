@@ -85,20 +85,20 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <header className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">HomieHouse</h1>
-            <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Your Social Hub</p>
+            <h1 className="text-lg sm:text-xl font-bold">HomieHouse</h1>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">Your Social Hub</p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2">
             <Link
               href="/wallet"
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
               title="Wallet"
             >
               <svg
-                className="w-4 h-4 sm:w-5 sm:h-5"
+                className="w-5 h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -110,15 +110,14 @@ export default function Home() {
                   d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
                 />
               </svg>
-              <span className="hidden sm:inline text-sm font-medium">Wallet</span>
             </Link>
             <NeynarSignIn />
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 pb-6">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 items-start">
           {/* Left Sidebar - Channels (hidden on mobile) */}
           <aside className="hidden md:flex md:col-span-2 flex-col gap-6">
             <ChannelsList />
@@ -126,12 +125,12 @@ export default function Home() {
 
           {/* Main Content */}
           <div className="md:col-span-10">
-            <section className="mb-6 text-center">
-              <p className="text-base md:text-lg text-zinc-600 dark:text-zinc-400">Share what's on your mind</p>
+            <section className="mb-4 text-center">
+              <p className="text-sm md:text-base text-zinc-600 dark:text-zinc-400">Share what's on your mind</p>
             </section>
 
             <section>
-              <h3 className="text-xl font-semibold mb-4">Explore</h3>
+              <h3 className="text-lg font-semibold mb-3">Explore</h3>
               <FeedTrendingTabs />
             </section>
           </div>
