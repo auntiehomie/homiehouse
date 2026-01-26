@@ -2,13 +2,23 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useNeynarContext } from "@neynar/react";
 
 export default function ChannelsList() {
+  const { user, isAuthenticated } = useNeynarContext();
   const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadUserChannels = () => {
+      // First try to use the Neynar context user
+      if (isAuthenticated && user?.fid) {
+        console.log('[ChannelsList] Fetching channels for authenticated user FID:', user.fid);
+        fetchChannels(user.fid);
+        return;
+      }
+
+      // Fallback to localStorage
       const storedProfile = localStorage.getItem("hh_profile");
       if (storedProfile) {
         try {
@@ -16,7 +26,7 @@ export default function ChannelsList() {
           const fid = profile?.fid;
           
           if (fid) {
-            console.log('[ChannelsList] Fetching channels for FID:', fid);
+            console.log('[ChannelsList] Fetching channels from stored profile FID:', fid);
             fetchChannels(fid);
             return;
           }
@@ -26,12 +36,12 @@ export default function ChannelsList() {
       }
       
       // If no profile, show popular channels
-      console.log('[ChannelsList] No profile found, showing popular channels');
+      console.log('[ChannelsList] No user found, showing popular channels');
       showPopularChannels();
     };
 
     loadUserChannels();
-  }, []);
+  }, [user, isAuthenticated]); // Re-run when auth state changes
 
   async function fetchChannels(fid: number) {
     try {
