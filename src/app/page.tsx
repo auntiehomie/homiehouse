@@ -125,10 +125,6 @@ export default function Home() {
 
           {/* Main Content */}
           <div className="md:col-span-10">
-            <section className="mb-4 text-center">
-              <p className="text-sm md:text-base text-zinc-600 dark:text-zinc-400">Share what's on your mind</p>
-            </section>
-
             <section>
               <h3 className="text-lg font-semibold mb-3">Explore</h3>
               <FeedTrendingTabs />

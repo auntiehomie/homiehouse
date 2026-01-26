@@ -48,6 +48,14 @@ export default function FeedTrendingTabs() {
             >
               Global
             </button>
+            <div className="w-px bg-zinc-200 dark:bg-zinc-800 h-6 mx-1" />
+            <a
+              href="/lists"
+              className="btn text-sm"
+              style={{ padding: '6px 12px' }}
+            >
+              📝 Lists
+            </a>
           </>
         )}
       </div>
