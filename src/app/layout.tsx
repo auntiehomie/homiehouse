@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
 import WalletProvider from "../components/WalletProvider";
@@ -9,12 +9,13 @@ import BottomNav from "../components/BottomNav";
 export const metadata: Metadata = {
   title: "HomieHouse - Your Social Hub",
   description: "Your place to share what's on your mind",
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 // Force dynamic rendering since we use client-side auth providers
