@@ -26,10 +26,10 @@ interface FeedListProps {
   onHideCast: (hash: string) => void;
 }
 
-export default function FeedList({ 
-  feedType, 
-  selectedChannel, 
-  mutedUsers, 
+export default function FeedList({
+  feedType,
+  selectedChannel,
+  mutedUsers,
   hiddenCasts,
   onMuteUser,
   onHideCast
@@ -72,12 +72,12 @@ export default function FeedList({
   const getSignerUuid = () => {
     const storedProfile = localStorage.getItem("hh_profile");
     if (!storedProfile) return null;
-    
+
     try {
       const profile = JSON.parse(storedProfile);
       const fid = profile?.fid;
       if (!fid) return null;
-      
+
       const key = `signer_${fid}`;
       const stored = localStorage.getItem(key);
       if (stored) {
@@ -96,12 +96,12 @@ export default function FeedList({
   const pollSignerStatus = async (signerUuid: string, fid: number) => {
     let attempts = 0;
     const maxAttempts = 30; // Try for 30 seconds
-    
+
     const checkStatus = async (): Promise<boolean> => {
       try {
         const res = await fetch(`/api/signer?signer_uuid=${signerUuid}`);
         const data = await res.json();
-        
+
         if (data.status === 'approved') {
           // Update localStorage
           const key = `signer_${fid}`;
@@ -111,7 +111,7 @@ export default function FeedList({
           }));
           return true;
         }
-        
+
         if (attempts < maxAttempts) {
           attempts++;
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -123,7 +123,7 @@ export default function FeedList({
         return false;
       }
     };
-    
+
     return checkStatus();
   };
 
@@ -134,7 +134,7 @@ export default function FeedList({
         alert("Please sign in first");
         return;
       }
-      
+
       const profile = JSON.parse(storedProfile);
       const fid = profile?.fid;
       if (!fid) {
@@ -143,7 +143,7 @@ export default function FeedList({
       }
 
       const key = `signer_${fid}`;
-      
+
       // Check if we already have a signer (even if pending)
       const stored = localStorage.getItem(key);
       if (stored) {
@@ -152,7 +152,7 @@ export default function FeedList({
           // Check its status
           const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
           const checkData = await checkRes.json();
-          
+
           if (checkData.ok) {
             if (checkData.status === "approved") {
               // Already approved, just return
@@ -189,7 +189,7 @@ export default function FeedList({
         if (isMobile && data.signer_approval_url) {
           // Store pending action
           localStorage.setItem('hh_pending_action', JSON.stringify({ type: actionType || 'recast', signerUuid: data.signer_uuid }));
-          
+
           // Redirect to Warpcast
           window.location.href = data.signer_approval_url;
         }
@@ -212,7 +212,7 @@ export default function FeedList({
     setActionLoading(`like-${castHash}`);
     try {
       const isLiked = likedCasts.has(castHash);
-      
+
       if (isLiked) {
         // Unlike
         const res = await fetch(`/api/privy-like?castHash=${castHash}&signerUuid=${signerUuid}`, {
@@ -268,7 +268,7 @@ export default function FeedList({
     setActionLoading(`recast-${castHash}`);
     try {
       const isRecasted = recastedCasts.has(castHash);
-      
+
       if (isRecasted) {
         // Remove recast
         const res = await fetch(`/api/privy-recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
@@ -330,10 +330,10 @@ export default function FeedList({
       const res = await fetch("/api/privy-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          text: replyText, 
-          signerUuid, 
-          parentHash: castHash 
+        body: JSON.stringify({
+          text: replyText,
+          signerUuid,
+          parentHash: castHash
         }),
       });
 
@@ -395,8 +395,8 @@ export default function FeedList({
       const res = await fetch("/api/privy-compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          text: quoteText, 
+        body: JSON.stringify({
+          text: quoteText,
           signerUuid,
           fid,
           embeds: [{ url: `https://warpcast.com/~/conversations/${castHash}` }]
@@ -459,7 +459,7 @@ export default function FeedList({
       try {
         const res = await fetch(`/api/curation?fid=${profile.fid}`);
         const data = await res.json();
-        
+
         if (data.ok && data.preferences) {
           setCurationPreferences(data.preferences);
         }
@@ -497,7 +497,7 @@ export default function FeedList({
         }
       }
     };
-    
+
     checkPendingApproval();
   }, []);
 
@@ -517,20 +517,20 @@ export default function FeedList({
         } catch (e) {
           console.error('[FeedList] Error reading FID from localStorage:', e);
         }
-        
+
         const profile = getProfile();
         console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, hasProfile: !!profile });
-        
+
         // Build query params based on feed type and channel
         let url = `/api/feed?feed_type=${feedType}`;
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
-        
+
         console.log('[FeedList] API URL:', url);
-        
+
         const feedRes = await fetch(url);
         console.log('[FeedList] API response status:', feedRes.status);
-        
+
         if (feedRes.ok) {
           res = await feedRes.json();
           console.log('[FeedList] API response data:', res);
@@ -648,15 +648,15 @@ export default function FeedList({
     const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
     const authorUsername = authorObj?.username || it.author || it.handle;
     const castHash = it.hash || it.id;
-    
+
     if (authorUsername && mutedUsers.has(authorUsername)) return false;
     if (castHash && hiddenCasts.has(castHash)) return false;
-    
+
     // Reduce "see less" authors - only show 25% of their content
     if (authorUsername && seeLessAuthors.has(authorUsername)) {
       return index % 4 === 0; // Only show every 4th post
     }
-    
+
     return true;
   });
 
@@ -695,9 +695,9 @@ export default function FeedList({
         return (
           <article key={key} className="surface" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-              <Link 
+              <Link
                 href={`/profile?user=${authorUsername}`}
-                style={{ 
+                style={{
                   fontWeight: 700,
                   textDecoration: 'none',
                   color: 'inherit'
@@ -805,9 +805,9 @@ export default function FeedList({
                 )}
               </div>
             )}
-            <div style={{ 
-              marginTop: 6, 
-              wordBreak: 'break-word', 
+            <div style={{
+              marginTop: 6,
+              wordBreak: 'break-word',
               overflowWrap: 'break-word',
               whiteSpace: 'pre-wrap'
             }}>
@@ -815,11 +815,11 @@ export default function FeedList({
                 const words = text.split(' ');
                 const isLongCast = words.length > 15;
                 const isExpanded = expandedCasts.has(key);
-                
+
                 if (!isLongCast || isExpanded) {
                   return text;
                 }
-                
+
                 // Show first 15 words
                 const preview = words.slice(0, 15).join(' ');
                 return (
@@ -844,9 +844,9 @@ export default function FeedList({
                 );
               })()}
             </div>
-            <div style={{ 
-              marginTop: 8, 
-              fontSize: 12, 
+            <div style={{
+              marginTop: 8,
+              fontSize: 12,
               color: 'var(--muted-on-dark)',
               display: 'flex',
               justifyContent: 'space-between',
@@ -874,14 +874,14 @@ export default function FeedList({
                 </button>
               )}
             </div>
-            
+
             {/* Like and Recast buttons */}
-            <div style={{ 
-              display: 'flex', 
-              gap: '16px', 
-              marginTop: '12px', 
-              paddingTop: '12px', 
-              borderTop: '1px solid var(--border)' 
+            <div style={{
+              display: 'flex',
+              gap: '16px',
+              marginTop: '12px',
+              paddingTop: '12px',
+              borderTop: '1px solid var(--border)'
             }}>
               <button
                 onClick={() => handleLike(key)}
@@ -912,10 +912,10 @@ export default function FeedList({
                   }
                 }}
               >
-                {likedCasts.has(key) ? '❤️' : '🤍'} 
+                {likedCasts.has(key) ? '❤️' : '🤍'}
                 {actionLoading === `like-${key}` ? 'Loading...' : 'Like'}
               </button>
-              
+
               <button
                 onClick={() => setShowRecastModal(key)}
                 disabled={actionLoading === `recast-${key}`}
@@ -947,7 +947,7 @@ export default function FeedList({
               >
                 🔁 {actionLoading === `recast-${key}` ? 'Loading...' : (recastedCasts.has(key) ? 'Recasted' : 'Recast')}
               </button>
-              
+
               <button
                 onClick={() => setReplyingTo(replyingTo === key ? null : key)}
                 style={{
@@ -1014,7 +1014,7 @@ export default function FeedList({
                 🤖 Ask Homie
               </button>
             </div>
-            
+
             {/* Reply input */}
             {replyingTo === key && (
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
@@ -1041,8 +1041,8 @@ export default function FeedList({
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
-                  <button 
-                    className="btn" 
+                  <button
+                    className="btn"
                     onClick={() => {
                       setReplyingTo(null);
                       setReplyText("");
@@ -1051,8 +1051,8 @@ export default function FeedList({
                   >
                     Cancel
                   </button>
-                  <button 
-                    className="btn primary" 
+                  <button
+                    className="btn primary"
                     onClick={() => handleReply(key)}
                     disabled={replyLoading || !replyText.trim() || replySuccess}
                   >
@@ -1078,7 +1078,7 @@ export default function FeedList({
                 To interact with casts (like, recast, reply, quote), you need to approve posting permissions in Warpcast.
                 This only needs to be done once for all actions.
               </p>
-              
+
               {signerApprovalUrl && (
                 <>
                   <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
@@ -1087,20 +1087,20 @@ export default function FeedList({
                   <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
                     Scan this QR code or click below to approve:
                   </p>
-                  <a 
-                    href={signerApprovalUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="btn primary" 
+                  <a
+                    href={signerApprovalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn primary"
                     style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
                   >
                     Approve in Warpcast →
                   </a>
                 </>
               )}
-              
-              <button 
-                className="btn primary" 
+
+              <button
+                className="btn primary"
                 onClick={async () => {
                   // Try to get the signer and check if it's approved
                   try {
@@ -1113,12 +1113,12 @@ export default function FeedList({
                         const stored = localStorage.getItem(key);
                         if (stored) {
                           const parsed = JSON.parse(stored);
-                          
+
                           // Show checking status
                           const button = document.activeElement as HTMLButtonElement;
                           const originalText = button?.textContent;
                           if (button) button.textContent = 'Checking...';
-                          
+
                           // Poll for approval (try up to 5 times with 2 second gaps)
                           let approved = false;
                           for (let i = 0; i < 5; i++) {
@@ -1138,9 +1138,9 @@ export default function FeedList({
                             // Wait 2 seconds before next check
                             if (i < 4) await new Promise(resolve => setTimeout(resolve, 2000));
                           }
-                          
+
                           if (button) button.textContent = originalText || 'Check Status';
-                          
+
                           if (approved) {
                             alert('✓ Signer approved! You can now interact with casts.');
                             setShowSignerModal(false);
@@ -1161,15 +1161,15 @@ export default function FeedList({
               >
                 ✓ I've Approved - Check Status
               </button>
-              
-              <button 
-                className="btn" 
+
+              <button
+                className="btn"
                 onClick={() => setShowSignerModal(false)}
                 style={{ width: '100%', padding: '12px' }}
               >
                 Cancel
               </button>
-              
+
               <p style={{ fontSize: '13px', color: 'var(--muted-on-dark)', marginTop: '16px' }}>
                 After approving in Warpcast, click "Check Status" to verify.
               </p>
@@ -1180,7 +1180,7 @@ export default function FeedList({
 
       {/* Recast Modal */}
       {showRecastModal && (
-        <div 
+        <div
           onClick={() => setShowRecastModal(null)}
           style={{
             position: 'fixed',
@@ -1195,7 +1195,7 @@ export default function FeedList({
             zIndex: 1000,
           }}
         >
-          <div 
+          <div
             onClick={(e) => e.stopPropagation()}
             style={{
               background: 'var(--background)',
@@ -1209,7 +1209,7 @@ export default function FeedList({
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>
               Cast Options
             </h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Quote Cast */}
               <button
@@ -1294,7 +1294,7 @@ export default function FeedList({
               >
                 💬 Reply
               </button>
-              
+
               <button
                 onClick={() => setShowRecastModal(null)}
                 className="btn"
@@ -1343,7 +1343,7 @@ export default function FeedList({
             }}
           >
             <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>Quote Cast</h3>
-            
+
             {/* Cast Preview */}
             {(() => {
               const cast = items?.find(item => item.hash === showQuoteModal);
@@ -1390,19 +1390,19 @@ export default function FeedList({
                     {cast.embeds && cast.embeds.length > 0 && cast.embeds[0]?.url && (
                       <div style={{ marginTop: '12px' }}>
                         {cast.embeds[0].url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                          <img 
-                            src={cast.embeds[0].url} 
+                          <img
+                            src={cast.embeds[0].url}
                             alt="embed"
-                            style={{ 
-                              maxWidth: '100%', 
+                            style={{
+                              maxWidth: '100%',
                               borderRadius: '8px',
                               maxHeight: '200px',
                               objectFit: 'cover'
-                            }} 
+                            }}
                           />
                         ) : (
-                          <div style={{ 
-                            fontSize: '13px', 
+                          <div style={{
+                            fontSize: '13px',
                             color: '#888',
                             fontStyle: 'italic'
                           }}>
@@ -1418,7 +1418,7 @@ export default function FeedList({
               }
               return null;
             })()}
-            
+
             <textarea
               value={quoteText}
               onChange={(e) => setQuoteText(e.target.value)}
@@ -1438,7 +1438,7 @@ export default function FeedList({
               }}
               autoFocus
             />
-            
+
             {quoteSuccess && (
               <div style={{
                 padding: '12px',
@@ -1452,7 +1452,7 @@ export default function FeedList({
                 ✓ Quote cast posted successfully!
               </div>
             )}
-            
+
             <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
               <button
                 onClick={() => handleQuoteCast(showQuoteModal)}
@@ -1470,7 +1470,7 @@ export default function FeedList({
               >
                 {quoteLoading ? 'Posting...' : '💬 Post Quote Cast'}
               </button>
-              
+
               <button
                 onClick={() => {
                   setShowQuoteModal(null);
@@ -1493,3 +1493,4 @@ export default function FeedList({
     </div>
   );
 }
+1 / 2 6 / 2 0 2 6   2 : 4 6 : 2 6   P M 
