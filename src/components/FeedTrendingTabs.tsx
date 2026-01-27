@@ -20,39 +20,41 @@ export default function FeedTrendingTabs() {
       <div className="flex gap-2 mb-4 flex-wrap items-center">
         <button
           onClick={() => setTab('feed')}
-          className={"btn " + (tab === 'feed' ? 'primary' : '')}
+          className={"btn text-sm sm:text-base " + (tab === 'feed' ? 'primary' : '')}
+          style={{ padding: '8px 16px', minWidth: 'auto' }}
         >
           Feed
         </button>
         <button
           onClick={() => setTab('trending')}
-          className={"btn " + (tab === 'trending' ? 'primary' : '')}
+          className={"btn text-sm sm:text-base " + (tab === 'trending' ? 'primary' : '')}
+          style={{ padding: '8px 16px', minWidth: 'auto' }}
         >
           Trending
         </button>
         
         {tab === 'feed' && (
           <>
-            <div className="w-px bg-zinc-200 dark:bg-zinc-800 h-6 mx-1" />
+            <div className="hidden sm:block w-px bg-zinc-200 dark:bg-zinc-800 h-6 mx-1" />
             <button
               onClick={() => { setFeedType('following'); setSelectedChannel(null); }}
-              className={"btn text-sm " + (feedType === 'following' ? 'primary' : '')}
-              style={{ padding: '6px 12px' }}
+              className={"btn text-xs sm:text-sm " + (feedType === 'following' ? 'primary' : '')}
+              style={{ padding: '6px 12px', minWidth: 'auto' }}
             >
               Following
             </button>
             <button
               onClick={() => { setFeedType('global'); setSelectedChannel(null); }}
-              className={"btn text-sm " + (feedType === 'global' ? 'primary' : '')}
-              style={{ padding: '6px 12px' }}
+              className={"btn text-xs sm:text-sm " + (feedType === 'global' ? 'primary' : '')}
+              style={{ padding: '6px 12px', minWidth: 'auto' }}
             >
               Global
             </button>
-            <div className="w-px bg-zinc-200 dark:bg-zinc-800 h-6 mx-1" />
+            <div className="hidden sm:block w-px bg-zinc-200 dark:bg-zinc-800 h-6 mx-1" />
             <a
               href="/lists"
-              className="btn text-sm"
-              style={{ padding: '6px 12px' }}
+              className="btn text-xs sm:text-sm"
+              style={{ padding: '6px 12px', minWidth: 'auto' }}
             >
               📝 Lists
             </a>

@@ -14,8 +14,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  viewportFit: 'cover',
 };
 
 // Force dynamic rendering since we use client-side auth providers
@@ -33,7 +33,7 @@ export default function RootLayout({
           <NeynarAuthProvider>
             <WalletProvider>
               <SdkDevMock />
-              <div className="pb-16 sm:pb-20">
+              <div className="pb-20 md:pb-8">
                 {children}
               </div>
               <BottomNav />

@@ -148,12 +148,19 @@ main { margin-top: 1rem; }
   
   /* Reduce padding on mobile */
   .surface {
-    padding: 0.5rem;
+    padding: 0.875rem;
+    border-radius: 12px;
   }
   
   /* Full-width buttons on mobile */
   .btn {
     padding: 0.75rem 1rem;
+  }
+  
+  /* Better word wrapping on mobile */
+  p, div, span {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 }
 
@@ -164,6 +171,14 @@ main { margin-top: 1rem; }
 
 .safe-area-top {
   padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 8px);
 }
 
 /* Additional mobile optimizations */

@@ -33,20 +33,20 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 bg-black border-t border-zinc-800 z-50 safe-area-bottom">
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-2 sm:py-3">
-          <div className="flex items-center justify-around gap-2">
+      <nav className="fixed bottom-0 left-0 right-0 bg-black border-t border-zinc-800 z-50 pb-safe">
+        <div className="max-w-screen-xl mx-auto px-2 sm:px-6 py-3">
+          <div className="flex items-center justify-around gap-1">
             {/* Home */}
             <Link
               href="/"
-              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[60px] ${
+              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[56px] ${
                 isActive("/")
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <svg
-                className="w-6 h-6 sm:w-7 sm:h-7"
+                className="w-6 h-6"
                 fill={isActive("/") ? "currentColor" : "none"}
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -63,14 +63,14 @@ export default function BottomNav() {
             {/* Ask Homie */}
             <Link
               href="/ask-homie"
-              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[60px] ${
+              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[56px] ${
                 isActive("/ask-homie")
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <svg
-                className="w-6 h-6 sm:w-7 sm:h-7"
+                className="w-6 h-6"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -87,14 +87,14 @@ export default function BottomNav() {
             {/* Lists */}
             <Link
               href="/lists"
-              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[60px] ${
+              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[56px] ${
                 isActive("/lists")
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <svg
-                className="w-6 h-6 sm:w-7 sm:h-7"
+                className="w-6 h-6"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -111,14 +111,14 @@ export default function BottomNav() {
             {/* Trending */}
             <Link
               href="/trending"
-              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[60px] ${
+              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[56px] ${
                 isActive("/trending")
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
               <svg
-                className="w-6 h-6 sm:w-7 sm:h-7"
+                className="w-6 h-6"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -135,7 +135,7 @@ export default function BottomNav() {
             {/* Compose - Center Button (Prominent) */}
             <Link
               href="/compose"
-              className="flex items-center justify-center w-12 h-12 bg-red-600 hover:bg-red-700 rounded-full transition-colors -mt-2"
+              className="flex items-center justify-center w-11 h-11 bg-red-600 hover:bg-red-700 rounded-full transition-colors -mt-1"
             >
               <svg
                 className="w-6 h-6 text-white"

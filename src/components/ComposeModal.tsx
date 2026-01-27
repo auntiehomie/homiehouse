@@ -17,6 +17,8 @@ export default function ComposeModal() {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
   const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -129,6 +131,56 @@ export default function ComposeModal() {
     setShowMentions(false);
     setMentionSearch('');
     setMentionStartPos(null);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      setStatus("Image too large. Maximum size is 10MB.");
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      setStatus("Please select an image file.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setStatus("Uploading image...");
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.url) {
+        setUploadedImage(data.url);
+        setImageUrl(data.url);
+        setStatus("✓ Image uploaded!");
+        setTimeout(() => setStatus(null), 2000);
+      } else {
+        setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      setStatus(`Upload error: ${error.message}`);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setImageUrl('');
+    setUploadedImage(null);
   };
 
   async function createSigner() {
@@ -260,6 +312,8 @@ export default function ComposeModal() {
       if (data.ok) {
         setStatus("✓ Posted successfully!");
         setText("");
+        setImageUrl("");
+        setUploadedImage(null);
         // Close modal after brief delay to show success message
         setTimeout(() => {
           setOpen(false);
@@ -458,13 +512,51 @@ export default function ComposeModal() {
                   )}
                 </div>
                 
-                {/* Image URL input */}
-                <div style={{ marginTop: 12 }}>
+                {/* Image upload/URL section */}
+                <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                    <label 
+                      htmlFor="image-upload"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 12px',
+                        background: uploadingImage ? 'var(--surface)' : 'var(--accent)',
+                        color: 'white',
+                        borderRadius: '6px',
+                        cursor: uploadingImage ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        border: 'none',
+                        opacity: uploadingImage ? 0.6 : 1
+                      }}
+                    >
+                      📷 {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                    </label>
+                    <input
+                      id="image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                      style={{ display: 'none' }}
+                    />
+                    <span style={{ fontSize: '12px', color: 'var(--muted-on-dark)' }}>
+                      or paste URL below
+                    </span>
+                  </div>
+                  
+                  {/* Image URL input */}
                   <input
                     type="text"
                     value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="Add image URL (optional)"
+                    onChange={(e) => {
+                      setImageUrl(e.target.value);
+                      setUploadedImage(null);
+                    }}
+                    placeholder="Or paste image URL here"
+                    disabled={uploadingImage}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -475,21 +567,45 @@ export default function ComposeModal() {
                       fontSize: '14px'
                     }}
                   />
+                  
+                  {/* Image preview */}
                   {imageUrl && (
-                    <div style={{ marginTop: 8 }}>
+                    <div style={{ marginTop: 8, position: 'relative' }}>
                       <img
                         src={imageUrl}
                         alt="Preview"
                         style={{
                           maxWidth: '100%',
-                          maxHeight: '200px',
+                          maxHeight: '300px',
                           borderRadius: '8px',
-                          border: '1px solid var(--border)'
+                          border: '1px solid var(--border)',
+                          display: 'block'
                         }}
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
                       />
+                      <button
+                        onClick={removeImage}
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          background: 'rgba(0, 0, 0, 0.7)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '28px',
+                          height: '28px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '16px'
+                        }}
+                      >
+                        ✕
+                      </button>
                     </div>
                   )}
                 </div>
@@ -499,10 +615,11 @@ export default function ComposeModal() {
                     setOpen(false);
                     setText('');
                     setImageUrl('');
+                    setUploadedImage(null);
                   }}>Cancel</button>
                   <button
                     className="btn primary"
-                    disabled={loading || (!text.trim() && !imageUrl.trim())}
+                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim())}
                     onClick={async () => {
                       await handlePost();
                     }}

@@ -85,13 +85,13 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
       <WelcomeModal />
-      <header className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold">HomieHouse</h1>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">Your Social Hub</p>
+      <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 border-b border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-shrink-0">
+            <h1 className="text-base sm:text-xl font-bold">HomieHouse</h1>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 hidden sm:block">Your Social Hub</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Link
               href="/wallet"
               className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -116,7 +116,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24 md:pb-8">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 items-start">
           {/* Left Sidebar - Channels (hidden on mobile) */}
           <aside className="hidden md:flex md:col-span-2 flex-col gap-6">

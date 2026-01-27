@@ -7,15 +7,8 @@ import { formatDistanceToNow } from "date-fns";
 import { FeedType } from "./FeedTrendingTabs";
 import { QRCodeSVG } from 'qrcode.react';
 import Link from "next/link";
-
-interface CurationPreference {
-  id?: number;
-  fid: number;
-  preference_type: 'keyword' | 'channel' | 'author' | 'content_type' | 'min_likes' | 'max_length';
-  preference_value: string;
-  action: 'include' | 'exclude';
-  priority?: number;
-}
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface FeedListProps {
   feedType: FeedType;
@@ -26,10 +19,10 @@ interface FeedListProps {
   onHideCast: (hash: string) => void;
 }
 
-export default function FeedList({
-  feedType,
-  selectedChannel,
-  mutedUsers,
+export default function FeedList({ 
+  feedType, 
+  selectedChannel, 
+  mutedUsers, 
   hiddenCasts,
   onMuteUser,
   onHideCast
@@ -47,11 +40,8 @@ export default function FeedList({
   const [showQuoteModal, setShowQuoteModal] = useState<string | null>(null);
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [quoteSuccess, setQuoteSuccess] = useState(false);
-  const [replySuccess, setReplySuccess] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
   const [expandedCasts, setExpandedCasts] = useState<Set<string>>(new Set());
-  const [curationPreferences, setCurationPreferences] = useState<CurationPreference[]>([]);
 
   const [showSignerModal, setShowSignerModal] = useState(false);
   const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
@@ -72,12 +62,12 @@ export default function FeedList({
   const getSignerUuid = () => {
     const storedProfile = localStorage.getItem("hh_profile");
     if (!storedProfile) return null;
-
+    
     try {
       const profile = JSON.parse(storedProfile);
       const fid = profile?.fid;
       if (!fid) return null;
-
+      
       const key = `signer_${fid}`;
       const stored = localStorage.getItem(key);
       if (stored) {
@@ -96,12 +86,12 @@ export default function FeedList({
   const pollSignerStatus = async (signerUuid: string, fid: number) => {
     let attempts = 0;
     const maxAttempts = 30; // Try for 30 seconds
-
+    
     const checkStatus = async (): Promise<boolean> => {
       try {
         const res = await fetch(`/api/signer?signer_uuid=${signerUuid}`);
         const data = await res.json();
-
+        
         if (data.status === 'approved') {
           // Update localStorage
           const key = `signer_${fid}`;
@@ -111,7 +101,7 @@ export default function FeedList({
           }));
           return true;
         }
-
+        
         if (attempts < maxAttempts) {
           attempts++;
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -123,7 +113,7 @@ export default function FeedList({
         return false;
       }
     };
-
+    
     return checkStatus();
   };
 
@@ -134,7 +124,7 @@ export default function FeedList({
         alert("Please sign in first");
         return;
       }
-
+      
       const profile = JSON.parse(storedProfile);
       const fid = profile?.fid;
       if (!fid) {
@@ -143,7 +133,7 @@ export default function FeedList({
       }
 
       const key = `signer_${fid}`;
-
+      
       // Check if we already have a signer (even if pending)
       const stored = localStorage.getItem(key);
       if (stored) {
@@ -152,7 +142,7 @@ export default function FeedList({
           // Check its status
           const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
           const checkData = await checkRes.json();
-
+          
           if (checkData.ok) {
             if (checkData.status === "approved") {
               // Already approved, just return
@@ -189,7 +179,7 @@ export default function FeedList({
         if (isMobile && data.signer_approval_url) {
           // Store pending action
           localStorage.setItem('hh_pending_action', JSON.stringify({ type: actionType || 'recast', signerUuid: data.signer_uuid }));
-
+          
           // Redirect to Warpcast
           window.location.href = data.signer_approval_url;
         }
@@ -212,7 +202,7 @@ export default function FeedList({
     setActionLoading(`like-${castHash}`);
     try {
       const isLiked = likedCasts.has(castHash);
-
+      
       if (isLiked) {
         // Unlike
         const res = await fetch(`/api/privy-like?castHash=${castHash}&signerUuid=${signerUuid}`, {
@@ -268,7 +258,7 @@ export default function FeedList({
     setActionLoading(`recast-${castHash}`);
     try {
       const isRecasted = recastedCasts.has(castHash);
-
+      
       if (isRecasted) {
         // Remove recast
         const res = await fetch(`/api/privy-recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
@@ -330,20 +320,17 @@ export default function FeedList({
       const res = await fetch("/api/privy-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: replyText,
-          signerUuid,
-          parentHash: castHash
+        body: JSON.stringify({ 
+          text: replyText, 
+          signerUuid, 
+          parentHash: castHash 
         }),
       });
 
       if (res.ok) {
-        setReplySuccess(true);
-        setTimeout(() => {
-          setReplyText("");
-          setReplyingTo(null);
-          setReplySuccess(false);
-        }, 2000);
+        setReplyText("");
+        setReplyingTo(null);
+        alert("Reply posted successfully!");
       } else {
         const data = await res.json();
         if (res.status === 403) {
@@ -395,8 +382,8 @@ export default function FeedList({
       const res = await fetch("/api/privy-compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: quoteText,
+        body: JSON.stringify({ 
+          text: quoteText, 
           signerUuid,
           fid,
           embeds: [{ url: `https://warpcast.com/~/conversations/${castHash}` }]
@@ -404,14 +391,11 @@ export default function FeedList({
       });
 
       if (res.ok) {
-        setQuoteSuccess(true);
+        setQuoteText("");
+        setShowQuoteModal(null);
         // Add to quoted casts
         setQuotedCasts(prev => new Set([...prev, castHash]));
-        setTimeout(() => {
-          setQuoteText("");
-          setShowQuoteModal(null);
-          setQuoteSuccess(false);
-        }, 2000);
+        alert("Quote cast posted successfully!");
       } else {
         const data = await res.json();
         if (res.status === 403) {
@@ -450,27 +434,6 @@ export default function FeedList({
     }
   }, []);
 
-  // Load curation preferences
-  useEffect(() => {
-    const loadCurationPreferences = async () => {
-      const profile = getProfile();
-      if (!profile?.fid) return;
-
-      try {
-        const res = await fetch(`/api/curation?fid=${profile.fid}`);
-        const data = await res.json();
-
-        if (data.ok && data.preferences) {
-          setCurationPreferences(data.preferences);
-        }
-      } catch (error) {
-        console.error('Error loading curation preferences:', error);
-      }
-    };
-
-    loadCurationPreferences();
-  }, []);
-
   // Check for pending signer approval (after returning from Warpcast on mobile)
   useEffect(() => {
     const checkPendingApproval = async () => {
@@ -497,7 +460,7 @@ export default function FeedList({
         }
       }
     };
-
+    
     checkPendingApproval();
   }, []);
 
@@ -517,20 +480,20 @@ export default function FeedList({
         } catch (e) {
           console.error('[FeedList] Error reading FID from localStorage:', e);
         }
-
+        
         const profile = getProfile();
         console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, hasProfile: !!profile });
-
+        
         // Build query params based on feed type and channel
         let url = `/api/feed?feed_type=${feedType}`;
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
-
+        
         console.log('[FeedList] API URL:', url);
-
+        
         const feedRes = await fetch(url);
         console.log('[FeedList] API response status:', feedRes.status);
-
+        
         if (feedRes.ok) {
           res = await feedRes.json();
           console.log('[FeedList] API response data:', res);
@@ -561,111 +524,74 @@ export default function FeedList({
     );
   if (!items.length) return <div className="surface">No casts to show. Follow people to populate your feed.</div>;
 
-  // Apply curation filters
-  const applyCurationFilters = (itemsList: any[]): any[] => {
-    if (!curationPreferences || curationPreferences.length === 0) {
-      return itemsList;
+  // Get user interests from localStorage
+  const getUserInterests = (): string[] => {
+    try {
+      const stored = localStorage.getItem('hh_feed_interests');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Error loading interests:', e);
     }
-
-    // Separate include and exclude preferences
-    const includePrefs = curationPreferences.filter(p => p.action === 'include');
-    const excludePrefs = curationPreferences.filter(p => p.action === 'exclude');
-
-    let filtered = [...itemsList];
-
-    // Apply exclude filters first (remove unwanted content)
-    for (const pref of excludePrefs) {
-      filtered = filtered.filter(item => !matchesPreference(item, pref));
-    }
-
-    // If there are include filters, boost matching items
-    if (includePrefs.length > 0) {
-      filtered = filtered.map(item => {
-        let boostScore = 0;
-        for (const pref of includePrefs) {
-          if (matchesPreference(item, pref)) {
-            boostScore += (pref.priority || 0) + 1;
-          }
-        }
-        return { ...item, _curationScore: boostScore };
-      });
-
-      // Sort by curation score (higher first)
-      filtered.sort((a, b) => (b._curationScore || 0) - (a._curationScore || 0));
-    }
-
-    return filtered;
+    return [];
   };
 
-  const matchesPreference = (item: any, pref: CurationPreference): boolean => {
-    const value = pref.preference_value.toLowerCase();
-
-    switch (pref.preference_type) {
-      case 'keyword':
-        const text = (item.text || '').toLowerCase();
-        return text.includes(value);
-
-      case 'channel':
-        const channel = (item.channel?.id || item.channel?.name || '').toLowerCase();
-        return channel === value;
-
-      case 'author':
-        const authorFid = String(item.author?.fid || '');
-        const authorUsername = (item.author?.username || '').toLowerCase();
-        return authorFid === value || authorUsername === value;
-
-      case 'content_type':
-        if (value === 'has_image') {
-          return item.embeds && item.embeds.some((e: any) => e.url && /\.(jpg|jpeg|png|gif|webp)$/i.test(e.url));
-        }
-        if (value === 'has_video') {
-          return item.embeds && item.embeds.some((e: any) => e.url && /\.(mp4|mov|webm)$/i.test(e.url));
-        }
-        if (value === 'has_link') {
-          return item.embeds && item.embeds.some((e: any) => e.url);
-        }
-        if (value === 'text_only') {
-          return !item.embeds || item.embeds.length === 0;
-        }
-        return false;
-
-      case 'min_likes':
-        const minLikes = parseInt(value);
-        return (item.reactions?.likes_count || 0) >= minLikes;
-
-      case 'max_length':
-        const maxLength = parseInt(value);
-        return (item.text || '').length <= maxLength;
-
-      default:
-        return false;
+  // Score a cast based on how well it matches user interests
+  const scoreCast = (cast: any, interests: string[]): number => {
+    if (!interests.length) return 0; // No interests = no scoring
+    
+    const text = (cast.text || '').toLowerCase();
+    const channelId = cast.channel?.id?.toLowerCase() || '';
+    
+    let score = 0;
+    for (const interest of interests) {
+      const lowerInterest = interest.toLowerCase();
+      // Check if interest appears in text
+      if (text.includes(lowerInterest)) score += 10;
+      // Check if interest matches channel
+      if (channelId === lowerInterest) score += 15;
+      // Check if interest is in hashtags
+      const hashtags = text.match(/#\w+/g) || [];
+      if (hashtags.some((tag: string) => tag.toLowerCase().includes(lowerInterest))) score += 12;
     }
+    return score;
   };
+
+  const userInterests = getUserInterests();
 
   // Filter out muted users and hidden casts
   // Reduce visibility of "see less" authors (show 1 in 4)
-  const filteredItems = items.filter((it, index) => {
+  // Then sort by interest score if user has interests
+  let filteredItems = items.filter((it, index) => {
     const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
     const authorUsername = authorObj?.username || it.author || it.handle;
     const castHash = it.hash || it.id;
-
+    
     if (authorUsername && mutedUsers.has(authorUsername)) return false;
     if (castHash && hiddenCasts.has(castHash)) return false;
-
+    
     // Reduce "see less" authors - only show 25% of their content
     if (authorUsername && seeLessAuthors.has(authorUsername)) {
       return index % 4 === 0; // Only show every 4th post
     }
-
+    
     return true;
   });
 
-  // Apply curation after basic filtering
-  const curatedItems = applyCurationFilters(filteredItems);
+  // Apply interest-based sorting if user has set interests
+  if (userInterests.length > 0) {
+    filteredItems = filteredItems
+      .map(cast => ({
+        ...cast,
+        _interestScore: scoreCast(cast, userInterests)
+      }))
+      .sort((a, b) => b._interestScore - a._interestScore);
+  }
 
   return (
     <div className="space-y-4">
-      {curatedItems.map((it) => {
+      {filteredItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
         const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
         const authorName = authorObj?.display_name || authorObj?.username || it.author || it.handle || 'Unknown';
@@ -713,17 +639,18 @@ export default function FeedList({
                   />
                 </Link>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <Link
-                href={`/profile?user=${authorUsername}`}
-                style={{
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  color: 'inherit'
-                }}
-                className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
-              >
-                {authorName}
-              </Link>
+                  <Link 
+                    href={`/profile?user=${authorUsername}`}
+                    style={{ 
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      color: 'inherit',
+                      display: 'block'
+                    }}
+                    className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                  >
+                    {authorName}
+                  </Link>
                   {authorUsername && (
                     <Link
                       href={`/profile?user=${authorUsername}`}
@@ -838,26 +765,49 @@ export default function FeedList({
                 )}
               </div>
             )}
-            <div style={{
-              marginTop: 6,
-              wordBreak: 'break-word',
-              overflowWrap: 'break-word',
-              whiteSpace: 'pre-wrap'
+            <div style={{ 
+              marginTop: 6, 
+              wordBreak: 'break-word', 
+              overflowWrap: 'break-word'
             }}>
               {(() => {
                 const words = text.split(' ');
                 const isLongCast = words.length > 15;
                 const isExpanded = expandedCasts.has(key);
-
+                
                 if (!isLongCast || isExpanded) {
-                  return text;
+                  return (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
+                        code: ({ node, inline, ...props }: any) => 
+                          inline ? 
+                            <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
+                            <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
+                      }}
+                    >
+                      {text}
+                    </ReactMarkdown>
+                  );
                 }
-
+                
                 // Show first 15 words
                 const preview = words.slice(0, 15).join(' ');
                 return (
                   <>
-                    {preview}
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
+                        code: ({ node, inline, ...props }: any) => 
+                          inline ? 
+                            <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
+                            <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
+                      }}
+                    >
+                      {preview}
+                    </ReactMarkdown>
                     <button
                       onClick={() => setExpandedCasts(prev => new Set([...prev, key]))}
                       style={{
@@ -874,12 +824,88 @@ export default function FeedList({
                       ... <span style={{ textDecoration: 'underline' }}>more</span>
                     </button>
                   </>
-                );
-              })()}
-            </div>
-            <div style={{
-              marginTop: 8,
-              fontSize: 12,
+                );              })()}            </div>
+            
+            {/* Display embedded images */}
+            {it.embeds && it.embeds.length > 0 && (
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {it.embeds.map((embed: any, idx: number) => {
+                  // Check if embed is an image
+                  const embedUrl = embed.url || embed;
+                  const isImage = typeof embedUrl === 'string' && (
+                    embedUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) ||
+                    embedUrl.includes('imagedelivery.net') ||
+                    embedUrl.includes('imgur.com') ||
+                    embedUrl.includes('imgbb.com') ||
+                    embedUrl.includes('i.ibb.co') ||
+                    embedUrl.includes('cloudinary.com') ||
+                    embedUrl.includes('media.discordapp.net') ||
+                    embedUrl.includes('pbs.twimg.com')
+                  );
+                  
+                  if (isImage) {
+                    return (
+                      <a
+                        key={idx}
+                        href={embedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'block' }}
+                      >
+                        <img
+                          src={embedUrl}
+                          alt="Cast embed"
+                          style={{
+                            maxWidth: '100%',
+                            height: 'auto',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border)',
+                            cursor: 'pointer',
+                            backgroundColor: 'var(--surface)'
+                          }}
+                          loading="lazy"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </a>
+                    );
+                  }
+                  
+                  // Display non-image embeds as links
+                  if (typeof embedUrl === 'string' && embedUrl.startsWith('http')) {
+                    return (
+                      <a
+                        key={idx}
+                        href={embedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'block',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface)',
+                          color: 'var(--accent)',
+                          textDecoration: 'none',
+                          fontSize: '14px',
+                          wordBreak: 'break-all'
+                        }}
+                        className="hover:bg-opacity-80 transition-colors"
+                      >
+                        🔗 {embedUrl.length > 60 ? embedUrl.substring(0, 60) + '...' : embedUrl}
+                      </a>
+                    );
+                  }
+                  
+                  return null;
+                })}
+              </div>
+            )}
+            
+            <div style={{ 
+              marginTop: 8, 
+              fontSize: 12, 
               color: 'var(--muted-on-dark)',
               display: 'flex',
               justifyContent: 'space-between',
@@ -907,14 +933,14 @@ export default function FeedList({
                 </button>
               )}
             </div>
-
+            
             {/* Like and Recast buttons */}
-            <div style={{
-              display: 'flex',
-              gap: '16px',
-              marginTop: '12px',
-              paddingTop: '12px',
-              borderTop: '1px solid var(--border)'
+            <div style={{ 
+              display: 'flex', 
+              gap: '16px', 
+              marginTop: '12px', 
+              paddingTop: '12px', 
+              borderTop: '1px solid var(--border)' 
             }}>
               <button
                 onClick={() => handleLike(key)}
@@ -945,10 +971,10 @@ export default function FeedList({
                   }
                 }}
               >
-                {likedCasts.has(key) ? '❤️' : '🤍'}
+                {likedCasts.has(key) ? '❤️' : '🤍'} 
                 {actionLoading === `like-${key}` ? 'Loading...' : 'Like'}
               </button>
-
+              
               <button
                 onClick={() => setShowRecastModal(key)}
                 disabled={actionLoading === `recast-${key}`}
@@ -980,7 +1006,7 @@ export default function FeedList({
               >
                 🔁 {actionLoading === `recast-${key}` ? 'Loading...' : (recastedCasts.has(key) ? 'Recasted' : 'Recast')}
               </button>
-
+              
               <button
                 onClick={() => setReplyingTo(replyingTo === key ? null : key)}
                 style={{
@@ -1047,7 +1073,7 @@ export default function FeedList({
                 🤖 Ask Homie
               </button>
             </div>
-
+            
             {/* Reply input */}
             {replyingTo === key && (
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
@@ -1059,23 +1085,9 @@ export default function FeedList({
                   autoFocus
                   style={{ minHeight: '80px', fontSize: '14px' }}
                 />
-                {replySuccess && (
-                  <div style={{
-                    padding: '12px',
-                    background: '#10b981',
-                    color: 'white',
-                    borderRadius: '8px',
-                    textAlign: 'center',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    marginTop: '8px'
-                  }}>
-                    ✓ Reply posted successfully!
-                  </div>
-                )}
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn"
+                  <button 
+                    className="btn" 
                     onClick={() => {
                       setReplyingTo(null);
                       setReplyText("");
@@ -1084,10 +1096,10 @@ export default function FeedList({
                   >
                     Cancel
                   </button>
-                  <button
-                    className="btn primary"
+                  <button 
+                    className="btn primary" 
                     onClick={() => handleReply(key)}
-                    disabled={replyLoading || !replyText.trim() || replySuccess}
+                    disabled={replyLoading || !replyText.trim()}
                   >
                     {replyLoading ? "Posting..." : "Post Reply"}
                   </button>
@@ -1111,7 +1123,7 @@ export default function FeedList({
                 To interact with casts (like, recast, reply, quote), you need to approve posting permissions in Warpcast.
                 This only needs to be done once for all actions.
               </p>
-
+              
               {signerApprovalUrl && (
                 <>
                   <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
@@ -1120,20 +1132,20 @@ export default function FeedList({
                   <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
                     Scan this QR code or click below to approve:
                   </p>
-                  <a
-                    href={signerApprovalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn primary"
+                  <a 
+                    href={signerApprovalUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="btn primary" 
                     style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
                   >
                     Approve in Warpcast →
                   </a>
                 </>
               )}
-
-              <button
-                className="btn primary"
+              
+              <button 
+                className="btn primary" 
                 onClick={async () => {
                   // Try to get the signer and check if it's approved
                   try {
@@ -1146,12 +1158,12 @@ export default function FeedList({
                         const stored = localStorage.getItem(key);
                         if (stored) {
                           const parsed = JSON.parse(stored);
-
+                          
                           // Show checking status
                           const button = document.activeElement as HTMLButtonElement;
                           const originalText = button?.textContent;
                           if (button) button.textContent = 'Checking...';
-
+                          
                           // Poll for approval (try up to 5 times with 2 second gaps)
                           let approved = false;
                           for (let i = 0; i < 5; i++) {
@@ -1171,9 +1183,9 @@ export default function FeedList({
                             // Wait 2 seconds before next check
                             if (i < 4) await new Promise(resolve => setTimeout(resolve, 2000));
                           }
-
+                          
                           if (button) button.textContent = originalText || 'Check Status';
-
+                          
                           if (approved) {
                             alert('✓ Signer approved! You can now interact with casts.');
                             setShowSignerModal(false);
@@ -1194,15 +1206,15 @@ export default function FeedList({
               >
                 ✓ I've Approved - Check Status
               </button>
-
-              <button
-                className="btn"
+              
+              <button 
+                className="btn" 
                 onClick={() => setShowSignerModal(false)}
                 style={{ width: '100%', padding: '12px' }}
               >
                 Cancel
               </button>
-
+              
               <p style={{ fontSize: '13px', color: 'var(--muted-on-dark)', marginTop: '16px' }}>
                 After approving in Warpcast, click "Check Status" to verify.
               </p>
@@ -1213,7 +1225,7 @@ export default function FeedList({
 
       {/* Recast Modal */}
       {showRecastModal && (
-        <div
+        <div 
           onClick={() => setShowRecastModal(null)}
           style={{
             position: 'fixed',
@@ -1228,7 +1240,7 @@ export default function FeedList({
             zIndex: 1000,
           }}
         >
-          <div
+          <div 
             onClick={(e) => e.stopPropagation()}
             style={{
               background: 'var(--background)',
@@ -1242,7 +1254,7 @@ export default function FeedList({
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>
               Cast Options
             </h3>
-
+            
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* Quote Cast */}
               <button
@@ -1327,7 +1339,7 @@ export default function FeedList({
               >
                 💬 Reply
               </button>
-
+              
               <button
                 onClick={() => setShowRecastModal(null)}
                 className="btn"
@@ -1376,7 +1388,7 @@ export default function FeedList({
             }}
           >
             <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }}>Quote Cast</h3>
-
+            
             {/* Cast Preview */}
             {(() => {
               const cast = items?.find(item => item.hash === showQuoteModal);
@@ -1423,19 +1435,19 @@ export default function FeedList({
                     {cast.embeds && cast.embeds.length > 0 && cast.embeds[0]?.url && (
                       <div style={{ marginTop: '12px' }}>
                         {cast.embeds[0].url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                          <img
-                            src={cast.embeds[0].url}
+                          <img 
+                            src={cast.embeds[0].url} 
                             alt="embed"
-                            style={{
-                              maxWidth: '100%',
+                            style={{ 
+                              maxWidth: '100%', 
                               borderRadius: '8px',
                               maxHeight: '200px',
                               objectFit: 'cover'
-                            }}
+                            }} 
                           />
                         ) : (
-                          <div style={{
-                            fontSize: '13px',
+                          <div style={{ 
+                            fontSize: '13px', 
                             color: '#888',
                             fontStyle: 'italic'
                           }}>
@@ -1451,7 +1463,7 @@ export default function FeedList({
               }
               return null;
             })()}
-
+            
             <textarea
               value={quoteText}
               onChange={(e) => setQuoteText(e.target.value)}
@@ -1471,25 +1483,11 @@ export default function FeedList({
               }}
               autoFocus
             />
-
-            {quoteSuccess && (
-              <div style={{
-                padding: '12px',
-                background: '#10b981',
-                color: 'white',
-                borderRadius: '8px',
-                textAlign: 'center',
-                fontSize: '14px',
-                fontWeight: 500
-              }}>
-                ✓ Quote cast posted successfully!
-              </div>
-            )}
-
+            
             <div style={{ display: 'flex', gap: '12px', flexDirection: 'column' }}>
               <button
                 onClick={() => handleQuoteCast(showQuoteModal)}
-                disabled={quoteLoading || !quoteText.trim() || quoteSuccess}
+                disabled={quoteLoading || !quoteText.trim()}
                 className="btn primary"
                 style={{
                   width: '100%',
@@ -1503,7 +1501,7 @@ export default function FeedList({
               >
                 {quoteLoading ? 'Posting...' : '💬 Post Quote Cast'}
               </button>
-
+              
               <button
                 onClick={() => {
                   setShowQuoteModal(null);
