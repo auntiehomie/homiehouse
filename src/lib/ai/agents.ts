@@ -202,14 +202,34 @@ When analyzing casts:
     super('anthropic', systemPrompt);
   }
 
-  async analyzeCast(cast: string, metrics?: { likes?: number; recasts?: number; replies?: number }): Promise<string> {
-    let prompt = `Analyze this Farcaster cast: "${cast}"`;
+  async analyzeCast(castOrMessage: string, metrics?: { likes?: number; recasts?: number; replies?: number }): Promise<string> {
+    // Check if this is a structured context message or just a cast
+    const hasStructuredContext = castOrMessage.includes('Cast Author:') || 
+                                  castOrMessage.includes('Cast Content:') ||
+                                  castOrMessage.includes('IMPORTANT CONTEXT');
     
-    if (metrics) {
-      prompt += `\nMetrics: ${metrics.likes || 0} likes, ${metrics.recasts || 0} recasts, ${metrics.replies || 0} replies`;
-    }
+    let prompt: string;
+    
+    if (hasStructuredContext) {
+      // Use the full context message as-is since it's already well-formatted
+      prompt = `${castOrMessage}
 
-    prompt += '\n\nProvide specific feedback on what works and what could be improved.';
+Please provide thoughtful analysis of this cast. Consider:
+- The cast's message and intent
+- Tone and writing style
+- Engagement potential
+- What makes it interesting or noteworthy
+- Any suggestions for similar future casts`;
+    } else {
+      // Simple cast analysis
+      prompt = `Analyze this Farcaster cast: "${castOrMessage}"`;
+      
+      if (metrics) {
+        prompt += `\nMetrics: ${metrics.likes || 0} likes, ${metrics.recasts || 0} recasts, ${metrics.replies || 0} replies`;
+      }
+
+      prompt += '\n\nProvide specific feedback on what works and what could be improved.';
+    }
 
     return this.chat(prompt);
   }
@@ -393,12 +413,18 @@ export class AgentOrchestrator {
     // Auto-detect intent if not specified
     if (intent === 'auto') {
       intent = this.detectIntent(message);
+      console.log(`🎯 Auto-detected intent: ${intent}`);
     }
 
     // Check if message contains cast context (for analysis)
     const hasCastContext = message.includes('Cast Author:') || 
                            message.includes('Cast Content:') || 
                            message.includes('IMPORTANT CONTEXT');
+    
+    if (hasCastContext) {
+      console.log('📋 Cast context detected in message');
+    }
+    
     let enrichedMessage = message;
 
     // If analyzing a cast, search for similar casts to enrich context
@@ -521,6 +547,30 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
   private detectIntent(message: string): 'compose' | 'analyze' | 'learn' | 'research' | 'curate' {
     const lower = message.toLowerCase();
 
+    // Check if cast context is present (user is asking about a specific cast)
+    const hasCastContext = message.includes('Cast Author:') || 
+                           message.includes('Cast Content:') || 
+                           message.includes('IMPORTANT CONTEXT');
+    
+    // If cast context is present, prioritize analyze intent for most questions
+    if (hasCastContext) {
+      // Questions about the cast should be analyze
+      if (
+        lower.includes('what do you think') ||
+        lower.includes('your thoughts') ||
+        lower.includes('opinion') ||
+        lower.includes('analyze') ||
+        lower.includes('why') ||
+        lower.includes('how') ||
+        lower.includes('what') ||
+        lower.includes('this cast') ||
+        lower.includes('about this') ||
+        lower.includes('tell me about')
+      ) {
+        return 'analyze';
+      }
+    }
+
     // Curate intent (feed customization)
     if (
       lower.includes('curate') ||
@@ -580,7 +630,7 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
       return 'research';
     }
 
-    // Default to compose for shorter messages
+    // Default to compose for shorter messages, research for longer
     return message.length < 100 ? 'compose' : 'research';
   }
 
