@@ -20,9 +20,6 @@ export default function ComposePage() {
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -117,54 +114,6 @@ export default function ComposePage() {
     setShowMentions(false);
     setMentionSearch('');
     setMentionStartPos(null);
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      setStatus("Image too large. Maximum size is 10MB.");
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      setStatus("Please select an image file.");
-      return;
-    }
-
-    setUploadingImage(true);
-    setStatus("Uploading image...");
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (data.ok && data.url) {
-        setUploadedImage(data.url);
-        setImageUrl(data.url);
-        setStatus("✓ Image uploaded!");
-        setTimeout(() => setStatus(null), 2000);
-      } else {
-        setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (error: any) {
-      setStatus(`Upload error: ${error.message}`);
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const removeImage = () => {
-    setImageUrl('');
-    setUploadedImage(null);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
