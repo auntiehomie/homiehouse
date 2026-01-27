@@ -1042,9 +1042,21 @@ export default function FeedList({
                 onClick={() => {
                   const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
                   const castData = encodeURIComponent(JSON.stringify({
-                    author: authorUsername,
+                    author: {
+                      username: authorUsername,
+                      display_name: authorName,
+                      pfp_url: authorObj?.pfp_url
+                    },
                     text: castText,
-                    hash: key
+                    hash: key,
+                    timestamp: rawTs,
+                    reactions: {
+                      likes_count: it.reactions?.likes_count || 0,
+                      recasts_count: it.reactions?.recasts_count || 0
+                    },
+                    replies: {
+                      count: it.replies?.count || 0
+                    }
                   }));
                   window.location.href = `/ask-homie?cast=${castData}`;
                 }}

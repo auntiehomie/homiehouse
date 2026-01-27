@@ -17,6 +17,12 @@ export default function ComposePage() {
   const [mentionResults, setMentionResults] = useState<any[]>([]);
   const [showMentions, setShowMentions] = useState(false);
   const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -111,6 +117,102 @@ export default function ComposePage() {
     setShowMentions(false);
     setMentionSearch('');
     setMentionStartPos(null);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setStatus("Image too large. Maximum size is 10MB.");
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setStatus("Please select an image file.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setStatus("Uploading image...");
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.url) {
+        setUploadedImage(data.url);
+        setImageUrl(data.url);
+        setStatus("✓ Image uploaded!");
+        setTimeout(() => setStatus(null), 2000);
+      } else {
+        setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      setStatus(`Upload error: ${error.message}`);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setImageUrl('');
+    setUploadedImage(null);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setStatus("Image too large. Maximum size is 10MB.");
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setStatus("Please select an image file.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setStatus("Uploading image...");
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.url) {
+        setUploadedImage(data.url);
+        setImageUrl(data.url);
+        setStatus("✓ Image uploaded!");
+        setTimeout(() => setStatus(null), 2000);
+      } else {
+        setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      setStatus(`Upload error: ${error.message}`);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setImageUrl('');
+    setUploadedImage(null);
   };
 
   async function createSigner() {
@@ -213,20 +315,28 @@ export default function ComposePage() {
         return;
       }
 
+      const body: any = { 
+        text, 
+        signerUuid: signerUuid || undefined,
+        fid: userFid 
+      };
+
+      if (imageUrl.trim()) {
+        body.embeds = [{ url: imageUrl.trim() }];
+      }
+
       const res = await fetch("/api/privy-compose", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          text, 
-          signerUuid: signerUuid || undefined,
-          fid: userFid 
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
       if (data.ok) {
         setStatus("✓ Posted successfully!");
         setText("");
+        setImageUrl("");
+        setUploadedImage(null);
         setTimeout(() => {
           router.push('/');
         }, 800);
@@ -398,6 +508,65 @@ export default function ComposePage() {
               </div>
             )}
             
+            {/* Image upload section */}
+            <div className="mt-4 border-t border-zinc-800 pt-4">
+              <div className="flex gap-3 items-center mb-3">
+                <label 
+                  htmlFor="image-upload-compose"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                    uploadingImage 
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                      : 'bg-orange-600 hover:bg-orange-700 text-white'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {uploadingImage ? 'Uploading...' : 'Add Image'}
+                </label>
+                <input
+                  id="image-upload-compose"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                  className="hidden"
+                />
+                <span className="text-xs text-zinc-500">or paste URL</span>
+              </div>
+              
+              <input
+                type="text"
+                value={imageUrl}
+                onChange={(e) => {
+                  setImageUrl(e.target.value);
+                  setUploadedImage(null);
+                }}
+                placeholder="Or paste image URL here"
+                disabled={uploadingImage}
+                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+              />
+              
+              {imageUrl && (
+                <div className="mt-3 relative">
+                  <img
+                    src={imageUrl}
+                    alt="Preview"
+                    className="max-w-full max-h-64 rounded-lg border border-zinc-800"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                  <button
+                    onClick={removeImage}
+                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-black/70 hover:bg-black text-white rounded-full transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+            
             <div className="flex justify-between items-center mt-4">
               <div className="text-sm text-zinc-500">
                 {text.length > 0 && `${text.length} characters`}
@@ -411,7 +580,7 @@ export default function ComposePage() {
                 </button>
                 <button
                   className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={loading || !text.trim()}
+                  disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim())}
                   onClick={handlePost}
                 >
                   {loading ? "Posting..." : "Post Cast"}

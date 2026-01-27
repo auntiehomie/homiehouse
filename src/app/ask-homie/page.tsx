@@ -102,18 +102,35 @@ function AskHomieContent() {
               </button>
             </div>
             <div className="text-sm text-zinc-700 dark:text-zinc-300">
-              <div className="font-medium">
+              <div className="font-medium mb-1">
                 <Link
-                  href={`/profile?user=${castContext.author}`}
+                  href={`/profile?user=${castContext.author?.username || castContext.author}`}
                   className="text-blue-600 dark:text-blue-400 hover:underline"
                 >
-                  @{castContext.author}
+                  @{castContext.author?.username || castContext.author}
                 </Link>
+                {castContext.author?.display_name && (
+                  <span className="text-zinc-500 dark:text-zinc-400 ml-2">
+                    ({castContext.author.display_name})
+                  </span>
+                )}
               </div>
-              <div className="mt-1">
-                {castContext.text?.substring(0, 200)}
-                {castContext.text?.length > 200 ? '...' : ''}
+              <div className="mt-2 p-2 bg-white dark:bg-zinc-800 rounded border border-blue-100 dark:border-blue-900">
+                {castContext.text}
               </div>
+              {(castContext.reactions || castContext.replies) && (
+                <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400 flex gap-3">
+                  {castContext.reactions?.likes_count !== undefined && (
+                    <span>❤️ {castContext.reactions.likes_count} likes</span>
+                  )}
+                  {castContext.reactions?.recasts_count !== undefined && (
+                    <span>🔁 {castContext.reactions.recasts_count} recasts</span>
+                  )}
+                  {castContext.replies?.count !== undefined && (
+                    <span>💬 {castContext.replies.count} replies</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

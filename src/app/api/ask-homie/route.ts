@@ -289,7 +289,8 @@ export async function POST(req: NextRequest) {
         if (castContext) {
           console.log('📋 Cast context received:', {
             author: castContext.author?.username || castContext.author,
-            textPreview: castContext.text?.slice(0, 100)
+            textPreview: castContext.text?.slice(0, 100),
+            fullContext: castContext
           });
         }
 
