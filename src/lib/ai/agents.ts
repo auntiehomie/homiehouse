@@ -672,6 +672,27 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
                            message.includes('Cast Content:') || 
                            message.includes('IMPORTANT CONTEXT');
     
+    // PRIORITY 1: Research/Search intent - check FIRST before anything else
+    // These keywords indicate the user wants to find other casts, not analyze the current one
+    if (
+      lower.includes('find') ||
+      lower.includes('search') ||
+      lower.includes('look for') ||
+      lower.includes('show me') ||
+      lower.includes('other casts') ||
+      lower.includes('similar casts') ||
+      lower.includes('more casts') ||
+      lower.includes('any casts') ||
+      lower.includes('casts by') ||
+      lower.includes('casts from') ||
+      lower.includes('casts about') ||
+      lower.includes('posts by') ||
+      lower.includes('posts from') ||
+      lower.match(/@\w+/)  // Contains any @username mention
+    ) {
+      return 'research';
+    }
+    
     // If cast context is present, prioritize analyze intent for most questions
     if (hasCastContext) {
       // Questions about the cast should be analyze
