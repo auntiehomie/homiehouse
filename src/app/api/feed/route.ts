@@ -1,110 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+import { fetchFeed } from '@/lib/neynar';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
+import { validateFid, validateLimit } from '@/lib/validation';
 
 export async function GET(req: NextRequest) {
-  console.log("[API /feed] ========== REQUEST START ==========");
+  const logger = createApiLogger('/feed');
+  logger.start();
+
   try {
     const { searchParams } = new URL(req.url);
     const feedType = searchParams.get("feed_type") || "following";
-    const fid = searchParams.get("fid");
+    const fidParam = searchParams.get("fid");
     const channel = searchParams.get("channel");
-    const limit = parseInt(searchParams.get("limit") || "25", 10);
+    const limitParam = searchParams.get("limit");
 
-    console.log("[API /feed] Request params:", { feedType, fid, channel, limit });
-    console.log("[API /feed] NEYNAR_API_KEY present:", !!NEYNAR_API_KEY);
-    console.log("[API /feed] NEYNAR_API_KEY (first 8 chars):", NEYNAR_API_KEY?.substring(0, 8));
+    // Validate inputs
+    const limit = validateLimit(limitParam, 100);
+    const fid = fidParam ? validateFid(fidParam).toString() : undefined;
 
-    if (!NEYNAR_API_KEY) {
-      console.error("[API /feed] ERROR: NEYNAR_API_KEY not configured");
-      return NextResponse.json(
-        { error: "NEYNAR_API_KEY not configured" },
-        { status: 500 }
-      );
-    }
+    logger.info('Request params', { feedType, fid, channel, limit });
 
-    let url: string;
-    let params = new URLSearchParams({ limit: limit.toString() });
+    // Build fetch parameters
+    const fetchParams: any = { limit };
 
-    // Use Neynar v2 feed endpoints
     if (channel) {
-      // Channel feed - use filter with channel
-      url = `https://api.neynar.com/v2/farcaster/feed`;
-      params.set("feed_type", "filter");
-      params.set("filter_type", "channel_id");
-      params.set("channel_id", channel);
-      if (fid) params.set("viewer_fid", fid);
+      // Channel feed
+      fetchParams.feed_type = 'filter';
+      fetchParams.filter_type = 'channel_id';
+      fetchParams.channel_id = channel;
+      if (fid) fetchParams.viewer_fid = fid;
     } else if (feedType === "following" && fid) {
       // Following feed
-      url = `https://api.neynar.com/v2/farcaster/feed`;
-      params.set("feed_type", "following");
-      params.set("fid", fid);
-      if (fid) params.set("viewer_fid", fid);
+      fetchParams.feed_type = 'following';
+      fetchParams.fid = fid;
+      fetchParams.viewer_fid = fid;
     } else {
       // Default to global trending
-      url = `https://api.neynar.com/v2/farcaster/feed`;
-      params.set("feed_type", "filter");
-      params.set("filter_type", "global_trending");
-      if (fid) params.set("viewer_fid", fid);
+      fetchParams.feed_type = 'filter';
+      fetchParams.filter_type = 'global_trending';
+      if (fid) fetchParams.viewer_fid = fid;
     }
 
-    const neynarUrl = `${url}?${params.toString()}`;
-    console.log("[API /feed] Fetching from Neynar:", neynarUrl);
-    console.log("[API /feed] Request headers:", { accept: "application/json", api_key: `${NEYNAR_API_KEY?.substring(0, 8)}...` });
+    // Fetch feed using shared utility
+    const data = await fetchFeed(fetchParams);
 
-    const response = await fetch(neynarUrl, {
-      headers: {
-        accept: "application/json",
-        api_key: NEYNAR_API_KEY,
-      },
-    });
+    const casts = data?.casts || [];
+    logger.success(`Feed fetched successfully`, { count: casts.length });
+    logger.end();
 
-    console.log("[API /feed] Response status:", response.status);
-    console.log("[API /feed] Response headers:", Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[API /feed] ❌ Neynar API error:");
-      console.error("[API /feed] Status:", response.status);
-      console.error("[API /feed] Status Text:", response.statusText);
-      console.error("[API /feed] Error body:", errorText);
-      console.error("[API /feed] URL:", neynarUrl);
-      
-      // Try to parse error as JSON for more details
-      try {
-        const errorJson = JSON.parse(errorText);
-        console.error("[API /feed] Parsed error:", JSON.stringify(errorJson, null, 2));
-      } catch (e) {
-        console.error("[API /feed] Could not parse error as JSON");
-      }
-      
-      return NextResponse.json(
-        { error: "Failed to fetch feed from Neynar", details: errorText, status: response.status },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    console.log("[API /feed] ✅ Success! Casts received:", data?.casts?.length || 0);
-    if (data?.casts?.length > 0) {
-      console.log("[API /feed] First cast sample:", {
-        hash: data.casts[0]?.hash,
-        author: data.casts[0]?.author?.username,
-        text: data.casts[0]?.text?.substring(0, 50)
-      });
-    }
-    console.log("[API /feed] ========== REQUEST END ==========");
-
-    return NextResponse.json({ data: data.casts || [] });
+    return NextResponse.json({ data: casts });
   } catch (error: any) {
-    console.error("[API /feed] ❌ EXCEPTION:", error);
-    console.error("[API /feed] Error name:", error.name);
-    console.error("[API /feed] Error message:", error.message);
-    console.error("[API /feed] Error stack:", error.stack);
-    console.error("[API /feed] ========== REQUEST END (ERROR) ==========");
-    return NextResponse.json(
-      { error: "Internal server error", details: error.message },
-      { status: 500 }
-    );
+    logger.error('Failed to fetch feed', error);
+    return handleApiError(error, 'GET /feed');
   }
 }

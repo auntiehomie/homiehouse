@@ -1,58 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+import { fetchUserChannels, fetchChannelList } from '@/lib/neynar';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
+import { validateFid, validateLimit } from '@/lib/validation';
 
 export async function GET(req: NextRequest) {
+  const logger = createApiLogger('/channels');
+  logger.start();
+
   try {
     const { searchParams } = new URL(req.url);
-    const fid = searchParams.get("fid");
-    const limit = parseInt(searchParams.get("limit") || "25", 10);
+    const fidParam = searchParams.get("fid");
+    const limitParam = searchParams.get("limit");
 
-    if (!NEYNAR_API_KEY) {
-      return NextResponse.json(
-        { error: "NEYNAR_API_KEY not configured" },
-        { status: 500 }
-      );
-    }
+    // Validate inputs
+    const limit = validateLimit(limitParam, 100);
+    const fid = fidParam ? validateFid(fidParam).toString() : null;
 
-    // Fetch user's channels (channels they follow/are members of)
-    let url: string;
-    if (fid) {
-      // Use the correct endpoint for user's followed channels
-      url = `https://api.neynar.com/v2/farcaster/user/channels?fid=${fid}&limit=${limit}`;
-    } else {
-      // If no FID, return popular channels
-      url = `https://api.neynar.com/v2/farcaster/channel/list?limit=${limit}`;
-    }
+    logger.info('Request params', { fid, limit });
 
-    console.log("[API /channels] Fetching from Neynar:", url);
+    // Fetch channels using shared utility
+    const data = fid 
+      ? await fetchUserChannels(fid, limit)
+      : await fetchChannelList(limit);
 
-    const response = await fetch(url, {
-      headers: {
-        accept: "application/json",
-        api_key: NEYNAR_API_KEY,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[API /channels] Neynar error:", response.status, errorText);
-      return NextResponse.json(
-        { error: "Failed to fetch channels from Neynar", details: errorText },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
     const channels = data?.channels || [];
-    console.log("[API /channels] Success, channels:", channels.length);
+    logger.success('Channels fetched', { count: channels.length });
+    logger.end();
 
     return NextResponse.json({ ok: true, channels });
   } catch (error: any) {
-    console.error("[API /channels] Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error", details: error.message },
-      { status: 500 }
-    );
+    logger.error('Failed to fetch channels', error);
+    return handleApiError(error, 'GET /channels');
   }
 }

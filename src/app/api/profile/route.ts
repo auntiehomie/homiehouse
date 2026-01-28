@@ -1,53 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NeynarAPIClient } from '@neynar/nodejs-sdk';
-
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+import { fetchUserByUsername, neynarFetch } from '@/lib/neynar';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
+import { validateFid, validateUsername } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const fid = searchParams.get('fid');
-  const username = searchParams.get('username');
-  const includeCasts = searchParams.get('casts') === 'true';
-
-  if (!NEYNAR_API_KEY) {
-    return NextResponse.json(
-      { error: 'NEYNAR_API_KEY not configured' },
-      { status: 500 }
-    );
-  }
+  const logger = createApiLogger('/profile');
+  logger.start();
 
   try {
-    const neynar = new NeynarAPIClient({ apiKey: NEYNAR_API_KEY });
-    let user;
-    let userFid: number;
-    
-    if (username) {
-      // Fetch by username using direct API call
-      const url = `https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`;
-      const response = await fetch(url, {
-        headers: {
-          'accept': 'application/json',
-          'api_key': NEYNAR_API_KEY,
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('User not found');
-      }
-      
-      const data = await response.json();
-      user = data.user;
-      userFid = user?.fid;
-    } else if (fid) {
-      // Fetch by FID
-      userFid = parseInt(fid);
-      const response = await neynar.fetchBulkUsers({ fids: [userFid] });
-      user = response.users?.[0];
-    } else {
+    const { searchParams } = new URL(request.url);
+    const fidParam = searchParams.get('fid');
+    const usernameParam = searchParams.get('username');
+    const includeCasts = searchParams.get('casts') === 'true';
+
+    if (!fidParam && !usernameParam) {
       return NextResponse.json(
         { error: 'Either fid or username is required' },
         { status: 400 }
       );
+    }
+
+    logger.info('Fetching profile', { fid: fidParam, username: usernameParam, includeCasts });
+
+    let user;
+    let userFid: number | undefined;
+    
+    if (usernameParam) {
+      // Validate and fetch by username
+      const username = validateUsername(usernameParam);
+      const data = await fetchUserByUsername(username);
+      user = data.user;
+      userFid = user?.fid;
+    } else if (fidParam) {
+      // Validate and fetch by FID
+      userFid = validateFid(fidParam);
+      const data = await neynarFetch(`/user/bulk?fids=${userFid}`);
+      user = data.users?.[0];
     }
 
     if (!user) {
@@ -61,52 +50,22 @@ export async function GET(request: NextRequest) {
     let casts = null;
     if (includeCasts && userFid) {
       try {
-        console.log(`[Profile API] Fetching casts for FID ${userFid}...`);
-        // Use direct API call for user casts
-        const url = `https://api.neynar.com/v2/farcaster/feed/user/${userFid}/casts?limit=25`;
-        console.log(`[Profile API] URL: ${url}`);
-        
-        const response = await fetch(url, {
-          headers: {
-            'accept': 'application/json',
-            'api_key': NEYNAR_API_KEY,
-          },
-        });
-        
-        console.log(`[Profile API] Response status: ${response.status}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          casts = data.casts || [];
-          console.log(`[Profile API] ✅ Found ${casts.length} casts for FID ${userFid}`);
-          if (casts.length > 0) {
-            console.log(`[Profile API] First cast sample:`, {
-              hash: casts[0].hash,
-              text: casts[0].text?.substring(0, 50),
-              timestamp: casts[0].timestamp
-            });
-          }
-        } else {
-          const errorText = await response.text();
-          console.error(`[Profile API] ❌ Failed to fetch casts: ${response.status} - ${errorText}`);
-          casts = [];
-        }
-      } catch (castError) {
-        console.error('[Profile API] Error fetching user casts:', castError);
-        // Don't fail the whole request if casts fail
+        logger.info('Fetching user casts', { fid: userFid });
+        const data = await neynarFetch(`/feed/user/${userFid}/casts?limit=25`);
+        casts = data.casts || [];
+        logger.info('Casts fetched', { count: casts.length });
+      } catch (error) {
+        logger.warn('Failed to fetch casts', { error: String(error) });
         casts = [];
       }
     }
 
-    return NextResponse.json({
-      ...user,
-      casts: includeCasts ? casts : undefined
-    });
-  } catch (error) {
-    console.error('Profile API error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch profile' },
-      { status: 500 }
-    );
+    logger.success('Profile fetched', { fid: userFid });
+    logger.end();
+
+    return NextResponse.json({ user, casts });
+  } catch (error: any) {
+    logger.error('Failed to fetch profile', error);
+    return handleApiError(error, 'GET /profile');
   }
 }

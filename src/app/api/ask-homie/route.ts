@@ -4,6 +4,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
+import { createApiLogger } from '@/lib/logger';
+import { handleApiError } from '@/lib/errors';
 
 const AI_PROVIDER = process.env.AI_PROVIDER || 'openai'; // 'openai' or 'claude'
 
@@ -258,16 +260,26 @@ async function fetchUserProfile(username: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const logger = createApiLogger('/ask-homie');
+  logger.start();
+
   try {
     const { 
       messages, 
       provider: requestedProvider, 
       castContext,
-      mode = 'agent', // 'agent' or 'legacy'
+      mode = 'agent',
       userId,
       intent,
       feedback
     } = await req.json();
+
+    logger.info('Processing AI request', { 
+      mode, 
+      provider: requestedProvider, 
+      hasCastContext: !!castContext,
+      messageCount: messages?.length 
+    });
 
     // Get or create user ID (from auth or generate temporary)
     const userIdentifier = userId || `temp_${Date.now()}`;
@@ -572,18 +584,20 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       }
     }
 
+    logger.success('AI response generated', { provider: usedProvider, mode: 'legacy' });
+    logger.end();
     return NextResponse.json({ response, provider: usedProvider, mode: 'legacy' });
-  } catch (error) {
-    console.error(`Error calling AI:`, error);
-    return NextResponse.json(
-      { error: `Failed to get response from AI` },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    logger.error('AI request failed', error);
+    return handleApiError(error, 'POST /ask-homie');
   }
 }
 
 // New endpoint for profile management
 export async function PATCH(req: NextRequest) {
+  const logger = createApiLogger('/ask-homie PATCH');
+  logger.start();
+
   try {
     const { userId, updates } = await req.json();
     
@@ -591,24 +605,28 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 });
     }
 
+    logger.info('Updating user profile', { userId: userId.substring(0, 8) });
+
     const updatedProfile = UserProfileStorage.updateProfile(userId, updates);
     const stats = UserProfileStorage.getStats(userId);
 
+    logger.success('Profile updated');
+    logger.end();
     return NextResponse.json({
       profile: updatedProfile,
       stats
     });
-  } catch (error) {
-    console.error('Profile update error:', error);
-    return NextResponse.json(
-      { error: 'Failed to update profile' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    logger.error('Profile update failed', error);
+    return handleApiError(error, 'PATCH /ask-homie');
   }
 }
 
 // Get user stats
 export async function GET(req: NextRequest) {
+  const logger = createApiLogger('/ask-homie GET');
+  logger.start();
+
   try {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get('userId');
@@ -617,18 +635,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 });
     }
 
+    logger.info('Fetching user profile', { userId: userId.substring(0, 8) });
+
     const profile = UserProfileStorage.getProfile(userId);
     const stats = UserProfileStorage.getStats(userId);
 
+    logger.success('Profile fetched');
+    logger.end();
     return NextResponse.json({
       profile,
       stats
     });
-  } catch (error) {
-    console.error('Profile fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch profile' },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    logger.error('Profile fetch failed', error);
+    return handleApiError(error, 'GET /ask-homie');
   }
 }

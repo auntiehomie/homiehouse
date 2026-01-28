@@ -1,51 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+import { fetchFollowing } from '@/lib/neynar';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
+import { validateFid } from '@/lib/validation';
 
 export async function GET(req: NextRequest) {
+  const logger = createApiLogger('/friends');
+  logger.start();
+
   try {
     const { searchParams } = new URL(req.url);
-    const fid = searchParams.get("fid");
+    const fidParam = searchParams.get("fid");
 
-    if (!fid) {
+    if (!fidParam) {
       return NextResponse.json({ error: "FID required" }, { status: 400 });
     }
 
-    if (!NEYNAR_API_KEY) {
-      return NextResponse.json(
-        { error: "NEYNAR_API_KEY not configured" },
-        { status: 500 }
-      );
-    }
+    // Validate input
+    const fid = validateFid(fidParam).toString();
 
-    const url = `https://api.neynar.com/v2/farcaster/following?fid=${fid}&limit=100`;
-    console.log("[API /friends] Fetching from Neynar:", url);
+    logger.info('Fetching following list', { fid });
 
-    const response = await fetch(url, {
-      headers: {
-        accept: "application/json",
-        api_key: NEYNAR_API_KEY,
-      },
-    });
+    // Fetch following using shared utility
+    const data = await fetchFollowing(fid, 100);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[API /friends] Neynar error:", response.status, errorText);
-      return NextResponse.json(
-        { error: "Failed to fetch friends from Neynar", details: errorText },
-        { status: response.status }
-      );
-    }
+    const users = data?.users || [];
+    logger.success('Following list fetched', { count: users.length });
+    logger.end();
 
-    const data = await response.json();
-    console.log("[API /friends] Success, users:", data?.users?.length || 0);
-
-    return NextResponse.json({ data: data.users || [] });
+    return NextResponse.json({ data: users });
   } catch (error: any) {
-    console.error("[API /friends] Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error", details: error.message },
-      { status: 500 }
-    );
+    logger.error('Failed to fetch friends', error);
+    return handleApiError(error, 'GET /friends');
   }
 }

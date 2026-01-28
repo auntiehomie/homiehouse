@@ -1,53 +1,71 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
+import { publishCast } from '@/lib/neynar';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
+import { validateCastText, validateEmbeds, validateChannelKey } from '@/lib/validation';
+import { verifySignerOwnership, getOptionalAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-  console.log("[API /privy-compose] ========== REQUEST START ==========");
+  const logger = createApiLogger('/privy-compose');
+  logger.start();
+
   try {
     const body = await request.json();
     const { text, embeds, channelKey, parentUrl, signerUuid, fid } = body;
 
-    console.log("[API /privy-compose] Request body:", { 
-      text: text?.substring(0, 50), 
-      embeds, 
-      channelKey, 
-      parentUrl,
-      signerUuid,
+    logger.info('Compose request', { 
+      textLength: text?.length,
+      embedCount: embeds?.length,
+      channelKey,
+      hasParent: !!parentUrl,
+      signerProvided: !!signerUuid,
       fid
     });
 
-    if (!NEYNAR_API_KEY) {
-      console.error("[API /privy-compose] NEYNAR_API_KEY not configured");
-      return NextResponse.json(
-        { error: "Neynar API not configured" },
-        { status: 500 }
-      );
+    // Validate inputs
+    const validatedText = validateCastText(text);
+    const validatedEmbeds = validateEmbeds(embeds);
+    
+    if (channelKey) {
+      validateChannelKey(channelKey);
     }
 
+    // Get authenticated user (if available)
+    const authToken = getOptionalAuth(request);
+    
     // Use user's signer if provided, otherwise fallback to bot signer
+    const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
     const effectiveSignerUuid = signerUuid || NEYNAR_SIGNER_UUID;
     
     if (!effectiveSignerUuid) {
-      console.error("[API /privy-compose] No signer UUID available");
+      logger.error('No signer UUID available');
       return NextResponse.json(
         { error: "No signer UUID available. Please create a signer first." },
         { status: 400 }
       );
     }
 
-    console.log("[API /privy-compose] Using signer UUID:", effectiveSignerUuid);
-    console.log("[API /privy-compose] For FID:", fid || "not specified");
+    // TODO: Verify signer ownership if user is authenticated
+    if (authToken && signerUuid) {
+      logger.warn('Signer ownership verification not implemented', {
+        signerUuid: signerUuid.substring(0, 8) + '...'
+      });
+      // await verifySignerOwnership(signerUuid, authToken);
+    }
 
-    // Publish cast via Neynar
+    logger.info('Using signer', { 
+      signerPrefix: effectiveSignerUuid.substring(0, 8) + '...',
+      fid: fid || 'not specified'
+    });
+
+    // Build cast payload
     const castPayload: any = {
       signer_uuid: effectiveSignerUuid,
-      text,
+      text: validatedText,
     };
 
-    if (embeds && embeds.length > 0) {
-      castPayload.embeds = embeds;
+    if (validatedEmbeds.length > 0) {
+      castPayload.embeds = validatedEmbeds;
     }
 
     if (parentUrl) {
@@ -58,42 +76,13 @@ export async function POST(request: NextRequest) {
       castPayload.channel_key = channelKey;
     }
 
-    console.log("[API /privy-compose] Casting with payload:", castPayload);
+    // Publish cast using shared utility
+    const result = await publishCast(castPayload);
 
-    const response = await fetch("https://api.neynar.com/v2/farcaster/cast", {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "api_key": NEYNAR_API_KEY,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(castPayload),
+    logger.success('Cast published successfully', { 
+      hash: result?.cast?.hash 
     });
-
-    console.log("[API /privy-compose] Response status:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[API /privy-compose] ❌ Neynar API error:");
-      console.error("[API /privy-compose] Status:", response.status);
-      console.error("[API /privy-compose] Error body:", errorText);
-      
-      try {
-        const errorJson = JSON.parse(errorText);
-        console.error("[API /privy-compose] Parsed error:", JSON.stringify(errorJson, null, 2));
-      } catch (e) {
-        console.error("[API /privy-compose] Could not parse error as JSON");
-      }
-      
-      return NextResponse.json(
-        { error: "Failed to publish cast", details: errorText },
-        { status: response.status }
-      );
-    }
-
-    const result = await response.json();
-    console.log("[API /privy-compose] ✅ Cast published successfully:", result?.cast?.hash);
-    console.log("[API /privy-compose] ========== REQUEST END ==========");
+    logger.end();
     
     return NextResponse.json({
       ok: true,
@@ -102,12 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error("[API /privy-compose] ❌ EXCEPTION:", error);
-    console.error("[API /privy-compose] Error message:", error.message);
-    console.error("[API /privy-compose] ========== REQUEST END (ERROR) ==========");
-    return NextResponse.json(
-      { error: error.message || "Failed to publish cast" },
-      { status: 500 }
-    );
+    logger.error('Failed to publish cast', error);
+    return handleApiError(error, 'POST /privy-compose');
   }
 }

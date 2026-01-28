@@ -1,41 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchNotifications } from '@/lib/neynar';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
+import { validateFid } from '@/lib/validation';
 
 export async function GET(req: NextRequest) {
+  const logger = createApiLogger('/notifications');
+  logger.start();
+
   try {
     const { searchParams } = new URL(req.url);
-    const fid = searchParams.get('fid');
-    const cursor = searchParams.get('cursor'); // For pagination
-    const type = searchParams.get('type'); // Filter by notification type
+    const fidParam = searchParams.get('fid');
+    const cursor = searchParams.get('cursor');
+    const type = searchParams.get('type');
     
-    if (!fid) {
+    if (!fidParam) {
       return NextResponse.json({ error: 'FID is required' }, { status: 400 });
     }
 
-    const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-    
-    if (!NEYNAR_API_KEY) {
-      return NextResponse.json({ error: 'Neynar API key not configured' }, { status: 500 });
-    }
+    // Validate input
+    const fid = validateFid(fidParam).toString();
 
-    // Fetch notifications from Neynar with enhanced parameters
-    let url = `https://api.neynar.com/v2/farcaster/notifications?fid=${fid}&priority_mode=true`;
-    if (cursor) url += `&cursor=${cursor}`;
-    if (type) url += `&type=${type}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'api_key': NEYNAR_API_KEY,
-      },
+    logger.info('Fetching notifications', { fid, cursor, type });
+
+    // Fetch notifications using shared utility
+    const data = await fetchNotifications({
+      fid,
+      priority_mode: true,
+      cursor: cursor || undefined,
+      type: type || undefined,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Neynar API error: ${response.status}`, errorText);
-      throw new Error(`Neynar API error: ${response.status}`);
-    }
-
-    const data = await response.json();
     
     // Transform the data to make it easier to work with
     const transformedNotifications = data.notifications?.map((notif: any) => {
@@ -46,7 +40,7 @@ export async function GET(req: NextRequest) {
       // For likes, get users from reactions array
       if (notif.type === 'likes' && notif.reactions) {
         actors = notif.reactions.map((r: any) => r.user).filter(Boolean);
-        actor = actors[0]; // Use first reactor as primary actor
+        actor = actors[0];
       }
       // For recasts, get users from recasts array
       else if (notif.type === 'recasts' && notif.recasts) {
@@ -76,6 +70,29 @@ export async function GET(req: NextRequest) {
       } else if (notif.author) {
         actor = notif.author;
       }
+      
+      return {
+        ...notif,
+        actor: actor,
+        actors: actors,
+        actorCount: actors.length,
+        timestamp: notif.most_recent_timestamp || notif.timestamp
+      };
+    }) || [];
+
+    logger.success('Notifications fetched', { count: transformedNotifications.length });
+    logger.end();
+
+    return NextResponse.json({
+      notifications: transformedNotifications,
+      next_cursor: data.next?.cursor,
+      has_more: !!data.next?.cursor
+    });
+  } catch (error: any) {
+    logger.error('Failed to fetch notifications', error);
+    return handleApiError(error, 'GET /notifications');
+  }
+}
       
       return {
         ...notif,

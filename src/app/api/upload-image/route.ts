@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { validateImageFile } from '@/lib/validation';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
+  const logger = createApiLogger('/upload-image');
+  logger.start();
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -12,27 +18,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json(
-        { error: "File too large. Maximum size is 10MB" },
-        { status: 400 }
-      );
-    }
-
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      return NextResponse.json(
-        { error: "File must be an image" },
-        { status: 400 }
-      );
-    }
+    // Validate file with comprehensive checks
+    validateImageFile(file);
 
     // Upload to imgbb (free image hosting service)
     // You can also use imgur, cloudinary, or your own storage
     const imgbbApiKey = process.env.IMGBB_API_KEY;
     
     if (!imgbbApiKey) {
+      logger.error('IMGBB_API_KEY not configured');
       return NextResponse.json(
         { error: "Image upload not configured. Please add IMGBB_API_KEY to environment variables." },
         { status: 500 }
@@ -43,6 +37,12 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const base64 = buffer.toString('base64');
+
+    logger.info('Uploading image', { 
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size 
+    });
 
     // Upload to imgbb
     const uploadFormData = new FormData();
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      console.error('Image upload failed:', errorText);
+      logger.error('Image upload failed', { status: uploadResponse.status, error: errorText });
       return NextResponse.json(
         { error: "Failed to upload image" },
         { status: 500 }
@@ -66,11 +66,15 @@ export async function POST(request: NextRequest) {
     const result = await uploadResponse.json();
     
     if (!result.data?.url) {
+      logger.error('Upload succeeded but no URL returned');
       return NextResponse.json(
         { error: "Upload succeeded but no URL returned" },
         { status: 500 }
       );
     }
+
+    logger.success('Image uploaded successfully', { url: result.data.url });
+    logger.end();
 
     return NextResponse.json({
       ok: true,
@@ -79,10 +83,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Upload error:', error);
-    return NextResponse.json(
-      { error: error.message || "Upload failed" },
-      { status: 500 }
-    );
+    logger.error('Upload failed', error);
+    return handleApiError(error, 'POST /upload-image');
   }
 }

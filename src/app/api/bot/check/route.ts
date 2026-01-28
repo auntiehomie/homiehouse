@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import fs from 'fs';
-import path from 'path';
+import { verifyCronSecret } from '@/lib/auth';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
 
 const neynarConfig = new Configuration({
   apiKey: process.env.NEYNAR_API_KEY!
@@ -15,63 +16,9 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
-// Path to persistent storage
-const REPLIED_CASTS_FILE = path.join(process.cwd(), 'bot', 'replied_casts.json');
-
-// ⚠️ WARNING: File-based storage does NOT work reliably in serverless environments like Vercel
-// Each serverless function has its own ephemeral filesystem that gets wiped periodically
-// For production, you MUST use a database like:
-// - Vercel KV (Redis): https://vercel.com/docs/storage/vercel-kv
-// - Supabase: https://supabase.com
-// - Planetscale: https://planetscale.com
-// - Any other cloud database
-// 
-// To use Vercel KV (recommended):
-// 1. Install: npm install @vercel/kv
-// 2. Set up KV in Vercel dashboard
-// 3. Replace loadRepliedCasts() and saveRepliedCast() with KV operations
-
-// Load replied casts from file
-function loadRepliedCasts(): Set<string> {
-  try {
-    if (fs.existsSync(REPLIED_CASTS_FILE)) {
-      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
-      const casts = JSON.parse(data);
-      return new Set(casts.map((c: any) => c.hash));
-    }
-  } catch (error) {
-    console.error('Error loading replied casts:', error);
-  }
-  return new Set();
-}
-
-// Save replied casts to file
-function saveRepliedCast(castHash: string) {
-  try {
-    let casts: any[] = [];
-    
-    if (fs.existsSync(REPLIED_CASTS_FILE)) {
-      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
-      casts = JSON.parse(data);
-    }
-    
-    // Add new cast with timestamp
-    casts.push({
-      hash: castHash,
-      timestamp: Date.now()
-    });
-    
-    // Keep only last 500 entries to prevent file from growing too large
-    if (casts.length > 500) {
-      casts = casts.slice(-500);
-    }
-    
-    fs.writeFileSync(REPLIED_CASTS_FILE, JSON.stringify(casts, null, 2));
-    console.log(`Saved replied cast ${castHash} to persistent storage`);
-  } catch (error) {
-    console.error('Error saving replied cast:', error);
-  }
-}
+// ⚠️ WARNING: In-memory storage only works within same serverless instance
+// For production with database, replace with database calls
+// See: /server/src/db.ts for BotReplyService implementation
 
 // Simple, casual bot personality - no fancy words
 const BOT_PERSONALITY = `You are a chill friend on Farcaster. Reply naturally and casually. Keep it SHORT - max 280 characters. No hashtags unless the user uses them first.
@@ -240,19 +187,22 @@ function cleanupCache() {
   }
 }
 
+// TODO: Replace with database storage for production
+// Example: import { BotReplyService } from '@/server/src/db';
+// Then use: await BotReplyService.hasRepliedTo(castHash)
+//           await BotReplyService.recordReply(castHash, replyHash, 'mention', replyText)
+
 export async function GET(request: NextRequest) {
+  const logger = createApiLogger('/bot/check');
+  
   try {
     // Verify cron secret if configured
-    const authHeader = request.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    verifyCronSecret(request, process.env.CRON_SECRET);
+    
+    logger.start();
     cleanupCache();
     
-    // Load persistent replied casts
-    const repliedCasts = loadRepliedCasts();
-    console.log(`Loaded ${repliedCasts.size} previously replied casts from storage`);
+    logger.info(`In-memory cache has ${repliedCastsCache.size} entries`);
     
     let repliedCount = 0;
 
@@ -288,11 +238,11 @@ export async function GET(request: NextRequest) {
       
       console.log(`Processing: cast=${castHash}, parent=${parentHash}, root=${rootParentHash}`);
 
-      // Check if we've already replied to ANY of these keys
+      // Check if we've already replied to ANY of these keys (only in-memory cache)
       let alreadyReplied = false;
       for (const key of trackingKeys) {
-        if (repliedCasts.has(key) || repliedCastsCache.has(key)) {
-          console.log(`✓ Already replied to ${key}, skipping entire thread`);
+        if (repliedCastsCache.has(key)) {
+          logger.info(`Already replied to ${key}, skipping entire thread`);
           alreadyReplied = true;
           break;
         }
@@ -303,7 +253,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        console.log(`Checking if already replied to parent ${parentHash}`);
+        logger.info(`Checking if already replied to parent ${parentHash}`);
         
         // Fetch the parent cast with all replies to check if bot already replied
         const conversation = await neynar.lookupCastByHashOrUrl({
@@ -330,29 +280,27 @@ export async function GET(request: NextRequest) {
         );
 
         if (botAlreadyReplied) {
-          console.log(`✓ Already replied to parent ${parentHash}, saving all tracking keys and skipping`);
-          // Save ALL tracking keys to prevent any future duplicates
+          logger.info(`Already replied to parent ${parentHash}, caching all tracking keys and skipping`);
+          // Cache ALL tracking keys to prevent any future duplicates in this instance
           trackingKeys.forEach(key => {
-            saveRepliedCast(key);
             repliedCastsCache.set(key, Date.now());
           });
           continue;
         }
         
-        console.log(`No existing reply found for parent ${parentHash}, proceeding to reply`);
+        logger.info(`No existing reply found for parent ${parentHash}, proceeding to reply`);
       } catch (error) {
-        console.error(`Error checking replies for parent ${parentHash}:`, error);
+        logger.error(`Error checking replies for parent ${parentHash}`, error);
         // If we can't check reliably, assume we've replied to be safe
-        console.log('Skipping cast due to check error (being conservative)');
+        logger.warn('Skipping cast due to check error (being conservative)');
         trackingKeys.forEach(key => {
-          saveRepliedCast(key);
           repliedCastsCache.set(key, Date.now());
         });
         continue;
       }
 
       try {
-        console.log(`Generating reply for parent ${parentHash}`);
+        logger.info(`Generating reply for parent ${parentHash}`);
         
         // Generate reply
         const reply = await generateReply(cast, []);
@@ -364,24 +312,24 @@ export async function GET(request: NextRequest) {
           parent: parentHash
         });
 
-        console.log(`Posted reply to parent ${parentHash}: ${reply}`);
+        logger.success(`Posted reply to parent ${parentHash}`, { reply });
         
-        // Save ALL tracking keys after successful reply to prevent duplicates
+        // Cache ALL tracking keys after successful reply to prevent duplicates
         trackingKeys.forEach(key => {
-          saveRepliedCast(key);
           repliedCastsCache.set(key, Date.now());
         });
         repliedCount++;
 
       } catch (error) {
-        console.error(`Error replying to parent ${parentHash}:`, error);
+        logger.error(`Error replying to parent ${parentHash}`, error);
         // Even on error, mark as attempted to avoid retry loops
         trackingKeys.forEach(key => {
-          saveRepliedCast(key);
           repliedCastsCache.set(key, Date.now());
         });
       }
     }
+
+    logger.end({ checked: notifications.notifications.length, replied: repliedCount });
 
     return NextResponse.json({
       success: true,
@@ -391,10 +339,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Bot check error:', error);
-    return NextResponse.json(
-      { error: 'Bot check failed', details: error.message },
-      { status: 500 }
-    );
+    logger.error('Bot check failed', error);
+    return handleApiError(error, 'GET /bot/check');
   }
 }
