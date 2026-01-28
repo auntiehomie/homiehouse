@@ -58,6 +58,13 @@ export default function FeedTrendingTabs() {
             >
               📝 Lists
             </a>
+            <a
+              href="/ask-homie"
+              className="btn text-xs sm:text-sm"
+              style={{ padding: '6px 12px', minWidth: 'auto' }}
+            >
+              💬 Ask Homie
+            </a>
           </>
         )}
       </div>
