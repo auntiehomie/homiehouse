@@ -43,16 +43,26 @@ Key Facts about HomieHouse:
 - Integrates with Farcaster AuthKit for authentication
 
 Your Capabilities:
-- When asked about a Farcaster user profile (e.g., "who is @username" or "profile of username"), you can fetch and display their profile information
-- Analyze casts, explain tokens and crypto concepts
+- Analyze casts that users are viewing (cast context will be provided in the conversation)
+- Explain tokens, crypto concepts, and blockchain technology
 - Provide context about users and trends
-- Analyze sentiment and engagement
+- Analyze sentiment and engagement metrics
 - Explain technical terms and abbreviations
 - Identify potential scams or risky content
+- Help users understand what they're seeing in their feed
 
-When asked for a profile:
-- If you receive profile data, format it nicely with their bio, follower count, and verified addresses
-- If you don't have the data, politely say you can look it up but need the username
+IMPORTANT - Cast Context:
+- When cast context is provided, it will be clearly marked at the start of the conversation
+- The cast details include: author, content, timestamp, and engagement metrics
+- When users ask questions like "what do you think?", "analyze this", "is this legit?", or ask about finding similar casts, they are referring to the provided cast context
+- You CANNOT search for other casts or access the Farcaster network directly
+- If asked to find similar casts, explain that you can analyze the provided cast in detail but cannot search the network for similar ones
+
+When analyzing a cast:
+- Look at the content, author details, and engagement metrics provided
+- Identify the main topic or purpose (e.g., token launch, announcement, question, meme)
+- Note any red flags (suspicious addresses, low engagement accounts, scam indicators)
+- Provide clear, actionable insights
 
 Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
 
@@ -321,17 +331,33 @@ export async function POST(req: NextRequest) {
         // Add cast context if provided - make it more prominent
         let contextualMessage = userMessage;
         if (activeCastContext) {
-          contextualMessage = `IMPORTANT CONTEXT - User ${fetchedCastData ? 'provided a cast link/hash and' : ''} is analyzing this Farcaster cast:
+          const castDetails = `
+═══════════════════════════════════════════
+📋 CAST BEING ANALYZED
+═══════════════════════════════════════════
 
-Cast Author: @${activeCastContext.author?.username || activeCastContext.author}
-Display Name: ${activeCastContext.author?.display_name || activeCastContext.author}
-Cast Content: "${activeCastContext.text}"
-Timestamp: ${activeCastContext.timestamp ? new Date(activeCastContext.timestamp).toLocaleString() : 'N/A'}
-Engagement: ${activeCastContext.reactions?.likes_count || 0} likes, ${activeCastContext.reactions?.recasts_count || 0} recasts, ${activeCastContext.replies?.count || 0} replies
+👤 Author: @${activeCastContext.author?.username || activeCastContext.author}
+   Display Name: ${activeCastContext.author?.display_name || activeCastContext.author}
+   FID: ${activeCastContext.author?.fid || 'N/A'}
 
-User's Question: ${userMessage}
+💬 Cast Content:
+"${activeCastContext.text}"
 
-Please analyze the cast above and respond to the user's question about it. If the user asks "what do you think?" or similar, they are asking about this specific cast.`;
+📊 Engagement:
+   ❤️  ${activeCastContext.reactions?.likes_count || 0} likes
+   🔄 ${activeCastContext.reactions?.recasts_count || 0} recasts  
+   💭 ${activeCastContext.replies?.count || 0} replies
+
+🕒 Posted: ${activeCastContext.timestamp ? new Date(activeCastContext.timestamp).toLocaleString() : 'N/A'}
+🔗 Hash: ${activeCastContext.hash || 'N/A'}
+
+═══════════════════════════════════════════
+
+👤 User's Question: ${userMessage}
+
+ANALYZE THE CAST ABOVE. When the user asks about "this cast", "annaramirez", or asks to find similar casts, they are referring to the cast shown above. Note: You cannot search for other casts, but you can provide detailed analysis of this one.`;
+          
+          contextualMessage = castDetails;
         }
 
         // Process with feedback if provided
@@ -395,17 +421,30 @@ Please analyze the cast above and respond to the user's question about it. If th
     if (activeCastContext) {
       const contextMessage = {
         role: 'system',
-        content: `CAST ANALYSIS CONTEXT:
-The user ${fetchedCastData ? 'provided a cast link/hash and' : ''} is analyzing a Farcaster cast with the following details:
-- Author: @${activeCastContext.author?.username || activeCastContext.author}
-- Display Name: ${activeCastContext.author?.display_name || activeCastContext.author}
-- Content: "${activeCastContext.text}"
-- Timestamp: ${activeCastContext.timestamp ? new Date(activeCastContext.timestamp).toLocaleString() : 'N/A'}
-- Likes: ${activeCastContext.reactions?.likes_count || 0}
-- Recasts: ${activeCastContext.reactions?.recasts_count || 0}
-- Replies: ${activeCastContext.replies?.count || 0}
+        content: `═══════════════════════════════════════════
+📋 CAST BEING ANALYZED
+═══════════════════════════════════════════
 
-When the user asks questions like "what do you think?" or "analyze this", they are referring to this cast. Provide thoughtful analysis about the cast's content, sentiment, purpose, engagement, and implications.`
+The user is analyzing a Farcaster cast with these details:
+
+👤 Author: @${activeCastContext.author?.username || activeCastContext.author}
+   Display Name: ${activeCastContext.author?.display_name || activeCastContext.author}
+   FID: ${activeCastContext.author?.fid || 'N/A'}
+
+💬 Content: "${activeCastContext.text}"
+
+📊 Engagement:
+   ❤️  ${activeCastContext.reactions?.likes_count || 0} likes
+   🔄 ${activeCastContext.reactions?.recasts_count || 0} recasts
+   💭 ${activeCastContext.replies?.count || 0} replies
+
+🕒 Timestamp: ${activeCastContext.timestamp ? new Date(activeCastContext.timestamp).toLocaleString() : 'N/A'}
+
+═══════════════════════════════════════════
+
+When the user asks questions like "what do you think?", "analyze this", "is this legit?", or asks to find similar casts, they are referring to THIS cast above. 
+
+IMPORTANT: You cannot search for other casts on Farcaster. If asked to find similar casts, explain that you can analyze this specific cast in detail but cannot search the network for others. Focus on analyzing the content, author credibility, engagement patterns, and any red flags.`
       };
       conversationMessages = [contextMessage, ...messages];
     }
