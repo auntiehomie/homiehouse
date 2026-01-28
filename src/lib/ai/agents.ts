@@ -365,6 +365,7 @@ export class FarcasterResearchAgent extends BaseAgent {
 2. Learn about users, projects, and communities
 3. Get context on technical concepts and terms
 4. Discover relevant channels and discussions
+5. Search for casts and analyze user activity
 
 Farcaster Knowledge:
 - Farcaster is a sufficiently decentralized social protocol
@@ -374,9 +375,24 @@ Farcaster Knowledge:
 - Channels are topic-based communities
 - Frames enable interactive experiences
 
+Available Tools:
+- search_farcaster_casts: Search for casts by keyword or topic
+- get_user_casts: Get recent casts from a specific user
+
+When asked to find casts or see what someone is posting:
+- Use search_farcaster_casts for topic-based searches
+- Use get_user_casts when asked about a specific user (extract username from @mentions)
+- Extract @username from queries and use without the @ symbol
+
 Be accurate, cite what you know, and admit when you're not certain.`;
 
-    super('anthropic', systemPrompt);
+    // Add Farcaster search tools
+    const tools = [
+      createSearchCastsTool(),
+      createGetCastsByUserTool()
+    ];
+
+    super('openai', systemPrompt, tools);
   }
 
   async research(query: string, context?: string): Promise<string> {
@@ -723,13 +739,28 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
       return 'learn';
     }
 
-    // Research intent
+    // Research intent (including search queries)
     if (
       lower.includes('what is') ||
       lower.includes('who is') ||
       lower.includes('explain') ||
       lower.includes('tell me about') ||
-      lower.includes('research')
+      lower.includes('research') ||
+      lower.includes('find') ||
+      lower.includes('search') ||
+      lower.includes('look for') ||
+      lower.includes('show me') ||
+      lower.includes('other casts') ||
+      lower.includes('similar casts') ||
+      lower.includes('more casts') ||
+      lower.includes('casts by') ||
+      lower.includes('casts from') ||
+      lower.includes('casts about') ||
+      lower.includes('posts by') ||
+      lower.includes('posts from') ||
+      lower.includes('what does @') ||
+      lower.includes('check @') ||
+      lower.match(/@\w+/)  // Contains any @username
     ) {
       return 'research';
     }
