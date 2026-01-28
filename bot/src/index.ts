@@ -496,7 +496,7 @@ async function generateReply(
 
     // No images, use Claude for text
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-5-sonnet-20250122',
       max_tokens: 80,
       system: BOT_PERSONALITY + '\n\nCRITICAL: Max 280 characters. ONE SHORT sentence. Basic words. Stop immediately.',
       messages: [

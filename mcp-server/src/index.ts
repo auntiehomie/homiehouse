@@ -155,7 +155,7 @@ function extractCastHash(identifier: string): string {
 async function getAIInsights(prompt: string): Promise<string> {
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-5-sonnet-20250122',
       max_tokens: 1024,
       system: FARCASTER_EXPERT_PROMPT,
       messages: [
