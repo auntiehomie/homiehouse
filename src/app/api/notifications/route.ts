@@ -93,26 +93,3 @@ export async function GET(req: NextRequest) {
     return handleApiError(error, 'GET /notifications');
   }
 }
-      
-      return {
-        ...notif,
-        actor: actor,
-        actors: actors, // Multiple actors for group notifications
-        actorCount: actors.length,
-        timestamp: notif.most_recent_timestamp || notif.timestamp
-      };
-    }) || [];
-
-    return NextResponse.json({
-      notifications: transformedNotifications,
-      next_cursor: data.next?.cursor,
-      has_more: !!data.next?.cursor
-    });
-  } catch (error: any) {
-    console.error('Error fetching notifications:', error);
-    return NextResponse.json(
-      { error: error?.message || 'Failed to fetch notifications' },
-      { status: 500 }
-    );
-  }
-}
