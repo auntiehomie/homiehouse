@@ -1,7 +1,9 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
+import { searchCasts, getCastsByUsername } from '../neynar';
 
 // User profile schema
 export const UserProfileSchema = z.object({
@@ -45,10 +47,12 @@ export class BaseAgent {
   protected llm: ChatOpenAI | ChatAnthropic;
   protected systemPrompt: string;
   protected conversationHistory: BaseMessage[] = [];
+  protected tools: DynamicStructuredTool[] = [];
 
   constructor(
     provider: 'openai' | 'anthropic' = 'openai',
-    systemPrompt: string
+    systemPrompt: string,
+    tools: DynamicStructuredTool[] = []
   ) {
     if (provider === 'anthropic') {
       this.llm = new ChatAnthropic({
@@ -65,6 +69,7 @@ export class BaseAgent {
     }
 
     this.systemPrompt = systemPrompt;
+    this.tools = tools;
   }
 
   async chat(message: string, context?: string): Promise<string> {
@@ -78,7 +83,54 @@ export class BaseAgent {
     messages.push(...this.conversationHistory);
     messages.push(new HumanMessage(message));
 
-    const response = await this.llm.invoke(messages);
+    // If tools are available, bind them to the model
+    let model = this.llm;
+    if (this.tools.length > 0) {
+      model = this.llm.bindTools(this.tools) as typeof this.llm;
+    }
+
+    const response = await model.invoke(messages);
+    
+    // Check if the model wants to use tools
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      // Execute tool calls
+      const toolMessages: BaseMessage[] = [];
+      
+      for (const toolCall of response.tool_calls) {
+        const tool = this.tools.find(t => t.name === toolCall.name);
+        if (tool) {
+          try {
+            const toolResult = await tool.invoke(toolCall.args);
+            toolMessages.push(new SystemMessage(`Tool ${toolCall.name} result: ${toolResult}`));
+          } catch (error) {
+            toolMessages.push(new SystemMessage(`Tool ${toolCall.name} error: ${error instanceof Error ? error.message : 'Unknown error'}`));
+          }
+        }
+      }
+      
+      // If we have tool results, ask the model to incorporate them
+      if (toolMessages.length > 0) {
+        const finalMessages = [
+          ...messages,
+          new AIMessage(response.content as string),
+          ...toolMessages,
+          new HumanMessage('Based on the tool results above, provide your final response.')
+        ];
+        
+        const finalResponse = await this.llm.invoke(finalMessages);
+        
+        // Update history with final response
+        this.conversationHistory.push(new HumanMessage(message));
+        this.conversationHistory.push(new AIMessage(finalResponse.content as string));
+        
+        // Keep only last 10 messages to avoid token limits
+        if (this.conversationHistory.length > 10) {
+          this.conversationHistory = this.conversationHistory.slice(-10);
+        }
+        
+        return finalResponse.content as string;
+      }
+    }
     
     // Update history
     this.conversationHistory.push(new HumanMessage(message));
@@ -91,6 +143,45 @@ export class BaseAgent {
 
     return response.content as string;
   }
+}
+
+// Farcaster Search Tools
+export function createSearchCastsTool() {
+  return new DynamicStructuredTool({
+    name: 'search_farcaster_casts',
+    description: 'Search for Farcaster casts by keyword or phrase. Use this when users ask to find casts about a specific topic, or to find similar casts to one being analyzed. Returns matching casts with author info and engagement metrics.',
+    schema: z.object({
+      query: z.string().describe('The search query to find relevant casts'),
+      limit: z.number().optional().default(10).describe('Number of results to return (default: 10, max: 25)')
+    }),
+    func: async ({ query, limit = 10 }) => {
+      try {
+        const results = await searchCasts(query, Math.min(limit, 25));
+        return JSON.stringify(results, null, 2);
+      } catch (error) {
+        return `Error searching casts: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+}
+
+export function createGetCastsByUserTool() {
+  return new DynamicStructuredTool({
+    name: 'get_user_casts',
+    description: 'Get recent casts from a specific Farcaster user by their username. Use this when users want to see what someone has been posting, or to analyze a user\'s posting style.',
+    schema: z.object({
+      username: z.string().describe('The Farcaster username (without @ symbol)'),
+      limit: z.number().optional().default(25).describe('Number of casts to return (default: 25, max: 100)')
+    }),
+    func: async ({ username, limit = 25 }) => {
+      try {
+        const results = await getCastsByUsername(username, Math.min(limit, 100));
+        return JSON.stringify(results, null, 2);
+      } catch (error) {
+        return `Error fetching user casts: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
 }
 
 // Cast Composer Agent - Helps write better Farcaster casts
@@ -185,6 +276,7 @@ export class FarcasterCoachAgent extends BaseAgent {
 2. Pattern Recognition - Identify what works for this user
 3. Personalized Tips - Suggest improvements based on their style
 4. Engagement Strategy - Help grow their audience authentically
+5. Cast Discovery - Find similar or related casts to learn from
 
 Key Principles:
 - Be encouraging but honest
@@ -193,13 +285,25 @@ Key Principles:
 - Avoid generic social media advice
 - Understand Farcaster culture and norms
 
+Available Tools:
+- search_farcaster_casts: Search for casts by keyword or topic
+- get_user_casts: Get recent casts from a specific user
+
 When analyzing casts:
 - Consider timing, tone, length, and content
 - Look for engagement hooks
 - Check for clarity and authenticity
-- Suggest specific improvements`;
+- Suggest specific improvements
+- When asked to find similar casts, use the search tool to discover examples
+- When analyzing a user's style, you can fetch their recent casts`;
 
-    super('anthropic', systemPrompt);
+    // Add Farcaster search tools
+    const tools = [
+      createSearchCastsTool(),
+      createGetCastsByUserTool()
+    ];
+
+    super('openai', systemPrompt, tools);
   }
 
   async analyzeCast(castOrMessage: string, metrics?: { likes?: number; recasts?: number; replies?: number }): Promise<string> {
@@ -219,7 +323,7 @@ Please provide thoughtful analysis of this cast. Consider:
 - Tone and writing style
 - Engagement potential
 - What makes it interesting or noteworthy
-- Any suggestions for similar future casts`;
+- If asked to find similar casts, use the search_farcaster_casts tool`;
     } else {
       // Simple cast analysis
       prompt = `Analyze this Farcaster cast: "${castOrMessage}"`;

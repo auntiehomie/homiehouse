@@ -206,3 +206,24 @@ export async function fetchNotifications(params: {
 export async function searchUsers(query: string, limit: number = 5) {
   return neynarFetch(`/user/search?q=${encodeURIComponent(query)}&limit=${limit}`);
 }
+
+/**
+ * Search casts by text
+ */
+export async function searchCasts(query: string, limit: number = 10) {
+  return neynarFetch(`/cast/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+}
+
+/**
+ * Get casts by author username
+ */
+export async function getCastsByUsername(username: string, limit: number = 25) {
+  // First get user by username
+  const userData = await fetchUserByUsername(username);
+  if (!userData?.user?.fid) {
+    throw new Error(`User ${username} not found`);
+  }
+  
+  // Then get their casts
+  return neynarFetch(`/feed/user/${userData.user.fid}/casts?limit=${limit}`);
+}
