@@ -47,18 +47,18 @@ export class BaseAgent {
   protected conversationHistory: BaseMessage[] = [];
 
   constructor(
-    provider: 'openai' | 'anthropic' = 'anthropic',
+    provider: 'openai' | 'anthropic' = 'openai',
     systemPrompt: string
   ) {
     if (provider === 'anthropic') {
       this.llm = new ChatAnthropic({
-        modelName: 'claude-3-5-sonnet-20250122',
+        modelName: 'claude-3-5-sonnet-20241022',
         temperature: 0.7,
         anthropicApiKey: process.env.ANTHROPIC_API_KEY
       });
     } else {
       this.llm = new ChatOpenAI({
-        modelName: 'gpt-4o-mini',
+        modelName: 'gpt-4o',
         temperature: 0.7,
         openAIApiKey: process.env.OPENAI_API_KEY
       });
