@@ -55,20 +55,61 @@ function detectSearchIntent(text: string): { isSearch: boolean; type?: 'keyword'
   return { isSearch: false };
 }
 
-// Format search results for reply
-function formatSearchResults(casts: any[], searchType: 'keyword' | 'user', query: string): string {
+// Format search results for reply - with AI explanation
+async function formatSearchResults(casts: any[], searchType: 'keyword' | 'user', query: string): Promise<string> {
   if (!casts || casts.length === 0) {
     return `Couldn't find any casts ${searchType === 'user' ? `from @${query}` : `about "${query}"`} 🤷`;
   }
   
   const topCasts = casts.slice(0, 3); // Show top 3
+  
+  // Build context for AI to explain
+  const castsContext = topCasts.map((cast, idx) => {
+    const author = cast.author?.username || 'unknown';
+    const text = cast.text || '';
+    const likes = cast.reactions?.likes_count || 0;
+    const replies = cast.replies?.count || 0;
+    return `Cast ${idx + 1} by @${author} (${likes} likes, ${replies} replies):\n"${text}"`;
+  }).join('\n\n');
+  
+  const prompt = `Someone asked to ${searchType === 'user' ? `see casts from @${query}` : `find casts about "${query}"`}. 
+
+Here are the top 3 results:
+
+${castsContext}
+
+Provide a brief, casual summary (max 280 chars) explaining what these casts are about and any interesting patterns. Be conversational and helpful.`;
+
+  try {
+    // Use OpenAI for quick response
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: BOT_PERSONALITY },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 120,
+      temperature: 0.7
+    });
+
+    const explanation = response.choices[0]?.message?.content?.trim();
+    
+    if (explanation) {
+      // Add link info
+      const moreInfo = casts.length > 3 ? `\n\n(Found ${casts.length} total casts)` : '';
+      return explanation + moreInfo;
+    }
+  } catch (error) {
+    console.error('Error generating explanation:', error);
+  }
+  
+  // Fallback to simple format
   const lines = [`Found ${casts.length} casts ${searchType === 'user' ? `from @${query}` : `about "${query}"`}:\n`];
   
   topCasts.forEach((cast, idx) => {
     const author = cast.author?.username || 'unknown';
-    const text = cast.text?.slice(0, 80) || '';
-    const engagement = (cast.reactions?.likes_count || 0) + (cast.replies?.count || 0);
-    lines.push(`${idx + 1}. @${author}: "${text}..." (${engagement} 💬)`);
+    const text = cast.text?.slice(0, 100) || '';
+    lines.push(`${idx + 1}. @${author}: "${text}..."`);
   });
   
   if (casts.length > 3) {
@@ -171,7 +212,7 @@ async function generateReply(cast: any): Promise<string> {
         results = await searchCasts(searchIntent.query, 10);
       }
       
-      return formatSearchResults(results, searchIntent.type, searchIntent.query);
+      return await formatSearchResults(results, searchIntent.type, searchIntent.query);
     } catch (error) {
       console.error('Search error:', error);
       return `Hmm, had trouble searching for that. Try again? 🤔`;
