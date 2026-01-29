@@ -56,16 +56,35 @@ function detectSearchIntent(text: string): { isSearch: boolean; type?: 'keyword'
 }
 
 // Detect if user wants to curate a cast
-function detectCurateIntent(text: string): boolean {
+function detectCurateIntent(text: string): { isCurate: boolean; listName?: string } {
   const lower = text.toLowerCase();
-  return lower.includes('curate') || 
-         lower.includes('save this') || 
-         lower.includes('add to list') ||
-         lower.includes('bookmark this');
+  
+  // Check if they specified a list name
+  const listPatterns = [
+    /(?:add|save|curate).*?(?:to|in).*?(?:list|folder).*?(?:titled|called|named)\s+[""']?([^""'\n]+?)[""']?(?:\s|$)/i,
+    /(?:add|save|curate).*?(?:to|in)\s+[""']?([^""'\n]+?)[""']?\s+list/i,
+    /(?:add|save|curate).*?(?:to|in)\s+(?:my\s+)?[""']?([^""'\n]+?)[""']?$/i
+  ];
+  
+  for (const pattern of listPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1] && match[1].toLowerCase() !== 'this' && match[1].toLowerCase() !== 'a') {
+      return { isCurate: true, listName: match[1].trim() };
+    }
+  }
+  
+  // Generic curation request without list name
+  const hasCurateKeyword = lower.includes('curate') || 
+                           lower.includes('save this') || 
+                           lower.includes('add to list') ||
+                           lower.includes('add this to') ||
+                           lower.includes('bookmark this');
+  
+  return { isCurate: hasCurateKeyword, listName: undefined };
 }
 
-// Add cast to user's default curation list
-async function curateThisCast(cast: any): Promise<string> {
+// Add cast to user's curation list
+async function curateThisCast(cast: any, listName?: string): Promise<string> {
   try {
     const parentCast = cast.parent_cast || cast;
     const castHash = parentCast.hash;
@@ -75,7 +94,6 @@ async function curateThisCast(cast: any): Promise<string> {
       return `Couldn't find the cast to curate 🤔`;
     }
 
-    // Try to add to their "Bot Curated" list
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_KEY;
     
@@ -86,12 +104,34 @@ async function curateThisCast(cast: any): Promise<string> {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // First, check if user has a "Bot Curated" list, or create it
-    let { data: lists, error: listError } = await supabase
+    // If no list name provided, ask which list
+    if (!listName) {
+      // Fetch user's existing lists
+      const { data: userLists, error: fetchError } = await supabase
+        .from('curated_lists')
+        .select('list_name')
+        .eq('fid', authorFid)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) {
+        console.error('Error fetching lists:', fetchError);
+        return `Which list should I save this to? Reply with: "add to [list name]" 📝`;
+      }
+
+      if (!userLists || userLists.length === 0) {
+        return `You don't have any lists yet! Reply with "add to [list name]" and I'll create it for you 📝`;
+      }
+
+      const listNames = userLists.map(l => `"${l.list_name}"`).slice(0, 5).join(', ');
+      return `Which list? You have: ${listNames}\n\nReply with "add to [list name]" 📝`;
+    }
+
+    // Find or create the specified list
+    let { data: targetList, error: listError } = await supabase
       .from('curated_lists')
       .select('*')
       .eq('fid', authorFid)
-      .eq('list_name', 'Bot Curated')
+      .ilike('list_name', listName)
       .maybeSingle();
 
     if (listError && listError.code !== 'PGRST116') {
@@ -100,13 +140,13 @@ async function curateThisCast(cast: any): Promise<string> {
     }
 
     // Create the list if it doesn't exist
-    if (!lists) {
+    if (!targetList) {
       const { data: newList, error: createError } = await supabase
         .from('curated_lists')
         .insert([{
           fid: authorFid,
-          list_name: 'Bot Curated',
-          description: 'Casts saved via @homiehouse bot',
+          list_name: listName,
+          description: `Created via @homiehouse bot`,
           is_public: false
         }])
         .select()
@@ -114,17 +154,18 @@ async function curateThisCast(cast: any): Promise<string> {
 
       if (createError) {
         console.error('Error creating list:', createError);
-        return `Couldn't create your curation list 😕`;
+        return `Couldn't create the list "${listName}" 😕`;
       }
 
-      lists = newList;
+      targetList = newList;
+      console.log(`✨ Created new list: "${listName}" for FID ${authorFid}`);
     }
 
     // Add the cast to the list
     const { error: insertError } = await supabase
       .from('curated_list_items')
       .insert([{
-        list_id: lists.id,
+        list_id: targetList.id,
         cast_hash: castHash,
         cast_author_fid: parentCast.author?.fid,
         cast_text: parentCast.text,
@@ -135,13 +176,13 @@ async function curateThisCast(cast: any): Promise<string> {
 
     if (insertError) {
       if (insertError.code === '23505') {
-        return `Already saved that one to your "Bot Curated" list! ✅`;
+        return `Already in your "${listName}" list! ✅`;
       }
       console.error('Error adding to list:', insertError);
       return `Had trouble saving that cast 😅`;
     }
 
-    return `✅ Saved to your "Bot Curated" list! Check it out in HomieHouse 🏡`;
+    return `✅ Saved to "${listName}"! Check it out in HomieHouse 🏡`;
   } catch (error) {
     console.error('Curation error:', error);
     return `Something went wrong trying to save that 😕`;
@@ -291,9 +332,10 @@ async function generateReply(cast: any): Promise<string> {
   const authorUsername = cast.author?.username || 'unknown';
   
   // Check if user wants to curate the cast
-  if (detectCurateIntent(castText)) {
-    console.log(`📌 Detected curation request`);
-    return await curateThisCast(cast);
+  const curateIntent = detectCurateIntent(castText);
+  if (curateIntent.isCurate) {
+    console.log(`📌 Detected curation request${curateIntent.listName ? ` for list: ${curateIntent.listName}` : ' (no list specified)'}`);
+    return await curateThisCast(cast, curateIntent.listName);
   }
   
   // Check if this is a search request
