@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { sdk } from '@farcaster/miniapp-sdk';
 import AgentChat from '@/components/AgentChat';
+import MentionInput from '@/components/MentionInput';
 
 interface UserStats {
   followerCount: number;
@@ -312,20 +313,30 @@ export default function AskHomieMiniApp() {
               </div>
 
               <div className="space-y-3">
-                <input
-                  type="text"
-                  value={analyzeInput}
-                  onChange={(e) => setAnalyzeInput(e.target.value)}
-                  placeholder={
-                    analyzeType === 'cast'
-                      ? 'Paste cast URL or hash...'
-                      : analyzeType === 'user'
-                      ? 'Enter username or FID...'
-                      : 'Enter token name, symbol, or address...'
-                  }
-                  className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
-                  onKeyPress={(e) => e.key === 'Enter' && handleAnalyze()}
-                />
+                {analyzeType === 'user' ? (
+                  <MentionInput
+                    value={analyzeInput}
+                    onChange={setAnalyzeInput}
+                    placeholder="Type @ to search for a user..."
+                    className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                    onUserSelect={(user) => {
+                      console.log('User selected:', user);
+                    }}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={analyzeInput}
+                    onChange={(e) => setAnalyzeInput(e.target.value)}
+                    placeholder={
+                      analyzeType === 'cast'
+                        ? 'Paste cast URL or hash...'
+                        : 'Enter token name, symbol, or address...'
+                    }
+                    className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                    onKeyPress={(e) => e.key === 'Enter' && handleAnalyze()}
+                  />
+                )}
                 <button
                   onClick={handleAnalyze}
                   disabled={analyzing || !analyzeInput.trim()}
