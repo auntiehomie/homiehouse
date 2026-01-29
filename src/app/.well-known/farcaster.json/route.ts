@@ -15,9 +15,9 @@ export async function GET() {
   
   const manifest = {
     accountAssociation: {
-      header: "eyJmaWQiOjMxMDMsInR5cGUiOiJjdXN0b2R5IiwibmV0d29yayI6Im1haW5uZXQiLCJrZXkiOiIweDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAifQ",
+      header: "eyJmaWQiOjMxMDMsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg0ODkzOUVCMWU3RGJlNzU5NjRCM0IyMDhlODY2OGEzRjE5NjVhYjY5In0",
       payload: "eyJkb21haW4iOiJob21pZWhvdXNlLnh5eiJ9",
-      signature: "AYcsa3KM6qU67jduq7PF7d08tiowTE9STE9URVNUTlVNQkVSIiwiT0FEIiwiTE9BRCIsIkxPQUQiXX0"
+      signature: "AYcsa3KM6qU67jduq7PF7d08tioURwxvJsS7n1LbXbEuWhmG4y3HLGxYLMpvTFl0IIVUPA/95iSqeD+s50m0bhw="
     },
     frame: {
       version: "1",
