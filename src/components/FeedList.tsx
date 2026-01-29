@@ -42,6 +42,9 @@ export default function FeedList({
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
   const [expandedCasts, setExpandedCasts] = useState<Set<string>>(new Set());
+  const [curatingCast, setCuratingCast] = useState<string | null>(null);
+  const [curateListName, setCurateListName] = useState("");
+  const [curateLoading, setCurateLoading] = useState(false);
 
   const [showSignerModal, setShowSignerModal] = useState(false);
   const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
@@ -344,6 +347,51 @@ export default function FeedList({
       alert("Failed to post reply");
     } finally {
       setReplyLoading(false);
+    }
+  };
+
+  const handleCurateCast = async (castHash: string, castData: any) => {
+    const profile = getProfile();
+    if (!profile?.fid) {
+      alert("Please sign in to curate casts");
+      return;
+    }
+
+    if (!curateListName.trim()) {
+      alert("Please enter a list name");
+      return;
+    }
+
+    setCurateLoading(true);
+    try {
+      const res = await fetch("/api/curate-cast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fid: profile.fid,
+          listName: curateListName.trim(),
+          castHash,
+          castData: {
+            authorFid: castData.authorFid,
+            text: castData.text,
+            timestamp: castData.timestamp
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.alreadyAdded ? `Already in "${curateListName}"` : `✅ ${data.message}`);
+        setCurateListName("");
+        setCuratingCast(null);
+      } else {
+        alert(`Failed to curate: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("Curate error:", error);
+      alert("Failed to curate cast");
+    } finally {
+      setCurateLoading(false);
     }
   };
 
@@ -1039,6 +1087,37 @@ export default function FeedList({
               </button>
 
               <button
+                onClick={() => setCuratingCast(curatingCast === key ? null : key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: curatingCast === key ? '#8b5cf6' : 'var(--muted-on-dark)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (curatingCast !== key) {
+                    e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
+                    e.currentTarget.style.color = '#8b5cf6';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (curatingCast !== key) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--muted-on-dark)';
+                  }
+                }}
+              >
+                📌 Curate
+              </button>
+
+              <button
                 onClick={() => {
                   const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
                   const castData = encodeURIComponent(JSON.stringify({
@@ -1114,6 +1193,63 @@ export default function FeedList({
                     disabled={replyLoading || !replyText.trim()}
                   >
                     {replyLoading ? "Posting..." : "Post Reply"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {curatingCast === key && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                <input
+                  type="text"
+                  value={curateListName}
+                  onChange={(e) => setCurateListName(e.target.value)}
+                  placeholder="Enter list name (e.g., 'Favorite Crypto Takes')"
+                  autoFocus
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && curateListName.trim()) {
+                      handleCurateCast(key, {
+                        authorFid: authorObj?.fid,
+                        text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+                        timestamp: rawTs
+                      });
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '14px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    color: 'var(--foreground)',
+                    marginBottom: '8px'
+                  }}
+                />
+                <p style={{ fontSize: '12px', color: 'var(--muted-on-dark)', marginBottom: '12px' }}>
+                  Add this cast to a new or existing list. Lists help you organize great content.
+                </p>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button 
+                    className="btn" 
+                    onClick={() => {
+                      setCuratingCast(null);
+                      setCurateListName("");
+                    }}
+                    disabled={curateLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="btn primary" 
+                    onClick={() => handleCurateCast(key, {
+                      authorFid: authorObj?.fid,
+                      text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+                      timestamp: rawTs
+                    })}
+                    disabled={curateLoading || !curateListName.trim()}
+                  >
+                    {curateLoading ? "Adding..." : "Add to List"}
                   </button>
                 </div>
               </div>
