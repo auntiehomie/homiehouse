@@ -63,12 +63,18 @@ function detectCurateIntent(text: string): { isCurate: boolean; listName?: strin
   const listPatterns = [
     /(?:add|save|curate).*?(?:to|in).*?(?:list|folder).*?(?:titled|called|named)\s+[""']?([^""'\n]+?)[""']?(?:\s|$)/i,
     /(?:add|save|curate).*?(?:to|in)\s+[""']?([^""'\n]+?)[""']?\s+list/i,
-    /(?:add|save|curate).*?(?:to|in)\s+(?:my\s+)?[""']?([^""'\n]+?)[""']?$/i
+    /(?:add|save|curate).*?(?:to|in)\s+(?:my\s+)?[""']?([^""'\n,]+?)[""']?$/i,
+    /(?:put|add)\s+(?:this|it)\s+(?:to|in)\s+(?:my\s+)?[""']?([^""'\n,]+?)[""']?$/i,
+    /(?:save|bookmark)\s+(?:this|it).*?(?:to|in|for)\s+[""']?([^""'\n,]+?)[""']?$/i
   ];
   
   for (const pattern of listPatterns) {
     const match = text.match(pattern);
-    if (match && match[1] && match[1].toLowerCase() !== 'this' && match[1].toLowerCase() !== 'a') {
+    if (match && match[1] && 
+        match[1].toLowerCase() !== 'this' && 
+        match[1].toLowerCase() !== 'a' &&
+        match[1].toLowerCase() !== 'my' &&
+        match[1].toLowerCase() !== 'list') {
       return { isCurate: true, listName: match[1].trim() };
     }
   }
@@ -77,8 +83,10 @@ function detectCurateIntent(text: string): { isCurate: boolean; listName?: strin
   const hasCurateKeyword = lower.includes('curate') || 
                            lower.includes('save this') || 
                            lower.includes('add to list') ||
-                           lower.includes('add this to') ||
-                           lower.includes('bookmark this');
+                           lower.includes('add this') ||
+                           lower.includes('save it') ||
+                           lower.includes('bookmark this') ||
+                           lower.includes('add to my');
   
   return { isCurate: hasCurateKeyword, listName: undefined };
 }
@@ -86,12 +94,18 @@ function detectCurateIntent(text: string): { isCurate: boolean; listName?: strin
 // Add cast to user's curation list
 async function curateThisCast(cast: any, listName?: string): Promise<string> {
   try {
-    const parentCast = cast.parent_cast || cast;
-    const castHash = parentCast.hash;
-    const authorFid = cast.author?.fid;
+    // When user replies to a cast mentioning us, curate the PARENT cast
+    // Otherwise curate the cast itself (if they're quoting it)
+    const targetCast = cast.parent_cast || cast.parent_author ? cast.parent_cast : cast;
+    const castHash = targetCast?.hash;
+    const userFid = cast.author?.fid; // The person doing the curating
     
-    if (!castHash || !authorFid) {
-      return `Couldn't find the cast to curate 🤔`;
+    if (!castHash) {
+      return `Reply to a cast and say "curate this to [list name]" to save it! 📌`;
+    }
+    
+    if (!userFid) {
+      return `Couldn't identify you 🤔`;
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -110,7 +124,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
       const { data: userLists, error: fetchError } = await supabase
         .from('curated_lists')
         .select('list_name')
-        .eq('fid', authorFid)
+        .eq('fid', userFid)
         .order('created_at', { ascending: false });
 
       if (fetchError) {
@@ -130,7 +144,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
     let { data: targetList, error: listError } = await supabase
       .from('curated_lists')
       .select('*')
-      .eq('fid', authorFid)
+      .eq('fid', userFid)
       .ilike('list_name', listName)
       .maybeSingle();
 
@@ -144,7 +158,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
       const { data: newList, error: createError } = await supabase
         .from('curated_lists')
         .insert([{
-          fid: authorFid,
+          fid: userFid,
           list_name: listName,
           description: `Created via @homiehouse bot`,
           is_public: false
@@ -158,7 +172,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
       }
 
       targetList = newList;
-      console.log(`✨ Created new list: "${listName}" for FID ${authorFid}`);
+      console.log(`✨ Created new list: "${listName}" for FID ${userFid}`);
     }
 
     // Add the cast to the list
@@ -167,10 +181,10 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
       .insert([{
         list_id: targetList.id,
         cast_hash: castHash,
-        cast_author_fid: parentCast.author?.fid,
-        cast_text: parentCast.text,
-        cast_timestamp: parentCast.timestamp,
-        added_by_fid: authorFid,
+        cast_author_fid: targetCast.author?.fid,
+        cast_text: targetCast.text,
+        cast_timestamp: targetCast.timestamp,
+        added_by_fid: userFid,
         notes: 'Curated via bot'
       }]);
 
