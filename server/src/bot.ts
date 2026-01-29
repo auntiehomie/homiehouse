@@ -1,4 +1,4 @@
-import { NeynarAPIClient } from '@neynar/nodejs-sdk';
+import { NeynarAPIClient, CastParamType } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
@@ -446,26 +446,30 @@ export async function checkForMentions() {
     
     let repliedCount = 0;
 
-    // Fetch notifications
-    const notifications = await neynar.fetchAllNotifications(BOT_FID);
+    // Fetch notifications using v2 API
+    const response = await neynar.fetchMentionAndReplyNotifications(BOT_FID, {
+      cursor: undefined
+    });
 
-    console.log(`📬 Found ${notifications.notifications.length} notifications`);
+    const allNotifications = response.result.notifications || [];
+    console.log(`📬 Found ${allNotifications.length} notifications`);
 
-    for (const notification of notifications.notifications) {
+    for (const notification of allNotifications) {
       if (repliedCount >= 1) {
         console.log('✋ Already replied to 1 cast in this run, stopping');
         break;
       }
 
-      const cast = notification.cast;
+      // The notification itself is the cast
+      const cast = notification;
       if (!cast || !cast.hash) {
         continue;
       }
 
       // Track multiple hashes to prevent duplicates
       const castHash = cast.hash;
-      const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
-      const rootParentHash = cast.root_parent_url || parentHash;
+      const parentHash = cast.parentHash || cast.parentUrl || cast.hash;
+      const rootParentHash = (cast as any).rootParentUrl || parentHash;
       
       const trackingKeys = [
         `cast_${castHash}`,
@@ -491,14 +495,12 @@ export async function checkForMentions() {
 
       // Double-check by fetching the cast and looking for bot replies
       try {
-        const conversation = await neynar.lookUpCastByHash(parentHash);
+        const conversation = await neynar.lookupCastConversation(parentHash, CastParamType.Hash);
         
-        const directReplies = (conversation as any)?.direct_replies || [];
-        const threadReplies = (conversation as any)?.replies?.casts || [];
-        const allReplies = [...directReplies, ...threadReplies];
+        const directReplies = conversation.conversation?.cast?.direct_replies || [];
         
-        const botAlreadyReplied = allReplies.some((reply: any) => {
-          const replyFid = reply.author?.fid || reply.fid;
+        const botAlreadyReplied = directReplies.some((reply: any) => {
+          const replyFid = reply.author?.fid;
           return replyFid === BOT_FID;
         });
 
@@ -537,7 +539,7 @@ export async function checkForMentions() {
 
     return {
       success: true,
-      checked: notifications.notifications.length,
+      checked: allNotifications.length,
       replied: repliedCount,
       timestamp: new Date().toISOString()
     };
