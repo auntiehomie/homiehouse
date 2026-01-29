@@ -55,6 +55,99 @@ function detectSearchIntent(text: string): { isSearch: boolean; type?: 'keyword'
   return { isSearch: false };
 }
 
+// Detect if user wants to curate a cast
+function detectCurateIntent(text: string): boolean {
+  const lower = text.toLowerCase();
+  return lower.includes('curate') || 
+         lower.includes('save this') || 
+         lower.includes('add to list') ||
+         lower.includes('bookmark this');
+}
+
+// Add cast to user's default curation list
+async function curateThisCast(cast: any): Promise<string> {
+  try {
+    const parentCast = cast.parent_cast || cast;
+    const castHash = parentCast.hash;
+    const authorFid = cast.author?.fid;
+    
+    if (!castHash || !authorFid) {
+      return `Couldn't find the cast to curate 🤔`;
+    }
+
+    // Try to add to their "Bot Curated" list
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return `Curation isn't set up yet, but I'd totally save this for you! 📌`;
+    }
+
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // First, check if user has a "Bot Curated" list, or create it
+    let { data: lists, error: listError } = await supabase
+      .from('curated_lists')
+      .select('*')
+      .eq('fid', authorFid)
+      .eq('list_name', 'Bot Curated')
+      .maybeSingle();
+
+    if (listError && listError.code !== 'PGRST116') {
+      console.error('Error checking for list:', listError);
+      return `Had trouble accessing your lists 😅`;
+    }
+
+    // Create the list if it doesn't exist
+    if (!lists) {
+      const { data: newList, error: createError } = await supabase
+        .from('curated_lists')
+        .insert([{
+          fid: authorFid,
+          list_name: 'Bot Curated',
+          description: 'Casts saved via @homiehouse bot',
+          is_public: false
+        }])
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating list:', createError);
+        return `Couldn't create your curation list 😕`;
+      }
+
+      lists = newList;
+    }
+
+    // Add the cast to the list
+    const { error: insertError } = await supabase
+      .from('curated_list_items')
+      .insert([{
+        list_id: lists.id,
+        cast_hash: castHash,
+        cast_author_fid: parentCast.author?.fid,
+        cast_text: parentCast.text,
+        cast_timestamp: parentCast.timestamp,
+        added_by_fid: authorFid,
+        notes: 'Curated via bot'
+      }]);
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return `Already saved that one to your "Bot Curated" list! ✅`;
+      }
+      console.error('Error adding to list:', insertError);
+      return `Had trouble saving that cast 😅`;
+    }
+
+    return `✅ Saved to your "Bot Curated" list! Check it out in HomieHouse 🏡`;
+  } catch (error) {
+    console.error('Curation error:', error);
+    return `Something went wrong trying to save that 😕`;
+  }
+}
+
 // Format search results for reply - with AI explanation
 async function formatSearchResults(casts: any[], searchType: 'keyword' | 'user', query: string): Promise<string> {
   if (!casts || casts.length === 0) {
@@ -196,6 +289,12 @@ function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUr
 async function generateReply(cast: any): Promise<string> {
   const castText = cast.text || '';
   const authorUsername = cast.author?.username || 'unknown';
+  
+  // Check if user wants to curate the cast
+  if (detectCurateIntent(castText)) {
+    console.log(`📌 Detected curation request`);
+    return await curateThisCast(cast);
+  }
   
   // Check if this is a search request
   const searchIntent = detectSearchIntent(castText);
