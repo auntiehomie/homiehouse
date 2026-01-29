@@ -88,3 +88,67 @@ export class BotReplyService {
     }
   }
 }
+
+// Search for Farcaster casts by keyword
+export async function searchCasts(query: string, limit: number = 10): Promise<any> {
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey) throw new Error('NEYNAR_API_KEY not configured');
+
+  const url = `https://api.neynar.com/v2/farcaster/cast/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+  
+  const response = await fetch(url, {
+    headers: {
+      'accept': 'application/json',
+      'api_key': apiKey,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Neynar API error: ${response.status}`);
+  }
+
+  const data: any = await response.json();
+  return data.casts || [];
+}
+
+// Get recent casts from a specific user by username
+export async function getCastsByUsername(username: string, limit: number = 25): Promise<any> {
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey) throw new Error('NEYNAR_API_KEY not configured');
+
+  // First, look up the user to get their FID
+  const userUrl = `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`;
+  const userResponse = await fetch(userUrl, {
+    headers: {
+      'accept': 'application/json',
+      'api_key': apiKey,
+    },
+  });
+
+  if (!userResponse.ok) {
+    throw new Error(`Failed to fetch user ${username}: ${userResponse.status}`);
+  }
+
+  const userData: any = await userResponse.json();
+  const fid = userData.result?.user?.fid;
+  
+  if (!fid) {
+    throw new Error(`User ${username} not found`);
+  }
+
+  // Now fetch their casts
+  const castsUrl = `https://api.neynar.com/v2/farcaster/feed/user/${fid}/casts?limit=${limit}`;
+  const castsResponse = await fetch(castsUrl, {
+    headers: {
+      'accept': 'application/json',
+      'api_key': apiKey,
+    },
+  });
+
+  if (!castsResponse.ok) {
+    throw new Error(`Failed to fetch casts: ${castsResponse.status}`);
+  }
+
+  const castsData: any = await castsResponse.json();
+  return castsData.casts || [];
+}

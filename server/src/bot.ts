@@ -1,64 +1,141 @@
 import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BotReplyService } from './db';
-import { 
-  getComprehensiveContext, 
-  getFeedIntelligence, 
-  getChannelContext,
-  searchRelevantCasts 
-} from './feed-intelligence';
+import fs from 'fs';
+import path from 'path';
+import { searchCasts, getCastsByUsername } from './db';
 
 const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-
-// Perplexity for real-time data (uses OpenAI-compatible API)
-const perplexity = new OpenAI({
-  apiKey: process.env.PERPLEXITY_API_KEY,
-  baseURL: 'https://api.perplexity.ai'
-});
 
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
-// In-memory cache for quick lookups during a single run
-const repliedCastsCache = new Set<string>();
-const userProfileCache = new Map<number, { context: string; timestamp: number }>();
-const PROFILE_CACHE_TTL = 3600000; // 1 hour
+// Persistent storage file (works on Render!)
+const REPLIED_CASTS_FILE = path.join(process.cwd(), 'replied_casts.json');
+
+// In-memory cache for quick lookups
+const repliedCastsCache = new Map<string, number>();
 
 // Bot personality
-const BOT_PERSONALITY = `You're homie on Farcaster. Match their vibe - if they're casual, you're casual. If they're asking real questions, be thorough and informative.
+const BOT_PERSONALITY = `You are a chill friend on Farcaster. Reply naturally and casually. Keep it SHORT - max 280 characters. No hashtags unless the user uses them first.
 
-CRITICAL RULES:
-- Read their message first. Actually respond to what they said
-- If they're asking about a topic (like Worldcoin, crypto projects, etc), give detailed, factual information
-- For casual chat: keep it under 200 chars
-- For questions or topics: be thorough (300-500 chars) with specifics, facts, and context
-- Sound natural, not like ChatGPT
-- No cringe words: fascinating, incredible, amazing, dynamic, evolution, evoke, transcend, interplay, ecosystem, tapestry, intriguing, profound, mundane, delve, leverage, unlock, seamless
-- Skip emojis unless they use them. One emoji max if you do
-- If they're asking something, answer it directly with details. Include facts, numbers, recent developments
-- If they're sharing, react naturally like you would to a friend's text
-- Use lowercase more than uppercase (it's more chill)
+BANNED WORDS (never use): fascinating, incredible, amazing, dynamic, evolution, evoke, transcend, interplay, ecosystem, tapestry, intriguing, profound, mundane
 
-When someone asks about a topic: give them real info, not fluff. Be the friend who actually knows stuff and explains it clearly.`;
+Talk like a real person texting a friend. Be helpful but laid-back.`;
+
+// Detect if user is asking for a search
+function detectSearchIntent(text: string): { isSearch: boolean; type?: 'keyword' | 'user'; query?: string } {
+  const lower = text.toLowerCase();
+  
+  // Check for user search patterns
+  const userMatch = lower.match(/(?:find|show|get|search|other|more|list).*?(?:casts?|posts?).*?(?:by|from)\s+@?(\w+)/i) ||
+                    lower.match(/@(\w+).*?(?:casts?|posts?|content)/i) ||
+                    lower.match(/(?:what|show).*?@?(\w+).*?(?:post|cast|say)/i);
+  
+  if (userMatch) {
+    return { isSearch: true, type: 'user', query: userMatch[1] };
+  }
+  
+  // Check for keyword search patterns
+  const keywordPatterns = [
+    /(?:find|search|show|get).*?(?:casts?|posts?).*?(?:about|on)\s+(.+?)(?:\?|$)/i,
+    /(?:other|more|similar).*?(?:casts?|posts?).*?(?:about|like|on)\s+(.+?)(?:\?|$)/i,
+    /(?:any|are there).*?(?:casts?|posts?).*?(?:about|on|showing)\s+(.+?)(?:\?|$)/i
+  ];
+  
+  for (const pattern of keywordPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      return { isSearch: true, type: 'keyword', query: match[1].trim() };
+    }
+  }
+  
+  return { isSearch: false };
+}
+
+// Format search results for reply
+function formatSearchResults(casts: any[], searchType: 'keyword' | 'user', query: string): string {
+  if (!casts || casts.length === 0) {
+    return `Couldn't find any casts ${searchType === 'user' ? `from @${query}` : `about "${query}"`} 🤷`;
+  }
+  
+  const topCasts = casts.slice(0, 3); // Show top 3
+  const lines = [`Found ${casts.length} casts ${searchType === 'user' ? `from @${query}` : `about "${query}"`}:\n`];
+  
+  topCasts.forEach((cast, idx) => {
+    const author = cast.author?.username || 'unknown';
+    const text = cast.text?.slice(0, 80) || '';
+    const engagement = (cast.reactions?.likes_count || 0) + (cast.replies?.count || 0);
+    lines.push(`${idx + 1}. @${author}: "${text}..." (${engagement} 💬)`);
+  });
+  
+  if (casts.length > 3) {
+    lines.push(`\n...and ${casts.length - 3} more`);
+  }
+  
+  return lines.join('\n');
+}
+
+// Load replied casts from file
+function loadRepliedCasts(): Set<string> {
+  try {
+    if (fs.existsSync(REPLIED_CASTS_FILE)) {
+      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
+      const casts = JSON.parse(data);
+      
+      // Also populate in-memory cache
+      casts.forEach((c: any) => {
+        repliedCastsCache.set(c.hash, c.timestamp);
+      });
+      
+      return new Set(casts.map((c: any) => c.hash));
+    }
+  } catch (error) {
+    console.error('Error loading replied casts:', error);
+  }
+  return new Set();
+}
+
+// Save replied cast to file
+function saveRepliedCast(castHash: string) {
+  try {
+    let casts: any[] = [];
+    
+    if (fs.existsSync(REPLIED_CASTS_FILE)) {
+      const data = fs.readFileSync(REPLIED_CASTS_FILE, 'utf-8');
+      casts = JSON.parse(data);
+    }
+    
+    // Add new cast with timestamp
+    casts.push({
+      hash: castHash,
+      timestamp: Date.now()
+    });
+    
+    // Keep only last 1000 entries
+    if (casts.length > 1000) {
+      casts = casts.slice(-1000);
+    }
+    
+    fs.writeFileSync(REPLIED_CASTS_FILE, JSON.stringify(casts, null, 2));
+    repliedCastsCache.set(castHash, Date.now());
+    console.log(`💾 Saved ${castHash} to persistent storage`);
+  } catch (error) {
+    console.error('Error saving replied cast:', error);
+  }
+}
 
 // Check if image URL
 function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUrl?: string } {
-  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i;
-  const imageHosts = /imagedelivery\.net|imgur\.com|i\.imgur\.com|pbs\.twimg\.com|media\.giphy\.com|cdn\.discordapp\.com|raw\.githubusercontent\.com/i;
+  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
+  const imageHosts = /imagedelivery\.net|imgur\.com|i\.imgur\.com/i;
 
   if (embeds && embeds.length > 0) {
     for (const embed of embeds) {
       if (embed.url && (imageExtensions.test(embed.url) || imageHosts.test(embed.url))) {
         return { hasImage: true, imageUrl: embed.url };
-      }
-      // Check for Warpcast image embeds
-      if (embed.metadata?.image || embed.metadata?.content_type?.includes('image')) {
-        return { hasImage: true, imageUrl: embed.url || embed.metadata?.image };
       }
     }
   }
@@ -74,369 +151,30 @@ function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUr
   return { hasImage: false };
 }
 
-// Extract external links from cast
-function getExternalLinks(text: string, embeds?: any[]): string[] {
-  const links: string[] = [];
-  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i;
-  
-  // Get links from embeds first
-  if (embeds && embeds.length > 0) {
-    for (const embed of embeds) {
-      if (embed.url && !imageExtensions.test(embed.url)) {
-        links.push(embed.url);
-      }
-    }
-  }
-  
-  // Get links from text
-  const urlRegex = /https?:\/\/[^\s]+/g;
-  const urls = text.match(urlRegex) || [];
-  for (const url of urls) {
-    if (!imageExtensions.test(url) && !links.includes(url)) {
-      links.push(url);
-    }
-  }
-  
-  return links.slice(0, 2); // Limit to 2 links to avoid slowdown
-}
-
-// Fetch content from external link
-async function fetchLinkContent(url: string): Promise<string | null> {
-  try {
-    console.log(`🔗 Fetching content from ${url.slice(0, 50)}...`);
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; HomieHouseBot/1.0)'
-      },
-      signal: AbortSignal.timeout(5000) // 5 second timeout
-    });
-    
-    if (!response.ok) return null;
-    
-    const contentType = response.headers.get('content-type');
-    if (!contentType?.includes('text/html')) return null;
-    
-    const html = await response.text();
-    
-    // Extract title
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : '';
-    
-    // Extract meta description
-    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
-                     html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i);
-    const description = descMatch ? descMatch[1].trim() : '';
-    
-    if (title || description) {
-      return `Link content: "${title}"${description ? ` - ${description.slice(0, 150)}` : ''}`;
-    }
-    
-    return null;
-  } catch (error) {
-    console.log(`⚠️ Could not fetch link: ${error}`);
-    return null;
-  }
-}
-
-// Fetch and analyze user profile
-async function getUserContext(authorFid: number, authorUsername: string): Promise<string> {
-  try {
-    // Check cache first
-    const cached = userProfileCache.get(authorFid);
-    if (cached && (Date.now() - cached.timestamp) < PROFILE_CACHE_TTL) {
-      console.log(`📋 Using cached profile for @${authorUsername}`);
-      return cached.context;
-    }
-
-    console.log(`🔍 Fetching profile for @${authorUsername}...`);
-    
-    // Fetch user's profile info
-    let profileInfo = '';
-    try {
-      const userBulk = await neynar.fetchBulkUsers([authorFid]);
-      if (userBulk?.users?.[0]) {
-        const user = userBulk.users[0];
-        const bio = user.profile?.bio?.text || '';
-        const followerCount = user.follower_count || 0;
-        const isPowerBadge = user.power_badge || false;
-        
-        if (bio) profileInfo += `\n- Bio: "${bio.slice(0, 100)}${bio.length > 100 ? '...' : ''}"`;
-        if (isPowerBadge) profileInfo += '\n- Has power badge (active community member)';
-        if (followerCount > 1000) profileInfo += `\n- Well-known (${followerCount} followers)`;
-      }
-    } catch (err) {
-      console.log('Could not fetch profile info');
-    }
-    
-    // Fetch user's recent casts to understand their style and interests
-    const userCasts = await neynar.fetchFeed('filter', {
-      filterType: 'fids',
-      fids: [authorFid],
-      limit: 10
-    });
-
-    if (!userCasts || !userCasts.casts || userCasts.casts.length === 0) {
-      return '';
-    }
-
-    // Analyze their recent casts
-    const recentTexts = userCasts.casts.slice(0, 5).map((c: any) => c.text).filter(Boolean);
-    const topics = new Set<string>();
-    const style = {
-      usesEmojis: false,
-      avgLength: 0,
-      tone: 'casual'
-    };
-
-    let totalLength = 0;
-    recentTexts.forEach((text: string) => {
-      totalLength += text.length;
-      if (/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}]/u.test(text)) style.usesEmojis = true;
-      
-      // Extract hashtags
-      const hashtags = text.match(/#\w+/g) || [];
-      hashtags.forEach(tag => topics.add(tag.toLowerCase().slice(1)));
-      
-      // Extract potential topics (key terms)
-      const words = text.toLowerCase().match(/\b\w{4,}\b/g) || [];
-      const topicWords = [
-        'crypto', 'bitcoin', 'eth', 'ethereum', 'solana', 'base',
-        'nft', 'nfts', 'art', 'artist', 'design', 'creative',
-        'tech', 'developer', 'coding', 'programming', 'software',
-        'ai', 'ml', 'chatgpt', 'claude', 'llm',
-        'web3', 'defi', 'degen', 'meme', 'onchain',
-        'farcaster', 'warpcast', 'lens', 'social',
-        'building', 'shipping', 'launching', 'startup', 'founder',
-        'music', 'gaming', 'sports', 'fitness', 'food',
-        'writing', 'blog', 'newsletter', 'podcast'
-      ];
-      words.forEach(word => {
-        if (topicWords.includes(word)) topics.add(word);
-      });
-    });
-
-    style.avgLength = Math.round(totalLength / recentTexts.length);
-
-    let context = `\n\nCONTEXT about @${authorUsername}:`;
-    
-    // Add profile info first
-    context += profileInfo;
-    
-    // Add interests
-    if (topics.size > 0) {
-      const topicList = Array.from(topics).slice(0, 8).join(', ');
-      context += `\n- Interests: ${topicList}`;
-    }
-    
-    // Add posting style
-    if (style.avgLength > 200) {
-      context += `\n- Posts detailed, thoughtful content`;
-    } else if (style.avgLength < 100) {
-      context += `\n- Keeps it short and punchy`;
-    }
-    if (style.usesEmojis) {
-      context += `\n- Uses emojis in posts`;
-    }
-
-    // Cache the result
-    userProfileCache.set(authorFid, {
-      context,
-      timestamp: Date.now()
-    });
-    console.log(`✓ Cached profile for @${authorUsername}`);
-
-    return context;
-  } catch (error) {
-    console.error('Error fetching user context:', error);
-    return '';
-  }
-}
-
-// Check if query needs real-time data
-function needsRealTimeData(text: string): boolean {
-  const realTimeKeywords = [
-    'latest', 'current', 'now', 'today', 'tonight', 'recent', 'just',
-    'happening', 'live', 'right now', 'this week', 'this month',
-    'price', 'score', 'weather', 'news', 'trending', 'update',
-    'what is', 'who is', 'when is', 'where is', 'how is', 'tell me about',
-    'explain', 'info about', 'information', 'details', 'worldcoin',
-    'bitcoin', 'ethereum', 'crypto', 'project', 'protocol', 'token'
-  ];
-  
-  const lowerText = text.toLowerCase();
-  
-  // Check for question marks with substantive topics
-  if (lowerText.includes('?') && lowerText.split(' ').length > 3) {
-    return true;
-  }
-  
-  return realTimeKeywords.some(keyword => lowerText.includes(keyword));
-}
-
-// Extract main topic from text for context searching
-function extractTopicFromText(text: string): string | null {
-  const lowerText = text.toLowerCase();
-  
-  // Common topics in Farcaster
-  const topics = [
-    'worldcoin', 'world chain', 'orb', 'world id',
-    'bitcoin', 'btc', 'ethereum', 'eth', 'base', 'solana', 'avax',
-    'crypto', 'defi', 'nft', 'nfts', 'dao', 'web3', 'onchain',
-    'farcaster', 'warpcast', 'degen', 'frames', 'moxie',
-    'ai', 'artificial intelligence', 'llm', 'chatgpt', 'claude',
-    'music', 'art', 'gaming', 'sports', 'nba', 'nfl',
-    'coding', 'developer', 'programming', 'typescript', 'python'
-  ];
-  
-  for (const topic of topics) {
-    if (lowerText.includes(topic)) {
-      return topic;
-    }
-  }
-  
-  // Look for capitalized words (likely topics/names)
-  const words = text.split(' ');
-  for (const word of words) {
-    if (word.length > 4 && word[0] === word[0].toUpperCase() && word.slice(1) === word.slice(1).toLowerCase()) {
-      return word;
-    }
-  }
-  
-  return null;
-}
-
-// Use Perplexity for real-time research
-async function getPerplexityContext(query: string): Promise<string> {
-  try {
-    console.log(`🔍 Using Perplexity for in-depth research...`);
-    const response = await perplexity.chat.completions.create({
-      model: 'llama-3.1-sonar-large-128k-online',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a research assistant providing detailed, factual information with key details and context. Include specific facts, numbers, and recent developments when available.'
-        },
-        {
-          role: 'user',
-          content: `Provide detailed information about: ${query}. Include key facts, recent developments, and relevant context.`
-        }
-      ],
-      max_tokens: 500,
-      temperature: 0.2
-    });
-    
-    const result = response.choices[0]?.message?.content || '';
-    console.log(`✓ Perplexity research complete`);
-    return result ? `\n\nREAL-TIME DATA:\n${result}` : '';
-  } catch (error) {
-    console.error('⚠️ Perplexity error:', error);
-    return '';
-  }
-}
-
 // Generate reply
 async function generateReply(cast: any): Promise<string> {
   const castText = cast.text || '';
   const authorUsername = cast.author?.username || 'unknown';
-  const authorFid = cast.author?.fid || cast.author?.user?.fid;
   
-  // Fetch user context to personalize the reply
-  const userContext = await getUserContext(authorFid, authorUsername);
+  // Check if this is a search request
+  const searchIntent = detectSearchIntent(castText);
   
-  // Get conversation thread context
-  let threadContext = '';
-  try {
-    const parentHash = cast.parent_hash || cast.parent_url;
-    if (parentHash) {
-      const conversation = await neynar.lookUpCastByHashOrWarpcastUrl(parentHash, 'hash');
-      const parentCast = (conversation as any)?.cast;
-      
-      if (parentCast && parentCast.text) {
-        const parentAuthor = parentCast.author?.username || 'someone';
-        threadContext = `\n\nTHREAD CONTEXT:\nThis is a reply to @${parentAuthor}: "${parentCast.text.slice(0, 150)}${parentCast.text.length > 150 ? '...' : ''}"`;
-        
-        // Also include recent replies in the thread for more context
-        const directReplies = (conversation as any)?.cast?.direct_replies || [];
-        if (directReplies.length > 0) {
-          threadContext += `\n\nOther replies in this thread:`;
-          directReplies.slice(0, 3).forEach((reply: any) => {
-            const replyAuthor = reply.author?.username || 'someone';
-            const replyText = reply.text || '';
-            if (replyText && reply.author?.fid !== BOT_FID) {
-              threadContext += `\n- @${replyAuthor}: "${replyText.slice(0, 80)}${replyText.length > 80 ? '...' : ''}"`;
-            }
-          });
-        }
-      }
-    }
-  } catch (err) {
-    // Thread context is optional
-  }
-  
-  // Add channel context if available
-  let channelContext = '';
-  let channelId = '';
-  if (cast.parent_url && cast.parent_url.includes('/channels/')) {
-    channelId = cast.parent_url.split('/channels/')[1]?.split('/')[0];
-    if (channelId) {
-      channelContext = `\n\nCHANNEL: /${channelId}`;
-      // Enhance with actual channel activity context
-      const enhancedChannelContext = await getChannelContext(channelId);
-      if (enhancedChannelContext) {
-        channelContext += enhancedChannelContext;
-      }
-    }
-  }
-  
-  // 🔥 NEW: Get Farcaster feed intelligence for broader context
-  let feedContext = '';
-  const isQuestion = castText.includes('?') || needsRealTimeData(castText);
-  const mentionsTopic = extractTopicFromText(castText);
-  
-  if (isQuestion || mentionsTopic) {
-    console.log('🌐 Getting Farcaster feed context for smarter response...');
+  if (searchIntent.isSearch && searchIntent.query && searchIntent.type) {
+    console.log(`🔍 Detected ${searchIntent.type} search for: ${searchIntent.query}`);
     
-    // Get comprehensive context including feed intelligence
-    feedContext = await getComprehensiveContext({
-      userFid: authorFid,
-      channelId: channelId || undefined,
-      searchQuery: mentionsTopic || castText.slice(0, 100),
-      includeFeed: true
-    });
-    
-    if (feedContext) {
-      console.log('✓ Enhanced with Farcaster feed intelligence');
-    }
-  }
-  
-  // Check if query needs real-time data (Perplexity)
-  let perplexityContext = '';
-  if (needsRealTimeData(castText)) {
-    perplexityContext = await getPerplexityContext(castText);
-  }
-  
-  // Fetch external link content if present
-  let linkContext = '';
-  const externalLinks = getExternalLinks(castText, cast.embeds);
-  if (externalLinks.length > 0) {
-    console.log(`🔗 Found ${externalLinks.length} external link(s), using Gemini for web search`);
     try {
-      // Use Gemini to understand the links and provide context
-      const model = gemini.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-      const linkQuery = `Briefly summarize what's at these links for context (1-2 sentences each): ${externalLinks.join(', ')}`;
-      const result = await model.generateContent(linkQuery);
-      linkContext = `\n\nLINKED CONTENT:\n${result.response.text()}`;
-      console.log(`✓ Gemini analyzed ${externalLinks.length} link(s)`);
-    } catch (error) {
-      console.log(`⚠️ Gemini link analysis failed, trying basic fetch`);
-      // Fallback to basic fetch
-      const linkPromises = externalLinks.map(url => fetchLinkContent(url));
-      const linkResults = await Promise.all(linkPromises);
-      const validLinks = linkResults.filter(Boolean);
-      if (validLinks.length > 0) {
-        linkContext = `\n\nLINKED CONTENT:\n${validLinks.join('\n')}`;
-        console.log(`✓ Fetched ${validLinks.length} link preview(s)`);
+      let results;
+      
+      if (searchIntent.type === 'user') {
+        results = await getCastsByUsername(searchIntent.query, 10);
+      } else {
+        results = await searchCasts(searchIntent.query, 10);
       }
+      
+      return formatSearchResults(results, searchIntent.type, searchIntent.query);
+    } catch (error) {
+      console.error('Search error:', error);
+      return `Hmm, had trouble searching for that. Try again? 🤔`;
     }
   }
   
@@ -445,26 +183,19 @@ async function generateReply(cast: any): Promise<string> {
   // Use GPT-4 Vision for images
   if (hasImage && imageUrl) {
     try {
-      const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext + perplexityContext + linkContext;
-      
-      // Analyze the message and image together
-      const userMessage = castText 
-        ? `@${authorUsername} posted with text: "${castText}"\n\nLook at their image and respond naturally. What would you say to a friend who just sent you this?`
-        : `@${authorUsername} posted an image with no text.\n\nCheck it out and react naturally. What do you notice? What would you say?`;
-      
       const response = await openai.chat.completions.create({
         model: 'gpt-4o',
         messages: [
           {
             role: 'system',
-            content: systemPrompt
+            content: BOT_PERSONALITY
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: userMessage
+                text: `@${authorUsername} says: ${castText}`
               },
               {
                 type: 'image_url',
@@ -474,7 +205,7 @@ async function generateReply(cast: any): Promise<string> {
           }
         ],
         max_tokens: 150,
-        temperature: 0.9
+        temperature: 0.8
       });
 
       return response.choices[0]?.message?.content?.trim() || "Hey! 🏠";
@@ -483,60 +214,16 @@ async function generateReply(cast: any): Promise<string> {
     }
   }
 
-  // Use Gemini with Google Search for external links (better web context)
-  if (externalLinks.length > 0) {
-    try {
-      console.log('🌐 Using Gemini with Google Search for external links...');
-      const model = gemini.getGenerativeModel({ 
-        model: 'gemini-2.0-flash-exp',
-        systemInstruction: BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext
-      });
-      
-      const userMessage = castText 
-        ? `@${authorUsername} shared: "${castText}"\n\nLinks: ${externalLinks.join(', ')}\n\nLook up these links and respond naturally based on what you find. What would you say?`
-        : `@${authorUsername} shared these links: ${externalLinks.join(', ')}\n\nLook them up and respond naturally.`;
-      
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: userMessage }] }],
-        generationConfig: {
-          temperature: 0.9,
-          maxOutputTokens: 150,
-        }
-      });
-      
-      const response = result.response;
-      const text = response.text();
-      if (text) {
-        console.log('✓ Gemini response generated');
-        return text.trim();
-      }
-    } catch (error: any) {
-      console.error('Error with Gemini:', error?.message);
-      // Fall through to Claude
-    }
-  }
-
   // Use Claude for text
   try {
-    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext + perplexityContext + linkContext;
-    
-    // Create more natural user message
-    let userMessage = `Message from @${authorUsername}: "${castText}"`;
-    if (castText.length < 50 && !castText.includes('?')) {
-      userMessage += `\n\n(They kept it short. Match their energy - keep your reply brief and natural.)`;
-    } else if (castText.includes('?') || needsRealTimeData(castText)) {
-      userMessage += `\n\n(They asked a question or mentioned a topic. Give them detailed, factual information. Be thorough.)`;
-    }
-    
     const response = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-latest',
-      max_tokens: 300,
-      temperature: 0.9,
-      system: systemPrompt,
+      max_tokens: 150,
+      system: BOT_PERSONALITY,
       messages: [
         {
           role: 'user',
-          content: userMessage
+          content: `@${authorUsername} says: ${castText}`
         }
       ]
     });
@@ -551,22 +238,14 @@ async function generateReply(cast: any): Promise<string> {
 
   // Fallback to OpenAI
   try {
-    const systemPrompt = BOT_PERSONALITY + userContext + threadContext + channelContext + feedContext + perplexityContext + linkContext;
-    
-    // More natural formatting
-    let userMessage = `@${authorUsername}: "${castText}"`;
-    if (castText.length < 50) {
-      userMessage += `\n\nKeep it short like they did.`;
-    }
-    
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage }
+        { role: 'system', content: BOT_PERSONALITY },
+        { role: 'user', content: `@${authorUsername} says: ${castText}` }
       ],
-      max_tokens: 250,
-      temperature: 0.9
+      max_tokens: 80,
+      temperature: 0.8
     });
 
     return response.choices[0]?.message?.content?.trim() || "Hey! 🏠";
@@ -579,18 +258,16 @@ async function generateReply(cast: any): Promise<string> {
 // Main function to check for mentions
 export async function checkForMentions() {
   try {
-    console.log(`🔍 Starting mention check...`);
-    
-    // Clear the cache at the start of each check to allow processing new mentions
-    repliedCastsCache.clear();
+    // Load previously replied casts
+    const repliedCasts = loadRepliedCasts();
+    console.log(`📂 Loaded ${repliedCasts.size} previously replied casts`);
     
     let repliedCount = 0;
-    let skippedAlreadyReplied = 0;
 
     // Fetch notifications
     const notifications = await neynar.fetchAllNotifications(BOT_FID);
 
-    console.log(`📬 Found ${notifications.notifications.length} total notifications`);
+    console.log(`📬 Found ${notifications.notifications.length} notifications`);
 
     for (const notification of notifications.notifications) {
       if (repliedCount >= 1) {
@@ -603,113 +280,82 @@ export async function checkForMentions() {
         continue;
       }
 
+      // Track multiple hashes to prevent duplicates
       const castHash = cast.hash;
-      const authorFid = cast.author?.fid;
-      const parentHash = cast.parent_hash;
+      const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
+      const rootParentHash = cast.root_parent_url || parentHash;
       
-      // Skip if this is the bot's own cast (prevent self-replies)
-      if (authorFid === BOT_FID) {
-        console.log(`⏭️ Skipping own cast ${castHash.slice(0, 10)}`);
-        continue;
+      const trackingKeys = [
+        `cast_${castHash}`,
+        `parent_${parentHash}`,
+        `root_${rootParentHash}`
+      ];
+      
+      console.log(`🔍 Checking cast=${castHash.slice(0, 10)}..., parent=${parentHash.slice(0, 10)}...`);
+
+      // Check if already replied to any of these keys
+      let alreadyReplied = false;
+      for (const key of trackingKeys) {
+        if (repliedCasts.has(key) || repliedCastsCache.has(key)) {
+          console.log(`✓ Already replied to ${key}, skipping`);
+          alreadyReplied = true;
+          break;
+        }
       }
       
-      console.log(`🔍 Checking mention cast: ${castHash.slice(0, 10)}...`);
-
-      // Check in-memory cache first (for this run)
-      if (repliedCastsCache.has(castHash)) {
-        console.log(`✓ Already replied in this run, skipping`);
-        skippedAlreadyReplied++;
+      if (alreadyReplied) {
         continue;
       }
 
-      // FIRST: Check the actual cast replies to see if bot already replied (most reliable)
+      // Double-check by fetching the cast and looking for bot replies
       try {
-        console.log(`🔎 Fetching cast ${castHash.slice(0, 10)} to check for existing bot replies...`);
-        const mentionCast = await neynar.lookUpCastByHashOrWarpcastUrl(castHash, 'hash');
+        const conversation = await neynar.lookUpCastByHash(parentHash);
         
-        // Check multiple possible reply locations in the cast object
-        const directReplies = (mentionCast as any)?.direct_replies || [];
-        const threadReplies = (mentionCast as any)?.replies?.casts || [];
-        const castReplies = (mentionCast as any)?.cast?.replies || [];
-        const allReplies = [...directReplies, ...threadReplies, ...castReplies];
-        
-        console.log(`   Found ${allReplies.length} total replies to check`);
+        const directReplies = (conversation as any)?.direct_replies || [];
+        const threadReplies = (conversation as any)?.replies?.casts || [];
+        const allReplies = [...directReplies, ...threadReplies];
         
         const botAlreadyReplied = allReplies.some((reply: any) => {
           const replyFid = reply.author?.fid || reply.fid;
-          if (replyFid === BOT_FID) {
-            console.log(`   🔍 Found bot reply from FID ${replyFid}: ${(reply.text || '').slice(0, 30)}...`);
-            return true;
-          }
-          return false;
+          return replyFid === BOT_FID;
         });
 
         if (botAlreadyReplied) {
-          console.log(`✅ ALREADY REPLIED: Bot found in replies via API, skipping ${castHash.slice(0, 10)}`);
-          repliedCastsCache.add(castHash);
-          skippedAlreadyReplied++;
+          console.log(`✓ Found existing bot reply in thread, saving and skipping`);
+          trackingKeys.forEach(key => saveRepliedCast(key));
           continue;
-        } else {
-          console.log(`✓ No bot reply found in cast replies, checking database...`);
         }
       } catch (error) {
-        console.error(`⚠️ Error fetching cast replies:`, error);
-        // Continue to database check as fallback
-      }
-
-      // SECOND: Check database if bot has already replied to this cast
-      const hasReplied = await BotReplyService.hasRepliedTo(castHash);
-      if (hasReplied) {
-        console.log(`✓ Already replied to ${castHash.slice(0, 10)} (found in DB), skipping`);
-        repliedCastsCache.add(castHash);
-        skippedAlreadyReplied++;
+        console.error(`⚠️ Error checking replies:`, error);
+        // Be conservative - skip if we can't check
+        trackingKeys.forEach(key => saveRepliedCast(key));
         continue;
-      }
-
-      // THIRD: Check if bot has already replied to the parent hash (avoid multiple replies in same thread)
-      if (parentHash) {
-        const hasRepliedToParent = await BotReplyService.hasRepliedTo(parentHash);
-        if (hasRepliedToParent) {
-          console.log(`✓ Already replied to parent thread ${parentHash.slice(0, 10)}, skipping`);
-          repliedCastsCache.add(castHash);
-          skippedAlreadyReplied++;
-          continue;
-        }
       }
 
       // Generate and post reply
       try {
-        console.log(`💭 Generating reply for cast ${castHash.slice(0, 10)}...`);
+        console.log(`💭 Generating reply for ${castHash.slice(0, 10)}...`);
+        
         const reply = await generateReply(cast);
 
-        // Reply to the mention cast (castHash)
-        const replyResult = await neynar.publishCast(SIGNER_UUID, reply, { replyTo: castHash });
-        const replyHash = replyResult?.hash || castHash;
+        await neynar.publishCast(SIGNER_UUID, reply, { replyTo: parentHash });
 
-        console.log(`✅ Posted reply to ${castHash.slice(0, 10)}: ${reply.slice(0, 50)}...`);
+        console.log(`✅ Posted reply: ${reply}`);
         
-        // Record in database - IMPORTANT: track by parent (mention) hash
-        await BotReplyService.recordReply(castHash, replyHash, 'mention', reply.slice(0, 280));
-        repliedCastsCache.add(castHash);
-        
+        // Save all tracking keys
+        trackingKeys.forEach(key => saveRepliedCast(key));
         repliedCount++;
-        
-        // IMPORTANT: Break immediately after posting to ensure we only reply once per run
-        console.log(`✋ Replied to 1 cast, stopping to prevent duplicates`);
-        break;
 
       } catch (error) {
         console.error(`❌ Error replying:`, error);
-        // Already marked as attempted above
+        // Mark as attempted even on error
+        trackingKeys.forEach(key => saveRepliedCast(key));
       }
     }
-
-    console.log(`\n📊 Summary: Checked ${notifications.notifications.length} notifications, skipped ${skippedAlreadyReplied} already replied, posted ${repliedCount} new replies\n`);
 
     return {
       success: true,
       checked: notifications.notifications.length,
-      skipped_already_replied: skippedAlreadyReplied,
       replied: repliedCount,
       timestamp: new Date().toISOString()
     };
