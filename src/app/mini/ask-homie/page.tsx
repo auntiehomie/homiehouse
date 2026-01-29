@@ -26,17 +26,29 @@ interface UserAnalysis {
   activity: any;
 }
 
+interface TokenAnalysis {
+  token: string;
+  analysis: string;
+  summary: {
+    investmentRating: string;
+    riskFactors: string[];
+    lastUpdated: string;
+  };
+  disclaimer: string;
+}
+
 export default function AskHomieMiniApp() {
   const [isReady, setIsReady] = useState(false);
   const [context, setContext] = useState<any>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'analyze'>('chat');
-  const [analyzeType, setAnalyzeType] = useState<'cast' | 'user'>('cast');
+  const [analyzeType, setAnalyzeType] = useState<'cast' | 'user' | 'token'>('cast');
   const [analyzeInput, setAnalyzeInput] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [castAnalysis, setCastAnalysis] = useState<CastAnalysis | null>(null);
   const [userAnalysis, setUserAnalysis] = useState<UserAnalysis | null>(null);
+  const [tokenAnalysis, setTokenAnalysis] = useState<TokenAnalysis | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -124,11 +136,36 @@ export default function AskHomieMiniApp() {
     }
   };
 
+  const analyzeToken = async () => {
+    if (!analyzeInput.trim()) return;
+    
+    setAnalyzing(true);
+    setTokenAnalysis(null);
+    try {
+      const response = await fetch('/api/miniapp/analyze-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: analyzeInput })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTokenAnalysis(data);
+      }
+    } catch (error) {
+      console.error('Error analyzing token:', error);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const handleAnalyze = () => {
     if (analyzeType === 'cast') {
       analyzeCast();
-    } else {
+    } else if (analyzeType === 'user') {
       analyzeUser();
+    } else {
+      analyzeToken();
     }
   };
 
@@ -241,10 +278,10 @@ export default function AskHomieMiniApp() {
           <div className="space-y-4">
             {/* Analyze Input */}
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg p-4 border border-purple-500/20">
-              <div className="flex gap-2 mb-4">
+              <div className="grid grid-cols-3 gap-2 mb-4">
                 <button
                   onClick={() => setAnalyzeType('cast')}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                     analyzeType === 'cast'
                       ? 'bg-purple-600 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -254,13 +291,23 @@ export default function AskHomieMiniApp() {
                 </button>
                 <button
                   onClick={() => setAnalyzeType('user')}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                     analyzeType === 'user'
                       ? 'bg-purple-600 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
                 >
                   👤 User
+                </button>
+                <button
+                  onClick={() => setAnalyzeType('token')}
+                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                    analyzeType === 'token'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  💎 Token
                 </button>
               </div>
 
@@ -272,7 +319,9 @@ export default function AskHomieMiniApp() {
                   placeholder={
                     analyzeType === 'cast'
                       ? 'Paste cast URL or hash...'
-                      : 'Enter username or FID...'
+                      : analyzeType === 'user'
+                      ? 'Enter username or FID...'
+                      : 'Enter token name, symbol, or address...'
                   }
                   className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
                   onKeyPress={(e) => e.key === 'Enter' && handleAnalyze()}
@@ -478,6 +527,72 @@ export default function AskHomieMiniApp() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Token Analysis Results */}
+            {tokenAnalysis && analyzeType === 'token' && (
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg p-4 border border-purple-500/20 space-y-4">
+                {/* Investment Rating */}
+                <div className={`rounded-lg p-4 border-2 ${
+                  tokenAnalysis.summary.investmentRating.includes('SCAM')
+                    ? 'bg-red-900/30 border-red-500'
+                    : tokenAnalysis.summary.investmentRating.includes('HIGH RISK')
+                    ? 'bg-red-900/20 border-red-500/50'
+                    : tokenAnalysis.summary.investmentRating.includes('MEDIUM')
+                    ? 'bg-yellow-900/20 border-yellow-500/50'
+                    : 'bg-green-900/20 border-green-500/50'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-4xl">
+                      {tokenAnalysis.summary.investmentRating.includes('SCAM') ? '🚨' :
+                       tokenAnalysis.summary.investmentRating.includes('HIGH') ? '🔴' :
+                       tokenAnalysis.summary.investmentRating.includes('LOW') ? '🟢' : '🟡'}
+                    </span>
+                    <div className="flex-1">
+                      <p className="text-white font-bold text-lg mb-1">
+                        {tokenAnalysis.summary.investmentRating}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Analyzed: {new Date(tokenAnalysis.summary.lastUpdated).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Risk Factors */}
+                {tokenAnalysis.summary.riskFactors.length > 0 && (
+                  <div className="bg-red-900/20 rounded-lg p-4 border border-red-500/30">
+                    <p className="text-red-300 font-semibold mb-2 flex items-center gap-2">
+                      ⚠️ Risk Factors Detected
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {tokenAnalysis.summary.riskFactors.map((factor, index) => (
+                        <span 
+                          key={index}
+                          className="px-2 py-1 bg-red-600/50 text-red-200 text-xs rounded-full capitalize"
+                        >
+                          {factor}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Detailed Analysis */}
+                <div className="bg-gray-900/50 rounded-lg p-4">
+                  <p className="text-gray-300 font-semibold mb-3">Detailed Analysis</p>
+                  <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">
+                    {tokenAnalysis.analysis}
+                  </div>
+                </div>
+
+                {/* Disclaimer */}
+                <div className="bg-yellow-900/20 rounded-lg p-3 border border-yellow-500/30">
+                  <p className="text-yellow-300 text-xs leading-relaxed">
+                    ⚠️ {tokenAnalysis.disclaimer}
+                  </p>
+                </div>
               </div>
             )}
           </div>
