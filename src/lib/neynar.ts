@@ -151,7 +151,15 @@ export async function fetchTrendingFeed(params: {
  * Fetch user profile by username
  */
 export async function fetchUserByUsername(username: string) {
-  return neynarFetch(`/user/by_username?username=${encodeURIComponent(username)}`);
+  try {
+    return await neynarFetch(`/user/by_username?username=${encodeURIComponent(username)}`);
+  } catch (error) {
+    console.error(`Failed to fetch user @${username}:`, error);
+    if (error instanceof NeynarError && error.status === 404) {
+      throw new Error(`User @${username} not found on Farcaster. Please check the username and try again.`);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -218,12 +226,27 @@ export async function searchCasts(query: string, limit: number = 10) {
  * Get casts by author username
  */
 export async function getCastsByUsername(username: string, limit: number = 25) {
-  // First get user by username
-  const userData = await fetchUserByUsername(username);
-  if (!userData?.user?.fid) {
-    throw new Error(`User ${username} not found`);
+  try {
+    // First get user by username
+    const userData = await fetchUserByUsername(username);
+    if (!userData?.user?.fid) {
+      throw new Error(`User @${username} was found but has no FID (Farcaster ID)`);
+    }
+    
+    console.log(`Fetching ${limit} casts from @${username} (FID: ${userData.user.fid})`);
+    
+    // Then get their casts
+    const castsData = await neynarFetch(`/feed/user/${userData.user.fid}/casts?limit=${limit}`);
+    
+    if (!castsData?.casts || castsData.casts.length === 0) {
+      console.log(`No casts found for @${username}`);
+      return { casts: [] };
+    }
+    
+    console.log(`Successfully fetched ${castsData.casts.length} casts from @${username}`);
+    return castsData;
+  } catch (error) {
+    console.error(`Error in getCastsByUsername for @${username}:`, error);
+    throw error;
   }
-  
-  // Then get their casts
-  return neynarFetch(`/feed/user/${userData.user.fid}/casts?limit=${limit}`);
 }

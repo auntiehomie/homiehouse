@@ -168,17 +168,60 @@ export function createSearchCastsTool() {
 export function createGetCastsByUserTool() {
   return new DynamicStructuredTool({
     name: 'get_user_casts',
-    description: 'Get recent casts from a specific Farcaster user by their username. Use this when users want to see what someone has been posting, or to analyze a user\'s posting style.',
+    description: 'Get recent casts from a specific Farcaster user by their username. Use this when users want to see what someone has been posting, analyze a user\'s posting style, or find their most engaged cast. Returns casts with engagement metrics (likes, recasts, replies).',
     schema: z.object({
       username: z.string().describe('The Farcaster username (without @ symbol)'),
       limit: z.number().optional().default(25).describe('Number of casts to return (default: 25, max: 100)')
     }),
     func: async ({ username, limit = 25 }) => {
       try {
+        console.log(`Tool: Getting casts from @${username}`);
         const results = await getCastsByUsername(username, Math.min(limit, 100));
-        return JSON.stringify(results, null, 2);
+        
+        if (!results || !results.casts || results.casts.length === 0) {
+          return `No casts found for @${username}. They may not have posted anything yet, or their account might be new.`;
+        }
+        
+        // Calculate engagement metrics for each cast
+        const castsWithEngagement = results.casts.map((cast: any) => {
+          const likes = cast.reactions?.likes_count || 0;
+          const recasts = cast.reactions?.recasts_count || 0;
+          const replies = cast.replies?.count || 0;
+          const totalEngagement = likes + recasts + replies;
+          
+          return {
+            hash: cast.hash,
+            text: cast.text,
+            timestamp: cast.timestamp,
+            author: cast.author?.username,
+            engagement: {
+              likes,
+              recasts,
+              replies,
+              total: totalEngagement
+            }
+          };
+        });
+        
+        // Sort by total engagement
+        castsWithEngagement.sort((a: any, b: any) => b.engagement.total - a.engagement.total);
+        
+        return JSON.stringify({
+          username,
+          totalCasts: castsWithEngagement.length,
+          casts: castsWithEngagement,
+          mostEngaged: castsWithEngagement[0]
+        }, null, 2);
       } catch (error) {
-        return `Error fetching user casts: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.error(`Tool error for @${username}:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        // Provide helpful error messages
+        if (errorMessage.includes('not found')) {
+          return `I couldn't find a Farcaster user named @${username}. Please verify the username is correct. Usernames are case-sensitive on Farcaster. You can check if the user exists by visiting https://warpcast.com/${username}`;
+        }
+        
+        return `Error fetching casts from @${username}: ${errorMessage}. This could be due to an API issue or the username might not exist.`;
       }
     }
   });
@@ -366,6 +409,7 @@ export class FarcasterResearchAgent extends BaseAgent {
 3. Get context on technical concepts and terms
 4. Discover relevant channels and discussions
 5. Search for casts and analyze user activity
+6. Find most engaged/popular casts from specific users
 
 Farcaster Knowledge:
 - Farcaster is a sufficiently decentralized social protocol
@@ -377,12 +421,14 @@ Farcaster Knowledge:
 
 Available Tools:
 - search_farcaster_casts: Search for casts by keyword or topic
-- get_user_casts: Get recent casts from a specific user
+- get_user_casts: Get recent casts from a specific user with engagement metrics
 
 When asked to find casts or see what someone is posting:
 - Use search_farcaster_casts for topic-based searches
 - Use get_user_casts when asked about a specific user (extract username from @mentions)
 - Extract @username from queries and use without the @ symbol
+- The get_user_casts tool returns casts sorted by engagement, with the mostEngaged cast highlighted
+- When asked for "most engaged cast", use get_user_casts and report the mostEngaged cast from the results
 
 Be accurate, cite what you know, and admit when you're not certain.`;
 
