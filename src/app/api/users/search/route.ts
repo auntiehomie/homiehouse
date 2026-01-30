@@ -28,12 +28,17 @@ export async function GET(request: NextRequest) {
     logger.info('Searching users', { query, limit });
 
     const results = await searchUsers(query, limit);
+    
+    console.log('User search results:', JSON.stringify(results, null, 2));
 
     logger.success('User search completed', { count: results.users?.length || 0 });
     logger.end();
 
+    // Handle both possible response structures
+    const users = results.users || results.result?.users || [];
+
     return NextResponse.json({
-      users: results.users || [],
+      users: users,
       query
     });
   } catch (error: any) {
