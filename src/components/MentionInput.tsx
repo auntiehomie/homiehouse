@@ -106,19 +106,23 @@ export default function MentionInput({
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown || users.length === 0) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % users.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + users.length) % users.length);
-    } else if (e.key === 'Enter' && users[selectedIndex]) {
-      e.preventDefault();
-      selectUser(users[selectedIndex]);
-    } else if (e.key === 'Escape') {
-      setShowDropdown(false);
+    if (showDropdown && users.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev + 1) % users.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev - 1 + users.length) % users.length);
+        return;
+      } else if (e.key === 'Enter' && users[selectedIndex]) {
+        e.preventDefault();
+        selectUser(users[selectedIndex]);
+        return;
+      } else if (e.key === 'Escape') {
+        setShowDropdown(false);
+        return;
+      }
     }
   };
 

@@ -4,6 +4,7 @@ import { useState, useEffect, ReactNode } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import MentionInput from './MentionInput';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
 type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
@@ -458,14 +459,14 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
       {/* Input */}
       <div className="border-t border-zinc-200 dark:border-zinc-800 p-4">
         <div className="flex gap-2">
-          <input
-            type="text"
+          <MentionInput
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            onChange={setInput}
             placeholder={`${modeDescriptions[mode]}...`}
-            disabled={isLoading}
-            className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            onUserSelect={(user) => {
+              console.log('User mentioned:', user);
+            }}
           />
           <button
             onClick={handleSend}
