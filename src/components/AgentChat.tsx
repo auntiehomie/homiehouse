@@ -388,6 +388,34 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
                 </div>
               )}
 
+              {/* Share button for assistant messages */}
+              {msg.role === 'assistant' && (
+                <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">
+                  <button
+                    onClick={() => {
+                      const text = msg.content.slice(0, 320); // Farcaster limit
+                      const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`;
+                      window.open(url, '_blank');
+                    }}
+                    className="text-xs px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center gap-1"
+                    title="Share as cast"
+                  >
+                    <span>📤</span>
+                    <span>Share as Cast</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(msg.content);
+                      alert('Copied to clipboard!');
+                    }}
+                    className="text-xs px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded-lg transition-colors"
+                    title="Copy to clipboard"
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+              )}
+
               {/* Show suggestions */}
               {msg.suggestions && msg.suggestions.length > 0 && (
                 <div className="mt-3 space-y-2">
