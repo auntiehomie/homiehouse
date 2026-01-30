@@ -457,8 +457,8 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
       </div>
 
       {/* Input */}
-      <div className="border-t border-zinc-200 dark:border-zinc-800 p-4">
-        <div className="flex gap-2">
+      <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 overflow-visible">
+        <div className="flex gap-2 relative">
           <MentionInput
             value={input}
             onChange={setInput}

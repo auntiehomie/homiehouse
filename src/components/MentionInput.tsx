@@ -141,7 +141,12 @@ export default function MentionInput({
       {showDropdown && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 mt-1 w-full bg-gray-900 border border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+          className="absolute z-[9999] mb-1 w-full bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+          style={{
+            bottom: '100%',
+            left: 0,
+            right: 0
+          }}
         >
           {loading ? (
             <div className="p-3 text-center text-gray-400 text-sm">
