@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     if (includeCasts && userFid) {
       try {
         logger.info('Fetching user casts', { fid: userFid });
-        const data = await neynarFetch(`/feed?feed_type=filter&filter_type=fids&fid=${userFid}&limit=25`);
+        const data = await neynarFetch(`/feed?feed_type=filter&filter_type=fids&fids=${userFid}&limit=25`);
         casts = data.casts || [];
         logger.info('Casts fetched', { count: casts.length });
       } catch (error) {

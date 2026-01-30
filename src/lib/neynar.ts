@@ -235,8 +235,8 @@ export async function getCastsByUsername(username: string, limit: number = 25) {
     
     console.log(`Fetching ${limit} casts from @${username} (FID: ${userData.user.fid})`);
     
-    // Use the feed endpoint with feed_type=filter and filter_type=fids
-    const castsData = await neynarFetch(`/feed?feed_type=filter&filter_type=fids&fid=${userData.user.fid}&limit=${limit}`);
+    // Use the feed endpoint with feed_type=filter and filter_type=fids (note: fids is plural)
+    const castsData = await neynarFetch(`/feed?feed_type=filter&filter_type=fids&fids=${userData.user.fid}&limit=${limit}`);
     
     if (!castsData?.casts || castsData.casts.length === 0) {
       console.log(`No casts found for @${username}`);
