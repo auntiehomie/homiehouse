@@ -393,7 +393,9 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
                 <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">
                   <button
                     onClick={() => {
-                      const text = msg.content.slice(0, 320); // Farcaster limit
+                      const attribution = '\n\nshared from @homiehouse';
+                      const maxLength = 320 - attribution.length;
+                      const text = msg.content.slice(0, maxLength) + attribution;
                       const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`;
                       window.open(url, '_blank');
                     }}
