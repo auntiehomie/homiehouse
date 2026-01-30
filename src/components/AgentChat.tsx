@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MentionInput from './MentionInput';
+import { sdk } from '@farcaster/miniapp-sdk';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
 type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
@@ -398,12 +399,18 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               {msg.role === 'assistant' && (
                 <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const attribution = '\n\nshared from @homiehouse';
                       const maxLength = 320 - attribution.length;
                       const text = msg.content.slice(0, maxLength) + attribution;
-                      const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`;
-                      window.open(url, '_blank');
+                      
+                      try {
+                        // Try to use Farcaster SDK for mini apps
+                        await sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`);
+                      } catch (error) {
+                        // Fallback to window.open for non-mini-app contexts
+                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`, '_blank');
+                      }
                     }}
                     className="text-xs px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center gap-1"
                     title="Share as cast"
