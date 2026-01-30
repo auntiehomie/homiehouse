@@ -273,6 +273,11 @@ export default function AskHomieMiniApp() {
           <div className="bg-gray-800/50 backdrop-blur-sm rounded-lg shadow-lg border border-purple-500/20 overflow-hidden">
             <AgentChat 
               userId={context?.user?.fid?.toString()}
+              userContext={{
+                username: context?.user?.username,
+                fid: context?.user?.fid,
+                displayName: context?.user?.displayName
+              }}
             />
           </div>
         ) : (

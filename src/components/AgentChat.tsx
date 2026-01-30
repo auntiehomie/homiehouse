@@ -19,6 +19,11 @@ interface Message {
 
 interface AgentChatProps {
   userId?: string;
+  userContext?: {
+    username?: string;
+    fid?: number;
+    displayName?: string;
+  };
   castContext?: {
     author: string;
     text: string;
@@ -62,7 +67,7 @@ function parseTextWithMentions(text: string): ReactNode[] {
   return parts.length > 0 ? parts : [text];
 }
 
-export default function AgentChat({ userId, castContext, onCastSelect }: AgentChatProps) {
+export default function AgentChat({ userId, userContext, castContext, onCastSelect }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -121,6 +126,7 @@ export default function AgentChat({ userId, castContext, onCastSelect }: AgentCh
           castContext,
           mode: 'agent',
           userId: userId || `temp_${Date.now()}`,
+          userContext,
           intent: mode === 'auto' ? undefined : mode
         })
       });

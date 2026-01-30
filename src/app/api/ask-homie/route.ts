@@ -290,6 +290,7 @@ export async function POST(req: NextRequest) {
       castContext,
       mode = 'agent',
       userId,
+      userContext,
       intent,
       feedback
     } = await req.json();
@@ -298,6 +299,7 @@ export async function POST(req: NextRequest) {
       mode, 
       provider: requestedProvider, 
       hasCastContext: !!castContext,
+      hasUserContext: !!userContext,
       messageCount: messages?.length 
     });
 
@@ -340,6 +342,12 @@ export async function POST(req: NextRequest) {
 
         // Add cast context if provided - make it more prominent
         let contextualMessage = userMessage;
+        
+        // Add user context if available
+        if (userContext?.username) {
+          contextualMessage = `[USER CONTEXT: You are chatting with @${userContext.username}${userContext.displayName ? ` (${userContext.displayName})` : ''}, FID: ${userContext.fid}. When they ask about "my" casts, posts, or profile, they are referring to @${userContext.username}.]\n\n` + contextualMessage;
+        }
+        
         if (activeCastContext) {
           const castDetails = `
 ═══════════════════════════════════════════
