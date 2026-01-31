@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
+
 const neynarApiKey = process.env.NEYNAR_API_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
-}
-
-if (!neynarApiKey) {
-  throw new Error('NEYNAR_API_KEY must be set');
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Function to publish a cast using Neynar
 async function publishCast(signerUuid: string, text: string, embeds: any[] = []) {
+  if (!neynarApiKey) {
+    throw new Error('NEYNAR_API_KEY must be set');
+  }
+
   const url = 'https://api.neynar.com/v2/farcaster/cast';
   
   const body: any = {
@@ -48,6 +51,8 @@ async function publishCast(signerUuid: string, text: string, embeds: any[] = [])
 // Endpoint to process and publish scheduled casts
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
+    
     // This endpoint should be called by a cron job
     // For security, you might want to add authentication here
     const authHeader = req.headers.get('authorization');
@@ -148,6 +153,7 @@ export async function POST(req: NextRequest) {
 // Manual trigger for a specific scheduled cast
 export async function PUT(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const body = await req.json();
     const { id, fid } = body;
 

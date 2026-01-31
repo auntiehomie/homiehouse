@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const body = await req.json();
     const { text, signerUuid, fid, embeds = [], scheduled_time } = body;
 
@@ -73,6 +76,7 @@ export async function POST(req: NextRequest) {
 // Get user's scheduled casts
 export async function GET(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const { searchParams } = new URL(req.url);
     const fid = searchParams.get('fid');
 
@@ -114,6 +118,7 @@ export async function GET(req: NextRequest) {
 // Delete/cancel a scheduled cast
 export async function DELETE(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const fid = searchParams.get('fid');
