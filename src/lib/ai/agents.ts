@@ -885,13 +885,17 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
       lower.includes('similar casts') ||
       lower.includes('more casts') ||
       lower.includes('any casts') ||
+      lower.includes('recent casts') ||
+      lower.includes('latest casts') ||
       lower.includes('casts by') ||
       lower.includes('casts from') ||
       lower.includes('casts about') ||
       lower.includes('posts by') ||
       lower.includes('posts from') ||
+      lower.includes('posts about') ||
       lower.includes('news about') ||
       lower.includes('any news') ||
+      lower.includes('recent news') ||
       lower.includes('seen any') ||
       lower.includes('heard about') ||
       lower.includes('updates on') ||
@@ -902,6 +906,8 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
       lower.includes('price of') ||
       lower.includes('get info') ||
       lower.includes('details about') ||
+      lower.includes('sentiment on') ||
+      lower.includes('sentiment about') ||
       lower.match(/@\w+/) ||  // Contains any @username mention
       lower.match(/\$\w+/)    // Contains any $token ticker
     ) {
