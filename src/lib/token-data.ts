@@ -1,10 +1,23 @@
 /**
  * Token Data Service
  * Aggregates token information from multiple sources:
+ * - Neynar (Farcaster-native tokens on Base)
  * - CoinGecko (price, market data, market cap)
  * - DexScreener (DEX trading data, liquidity)
  * - Base blockchain data
  */
+
+// Common Base tokens mapping (symbol -> contract address)
+const BASE_TOKENS: Record<string, string> = {
+  'USDC': '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  'WETH': '0x4200000000000000000000000000000000000006',
+  'DAI': '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb',
+  'DEGEN': '0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed',
+  'MOXIE': '0x8C9037D1Ef5c6D1f6816278C7AAF5491d24CD527',
+  'HIGHER': '0x0578d8A44db98B23BF096A382e016e29a5Ce0ffe',
+  'ONCHAIN': '0x8752f1a2b2a6e87e6ae2d3d7c03f0f3f3f3f3f3f', // placeholder
+  'NATIVE': '0x0000000000000000000000000000000000000000', // needs actual address
+};
 
 export interface TokenPrice {
   usd: number;
@@ -213,10 +226,87 @@ export async function getDexScreenerToken(addressOrSymbol: string): Promise<Toke
 }
 
 /**
+ * Get token data from Neynar Fungibles API (Base network tokens)
+ * Requires full fungible identifier: eip155:8453/erc20:0xaddress
+ */
+export async function getNeynarToken(address: string): Promise<TokenInfo | null> {
+  try {
+    const apiKey = process.env.NEYNAR_API_KEY;
+    if (!apiKey) {
+      console.log('NEYNAR_API_KEY not configured');
+      return null;
+    }
+
+    // Format as Neynar fungible identifier for Base network
+    const fungibleId = `eip155:8453/erc20:${address.toLowerCase()}`;
+    
+    const url = `https://api.neynar.com/v2/farcaster/fungibles?fungibles=${encodeURIComponent(fungibleId)}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+        'x-api-key': apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      console.error('Neynar API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (!data.fungibles || data.fungibles.length === 0) {
+      return null;
+    }
+
+    const fungible = data.fungibles[0];
+    const token = fungible.fungible;
+    
+    // Convert Neynar format to TokenInfo
+    return {
+      id: token.address,
+      symbol: token.symbol?.toUpperCase() || '',
+      name: token.name || '',
+      address: token.address,
+      chainId: 'base',
+      image: token.logo || undefined,
+      currentPrice: token.price?.in_usd ? parseFloat(token.price.in_usd) : undefined,
+      description: `${token.name} on Base network. Mentioned in ${fungible.cast_count || 0} Farcaster casts.`,
+      links: {
+        homepage: [`https://basescan.org/token/${token.address}`],
+      },
+    };
+  } catch (error) {
+    console.error('Error fetching Neynar fungible data:', error);
+    return null;
+  }
+}
+
+/**
  * Get comprehensive token data by trying multiple sources
  */
 export async function getTokenData(identifier: string): Promise<TokenInfo | null> {
-  // Try CoinGecko first (more comprehensive for major tokens)
+  // Check if identifier matches a known Base token symbol
+  const upperIdentifier = identifier.toUpperCase();
+  if (BASE_TOKENS[upperIdentifier]) {
+    const address = BASE_TOKENS[upperIdentifier];
+    // Try Neynar first for known Base tokens
+    const neynarData = await getNeynarToken(address);
+    if (neynarData) {
+      return neynarData;
+    }
+  }
+
+  // If identifier is a contract address, try Neynar first (best for Base tokens)
+  if (identifier.startsWith('0x') && identifier.length === 42) {
+    const neynarData = await getNeynarToken(identifier);
+    if (neynarData) {
+      return neynarData;
+    }
+  }
+
+  // Try CoinGecko (more comprehensive for major tokens)
   const cgData = await getCoinGeckoToken(identifier);
   if (cgData) {
     return cgData;
