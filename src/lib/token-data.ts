@@ -231,7 +231,8 @@ export async function getDexScreenerToken(addressOrSymbol: string): Promise<Toke
  */
 export async function getClankerToken(identifier: string): Promise<TokenInfo | null> {
   try {
-    const url = `https://www.clanker.world/api/tokens?q=${encodeURIComponent(identifier)}&includeMarket=true&limit=1`;
+    // Get more results to find exact matches
+    const url = `https://www.clanker.world/api/tokens?q=${encodeURIComponent(identifier)}&includeMarket=true&limit=10`;
     
     const response = await fetch(url, {
       headers: {
@@ -250,7 +251,42 @@ export async function getClankerToken(identifier: string): Promise<TokenInfo | n
       return null;
     }
 
-    const token = data.data[0];
+    // If identifier is a contract address, take the first match
+    if (identifier.startsWith('0x')) {
+      const token = data.data[0];
+      const market = token.market_data;
+      
+      return {
+        id: token.contract_address,
+        symbol: token.symbol?.toUpperCase() || '',
+        name: token.name || '',
+        address: token.contract_address,
+        chainId: 'base',
+        image: token.img_url || undefined,
+        currentPrice: market?.price_usd ? parseFloat(market.price_usd) : undefined,
+        marketCap: market?.market_cap ? parseFloat(market.market_cap) : undefined,
+        totalVolume: market?.volume_24h ? parseFloat(market.volume_24h) : undefined,
+        priceChangePercentage24h: market?.price_change_percentage_24h ? parseFloat(market.price_change_percentage_24h) : undefined,
+        description: token.description || token.metadata?.description || `${token.name} - Deployed via Clanker on Base`,
+        links: {
+          homepage: token.metadata?.socialMediaUrls?.find((s: any) => s.platform === 'website')?.url ? [token.metadata.socialMediaUrls.find((s: any) => s.platform === 'website').url] : [`https://www.clanker.world/clanker/${token.contract_address}`],
+          twitter: token.metadata?.socialMediaUrls?.find((s: any) => s.platform === 'twitter')?.url?.split('/').pop(),
+        },
+        liquidity: market?.liquidity_usd ? {
+          usd: parseFloat(market.liquidity_usd)
+        } : undefined,
+      };
+    }
+
+    // For name/symbol search, find exact match first
+    const upperIdentifier = identifier.toUpperCase();
+    const exactMatch = data.data.find((t: any) => 
+      t.symbol?.toUpperCase() === upperIdentifier || 
+      t.name?.toUpperCase() === upperIdentifier
+    );
+    
+    // Use exact match if found, otherwise use first result
+    const token = exactMatch || data.data[0];
     const market = token.market_data;
     
     // Convert Clanker format to TokenInfo

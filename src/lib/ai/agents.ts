@@ -249,6 +249,22 @@ export function createGetTokenInfoTool() {
 - The token might only exist on chains other than Base`;
         }
         
+        // Log what was actually returned
+        console.log(`Tool: Found token - ${tokenData.symbol} (${tokenData.name})`);
+        
+        // Verify we got the right token
+        const upperIdentifier = identifier.toUpperCase();
+        const upperSymbol = tokenData.symbol?.toUpperCase() || '';
+        const upperName = tokenData.name?.toUpperCase() || '';
+        
+        // If identifier doesn't match symbol or name, warn about it
+        if (!identifier.startsWith('0x') && 
+            !upperSymbol.includes(upperIdentifier) && 
+            !upperName.includes(upperIdentifier) &&
+            upperIdentifier !== upperSymbol) {
+          return `Found token ${tokenData.name} (${tokenData.symbol}), but this may not match "${identifier}". The search returned the closest match. If this is not what you're looking for, try using the exact token symbol or contract address.`;
+        }
+        
         const formatted = formatTokenDisplay(tokenData);
         
         // Add additional context
