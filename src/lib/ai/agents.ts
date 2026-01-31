@@ -842,7 +842,17 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
       lower.includes('casts about') ||
       lower.includes('posts by') ||
       lower.includes('posts from') ||
-      lower.match(/@\w+/)  // Contains any @username mention
+      lower.includes('news about') ||
+      lower.includes('any news') ||
+      lower.includes('seen any') ||
+      lower.includes('heard about') ||
+      lower.includes('updates on') ||
+      lower.includes('updates about') ||
+      lower.includes('latest on') ||
+      lower.includes('info on') ||
+      lower.includes('info about') ||
+      lower.match(/@\w+/) ||  // Contains any @username mention
+      lower.match(/\$\w+/)    // Contains any $token ticker
     ) {
       return 'research';
     }
