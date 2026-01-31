@@ -226,6 +226,61 @@ export async function getDexScreenerToken(addressOrSymbol: string): Promise<Toke
 }
 
 /**
+ * Get token data from Clanker API (Farcaster-native tokens)
+ * Searches by name, symbol, or contract address
+ */
+export async function getClankerToken(identifier: string): Promise<TokenInfo | null> {
+  try {
+    const url = `https://www.clanker.world/api/tokens?q=${encodeURIComponent(identifier)}&includeMarket=true&limit=1`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('Clanker API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (!data.data || data.data.length === 0) {
+      return null;
+    }
+
+    const token = data.data[0];
+    const market = token.market_data;
+    
+    // Convert Clanker format to TokenInfo
+    return {
+      id: token.contract_address,
+      symbol: token.symbol?.toUpperCase() || '',
+      name: token.name || '',
+      address: token.contract_address,
+      chainId: 'base',
+      image: token.img_url || undefined,
+      currentPrice: market?.price_usd ? parseFloat(market.price_usd) : undefined,
+      marketCap: market?.market_cap ? parseFloat(market.market_cap) : undefined,
+      totalVolume: market?.volume_24h ? parseFloat(market.volume_24h) : undefined,
+      priceChangePercentage24h: market?.price_change_percentage_24h ? parseFloat(market.price_change_percentage_24h) : undefined,
+      description: token.description || token.metadata?.description || `${token.name} - Deployed via Clanker on Base`,
+      links: {
+        homepage: token.metadata?.socialMediaUrls?.find((s: any) => s.platform === 'website')?.url ? [token.metadata.socialMediaUrls.find((s: any) => s.platform === 'website').url] : [`https://www.clanker.world/clanker/${token.contract_address}`],
+        twitter: token.metadata?.socialMediaUrls?.find((s: any) => s.platform === 'twitter')?.url?.split('/').pop(),
+      },
+      liquidity: market?.liquidity_usd ? {
+        usd: parseFloat(market.liquidity_usd)
+      } : undefined,
+    };
+  } catch (error) {
+    console.error('Error fetching Clanker token data:', error);
+    return null;
+  }
+}
+
+/**
  * Get token data from Neynar Fungibles API (Base network tokens)
  * Requires full fungible identifier: eip155:8453/erc20:0xaddress
  */
@@ -298,8 +353,23 @@ export async function getTokenData(identifier: string): Promise<TokenInfo | null
     }
   }
 
-  // If identifier is a contract address, try Neynar first (best for Base tokens)
+  // Try Clanker first for name/symbol searches (best for Farcaster-native tokens)
+  if (!identifier.startsWith('0x')) {
+    const clankerData = await getClankerToken(identifier);
+    if (clankerData) {
+      return clankerData;
+    }
+  }
+
+  // If identifier is a contract address, try multiple Base-specific sources
   if (identifier.startsWith('0x') && identifier.length === 42) {
+    // Try Clanker for contract addresses
+    const clankerData = await getClankerToken(identifier);
+    if (clankerData) {
+      return clankerData;
+    }
+    
+    // Try Neynar
     const neynarData = await getNeynarToken(identifier);
     if (neynarData) {
       return neynarData;
@@ -373,6 +443,45 @@ export async function getTokenPrices(addresses: string[]): Promise<Record<string
  * Search for tokens across platforms
  */
 export async function searchTokens(query: string, limit: number = 10): Promise<TokenInfo[]> {
+  const results: TokenInfo[] = [];
+  
+  try {
+    // First, try Clanker for Farcaster-native tokens
+    const clankerUrl = `https://www.clanker.world/api/tokens?q=${encodeURIComponent(query)}&includeMarket=true&limit=${Math.min(limit, 20)}`;
+    const clankerResponse = await fetch(clankerUrl, {
+      headers: { 'accept': 'application/json' },
+    });
+    
+    if (clankerResponse.ok) {
+      const clankerData = await clankerResponse.json();
+      const clankerTokens = (clankerData.data || []).slice(0, limit).map((token: any) => {
+        const market = token.market_data;
+        return {
+          id: token.contract_address,
+          symbol: token.symbol?.toUpperCase() || '',
+          name: token.name || '',
+          address: token.contract_address,
+          chainId: 'base',
+          image: token.img_url || undefined,
+          currentPrice: market?.price_usd ? parseFloat(market.price_usd) : undefined,
+          marketCap: market?.market_cap ? parseFloat(market.market_cap) : undefined,
+          totalVolume: market?.volume_24h ? parseFloat(market.volume_24h) : undefined,
+          priceChangePercentage24h: market?.price_change_percentage_24h ? parseFloat(market.price_change_percentage_24h) : undefined,
+          description: token.description || token.metadata?.description || `${token.name} - Deployed via Clanker`,
+        };
+      });
+      results.push(...clankerTokens);
+    }
+  } catch (error) {
+    console.log('Clanker search failed, continuing with other sources:', error);
+  }
+
+  // If we have enough results from Clanker, return them
+  if (results.length >= limit) {
+    return results.slice(0, limit);
+  }
+
+  // Otherwise, also search CoinGecko
   try {
     const API_KEY = process.env.COINGECKO_API_KEY;
     const baseUrl = API_KEY 
@@ -390,14 +499,15 @@ export async function searchTokens(query: string, limit: number = 10): Promise<T
     const response = await fetch(url, { headers });
     
     if (!response.ok) {
-      return [];
+      return results;
     }
 
     const data = await response.json();
-    const coins = (data.coins || []).slice(0, limit);
+    const remainingLimit = limit - results.length;
+    const coins = (data.coins || []).slice(0, remainingLimit);
     
     // Get detailed info for each coin
-    const results = await Promise.all(
+    const cgResults = await Promise.all(
       coins.map(async (coin: any) => {
         const detailUrl = `${baseUrl}/coins/${coin.id}?localization=false&tickers=false&community_data=false&developer_data=false`;
         try {
@@ -413,11 +523,12 @@ export async function searchTokens(query: string, limit: number = 10): Promise<T
       })
     );
     
-    return results.filter((r): r is TokenInfo => r !== null);
+    results.push(...cgResults.filter((r): r is TokenInfo => r !== null));
   } catch (error) {
     console.error('Error searching tokens:', error);
-    return [];
   }
+  
+  return results.slice(0, limit);
 }
 
 // Helper functions to format data from different sources
