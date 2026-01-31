@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useNeynarContext } from "@neynar/react";
 import Link from "next/link";
 import ComposeModal from "../components/ComposeModal";
+import ScheduledCastsModal from "../components/ScheduledCastsModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import NeynarSignIn from "../components/NeynarSignIn";
 import ChannelsList from "../components/ChannelsList";
@@ -134,6 +135,7 @@ export default function Home() {
       </main>
 
       <ComposeModal />
+      <ScheduledCastsModal />
     </div>
   );
 }

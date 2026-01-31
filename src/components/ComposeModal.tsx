@@ -19,6 +19,8 @@ export default function ComposeModal() {
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [scheduleTime, setScheduleTime] = useState<string>('');
+  const [isScheduled, setIsScheduled] = useState(false);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -305,9 +307,9 @@ export default function ComposeModal() {
         return;
       }
 
-      console.log("Posting with:", { userFid, signerUuid, signerStatus, text });
+      console.log("Posting with:", { userFid, signerUuid, signerStatus, text, isScheduled, scheduleTime });
 
-      // Use user's signer or fallback to env
+      // Prepare cast data
       const body: any = { 
         text, 
         signerUuid: signerUuid || undefined,
@@ -319,25 +321,61 @@ export default function ComposeModal() {
         body.embeds = [{ url: imageUrl.trim() }];
       }
 
-      const res = await fetch("/api/privy-compose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      // If scheduled, save to database instead of posting immediately
+      if (isScheduled && scheduleTime) {
+        const scheduledDate = new Date(scheduleTime);
+        const now = new Date();
+        
+        if (scheduledDate <= now) {
+          setStatus("Scheduled time must be in the future.");
+          setLoading(false);
+          return;
+        }
 
-      const data = await res.json();
-      if (data.ok) {
-        setStatus("✓ Posted successfully!");
-        setText("");
-        setImageUrl("");
-        setUploadedImage(null);
-        // Close modal after brief delay to show success message
-        setTimeout(() => {
-          setOpen(false);
-          setStatus(null);
-        }, 800);
+        body.scheduled_time = scheduledDate.toISOString();
+        
+        const res = await fetch("/api/schedule-cast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          setStatus("✓ Cast scheduled successfully!");
+          setText("");
+          setImageUrl("");
+          setUploadedImage(null);
+          setScheduleTime("");
+          setIsScheduled(false);
+          setTimeout(() => {
+            setOpen(false);
+            setStatus(null);
+          }, 800);
+        } else {
+          setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+        }
       } else {
-        setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+        // Post immediately
+        const res = await fetch("/api/privy-compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          setStatus("✓ Posted successfully!");
+          setText("");
+          setImageUrl("");
+          setUploadedImage(null);
+          setTimeout(() => {
+            setOpen(false);
+            setStatus(null);
+          }, 800);
+        } else {
+          setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+        }
       }
     } catch (err: any) {
       setStatus(String(err?.message || err));
@@ -627,21 +665,57 @@ export default function ComposeModal() {
                   )}
                 </div>
                 
+                {/* Schedule Section */}
+                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="schedule-toggle"
+                      checked={isScheduled}
+                      onChange={(e) => setIsScheduled(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <label htmlFor="schedule-toggle" style={{ cursor: 'pointer', fontSize: '14px' }}>
+                      📅 Schedule for later
+                    </label>
+                  </div>
+                  
+                  {isScheduled && (
+                    <input
+                      type="datetime-local"
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      min={new Date().toISOString().slice(0, 16)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        fontSize: '14px'
+                      }}
+                    />
+                  )}
+                </div>
+                
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
                   <button className="btn" onClick={() => {
                     setOpen(false);
                     setText('');
                     setImageUrl('');
                     setUploadedImage(null);
+                    setScheduleTime('');
+                    setIsScheduled(false);
                   }}>Cancel</button>
                   <button
                     className="btn primary"
-                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim())}
+                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
                     onClick={async () => {
                       await handlePost();
                     }}
                   >
-                    {loading ? "Posting…" : "Post"}
+                    {loading ? (isScheduled ? "Scheduling…" : "Posting…") : (isScheduled ? "Schedule" : "Post")}
                   </button>
                 </div>
                 {status && <div style={{ marginTop: 8 }}>{status}</div>}
