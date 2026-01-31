@@ -463,18 +463,25 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               {msg.role === 'assistant' && (
                 <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">
                   <button
-                    onClick={async () => {
-                      // Use proper Farcaster mention format with FID for @homiehouse
+                    onClick={() => {
+                      // Attribution for shared responses
                       const attribution = '\n\nshared from @homiehouse';
-                      const embedUrl = 'https://homiehouse.fun';
                       const finalText = msg.content + attribution;
                       
-                      try {
-                        // Try to use Farcaster SDK for mini apps with embed
-                        await sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`);
-                      } catch (error) {
-                        // Fallback to window.open for non-mini-app contexts
-                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`, '_blank');
+                      // Check if we're in a Farcaster mini app context
+                      const isMiniApp = typeof window !== 'undefined' && window.location.hostname.includes('warpcast');
+                      
+                      if (isMiniApp) {
+                        // In mini app: open Warpcast composer with embed
+                        const embedUrl = 'https://homiehouse.fun';
+                        sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`).catch(() => {
+                          window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`, '_blank');
+                        });
+                      } else {
+                        // In web app: dispatch event to open ComposeModal
+                        window.dispatchEvent(new CustomEvent('openComposeModal', {
+                          detail: { text: finalText }
+                        }));
                       }
                     }}
                     className="text-xs px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center gap-1"

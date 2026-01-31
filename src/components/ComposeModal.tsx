@@ -72,6 +72,23 @@ export default function ComposeModal() {
     }
   }, [open, userFid]);
 
+  // Listen for custom event to open compose with pre-filled text
+  useEffect(() => {
+    const handleOpenCompose = (e: CustomEvent) => {
+      const { text: prefilledText } = e.detail;
+      if (prefilledText) {
+        setText(prefilledText);
+      }
+      setOpen(true);
+    };
+
+    window.addEventListener('openComposeModal' as any, handleOpenCompose as EventListener);
+    
+    return () => {
+      window.removeEventListener('openComposeModal' as any, handleOpenCompose as EventListener);
+    };
+  }, []);
+
   // Search for users when typing @mentions
   useEffect(() => {
     const searchMentions = async () => {
