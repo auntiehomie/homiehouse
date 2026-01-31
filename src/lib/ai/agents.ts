@@ -842,6 +842,24 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
                            message.includes('Cast Content:') || 
                            message.includes('IMPORTANT CONTEXT');
     
+    // PRIORITY 0: Follow-up/confirmation messages - maintain current context
+    // These indicate the user is continuing a previous conversation
+    if (
+      lower.includes('yes') ||
+      lower.includes('proceed') ||
+      lower.includes('continue') ||
+      lower.includes('go ahead') ||
+      lower.includes('correct') ||
+      lower.includes('that one') ||
+      lower.includes('that\'s right') ||
+      lower.includes('confirmed') ||
+      (lower.includes('more') && lower.includes('about')) ||
+      (lower.includes('tell') && lower.includes('more'))
+    ) {
+      // Return research as default for confirmations (most common use case)
+      return 'research';
+    }
+    
     // PRIORITY 1: Research/Search intent - check FIRST before anything else
     // These keywords indicate the user wants to find other casts, not analyze the current one
     if (
@@ -867,6 +885,9 @@ Based on what they've said, suggest 3-5 specific interests they might want to ad
       lower.includes('latest on') ||
       lower.includes('info on') ||
       lower.includes('info about') ||
+      lower.includes('price of') ||
+      lower.includes('get info') ||
+      lower.includes('details about') ||
       lower.match(/@\w+/) ||  // Contains any @username mention
       lower.match(/\$\w+/)    // Contains any $token ticker
     ) {
