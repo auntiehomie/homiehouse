@@ -94,6 +94,39 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const [showSettings, setShowSettings] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  // Load conversation history from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedMessages = localStorage.getItem('hh_chat_history');
+      if (savedMessages) {
+        const parsed = JSON.parse(savedMessages);
+        // Only load if it's relatively recent (last 24 hours)
+        if (parsed.timestamp && Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+          setMessages(parsed.messages || []);
+        } else {
+          // Clear old history
+          localStorage.removeItem('hh_chat_history');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+    }
+  }, []);
+
+  // Save conversation history to localStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        localStorage.setItem('hh_chat_history', JSON.stringify({
+          messages,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        console.error('Failed to save chat history:', error);
+      }
+    }
+  }, [messages]);
+
   const agentIcons: Record<AgentRole, string> = {
     composer: '✍️',
     analyzer: '🔍',
@@ -226,12 +259,26 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       <div className="border-b border-zinc-200 dark:border-zinc-800 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Ask Homie AI</h2>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white"
-          >
-            ⚙️ Settings
-          </button>
+          <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  localStorage.removeItem('hh_chat_history');
+                }}
+                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                title="Clear conversation history"
+              >
+                🗑️ Clear
+              </button>
+            )}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white"
+            >
+              ⚙️ Settings
+            </button>
+          </div>
         </div>
 
         {/* Mode selector */}
@@ -524,7 +571,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             value={input}
             onChange={setInput}
             placeholder={`${modeDescriptions[mode]}...`}
-            className="flex-1 px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="flex-1 px-4 py-3 min-h-[48px] text-base rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none"
             onUserSelect={(user) => {
               console.log('User mentioned:', user);
             }}
@@ -532,7 +579,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
           >
             Send
           </button>

@@ -30,7 +30,7 @@ export default function MentionInput({
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Detect @ mention in text
@@ -105,7 +105,7 @@ export default function MentionInput({
   };
 
   // Keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showDropdown && users.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -115,7 +115,7 @@ export default function MentionInput({
         e.preventDefault();
         setSelectedIndex((prev) => (prev - 1 + users.length) % users.length);
         return;
-      } else if (e.key === 'Enter' && users[selectedIndex]) {
+      } else if (e.key === 'Enter' && !e.shiftKey && users[selectedIndex]) {
         e.preventDefault();
         selectUser(users[selectedIndex]);
         return;
@@ -128,14 +128,19 @@ export default function MentionInput({
 
   return (
     <div className="relative">
-      <input
+      <textarea
         ref={inputRef}
-        type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}
+        rows={1}
+        style={{ 
+          minHeight: '48px',
+          maxHeight: '200px',
+          resize: 'vertical'
+        }}
       />
       
       {showDropdown && (
