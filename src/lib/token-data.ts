@@ -289,6 +289,14 @@ export async function getClankerToken(identifier: string): Promise<TokenInfo | n
     const token = exactMatch || data.data[0];
     const market = token.market_data;
     
+    // Log what data we got
+    console.log(`Clanker token found: ${token.symbol} - Has market data: ${!!market}, Has price: ${!!market?.price_usd}`);
+    
+    // If no market data, log warning
+    if (!market || !market.price_usd) {
+      console.warn(`Token ${token.symbol} (${token.contract_address}) found but missing market data`);
+    }
+    
     // Convert Clanker format to TokenInfo
     return {
       id: token.contract_address,

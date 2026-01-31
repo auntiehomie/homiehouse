@@ -267,8 +267,22 @@ export function createGetTokenInfoTool() {
         
         const formatted = formatTokenDisplay(tokenData);
         
+        // Check if we have any useful data
+        const hasPrice = !!tokenData.currentPrice;
+        const hasMarketData = !!(tokenData.marketCap || tokenData.totalVolume || tokenData.liquidity);
+        
         // Add additional context
         let response = formatted;
+        
+        // If token was found but has no price/market data, add helpful message
+        if (!hasPrice && !hasMarketData) {
+          response += `\n\n⚠️ **Note:** Market data is not currently available for this token. This might mean:
+- The token is very new and hasn't been indexed yet
+- Trading volume is too low for reliable data
+- The token is not actively traded
+
+You can check the contract address on [Basescan](https://basescan.org/token/${tokenData.address}) or try checking DEX pairs directly.`;
+        }
         
         if (tokenData.description && tokenData.description.length > 0) {
           response += `\n\n**About:**\n${tokenData.description.substring(0, 300)}${tokenData.description.length > 300 ? '...' : ''}`;
