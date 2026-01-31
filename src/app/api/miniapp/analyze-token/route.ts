@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
+import { calculateInvestmentRatingFromData } from './helpers';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,28 +13,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
-    if (!PERPLEXITY_API_KEY) {
+    // First, get real-time token data
+    const tokenData = await getTokenData(token);
+
+    if (!tokenData) {
       return NextResponse.json(
-        { error: 'API key not configured' },
-        { status: 500 }
+        { error: `Token "${token}" not found. Please check the name, symbol, or contract address.` },
+        { status: 404 }
       );
     }
 
-    // Use Perplexity to search for comprehensive token information
-    const searchPrompt = `Analyze the cryptocurrency token "${token}" for investment potential. Research and provide:
+    // Format basic token info
+    const basicInfo = formatTokenDisplay(tokenData);
 
-1. TOKEN BASICS: Official name, symbol, blockchain, contract address, launch date
-2. DEVELOPER/TEAM: Who created it, team background, social media presence, reputation
-3. MARKET DATA: Current price, market cap, trading volume, liquidity, holder count
-4. TOKENOMICS: Total supply, circulating supply, token distribution, vesting schedules
-5. USE CASE: What problem does it solve, utility, real-world adoption
-6. COMMUNITY: Social media activity, community size, engagement levels
-7. RED FLAGS: Any scam indicators, rug pull risks, suspicious activity, audit status
-8. COMPETITIVE ANALYSIS: Similar projects, market position
-9. RECENT NEWS: Latest developments, partnerships, controversies
+    const PERPLEXITY_API_KEY = process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
+    
+    // If no Perplexity key, return just the real-time data with simple analysis
+    if (!PERPLEXITY_API_KEY) {
+      const simpleAnalysis = generateSimpleAnalysis(tokenData);
+      const riskFactors = extractRiskFactorsFromData(tokenData);
+      const investmentRating = calculateInvestmentRatingFromData(tokenData);
 
-Provide factual, up-to-date information from reliable sources. Flag any concerns clearly.`;
+      return NextResponse.json({
+        token: tokenData.name,
+        symbol: tokenData.symbol,
+        realTimeData: tokenData,
+        basicInfo,
+        analysis: simpleAnalysis,
+        summary: {
+          investmentRating,
+          riskFactors,
+          lastUpdated: new Date().toISOString()
+        },
+        disclaimer: 'This analysis is for informational purposes only and should not be considered financial advice. Always do your own research and consult with financial advisors before making investment decisions.'
+      });
+    }
+
+    // Use Perplexity for deeper research with real-time data context
+    const searchPrompt = `Analyze the cryptocurrency token "${tokenData.name} (${tokenData.symbol})" for investment potential.
+
+CURRENT MARKET DATA (Real-time from CoinGecko/DexScreener):
+- Price: $${tokenData.currentPrice?.toFixed(tokenData.currentPrice < 1 ? 6 : 2) || 'N/A'}
+- Market Cap: $${formatNumber(tokenData.marketCap)}
+- 24h Volume: $${formatNumber(tokenData.totalVolume)}
+- 24h Change: ${tokenData.priceChangePercentage24h?.toFixed(2)}%
+- Liquidity: $${formatNumber(tokenData.liquidity?.usd)}
+${tokenData.address ? `- Contract: ${tokenData.address}` : ''}
+${tokenData.chainId ? `- Blockchain: ${tokenData.chainId}` : ''}
+
+Research and provide:
+
+1. DEVELOPER/TEAM: Who created it, team background, social media presence, reputation
+2. TOKENOMICS: Total supply, circulating supply, token distribution, vesting schedules  
+3. USE CASE: What problem does it solve, utility, real-world adoption
+4. COMMUNITY: Social media activity, community size, engagement levels
+5. RED FLAGS: Any scam indicators, rug pull risks, suspicious activity, audit status
+6. COMPETITIVE ANALYSIS: Similar projects, market position
+7. RECENT NEWS: Latest developments, partnerships, controversies
+
+Provide factual, up-to-date information from reliable sources. Flag any concerns clearly. Consider the real-time market data provided above when making your assessment.`;
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -62,22 +101,31 @@ Provide factual, up-to-date information from reliable sources. Flag any concerns
     }
 
     const data = await response.json();
-    const analysis = data.choices?.[0]?.message?.content;
+    const deepAnalysis = data.choices?.[0]?.message?.content;
 
-    if (!analysis) {
+    if (!deepAnalysis) {
       throw new Error('No analysis generated');
     }
 
+    // Combine real-time data with deep analysis
+    const combinedAnalysis = `${basicInfo}\n\n---\n\n${deepAnalysis}`;
+
     // Parse the analysis and extract key risk factors
-    const riskFactors = extractRiskFactors(analysis);
-    const investmentRating = calculateInvestmentRating(analysis);
+    const riskFactors = extractRiskFactors(deepAnalysis);
+    const dataRiskFactors = extractRiskFactorsFromData(tokenData);
+    const allRiskFactors = [...new Set([...riskFactors, ...dataRiskFactors])];
+    
+    const investmentRating = calculateInvestmentRating(deepAnalysis, tokenData);
 
     return NextResponse.json({
-      token,
-      analysis,
+      token: tokenData.name,
+      symbol: tokenData.symbol,
+      realTimeData: tokenData,
+      basicInfo,
+      analysis: combinedAnalysis,
       summary: {
-        investmentRating, // High Risk / Medium Risk / Low Risk / Scam Alert
-        riskFactors,
+        investmentRating,
+        riskFactors: allRiskFactors,
         lastUpdated: new Date().toISOString()
       },
       disclaimer: 'This analysis is for informational purposes only and should not be considered financial advice. Always do your own research and consult with financial advisors before making investment decisions.'
@@ -85,10 +133,72 @@ Provide factual, up-to-date information from reliable sources. Flag any concerns
   } catch (error) {
     console.error('Error analyzing token:', error);
     return NextResponse.json(
-      { error: 'Failed to analyze token' },
+      { error: 'Failed to analyze token', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
+}
+
+function formatNumber(num: number | undefined): string {
+  if (num === undefined || num === null) return 'N/A';
+  
+  if (num >= 1_000_000_000) {
+    return (num / 1_000_000_000).toFixed(2) + 'B';
+  } else if (num >= 1_000_000) {
+    return (num / 1_000_000).toFixed(2) + 'M';
+  } else if (num >= 1_000) {
+    return (num / 1_000).toFixed(2) + 'K';
+  }
+  return num.toFixed(2);
+}
+
+function generateSimpleAnalysis(tokenData: any): string {
+  let analysis = `## ${tokenData.name} (${tokenData.symbol}) Analysis\n\n`;
+  
+  analysis += `### Market Overview\n`;
+  
+  if (tokenData.currentPrice) {
+    analysis += `The token is currently trading at $${tokenData.currentPrice.toFixed(tokenData.currentPrice < 1 ? 6 : 2)}`;
+    if (tokenData.priceChangePercentage24h) {
+      analysis += ` with a 24-hour change of ${tokenData.priceChangePercentage24h > 0 ? '+' : ''}${tokenData.priceChangePercentage24h.toFixed(2)}%`;
+    }
+    analysis += `.\n\n`;
+  }
+  
+  if (tokenData.marketCap) {
+    analysis += `Market capitalization stands at $${formatNumber(tokenData.marketCap)}`;
+    if (tokenData.marketCap < 1_000_000) {
+      analysis += ` (⚠️ Micro-cap - very high risk)`;
+    } else if (tokenData.marketCap < 100_000_000) {
+      analysis += ` (⚠️ Small-cap - high volatility)`;
+    }
+    analysis += `.\n\n`;
+  }
+  
+  if (tokenData.totalVolume) {
+    analysis += `Trading volume in the last 24 hours: $${formatNumber(tokenData.totalVolume)}.\n\n`;
+  }
+  
+  if (tokenData.liquidity?.usd) {
+    analysis += `Liquidity: $${formatNumber(tokenData.liquidity.usd)}`;
+    if (tokenData.liquidity.usd < 50_000) {
+      analysis += ` (⚠️ Low liquidity - high slippage risk)`;
+    }
+    analysis += `.\n\n`;
+  }
+  
+  if (tokenData.description) {
+    analysis += `### About\n${tokenData.description.substring(0, 500)}${tokenData.description.length > 500 ? '...' : ''}\n\n`;
+  }
+  
+  analysis += `### Important Notes\n`;
+  analysis += `- Always conduct thorough research before investing\n`;
+  analysis += `- Check the project's official website and social media\n`;
+  analysis += `- Verify smart contract audits\n`;
+  analysis += `- Be cautious of anonymous teams and unaudited contracts\n`;
+  analysis += `- Never invest more than you can afford to lose\n`;
+  
+  return analysis;
 }
 
 function extractRiskFactors(analysis: string): string[] {
@@ -110,7 +220,36 @@ function extractRiskFactors(analysis: string): string[] {
   return [...new Set(factors)]; // Remove duplicates
 }
 
-function calculateInvestmentRating(analysis: string): string {
+function extractRiskFactorsFromData(tokenData: any): string[] {
+  const factors: string[] = [];
+  
+  // Check liquidity
+  if (tokenData.liquidity?.usd && tokenData.liquidity.usd < 50_000) {
+    factors.push('low liquidity');
+  }
+  
+  // Check market cap
+  if (tokenData.marketCap && tokenData.marketCap < 1_000_000) {
+    factors.push('micro-cap');
+  }
+  
+  // Check price volatility
+  if (tokenData.priceChangePercentage24h && Math.abs(tokenData.priceChangePercentage24h) > 20) {
+    factors.push('high volatility');
+  }
+  
+  // Check trading volume
+  if (tokenData.totalVolume && tokenData.marketCap) {
+    const volumeToMcapRatio = tokenData.totalVolume / tokenData.marketCap;
+    if (volumeToMcapRatio < 0.01) {
+      factors.push('low trading volume');
+    }
+  }
+  
+  return factors;
+}
+
+function calculateInvestmentRating(analysis: string, tokenData?: any): string {
   const lowerAnalysis = analysis.toLowerCase();
   
   // Scam indicators
@@ -119,6 +258,20 @@ function calculateInvestmentRating(analysis: string): string {
   
   if (hasScamIndicators) {
     return '🚨 SCAM ALERT - DO NOT INVEST';
+  }
+
+  // Check real-time data for additional red flags
+  if (tokenData) {
+    // Extremely low liquidity is a major red flag
+    if (tokenData.liquidity?.usd && tokenData.liquidity.usd < 10_000) {
+      return '🚨 EXTREME RISK - Very low liquidity ($' + (tokenData.liquidity.usd / 1000).toFixed(1) + 'K)';
+    }
+    
+    // Micro-cap + low volume = high risk
+    if (tokenData.marketCap && tokenData.marketCap < 100_000 && 
+        tokenData.totalVolume && tokenData.totalVolume < 10_000) {
+      return '🔴 VERY HIGH RISK - Micro-cap with low volume';
+    }
   }
 
   // High risk indicators

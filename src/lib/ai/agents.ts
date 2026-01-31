@@ -4,6 +4,7 @@ import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { searchCasts, getCastsByUsername } from '../neynar';
+import { getTokenData, searchTokens, formatTokenDisplay } from '../token-data';
 
 // User profile schema
 export const UserProfileSchema = z.object({
@@ -227,6 +228,108 @@ export function createGetCastsByUserTool() {
   });
 }
 
+// Token Information Tools
+export function createGetTokenInfoTool() {
+  return new DynamicStructuredTool({
+    name: 'get_token_info',
+    description: 'Get detailed real-time information about a cryptocurrency token including price, market cap, volume, liquidity, and more. Works with token names (e.g., "Ethereum"), symbols (e.g., "ETH"), or contract addresses. Data is sourced from CoinGecko and DexScreener.',
+    schema: z.object({
+      identifier: z.string().describe('Token name, symbol, or contract address (e.g., "ethereum", "ETH", or "0x...")')
+    }),
+    func: async ({ identifier }) => {
+      try {
+        console.log(`Tool: Getting token info for ${identifier}`);
+        const tokenData = await getTokenData(identifier);
+        
+        if (!tokenData) {
+          return `Token "${identifier}" not found. This could mean:
+- The token doesn't exist or isn't listed on major platforms
+- The name/symbol might be misspelled
+- For new/small tokens, try using the contract address instead
+- The token might only exist on chains other than Base`;
+        }
+        
+        const formatted = formatTokenDisplay(tokenData);
+        
+        // Add additional context
+        let response = formatted;
+        
+        if (tokenData.description && tokenData.description.length > 0) {
+          response += `\n\n**About:**\n${tokenData.description.substring(0, 300)}${tokenData.description.length > 300 ? '...' : ''}`;
+        }
+        
+        if (tokenData.links) {
+          const links = [];
+          if (tokenData.links.homepage?.[0]) links.push(`🌐 [Website](${tokenData.links.homepage[0]})`);
+          if (tokenData.links.twitter) links.push(`🐦 [@${tokenData.links.twitter}](https://twitter.com/${tokenData.links.twitter})`);
+          if (links.length > 0) {
+            response += `\n\n**Links:** ${links.join(' • ')}`;
+          }
+        }
+        
+        // Add risk assessment context
+        if (tokenData.liquidity && tokenData.liquidity.usd && tokenData.liquidity.usd < 50000) {
+          response += `\n\n⚠️ **Warning:** Low liquidity ($${(tokenData.liquidity.usd / 1000).toFixed(1)}K) - higher risk of price manipulation`;
+        }
+        
+        return response;
+      } catch (error) {
+        console.error(`Tool error for token ${identifier}:`, error);
+        return `Error fetching token information for "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+}
+
+export function createSearchTokensTool() {
+  return new DynamicStructuredTool({
+    name: 'search_tokens',
+    description: 'Search for cryptocurrency tokens by name or symbol. Returns a list of matching tokens with basic information. Use this when the user is not sure of the exact token name or wants to see multiple options.',
+    schema: z.object({
+      query: z.string().describe('Search query (token name or symbol)'),
+      limit: z.number().optional().default(5).describe('Number of results to return (default: 5, max: 10)')
+    }),
+    func: async ({ query, limit = 5 }) => {
+      try {
+        console.log(`Tool: Searching tokens for "${query}"`);
+        const results = await searchTokens(query, Math.min(limit, 10));
+        
+        if (!results || results.length === 0) {
+          return `No tokens found matching "${query}". Try:
+- Different spelling or abbreviation
+- The full token name instead of symbol (or vice versa)
+- Checking if the token is available on Base network`;
+        }
+        
+        const formatted = results.map((token, i) => {
+          const parts = [`${i + 1}. **${token.name} (${token.symbol})**`];
+          if (token.currentPrice) {
+            parts.push(`   💵 $${token.currentPrice < 0.01 ? token.currentPrice.toExponential(4) : token.currentPrice.toFixed(token.currentPrice < 1 ? 6 : 2)}`);
+          }
+          if (token.marketCap) {
+            const mcap = token.marketCap >= 1_000_000_000 
+              ? `$${(token.marketCap / 1_000_000_000).toFixed(2)}B`
+              : token.marketCap >= 1_000_000
+              ? `$${(token.marketCap / 1_000_000).toFixed(2)}M`
+              : `$${(token.marketCap / 1_000).toFixed(2)}K`;
+            parts.push(`   📊 MCap: ${mcap}`);
+          }
+          if (token.priceChangePercentage24h !== undefined) {
+            const emoji = token.priceChangePercentage24h >= 0 ? '📈' : '📉';
+            parts.push(`   ${emoji} 24h: ${token.priceChangePercentage24h.toFixed(2)}%`);
+          }
+          return parts.join('\n');
+        }).join('\n\n');
+        
+        return `Found ${results.length} token${results.length === 1 ? '' : 's'}:\n\n${formatted}\n\nUse get_token_info with a specific token name or symbol for detailed information.`;
+      } catch (error) {
+        console.error(`Tool error for token search "${query}":`, error);
+        return `Error searching tokens: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+}
+
 // Cast Composer Agent - Helps write better Farcaster casts
 export class CastComposerAgent extends BaseAgent {
   constructor(userProfile: UserProfile) {
@@ -410,6 +513,7 @@ export class FarcasterResearchAgent extends BaseAgent {
 4. Discover relevant channels and discussions
 5. Search for casts and analyze user activity
 6. Find most engaged/popular casts from specific users
+7. Get real-time cryptocurrency token information
 
 Farcaster Knowledge:
 - Farcaster is a sufficiently decentralized social protocol
@@ -422,6 +526,8 @@ Farcaster Knowledge:
 Available Tools:
 - search_farcaster_casts: Search for casts by keyword or topic
 - get_user_casts: Get recent casts from a specific user with engagement metrics
+- get_token_info: Get detailed real-time token information (price, market cap, volume, etc.)
+- search_tokens: Search for tokens by name or symbol
 
 When asked to find casts or see what someone is posting:
 - Use search_farcaster_casts for topic-based searches
@@ -432,10 +538,12 @@ When asked to find casts or see what someone is posting:
 
 Be accurate, cite what you know, and admit when you're not certain.`;
 
-    // Add Farcaster search tools
+    // Add Farcaster search tools and token tools
     const tools = [
       createSearchCastsTool(),
-      createGetCastsByUserTool()
+      createGetCastsByUserTool(),
+      createGetTokenInfoTool(),
+      createSearchTokensTool()
     ];
 
     super('openai', systemPrompt, tools);
