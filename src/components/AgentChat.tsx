@@ -32,30 +32,47 @@ interface AgentChatProps {
   onCastSelect?: (cast: string) => void;
 }
 
-// Helper function to parse text and make @mentions clickable
+// Helper function to parse text and make @mentions and FIDs clickable
 function parseTextWithMentions(text: string): ReactNode[] {
   const parts: ReactNode[] = [];
-  const regex = /@([a-zA-Z0-9_-]+)/g;
+  // Match @mentions and FID: patterns
+  const regex = /@([a-zA-Z0-9_-]+)|FID:\s*(\d+)|fid:\s*(\d+)/gi;
   let lastIndex = 0;
   let match;
 
   while ((match = regex.exec(text)) !== null) {
-    // Add text before the mention
+    // Add text before the match
     if (match.index > lastIndex) {
       parts.push(text.substring(lastIndex, match.index));
     }
     
-    // Add the clickable mention
-    const username = match[1];
-    parts.push(
-      <Link
-        key={match.index}
-        href={`/profile?user=${username}`}
-        className="text-blue-500 hover:text-blue-600 hover:underline font-medium"
-      >
-        @{username}
-      </Link>
-    );
+    if (match[1]) {
+      // It's an @mention
+      const username = match[1];
+      parts.push(
+        <Link
+          key={match.index}
+          href={`/profile?user=${username}`}
+          className="text-blue-500 hover:text-blue-600 hover:underline font-medium"
+        >
+          @{username}
+        </Link>
+      );
+    } else if (match[2] || match[3]) {
+      // It's a FID
+      const fid = match[2] || match[3];
+      parts.push(
+        <Link
+          key={match.index}
+          href={`https://warpcast.com/~/profiles/${fid}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:text-blue-600 hover:underline font-medium"
+        >
+          FID: {fid}
+        </Link>
+      );
+    }
     
     lastIndex = regex.lastIndex;
   }
@@ -400,7 +417,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                 <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">
                   <button
                     onClick={async () => {
+                      // Use proper Farcaster mention format with FID for @homiehouse
                       const attribution = '\n\nshared from @homiehouse';
+                      const embedUrl = 'https://homiehouse.fun';
                       const maxLength = 320 - attribution.length;
                       let text = msg.content;
                       
@@ -430,11 +449,11 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                       const finalText = text + attribution;
                       
                       try {
-                        // Try to use Farcaster SDK for mini apps
-                        await sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}`);
+                        // Try to use Farcaster SDK for mini apps with embed
+                        await sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`);
                       } catch (error) {
                         // Fallback to window.open for non-mini-app contexts
-                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}`, '_blank');
+                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`, '_blank');
                       }
                     }}
                     className="text-xs px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center gap-1"
