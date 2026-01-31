@@ -402,14 +402,39 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                     onClick={async () => {
                       const attribution = '\n\nshared from @homiehouse';
                       const maxLength = 320 - attribution.length;
-                      const text = msg.content.slice(0, maxLength) + attribution;
+                      let text = msg.content;
+                      
+                      // Smart truncation: cut at last complete sentence or word
+                      if (text.length > maxLength) {
+                        text = text.slice(0, maxLength);
+                        
+                        // Try to cut at last sentence
+                        const lastPeriod = text.lastIndexOf('.');
+                        const lastQuestion = text.lastIndexOf('?');
+                        const lastExclamation = text.lastIndexOf('!');
+                        const lastSentence = Math.max(lastPeriod, lastQuestion, lastExclamation);
+                        
+                        if (lastSentence > maxLength * 0.7) {
+                          // If we have a sentence ending in the last 30%, use that
+                          text = text.slice(0, lastSentence + 1);
+                        } else {
+                          // Otherwise cut at last complete word
+                          const lastSpace = text.lastIndexOf(' ');
+                          if (lastSpace > 0) {
+                            text = text.slice(0, lastSpace);
+                          }
+                          text += '...';
+                        }
+                      }
+                      
+                      const finalText = text + attribution;
                       
                       try {
                         // Try to use Farcaster SDK for mini apps
-                        await sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`);
+                        await sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}`);
                       } catch (error) {
                         // Fallback to window.open for non-mini-app contexts
-                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`, '_blank');
+                        window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}`, '_blank');
                       }
                     }}
                     className="text-xs px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center gap-1"
