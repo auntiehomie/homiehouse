@@ -582,7 +582,7 @@ Profile URL: https://warpcast.com/${profileData.username}]`
         // Fallback to Claude if Gemini is not available
         console.log('Gemini not available, falling back to Claude');
         const completion = await anthropic.messages.create({
-          model: 'claude-3-5-sonnet-20240620',
+          model: 'claude-3-5-sonnet-20241022',
           max_tokens: 1024,
           system: SYSTEM_PROMPT,
           messages: conversationMessages.map((msg: any) => ({
@@ -596,7 +596,7 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       } else if (selectedProvider === 'claude') {
         // Use Claude (Anthropic)
         const completion = await anthropic.messages.create({
-          model: 'claude-3-5-sonnet-20240620',
+          model: 'claude-3-5-sonnet-20241022',
           max_tokens: 1024,
           system: SYSTEM_PROMPT,
           messages: conversationMessages.map((msg: any) => ({
@@ -682,7 +682,7 @@ Profile URL: https://warpcast.com/${profileData.username}]`
 
           if (finalFallback === 'claude') {
             const completion = await anthropic.messages.create({
-              model: 'claude-3-5-sonnet-20240620',
+              model: 'claude-3-5-sonnet-20241022',
               max_tokens: 1024,
               system: SYSTEM_PROMPT,
               messages: messages.map((msg: any) => ({
