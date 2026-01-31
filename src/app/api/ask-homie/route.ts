@@ -28,6 +28,13 @@ const perplexity = perplexityApiKey ? new OpenAI({
   baseURL: 'https://api.perplexity.ai'
 }) : null;
 
+// Kimi (Moonshot AI) - OpenAI-compatible API
+const kimiApiKey = process.env.KIMI_API_KEY;
+const kimi = kimiApiKey ? new OpenAI({
+  apiKey: kimiApiKey,
+  baseURL: 'https://api.moonshot.cn/v1'
+}) : null;
+
 const SYSTEM_PROMPT = `You are Homie, a helpful AI assistant for HomieHouse - a Farcaster-based social platform. 
 
 Key Facts about Farcaster:
@@ -617,39 +624,91 @@ Profile URL: https://warpcast.com/${profileData.username}]`
         response = completion.choices[0].message.content || '';
       }
     } catch (primaryError) {
-      // Fallback to alternate provider if primary fails
-      console.warn(`${selectedProvider} failed, trying fallback provider:`, primaryError);
+      // Multi-level fallback chain: Primary → Gemini → Kimi
+      console.warn(`${selectedProvider} failed, trying fallback chain:`, primaryError);
       
-      const fallbackProvider = selectedProvider === 'claude' ? 'openai' : 'claude';
-      usedProvider = `${fallbackProvider} (fallback)`;
+      try {
+        // First fallback: Try Gemini if available and not already tried
+        if (gemini && selectedProvider !== 'gemini') {
+          console.log('Trying Gemini as first fallback...');
+          const model = gemini.getGenerativeModel({ 
+            model: 'gemini-2.0-flash-exp',
+            systemInstruction: SYSTEM_PROMPT
+          });
 
-      if (fallbackProvider === 'claude') {
-        const completion = await anthropic.messages.create({
-          model: 'claude-3-5-sonnet-20240620',
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          messages: messages.map((msg: any) => ({
-            role: msg.role === 'system' ? 'user' : msg.role,
-            content: msg.content,
-          })),
-        });
+          const result = await model.generateContent({
+            contents: conversationMessages.map((msg: any) => ({
+              role: msg.role === 'user' ? 'user' : 'model',
+              parts: [{ text: msg.content }],
+            })),
+          });
+          
+          response = result.response.text();
+          usedProvider = 'gemini (fallback)';
+        } else {
+          throw new Error('Gemini not available or already tried');
+        }
+      } catch (geminiError) {
+        console.warn('Gemini fallback failed, trying Kimi:', geminiError);
+        
+        try {
+          // Second fallback: Try Kimi if available
+          if (kimi) {
+            console.log('Trying Kimi as second fallback...');
+            const completion = await kimi.chat.completions.create({
+              model: 'moonshot-v1-8k',
+              messages: [
+                {
+                  role: 'system',
+                  content: SYSTEM_PROMPT
+                },
+                ...conversationMessages
+              ],
+              temperature: 0.7,
+              max_tokens: 1000,
+            });
 
-        response = completion.content[0].type === 'text' ? completion.content[0].text : '';
-      } else {
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: SYSTEM_PROMPT
-            },
-            ...messages
-          ],
-          temperature: 0.7,
-          max_tokens: 500,
-        });
+            response = completion.choices[0].message.content || '';
+            usedProvider = 'kimi (fallback)';
+          } else {
+            throw new Error('Kimi not available');
+          }
+        } catch (kimiError) {
+          console.warn('Kimi fallback also failed, trying final fallback:', kimiError);
+          
+          // Final fallback: Use whatever wasn't tried yet (OpenAI or Claude)
+          const finalFallback = selectedProvider === 'claude' || selectedProvider === 'openai' ? 'openai' : 'claude';
+          usedProvider = `${finalFallback} (final fallback)`;
 
-        response = completion.choices[0].message.content || '';
+          if (finalFallback === 'claude') {
+            const completion = await anthropic.messages.create({
+              model: 'claude-3-5-sonnet-20240620',
+              max_tokens: 1024,
+              system: SYSTEM_PROMPT,
+              messages: messages.map((msg: any) => ({
+                role: msg.role === 'system' ? 'user' : msg.role,
+                content: msg.content,
+              })),
+            });
+
+            response = completion.content[0].type === 'text' ? completion.content[0].text : '';
+          } else {
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o',
+              messages: [
+                {
+                  role: 'system',
+                  content: SYSTEM_PROMPT
+                },
+                ...messages
+              ],
+              temperature: 0.7,
+              max_tokens: 500,
+            });
+
+            response = completion.choices[0].message.content || '';
+          }
+        }
       }
     }
 
