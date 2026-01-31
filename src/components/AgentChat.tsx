@@ -566,20 +566,22 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
       {/* Input */}
       <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 overflow-visible">
-        <div className="flex gap-2 relative">
-          <MentionInput
-            value={input}
-            onChange={setInput}
-            placeholder={`${modeDescriptions[mode]}...`}
-            className="flex-1 px-4 py-3 min-h-[48px] text-base rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none"
-            onUserSelect={(user) => {
-              console.log('User mentioned:', user);
-            }}
-          />
+        <div className="flex gap-3 relative items-end">
+          <div className="flex-1">
+            <MentionInput
+              value={input}
+              onChange={setInput}
+              placeholder={`${modeDescriptions[mode]}...`}
+              className="w-full px-4 py-3 text-base rounded-lg border-2 border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              onUserSelect={(user) => {
+                console.log('User mentioned:', user);
+              }}
+            />
+          </div>
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="px-6 py-3 min-h-[48px] bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+            className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors whitespace-nowrap"
           >
             Send
           </button>

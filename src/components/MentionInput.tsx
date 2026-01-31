@@ -127,7 +127,7 @@ export default function MentionInput({
   };
 
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <textarea
         ref={inputRef}
         value={value}
@@ -135,11 +135,12 @@ export default function MentionInput({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={className}
-        rows={1}
+        rows={2}
         style={{ 
-          minHeight: '48px',
-          maxHeight: '200px',
-          resize: 'vertical'
+          minHeight: '60px',
+          maxHeight: '240px',
+          resize: 'vertical',
+          lineHeight: '1.5'
         }}
       />
       
