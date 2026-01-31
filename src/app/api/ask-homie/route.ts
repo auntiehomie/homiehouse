@@ -7,6 +7,9 @@ import { UserProfileStorage } from '@/lib/ai/storage';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 
+// Increase timeout for agent tool calls and processing
+export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
+
 const AI_PROVIDER = process.env.AI_PROVIDER || 'openai'; // 'openai' or 'claude'
 
 const openai = new OpenAI({
