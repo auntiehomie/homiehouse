@@ -420,33 +420,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                       // Use proper Farcaster mention format with FID for @homiehouse
                       const attribution = '\n\nshared from @homiehouse';
                       const embedUrl = 'https://homiehouse.fun';
-                      const maxLength = 320 - attribution.length;
-                      let text = msg.content;
-                      
-                      // Smart truncation: cut at last complete sentence or word
-                      if (text.length > maxLength) {
-                        text = text.slice(0, maxLength);
-                        
-                        // Try to cut at last sentence
-                        const lastPeriod = text.lastIndexOf('.');
-                        const lastQuestion = text.lastIndexOf('?');
-                        const lastExclamation = text.lastIndexOf('!');
-                        const lastSentence = Math.max(lastPeriod, lastQuestion, lastExclamation);
-                        
-                        if (lastSentence > maxLength * 0.7) {
-                          // If we have a sentence ending in the last 30%, use that
-                          text = text.slice(0, lastSentence + 1);
-                        } else {
-                          // Otherwise cut at last complete word
-                          const lastSpace = text.lastIndexOf(' ');
-                          if (lastSpace > 0) {
-                            text = text.slice(0, lastSpace);
-                          }
-                          text += '...';
-                        }
-                      }
-                      
-                      const finalText = text + attribution;
+                      const finalText = msg.content + attribution;
                       
                       try {
                         // Try to use Farcaster SDK for mini apps with embed
