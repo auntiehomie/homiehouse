@@ -564,19 +564,29 @@ export default function ComposePage() {
                   onChange={(e) => setIsScheduled(e.target.checked)}
                   className="w-4 h-4 cursor-pointer"
                 />
-                <label htmlFor="schedule-toggle" className="text-sm cursor-pointer flex items-center gap-2">
+                <label htmlFor="schedule-toggle" className="text-sm cursor-pointer flex items-center gap-2 font-medium">
                   📅 Schedule for later
                 </label>
               </div>
               
               {isScheduled && (
-                <input
-                  type="datetime-local"
-                  value={scheduleTime}
-                  onChange={(e) => setScheduleTime(e.target.value)}
-                  min={new Date().toISOString().slice(0, 16)}
-                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white focus:outline-none focus:border-zinc-600"
-                />
+                <div className="relative">
+                  <input
+                    type="datetime-local"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
+                    className="w-full px-4 py-2.5 pr-12 bg-zinc-900 border-2 border-zinc-800 rounded-lg text-white focus:outline-none focus:border-zinc-600 cursor-pointer text-[15px]"
+                  />
+                  <svg 
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 pointer-events-none"
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
               )}
             </div>
             

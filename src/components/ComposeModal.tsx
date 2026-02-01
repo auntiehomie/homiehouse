@@ -673,29 +673,50 @@ export default function ComposeModal() {
                       id="schedule-toggle"
                       checked={isScheduled}
                       onChange={(e) => setIsScheduled(e.target.checked)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
                     />
-                    <label htmlFor="schedule-toggle" style={{ cursor: 'pointer', fontSize: '14px' }}>
+                    <label htmlFor="schedule-toggle" style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
                       📅 Schedule for later
                     </label>
                   </div>
                   
                   {isScheduled && (
-                    <input
-                      type="datetime-local"
-                      value={scheduleTime}
-                      onChange={(e) => setScheduleTime(e.target.value)}
-                      min={new Date().toISOString().slice(0, 16)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--foreground)',
-                        fontSize: '14px'
-                      }}
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="datetime-local"
+                        value={scheduleTime}
+                        onChange={(e) => setScheduleTime(e.target.value)}
+                        min={new Date().toISOString().slice(0, 16)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 40px 10px 12px',
+                          borderRadius: '8px',
+                          border: '2px solid var(--border)',
+                          background: 'var(--surface)',
+                          color: 'var(--foreground)',
+                          fontSize: '15px',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit'
+                        }}
+                      />
+                      <svg 
+                        style={{ 
+                          position: 'absolute', 
+                          right: '12px', 
+                          top: '50%', 
+                          transform: 'translateY(-50%)',
+                          pointerEvents: 'none',
+                          width: '20px',
+                          height: '20px',
+                          color: 'var(--muted)'
+                        }}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
                   )}
                 </div>
                 
