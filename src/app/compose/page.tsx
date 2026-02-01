@@ -20,6 +20,8 @@ export default function ComposePage() {
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [scheduleTime, setScheduleTime] = useState<string>('');
+  const [isScheduled, setIsScheduled] = useState(false);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -274,23 +276,59 @@ export default function ComposePage() {
         body.embeds = [{ url: imageUrl.trim() }];
       }
 
-      const res = await fetch("/api/privy-compose", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      // If scheduled, save to database instead of posting immediately
+      if (isScheduled && scheduleTime) {
+        const scheduledDate = new Date(scheduleTime);
+        const now = new Date();
+        
+        if (scheduledDate <= now) {
+          setStatus("Scheduled time must be in the future.");
+          setLoading(false);
+          return;
+        }
 
-      const data = await res.json();
-      if (data.ok) {
-        setStatus("✓ Posted successfully!");
-        setText("");
-        setImageUrl("");
-        setUploadedImage(null);
-        setTimeout(() => {
-          router.push('/');
-        }, 800);
+        body.scheduled_time = scheduledDate.toISOString();
+        
+        const res = await fetch("/api/schedule-cast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          setStatus("✓ Cast scheduled successfully!");
+          setText("");
+          setImageUrl("");
+          setUploadedImage(null);
+          setScheduleTime("");
+          setIsScheduled(false);
+          setTimeout(() => {
+            router.push('/');
+          }, 800);
+        } else {
+          setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+        }
       } else {
-        setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+        // Post immediately
+        const res = await fetch("/api/privy-compose", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          setStatus("✓ Posted successfully!");
+          setText("");
+          setImageUrl("");
+          setUploadedImage(null);
+          setTimeout(() => {
+            router.push('/');
+          }, 800);
+        } else {
+          setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+        }
       }
     } catch (err: any) {
       setStatus(String(err?.message || err));
@@ -516,6 +554,32 @@ export default function ComposePage() {
               )}
             </div>
             
+            {/* Schedule Section */}
+            <div className="mt-4 border-t border-zinc-800 pt-4">
+              <div className="flex items-center gap-3 mb-3">
+                <input
+                  type="checkbox"
+                  id="schedule-toggle"
+                  checked={isScheduled}
+                  onChange={(e) => setIsScheduled(e.target.checked)}
+                  className="w-4 h-4 cursor-pointer"
+                />
+                <label htmlFor="schedule-toggle" className="text-sm cursor-pointer flex items-center gap-2">
+                  📅 Schedule for later
+                </label>
+              </div>
+              
+              {isScheduled && (
+                <input
+                  type="datetime-local"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white focus:outline-none focus:border-zinc-600"
+                />
+              )}
+            </div>
+            
             <div className="flex justify-between items-center mt-4">
               <div className="text-sm text-zinc-500">
                 {text.length > 0 && `${text.length} characters`}
@@ -529,10 +593,10 @@ export default function ComposePage() {
                 </button>
                 <button
                   className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim())}
+                  disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
                   onClick={handlePost}
                 >
-                  {loading ? "Posting..." : "Post Cast"}
+                  {loading ? (isScheduled ? "Scheduling..." : "Posting...") : (isScheduled ? "Schedule Cast" : "Post Cast")}
                 </button>
               </div>
             </div>
