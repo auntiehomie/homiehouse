@@ -22,6 +22,8 @@ export default function ComposePage() {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<string>('');
+  const [channels, setChannels] = useState<any[]>([]);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -50,12 +52,36 @@ export default function ComposePage() {
               // ignore
             }
           }
+          
+          // Fetch channels
+          fetchChannels(fid);
         }
       } catch {
         // ignore
       }
     }
   }, []);
+
+  async function fetchChannels(fid: number) {
+    try {
+      const response = await fetch(`/api/channels?fid=${fid}`);
+      const data = await response.json();
+      
+      if (data.ok && data.channels) {
+        const popularChannels = [
+          { id: 'base', name: 'Base' },
+          { id: 'farcaster', name: 'Farcaster' },
+          { id: 'dev', name: 'Dev' },
+          { id: 'art', name: 'Art' },
+          { id: 'music', name: 'Music' },
+          ...data.channels.slice(0, 10)
+        ];
+        setChannels(popularChannels);
+      }
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+    }
+  }
 
   // Search for users when typing @mentions
   useEffect(() => {
@@ -274,6 +300,11 @@ export default function ComposePage() {
 
       if (imageUrl.trim()) {
         body.embeds = [{ url: imageUrl.trim() }];
+      }
+
+      // Add channel if selected
+      if (selectedChannel) {
+        body.channelKey = selectedChannel;
       }
 
       // If scheduled, save to database instead of posting immediately
@@ -552,6 +583,25 @@ export default function ComposePage() {
                   </button>
                 </div>
               )}
+            </div>
+            
+            {/* Channel Selection */}
+            <div className="mt-4 border-t border-zinc-800 pt-4">
+              <label className="text-sm font-medium mb-2 block">
+                📺 Post to channel (optional)
+              </label>
+              <select
+                value={selectedChannel}
+                onChange={(e) => setSelectedChannel(e.target.value)}
+                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white focus:outline-none focus:border-zinc-600 cursor-pointer"
+              >
+                <option value="">None (post to home feed)</option>
+                {channels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    /{channel.id} {channel.name && `- ${channel.name}`}
+                  </option>
+                ))}
+              </select>
             </div>
             
             {/* Schedule Section */}
