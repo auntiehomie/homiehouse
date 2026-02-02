@@ -24,6 +24,8 @@ export default function ComposePage() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [channels, setChannels] = useState<any[]>([]);
+  const [channelSearch, setChannelSearch] = useState<string>('');
+  const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -600,18 +602,49 @@ export default function ComposePage() {
               <label className="text-sm font-medium mb-2 block">
                 📺 Post to channel (optional)
               </label>
-              <select
-                value={selectedChannel}
-                onChange={(e) => setSelectedChannel(e.target.value)}
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white focus:outline-none focus:border-zinc-600 cursor-pointer"
-              >
-                <option value="">None (post to home feed)</option>
-                {channels.map((channel) => (
-                  <option key={channel.id} value={channel.id}>
-                    /{channel.id} {channel.name && `- ${channel.name}`}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={channelSearch}
+                  onChange={(e) => {
+                    setChannelSearch(e.target.value);
+                    setShowChannelSuggestions(true);
+                    setSelectedChannel('');
+                  }}
+                  onFocus={() => setShowChannelSuggestions(true)}
+                  placeholder="Type to search channels (e.g., base, farcaster)"
+                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                />
+                {showChannelSuggestions && channelSearch && (
+                  <div className="absolute top-full left-0 right-0 max-h-48 overflow-y-auto bg-zinc-900 border border-zinc-800 rounded-lg mt-1 z-50 shadow-lg">
+                    {channels
+                      .filter(ch => 
+                        ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) ||
+                        ch.name?.toLowerCase().includes(channelSearch.toLowerCase())
+                      )
+                      .slice(0, 10)
+                      .map((channel) => (
+                        <button
+                          key={channel.id}
+                          onClick={() => {
+                            setSelectedChannel(channel.id);
+                            setChannelSearch(`/${channel.id}${channel.name ? ` - ${channel.name}` : ''}`);
+                            setShowChannelSuggestions(false);
+                          }}
+                          className="w-full px-4 py-2 text-left text-white hover:bg-zinc-800 transition-colors"
+                        >
+                          /{channel.id} {channel.name && `- ${channel.name}`}
+                        </button>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
+              {selectedChannel && (
+                <div className="text-xs text-zinc-500 mt-1">
+                  ✓ Posting to /{selectedChannel}
+                </div>
+              )}
             </div>
             
             {/* Schedule Section */}

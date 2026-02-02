@@ -23,6 +23,8 @@ export default function ComposeModal() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [channels, setChannels] = useState<any[]>([]);
+  const [channelSearch, setChannelSearch] = useState<string>('');
+  const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -715,27 +717,81 @@ export default function ComposeModal() {
                   <label style={{ fontSize: '13px', fontWeight: 500, marginBottom: 6, display: 'block' }}>
                     📺 Post to channel (optional)
                   </label>
-                  <select
-                    value={selectedChannel}
-                    onChange={(e) => setSelectedChannel(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--surface)',
-                      color: 'var(--foreground)',
-                      fontSize: '14px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="">None (post to home feed)</option>
-                    {channels.map((channel) => (
-                      <option key={channel.id} value={channel.id}>
-                        /{channel.id} {channel.name && `- ${channel.name}`}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={channelSearch}
+                      onChange={(e) => {
+                        setChannelSearch(e.target.value);
+                        setShowChannelSuggestions(true);
+                        setSelectedChannel('');
+                      }}
+                      onFocus={() => setShowChannelSuggestions(true)}
+                      placeholder="Type to search channels (e.g., base, farcaster)"
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        fontSize: '14px'
+                      }}
+                    />
+                    {showChannelSuggestions && channelSearch && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        maxHeight: '200px',
+                        overflowY: 'auto',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        marginTop: '4px',
+                        zIndex: 1000,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                      }}>
+                        {channels
+                          .filter(ch => 
+                            ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) ||
+                            ch.name?.toLowerCase().includes(channelSearch.toLowerCase())
+                          )
+                          .slice(0, 10)
+                          .map((channel) => (
+                            <button
+                              key={channel.id}
+                              onClick={() => {
+                                setSelectedChannel(channel.id);
+                                setChannelSearch(`/${channel.id}${channel.name ? ` - ${channel.name}` : ''}`);
+                                setShowChannelSuggestions(false);
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                textAlign: 'left',
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--foreground)',
+                                cursor: 'pointer',
+                                fontSize: '14px'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border)'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                              /{channel.id} {channel.name && `- ${channel.name}`}
+                            </button>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+                  {selectedChannel && (
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 4 }}>
+                      ✓ Posting to /{selectedChannel}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Schedule Section */}
