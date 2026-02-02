@@ -64,22 +64,32 @@ export default function ComposePage() {
 
   async function fetchChannels(fid: number) {
     try {
-      const response = await fetch(`/api/channels?fid=${fid}`);
+      // Fetch all available channels (not user-specific)
+      const response = await fetch('/api/channels?limit=50');
       const data = await response.json();
       
       if (data.ok && data.channels) {
-        const popularChannels = [
+        setChannels(data.channels);
+      } else {
+        // Fallback to popular channels
+        setChannels([
           { id: 'base', name: 'Base' },
           { id: 'farcaster', name: 'Farcaster' },
           { id: 'dev', name: 'Dev' },
           { id: 'art', name: 'Art' },
           { id: 'music', name: 'Music' },
-          ...data.channels.slice(0, 10)
-        ];
-        setChannels(popularChannels);
+        ]);
       }
     } catch (error) {
       console.error('Error fetching channels:', error);
+      // Fallback to popular channels
+      setChannels([
+        { id: 'base', name: 'Base' },
+        { id: 'farcaster', name: 'Farcaster' },
+        { id: 'dev', name: 'Dev' },
+        { id: 'art', name: 'Art' },
+        { id: 'music', name: 'Music' },
+      ]);
     }
   }
 
