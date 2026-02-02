@@ -366,6 +366,9 @@ export default function ComposeModal() {
       // Add channel if selected
       if (selectedChannel) {
         body.channelKey = selectedChannel;
+        console.log('[ComposeModal] Adding channel to post:', selectedChannel);
+      } else {
+        console.log('[ComposeModal] No channel selected');
       }
 
       // If scheduled, save to database instead of posting immediately

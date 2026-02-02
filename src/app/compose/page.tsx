@@ -317,6 +317,9 @@ export default function ComposePage() {
       // Add channel if selected
       if (selectedChannel) {
         body.channelKey = selectedChannel;
+        console.log('[ComposePage] Adding channel to post:', selectedChannel);
+      } else {
+        console.log('[ComposePage] No channel selected');
       }
 
       // If scheduled, save to database instead of posting immediately

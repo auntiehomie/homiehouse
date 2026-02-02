@@ -48,8 +48,18 @@ async function publishCast(signerUuid: string, text: string, embeds: any[] = [])
   return await response.json();
 }
 
-// Endpoint to process and publish scheduled casts
+// Vercel cron jobs use GET requests
+export async function GET(req: NextRequest) {
+  return await handlePublishScheduledCasts(req);
+}
+
+// Also support POST for manual triggers
 export async function POST(req: NextRequest) {
+  return await handlePublishScheduledCasts(req);
+}
+
+// Shared handler for both GET and POST
+async function handlePublishScheduledCasts(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     
