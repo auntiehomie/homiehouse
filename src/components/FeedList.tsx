@@ -959,7 +959,22 @@ export default function FeedList({
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
-              <span>{timeLabel}</span>
+              <span>
+                {timeLabel}
+                {it.channel?.id && (
+                  <Link 
+                    href={`/channel/${it.channel.id}`}
+                    style={{ 
+                      marginLeft: '8px',
+                      color: 'var(--accent)',
+                      textDecoration: 'none'
+                    }}
+                    className="hover:underline"
+                  >
+                    /{it.channel.id}
+                  </Link>
+                )}
+              </span>
               {expandedCasts.has(key) && (
                 <button
                   onClick={() => setExpandedCasts(prev => {
