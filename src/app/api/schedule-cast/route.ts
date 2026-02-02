@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     const body = await req.json();
-    const { text, signerUuid, fid, embeds = [], scheduled_time } = body;
+    const { text, signerUuid, fid, embeds = [], scheduled_time, channelKey } = body;
 
     // Validation
     if (!text || !signerUuid || !fid || !scheduled_time) {
@@ -38,16 +38,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Save scheduled cast to database
+    const insertData: any = {
+      user_fid: fid,
+      signer_uuid: signerUuid,
+      text,
+      embeds: embeds,
+      scheduled_time: scheduledDate.toISOString(),
+      status: 'pending'
+    };
+
+    if (channelKey) {
+      insertData.channel_id = channelKey;
+    }
+
     const { data, error } = await supabase
       .from('scheduled_casts')
-      .insert({
-        user_fid: fid,
-        signer_uuid: signerUuid,
-        text,
-        embeds: embeds,
-        scheduled_time: scheduledDate.toISOString(),
-        status: 'pending'
-      })
+      .insert(insertData)
       .select()
       .single();
 

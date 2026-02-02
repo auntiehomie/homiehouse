@@ -69,7 +69,7 @@ export async function publishCast(payload: {
   text: string;
   embeds?: any[];
   parent?: string;
-  channel_key?: string;
+  channel_id?: string;
 }) {
   return neynarFetch('/cast', {
     method: 'POST',

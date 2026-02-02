@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS scheduled_casts (
   signer_uuid TEXT NOT NULL,
   text TEXT NOT NULL,
   embeds JSONB DEFAULT '[]'::jsonb,
+  channel_id TEXT,
   scheduled_time TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'failed', 'cancelled')),
   error_message TEXT,

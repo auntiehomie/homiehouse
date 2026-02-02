@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (channelKey) {
-      castPayload.channel_key = channelKey;
+      castPayload.channel_id = channelKey;
       logger.info('Adding channel to cast', { channelKey });
     }
 
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       hasText: !!castPayload.text,
       hasEmbeds: !!castPayload.embeds,
       hasParent: !!castPayload.parent,
-      channelKey: castPayload.channel_key || 'none'
+      channelId: castPayload.channel_id || 'none'
     });
 
     // Publish cast using shared utility

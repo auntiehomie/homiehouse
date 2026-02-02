@@ -15,7 +15,7 @@ function getSupabaseClient() {
 const neynarApiKey = process.env.NEYNAR_API_KEY;
 
 // Function to publish a cast using Neynar
-async function publishCast(signerUuid: string, text: string, embeds: any[] = []) {
+async function publishCast(signerUuid: string, text: string, embeds: any[] = [], channelId?: string) {
   if (!neynarApiKey) {
     throw new Error('NEYNAR_API_KEY must be set');
   }
@@ -29,6 +29,10 @@ async function publishCast(signerUuid: string, text: string, embeds: any[] = [])
 
   if (embeds && embeds.length > 0) {
     body.embeds = embeds;
+  }
+
+  if (channelId) {
+    body.channel_id = channelId;
   }
 
   const response = await fetch(url, {
@@ -107,12 +111,16 @@ async function handlePublishScheduledCasts(req: NextRequest) {
         console.log(`📤 Publishing cast ${cast.id} for user ${cast.user_fid}...`);
         console.log(`   Text: "${cast.text.substring(0, 50)}..."`);
         console.log(`   Scheduled: ${cast.scheduled_time}`);
+        if (cast.channel_id) {
+          console.log(`   Channel: ${cast.channel_id}`);
+        }
         
         // Publish the cast
         const publishResult = await publishCast(
           cast.signer_uuid,
           cast.text,
-          cast.embeds
+          cast.embeds,
+          cast.channel_id
         );
 
         console.log(`✅ Published successfully! Hash: ${publishResult.cast?.hash}`);
