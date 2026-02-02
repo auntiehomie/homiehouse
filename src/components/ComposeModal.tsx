@@ -722,12 +722,19 @@ export default function ComposeModal() {
                       type="text"
                       value={channelSearch}
                       onChange={(e) => {
-                        setChannelSearch(e.target.value);
+                        const value = e.target.value;
+                        setChannelSearch(value);
                         setShowChannelSuggestions(true);
-                        setSelectedChannel('');
+                        // If user types just the channel name (without /), set it as selected
+                        const cleanValue = value.replace(/^\//, '').split(' - ')[0].trim();
+                        if (cleanValue) {
+                          setSelectedChannel(cleanValue);
+                        } else {
+                          setSelectedChannel('');
+                        }
                       }}
                       onFocus={() => setShowChannelSuggestions(true)}
-                      placeholder="Type to search channels (e.g., base, farcaster)"
+                      placeholder="Type channel name (e.g., replyguys, base)"
                       style={{
                         width: '100%',
                         padding: '8px 12px',

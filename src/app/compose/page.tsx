@@ -607,12 +607,19 @@ export default function ComposePage() {
                   type="text"
                   value={channelSearch}
                   onChange={(e) => {
-                    setChannelSearch(e.target.value);
+                    const value = e.target.value;
+                    setChannelSearch(value);
                     setShowChannelSuggestions(true);
-                    setSelectedChannel('');
+                    // If user types just the channel name (without /), set it as selected
+                    const cleanValue = value.replace(/^\//, '').split(' - ')[0].trim();
+                    if (cleanValue) {
+                      setSelectedChannel(cleanValue);
+                    } else {
+                      setSelectedChannel('');
+                    }
                   }}
                   onFocus={() => setShowChannelSuggestions(true)}
-                  placeholder="Type to search channels (e.g., base, farcaster)"
+                  placeholder="Type channel name (e.g., replyguys, base)"
                   className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
                 />
                 {showChannelSuggestions && channelSearch && (

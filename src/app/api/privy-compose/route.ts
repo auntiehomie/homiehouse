@@ -74,7 +74,15 @@ export async function POST(request: NextRequest) {
 
     if (channelKey) {
       castPayload.channel_key = channelKey;
+      logger.info('Adding channel to cast', { channelKey });
     }
+
+    logger.info('Cast payload prepared', { 
+      hasText: !!castPayload.text,
+      hasEmbeds: !!castPayload.embeds,
+      hasParent: !!castPayload.parent,
+      channelKey: castPayload.channel_key || 'none'
+    });
 
     // Publish cast using shared utility
     const result = await publishCast(castPayload);
