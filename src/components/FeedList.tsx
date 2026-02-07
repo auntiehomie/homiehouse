@@ -878,11 +878,14 @@ export default function FeedList({
             
             {/* Display embeds (images, videos, links, etc.) */}
             {it.embeds && it.embeds.length > 0 && (
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {it.embeds.map((embed: any, idx: number) => (
-                  <EmbedRenderer key={idx} embed={embed} index={idx} />
-                ))}
-              </div>
+              <>
+                {console.log('[FeedList] Rendering embeds for cast:', { hash: it.hash, embedCount: it.embeds.length, embeds: it.embeds })}
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {it.embeds.map((embed: any, idx: number) => (
+                    <EmbedRenderer key={idx} embed={embed} index={idx} />
+                  ))}
+                </div>
+              </>
             )}
             
             <div style={{ 

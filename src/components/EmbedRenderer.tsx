@@ -7,15 +7,26 @@ import UrlPreview from './UrlPreview';
  * Render different types of embeds: images, URLs, mini apps, frames
  */
 export default function EmbedRenderer({ embed, index }: { embed: any; index: number }) {
-  if (!embed) return null;
+  if (!embed) {
+    console.log('[EmbedRenderer] Skipping null/undefined embed');
+    return null;
+  }
+
+  console.log('[EmbedRenderer] Processing embed:', { index, type: typeof embed, embed: JSON.stringify(embed).substring(0, 200) });
 
   const embedUrl = embed.url || embed;
   
-  if (!embedUrl) return null;
-
-  if (typeof embedUrl !== 'string') {
+  if (!embedUrl) {
+    console.log('[EmbedRenderer] No embedUrl extracted, skipping');
     return null;
   }
+
+  if (typeof embedUrl !== 'string') {
+    console.log('[EmbedRenderer] embedUrl is not a string:', typeof embedUrl);
+    return null;
+  }
+
+  console.log('[EmbedRenderer] embedUrl:', embedUrl);
 
   // Image embed
   const isImage = embedUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) ||
