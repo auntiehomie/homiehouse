@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import UrlPreview from './UrlPreview';
 import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
@@ -920,29 +921,12 @@ export default function FeedList({
                     );
                   }
                   
-                  // Display non-image embeds as links
+                  // Display non-image embeds as previews when possible
                   if (typeof embedUrl === 'string' && embedUrl.startsWith('http')) {
                     return (
-                      <a
-                        key={idx}
-                        href={embedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'block',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--surface)',
-                          color: 'var(--accent)',
-                          textDecoration: 'none',
-                          fontSize: '14px',
-                          wordBreak: 'break-all'
-                        }}
-                        className="hover:bg-opacity-80 transition-colors"
-                      >
-                        🔗 {embedUrl.length > 60 ? embedUrl.substring(0, 60) + '...' : embedUrl}
-                      </a>
+                      <div key={idx}>
+                        <UrlPreview url={embedUrl} />
+                      </div>
                     );
                   }
                   
