@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { neynarFetch } from '@/lib/neynar';
+import { rateLimit } from '@/lib/ratelimit';
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -15,6 +16,17 @@ function getSupabaseClient() {
 
 export async function POST(req: NextRequest) {
   try {
+    // SECURITY: Rate limiting (10 casts per hour per IP)
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`schedule-cast:${ip}`, 10, 3600);
+    
+    if (!rateLimitOk) {
+      return NextResponse.json(
+        { ok: false, error: 'Rate limited. Try again later.' },
+        { status: 429 }
+      );
+    }
+
     const supabase = getSupabaseClient();
     const body = await req.json();
     const { text, signerUuid, embeds = [], scheduled_time, channelKey } = body;
@@ -22,7 +34,7 @@ export async function POST(req: NextRequest) {
     // Validation
     if (!text || !signerUuid || !scheduled_time) {
       return NextResponse.json(
-        { ok: false, error: 'Missing required fields: text, signerUuid, scheduled_time' },
+        { ok: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
@@ -81,9 +93,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error saving scheduled cast:', error);
+      console.error('[DB Error] schedule-cast insert failed', {
+        code: error.code,
+        message: error.message,
+        hint: error.hint,
+        details: error.details
+      });
       return NextResponse.json(
-        { ok: false, error: 'Failed to schedule cast', details: error.message },
+        { ok: false, error: 'Failed to schedule cast' },
         { status: 500 }
       );
     }
@@ -124,7 +141,11 @@ export async function GET(req: NextRequest) {
       .order('scheduled_time', { ascending: true });
 
     if (error) {
-      console.error('Error fetching scheduled casts:', error);
+      console.error('[DB Error] schedule-cast fetch failed', {
+        code: error.code,
+        message: error.message,
+        fid: fid
+      });
       return NextResponse.json(
         { ok: false, error: 'Failed to fetch scheduled casts' },
         { status: 500 }
@@ -170,7 +191,12 @@ export async function DELETE(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error cancelling scheduled cast:', error);
+      console.error('[DB Error] schedule-cast delete failed', {
+        code: error.code,
+        message: error.message,
+        id: id,
+        fid: fid
+      });
       return NextResponse.json(
         { ok: false, error: 'Failed to cancel scheduled cast' },
         { status: 500 }

@@ -26,6 +26,9 @@ export default function ComposePage() {
   const [channels, setChannels] = useState<any[]>([]);
   const [channelSearch, setChannelSearch] = useState<string>('');
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
+  const [urlPreview, setUrlPreview] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -141,6 +144,45 @@ export default function ComposePage() {
     
     setShowMentions(false);
     setMentionSearch('');
+  };
+
+  // Detect URLs in text and fetch preview
+  useEffect(() => {
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    const matches = text.match(urlRegex);
+    
+    if (matches && matches.length > 0) {
+      const url = matches[0];
+      if (url !== detectedUrl) {
+        setDetectedUrl(url);
+        fetchUrlPreview(url);
+      }
+    } else {
+      setDetectedUrl(null);
+      setUrlPreview(null);
+    }
+  }, [text]);
+
+  const fetchUrlPreview = async (url: string) => {
+    setLoadingPreview(true);
+    try {
+      const response = await fetch('/api/url-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok) {
+          setUrlPreview(data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching URL preview:', error);
+    } finally {
+      setLoadingPreview(false);
+    }
   };
 
   const insertMention = (user: any) => {
@@ -310,8 +352,30 @@ export default function ComposePage() {
         fid: userFid 
       };
 
+      // Build embeds array
+      const embeds: any[] = [];
+
+      // Add image embed if provided
       if (imageUrl.trim()) {
-        body.embeds = [{ url: imageUrl.trim() }];
+        embeds.push({ url: imageUrl.trim() });
+      }
+
+      // Add URL embed if we have a preview
+      if (urlPreview && detectedUrl) {
+        embeds.push({ url: detectedUrl });
+        
+        // If it's an article with text, prepend summary to cast text
+        if (urlPreview.isArticle && urlPreview.articleText && !text.includes(urlPreview.metadata.title)) {
+          const summary = urlPreview.articleText.slice(0, 200) + '...';
+          body.text = `${urlPreview.metadata.title || 'Article'}\n\n${summary}\n\n${text}`;
+        } else if (urlPreview.metadata.title && !text.includes(urlPreview.metadata.title)) {
+          // For non-articles, just add the title if not already in text
+          body.text = `${urlPreview.metadata.title}\n\n${text}`;
+        }
+      }
+
+      if (embeds.length > 0) {
+        body.embeds = embeds;
       }
 
       // Add channel if selected
@@ -349,6 +413,8 @@ export default function ComposePage() {
           setUploadedImage(null);
           setScheduleTime("");
           setIsScheduled(false);
+          setUrlPreview(null);
+          setDetectedUrl(null);
           setTimeout(() => {
             router.push('/');
           }, 800);
@@ -369,6 +435,8 @@ export default function ComposePage() {
           setText("");
           setImageUrl("");
           setUploadedImage(null);
+          setUrlPreview(null);
+          setDetectedUrl(null);
           setTimeout(() => {
             router.push('/');
           }, 800);
@@ -599,6 +667,47 @@ export default function ComposePage() {
                 </div>
               )}
             </div>
+
+            {/* URL Preview */}
+            {loadingPreview && (
+              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
+                <div className="text-sm text-zinc-500">
+                  Loading preview...
+                </div>
+              </div>
+            )}
+            {urlPreview && urlPreview.metadata && (
+              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
+                {urlPreview.metadata.image && (
+                  <img 
+                    src={urlPreview.metadata.image}
+                    alt={urlPreview.metadata.title}
+                    className="w-full h-auto max-h-48 object-cover rounded-md mb-2"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                )}
+                {urlPreview.metadata.title && (
+                  <div className="text-sm font-semibold mb-1 text-white">
+                    {urlPreview.metadata.title}
+                  </div>
+                )}
+                {urlPreview.metadata.description && (
+                  <div className="text-xs text-zinc-400 mb-1 line-clamp-2">
+                    {urlPreview.metadata.description}
+                  </div>
+                )}
+                {urlPreview.isArticle && urlPreview.articleText && (
+                  <div className="text-xs text-orange-500 font-medium mt-2">
+                    📰 Article preview will be added to your cast
+                  </div>
+                )}
+                <div className="text-xs text-zinc-500 mt-2">
+                  {urlPreview.metadata.siteName || new URL(detectedUrl!).hostname}
+                </div>
+              </div>
+            )}
             
             {/* Channel Selection */}
             <div className="mt-4 border-t border-zinc-800 pt-4">

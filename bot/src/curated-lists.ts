@@ -144,8 +144,13 @@ export class CuratedListService {
         if (error.code === '23505') {
           return { ok: false, error: 'Cast already in this list' };
         }
-        console.error('Error adding cast to list:', error);
-        return { ok: false, error: error.message };
+        console.error('[DB Error] addCastToList failed', {
+          code: error.code,
+          message: error.message,
+          list_id: listId,
+          cast_hash: castHash
+        });
+        return { ok: false, error: 'Failed to add cast to list' };
       }
       
       return { ok: true, data };

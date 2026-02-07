@@ -80,19 +80,30 @@ async function handlePublishScheduledCasts(req: NextRequest) {
     }
     
     // Enforce authentication - reject unauthorized requests
+    const ip =
+      req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+
+    // TEMP DEBUG: log auth header presence and partial secret for debugging (strip full secret)
+    try {
+      const hasAuth = Boolean(authHeader);
+      const secretPreview = cronSecret ? `${cronSecret.substring(0, 8)}...${cronSecret.substring(cronSecret.length - 8)}` : 'none';
+      console.info('[DEBUG] cron auth incoming', { hasAuth, authHeaderPresent: !!authHeader, secretPreview, ip });
+    } catch (e) {
+      console.info('[DEBUG] cron auth debug failed', e);
+    }
+
     if (authHeader !== `Bearer ${cronSecret}`) {
-      console.warn('❌ Unauthorized cron request from:', req.ip);
+      console.warn('❌ Unauthorized cron request from:', ip);
       return NextResponse.json(
         { ok: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    
+
     console.log('✅ Cron job authenticated');
 
     console.log('🔄 Starting scheduled casts check...');
     const now = new Date();
-    console.log('⏰ Current time:', now.toISOString());
     console.log('⏰ Current time:', now.toISOString());
     
     // Find all pending casts that should be published now
