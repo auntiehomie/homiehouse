@@ -169,9 +169,13 @@ function ProfileContent() {
             {/* Avatar */}
             <div className="relative -mt-16 mb-4">
               <img
-                src={profile.pfp_url}
-                alt={profile.display_name}
+                src={profile.pfp_url || '/default-avatar.png'}
+                alt={profile.display_name || 'User avatar'}
                 className="w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900"
+                onError={(e) => {
+                  // @ts-ignore - set fallback avatar on error
+                  e.currentTarget.src = '/default-avatar.png';
+                }}
               />
               {profile.power_badge && (
                 <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full w-10 h-10 flex items-center justify-center border-4 border-white dark:border-zinc-900">
@@ -233,8 +237,21 @@ function ProfileContent() {
           ) : (
             <div className="space-y-4">
               {casts.map((cast) => {
-                const timeLabel = formatDistanceToNow(new Date(cast.timestamp), { addSuffix: true });
-                
+                // Defensive: guard against missing/invalid timestamps which can throw in date-fns
+                let timeLabel = '';
+                try {
+                  if (cast?.timestamp) {
+                    const d = new Date(cast.timestamp);
+                    if (!isNaN(d.getTime())) {
+                      timeLabel = formatDistanceToNow(d, { addSuffix: true });
+                    } else {
+                      console.warn('[Profile Page] Invalid cast timestamp:', cast.timestamp);
+                    }
+                  }
+                } catch (e) {
+                  console.error('[Profile Page] Error formatting cast timestamp', e);
+                }
+
                 return (
                   <Link
                     key={cast.hash}
