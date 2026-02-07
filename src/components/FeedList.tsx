@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import UrlPreview from './UrlPreview';
+import EmbedRenderer from './EmbedRenderer';
 import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
@@ -557,6 +559,15 @@ export default function FeedList({
       }
 
       console.log('[FeedList] Final items count:', res?.length || 0);
+      if (res?.length > 0) {
+        console.log('[FeedList] First cast structure:', JSON.stringify({
+          hash: res[0]?.hash,
+          hasEmbeds: !!res[0]?.embeds,
+          embedsLength: res[0]?.embeds?.length || 0,
+          embedsData: res[0]?.embeds,
+          firstEmbedKeys: res[0]?.embeds?.[0] ? Object.keys(res[0].embeds[0]) : 'no embeds'
+        }, null, 2));
+      }
       if (mounted) setItems(res);
     })();
     return () => {
@@ -874,81 +885,16 @@ export default function FeedList({
                   </>
                 );              })()}            </div>
             
-            {/* Display embedded images */}
+            {/* Display embeds (images, videos, links, etc.) */}
             {it.embeds && it.embeds.length > 0 && (
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {it.embeds.map((embed: any, idx: number) => {
-                  // Check if embed is an image
-                  const embedUrl = embed.url || embed;
-                  const isImage = typeof embedUrl === 'string' && (
-                    embedUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) ||
-                    embedUrl.includes('imagedelivery.net') ||
-                    embedUrl.includes('imgur.com') ||
-                    embedUrl.includes('imgbb.com') ||
-                    embedUrl.includes('i.ibb.co') ||
-                    embedUrl.includes('cloudinary.com') ||
-                    embedUrl.includes('media.discordapp.net') ||
-                    embedUrl.includes('pbs.twimg.com')
-                  );
-                  
-                  if (isImage) {
-                    return (
-                      <a
-                        key={idx}
-                        href={embedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'block' }}
-                      >
-                        <img
-                          src={embedUrl}
-                          alt="Cast embed"
-                          style={{
-                            maxWidth: '100%',
-                            height: 'auto',
-                            borderRadius: '12px',
-                            border: '1px solid var(--border)',
-                            cursor: 'pointer',
-                            backgroundColor: 'var(--surface)'
-                          }}
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </a>
-                    );
-                  }
-                  
-                  // Display non-image embeds as links
-                  if (typeof embedUrl === 'string' && embedUrl.startsWith('http')) {
-                    return (
-                      <a
-                        key={idx}
-                        href={embedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'block',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--surface)',
-                          color: 'var(--accent)',
-                          textDecoration: 'none',
-                          fontSize: '14px',
-                          wordBreak: 'break-all'
-                        }}
-                        className="hover:bg-opacity-80 transition-colors"
-                      >
-                        🔗 {embedUrl.length > 60 ? embedUrl.substring(0, 60) + '...' : embedUrl}
-                      </a>
-                    );
-                  }
-                  
-                  return null;
-                })}
-              </div>
+              <>
+                {console.log('[FeedList] Rendering embeds for cast:', { hash: it.hash, embedCount: it.embeds.length, embeds: it.embeds })}
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {it.embeds.map((embed: any, idx: number) => (
+                    <EmbedRenderer key={idx} embed={embed} index={idx} />
+                  ))}
+                </div>
+              </>
             )}
             
             <div style={{ 

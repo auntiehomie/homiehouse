@@ -25,6 +25,9 @@ export default function ComposeModal() {
   const [channels, setChannels] = useState<any[]>([]);
   const [channelSearch, setChannelSearch] = useState<string>('');
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
+  const [urlPreview, setUrlPreview] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
 
   // Load user profile and signer from localStorage
   useEffect(() => {
@@ -179,6 +182,45 @@ export default function ComposeModal() {
     
     setShowMentions(false);
     setMentionSearch('');
+  };
+
+  // Detect URLs in text and fetch preview
+  useEffect(() => {
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    const matches = text.match(urlRegex);
+    
+    if (matches && matches.length > 0) {
+      const url = matches[0]; // Take first URL
+      if (url !== detectedUrl) {
+        setDetectedUrl(url);
+        fetchUrlPreview(url);
+      }
+    } else {
+      setDetectedUrl(null);
+      setUrlPreview(null);
+    }
+  }, [text]);
+
+  const fetchUrlPreview = async (url: string) => {
+    setLoadingPreview(true);
+    try {
+      const response = await fetch('/api/url-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok) {
+          setUrlPreview(data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching URL preview:', error);
+    } finally {
+      setLoadingPreview(false);
+    }
   };
 
   const insertMention = (user: any) => {
@@ -358,9 +400,30 @@ export default function ComposeModal() {
         fid: userFid 
       };
 
+      // Build embeds array
+      const embeds: any[] = [];
+
       // Add image embed if provided
       if (imageUrl.trim()) {
-        body.embeds = [{ url: imageUrl.trim() }];
+        embeds.push({ url: imageUrl.trim() });
+      }
+
+      // Add URL embed if we have a preview
+      if (urlPreview && detectedUrl) {
+        embeds.push({ url: detectedUrl });
+        
+        // If it's an article with text, prepend summary to cast text
+        if (urlPreview.isArticle && urlPreview.articleText && !text.includes(urlPreview.metadata.title)) {
+          const summary = urlPreview.articleText.slice(0, 200) + '...';
+          body.text = `${urlPreview.metadata.title || 'Article'}\n\n${summary}\n\n${text}`;
+        } else if (urlPreview.metadata.title && !text.includes(urlPreview.metadata.title)) {
+          // For non-articles, just add the title if not already in text
+          body.text = `${urlPreview.metadata.title}\n\n${text}`;
+        }
+      }
+
+      if (embeds.length > 0) {
+        body.embeds = embeds;
       }
 
       // Add channel if selected
@@ -398,6 +461,8 @@ export default function ComposeModal() {
           setUploadedImage(null);
           setScheduleTime("");
           setIsScheduled(false);
+          setUrlPreview(null);
+          setDetectedUrl(null);
           setTimeout(() => {
             setOpen(false);
             setStatus(null);
@@ -419,6 +484,8 @@ export default function ComposeModal() {
           setText("");
           setImageUrl("");
           setUploadedImage(null);
+          setUrlPreview(null);
+          setDetectedUrl(null);
           setTimeout(() => {
             setOpen(false);
             setStatus(null);
@@ -714,6 +781,82 @@ export default function ComposeModal() {
                     </div>
                   )}
                 </div>
+
+                {/* URL Preview */}
+                {loadingPreview && (
+                  <div style={{ marginTop: 12, padding: 12, background: 'var(--surface)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                      Loading preview...
+                    </div>
+                  </div>
+                )}
+                {urlPreview && urlPreview.metadata && (
+                  <div style={{ 
+                    marginTop: 12, 
+                    padding: 12, 
+                    background: 'var(--surface)', 
+                    borderRadius: 8,
+                    border: '1px solid var(--border)'
+                  }}>
+                    {urlPreview.metadata.image && (
+                      <img 
+                        src={urlPreview.metadata.image}
+                        alt={urlPreview.metadata.title}
+                        style={{
+                          width: '100%',
+                          height: 'auto',
+                          maxHeight: '200px',
+                          objectFit: 'cover',
+                          borderRadius: 6,
+                          marginBottom: 8
+                        }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    {urlPreview.metadata.title && (
+                      <div style={{ 
+                        fontSize: 14, 
+                        fontWeight: 600, 
+                        marginBottom: 4,
+                        color: 'var(--foreground)'
+                      }}>
+                        {urlPreview.metadata.title}
+                      </div>
+                    )}
+                    {urlPreview.metadata.description && (
+                      <div style={{ 
+                        fontSize: 12, 
+                        color: 'var(--muted-on-dark)',
+                        marginBottom: 4,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
+                        {urlPreview.metadata.description}
+                      </div>
+                    )}
+                    {urlPreview.isArticle && urlPreview.articleText && (
+                      <div style={{ 
+                        fontSize: 11, 
+                        color: 'var(--accent)',
+                        fontWeight: 500,
+                        marginTop: 6
+                      }}>
+                        📰 Article preview will be added to your cast
+                      </div>
+                    )}
+                    <div style={{ 
+                      fontSize: 11, 
+                      color: 'var(--muted-on-dark)',
+                      marginTop: 6
+                    }}>
+                      {urlPreview.metadata.siteName || new URL(detectedUrl!).hostname}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Channel Selection */}
                 <div style={{ marginTop: 16 }}>

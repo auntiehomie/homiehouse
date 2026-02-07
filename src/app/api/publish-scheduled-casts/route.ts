@@ -67,20 +67,43 @@ async function handlePublishScheduledCasts(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     
-    // This endpoint is called by Vercel cron
-    // Vercel cron requests come from internal IPs and can be verified
+    // SECURITY: Verify cron job authentication
     const authHeader = req.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
     
-    // Only check secret if it's configured (optional security layer)
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      console.log('⚠️ Cron job auth failed, but proceeding (Vercel cron may not send auth)');
-      // Don't block - Vercel cron jobs don't send auth headers by default
+    if (!cronSecret || cronSecret.length < 32) {
+      console.error('❌ CRITICAL: CRON_SECRET not configured or too weak');
+      return NextResponse.json(
+        { ok: false, error: 'Service unavailable' },
+        { status: 503 }
+      );
     }
+    
+    // Enforce authentication - reject unauthorized requests
+    const ip =
+      req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+
+    // TEMP DEBUG: log auth header presence and partial secret for debugging (strip full secret)
+    try {
+      const hasAuth = Boolean(authHeader);
+      const secretPreview = cronSecret ? `${cronSecret.substring(0, 8)}...${cronSecret.substring(cronSecret.length - 8)}` : 'none';
+      console.info('[DEBUG] cron auth incoming', { hasAuth, authHeaderPresent: !!authHeader, secretPreview, ip });
+    } catch (e) {
+      console.info('[DEBUG] cron auth debug failed', e);
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      console.warn('❌ Unauthorized cron request from:', ip);
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    console.log('✅ Cron job authenticated');
 
     console.log('🔄 Starting scheduled casts check...');
     const now = new Date();
-    console.log('⏰ Current time:', now.toISOString());
     console.log('⏰ Current time:', now.toISOString());
     
     // Find all pending casts that should be published now

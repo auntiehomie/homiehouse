@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
     logger.success('Profile fetched', { fid: userFid });
     logger.end();
 
-    return NextResponse.json({ user, casts });
+    // Spread user fields to match the client-side profile shape (expects fid, username, pfp_url, etc.)
+    return NextResponse.json({ ...(user || {}), casts });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');
