@@ -53,18 +53,23 @@ function ProfileContent() {
             throw new Error('Failed to fetch profile');
           }
           const data = await response.json();
+          // Handle both shapes: { user, casts } and flattened { ...user, casts }
+          const user = data.user ?? data;
+          const castsResp = data.casts ?? (data.user?.casts ?? null);
+
           console.log('[Profile Page] Profile data received:', {
-            fid: data.fid,
-            username: data.username,
-            hasCasts: !!data.casts,
-            castsCount: data.casts?.length || 0
+            fid: user?.fid,
+            username: user?.username,
+            hasCasts: !!castsResp,
+            castsCount: castsResp?.length || 0
           });
-          setProfile(data);
-          
+
+          setProfile(user);
+
           // Set casts if included
-          if (data.casts) {
-            console.log('[Profile Page] Setting casts:', data.casts.length);
-            setCasts(data.casts);
+          if (castsResp) {
+            console.log('[Profile Page] Setting casts:', castsResp.length);
+            setCasts(castsResp);
             setCastsLoading(false);
           } else {
             console.log('[Profile Page] No casts in response');
@@ -88,18 +93,23 @@ function ProfileContent() {
           }
 
           const data = await response.json();
+          // Handle both shapes: { user, casts } and flattened { ...user, casts }
+          const user = data.user ?? data;
+          const castsResp = data.casts ?? (data.user?.casts ?? null);
+
           console.log('[Profile Page] Profile data received:', {
-            fid: data.fid,
-            username: data.username,
-            hasCasts: !!data.casts,
-            castsCount: data.casts?.length || 0
+            fid: user?.fid,
+            username: user?.username,
+            hasCasts: !!castsResp,
+            castsCount: castsResp?.length || 0
           });
-          setProfile(data);
-          
+
+          setProfile(user);
+
           // Set casts if included
-          if (data.casts) {
-            console.log('[Profile Page] Setting casts:', data.casts.length);
-            setCasts(data.casts);
+          if (castsResp) {
+            console.log('[Profile Page] Setting casts:', castsResp.length);
+            setCasts(castsResp);
             setCastsLoading(false);
           } else {
             console.log('[Profile Page] No casts in response');
