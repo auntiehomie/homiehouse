@@ -559,6 +559,15 @@ export default function FeedList({
       }
 
       console.log('[FeedList] Final items count:', res?.length || 0);
+      if (res?.length > 0) {
+        console.log('[FeedList] First cast structure:', JSON.stringify({
+          hash: res[0]?.hash,
+          hasEmbeds: !!res[0]?.embeds,
+          embedsLength: res[0]?.embeds?.length || 0,
+          embedsData: res[0]?.embeds,
+          firstEmbedKeys: res[0]?.embeds?.[0] ? Object.keys(res[0].embeds[0]) : 'no embeds'
+        }, null, 2));
+      }
       if (mounted) setItems(res);
     })();
     return () => {
