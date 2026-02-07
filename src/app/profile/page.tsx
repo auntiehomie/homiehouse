@@ -57,11 +57,13 @@ function ProfileContent() {
           const user = data.user ?? data;
           const castsResp = data.casts ?? (data.user?.casts ?? null);
 
-          console.log('[Profile Page] Profile data received:', {
+          console.log('[Profile Page] Full profile response:', data);
+          console.log('[Profile Page] Profile data received (summary):', {
             fid: user?.fid,
             username: user?.username,
             hasCasts: !!castsResp,
-            castsCount: castsResp?.length || 0
+            castsCount: castsResp?.length || 0,
+            userKeys: user ? Object.keys(user).slice(0, 20) : null
           });
 
           setProfile(user);
@@ -97,11 +99,13 @@ function ProfileContent() {
           const user = data.user ?? data;
           const castsResp = data.casts ?? (data.user?.casts ?? null);
 
-          console.log('[Profile Page] Profile data received:', {
+          console.log('[Profile Page] Full profile response:', data);
+          console.log('[Profile Page] Profile data received (summary):', {
             fid: user?.fid,
             username: user?.username,
             hasCasts: !!castsResp,
-            castsCount: castsResp?.length || 0
+            castsCount: castsResp?.length || 0,
+            userKeys: user ? Object.keys(user).slice(0, 20) : null
           });
 
           setProfile(user);
