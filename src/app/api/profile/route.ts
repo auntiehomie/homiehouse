@@ -70,15 +70,17 @@ export async function GET(request: NextRequest) {
     logger.success('Profile fetched', { fid: userFid });
     logger.end();
 
-    // Normalize and ensure required fields are always present
+    // Normalize and ensure required fields are always present (do NOT spread user after setting defaults, it overwrites with undefined)
     const normalizedUser = {
-      fid: user?.fid ?? userFid,
+      fid: userFid || 0,
       username: user?.username || `user_${userFid}`,
       display_name: user?.display_name || user?.username || 'Unknown User',
       pfp_url: user?.pfp_url || '',
-      follower_count: user?.follower_count ?? 0,
-      following_count: user?.following_count ?? 0,
-      ...(user || {}),
+      follower_count: typeof user?.follower_count === 'number' ? user.follower_count : 0,
+      following_count: typeof user?.following_count === 'number' ? user.following_count : 0,
+      verified_addresses: user?.verified_addresses || { eth_addresses: [] },
+      power_badge: user?.power_badge || false,
+      profile: user?.profile || { bio: { text: '' } },
     };
 
     logger.info('Sending normalized profile', {
