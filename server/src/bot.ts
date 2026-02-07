@@ -140,12 +140,23 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
       return `Which list? You have: ${listNames}\n\nReply with "add to [list name]" 📝`;
     }
 
+    // SECURITY: Validate list name input
+    const trimmedListName = listName.trim();
+    
+    if (trimmedListName.length < 1 || trimmedListName.length > 100) {
+      return `List name must be 1-100 characters long! 📝`;
+    }
+
+    if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmedListName)) {
+      return `List name contains invalid characters! Use letters, numbers, spaces, hyphens, or underscores. 📝`;
+    }
+
     // Find or create the specified list
     let { data: targetList, error: listError } = await supabase
       .from('curated_lists')
       .select('*')
       .eq('fid', userFid)
-      .ilike('list_name', listName)
+      .ilike('list_name', trimmedListName)
       .maybeSingle();
 
     if (listError && listError.code !== 'PGRST116') {
@@ -159,7 +170,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
         .from('curated_lists')
         .insert([{
           fid: userFid,
-          list_name: listName,
+          list_name: trimmedListName,
           description: `Created via @homiehouse bot`,
           is_public: false
         }])
@@ -168,11 +179,11 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
 
       if (createError) {
         console.error('Error creating list:', createError);
-        return `Couldn't create the list "${listName}" 😕`;
+        return `Couldn't create the list "${trimmedListName}" 😕`;
       }
 
       targetList = newList;
-      console.log(`✨ Created new list: "${listName}" for FID ${userFid}`);
+      console.log(`✨ Created new list: "${trimmedListName}" for FID ${userFid}`);
     }
 
     // Add the cast to the list
@@ -190,13 +201,13 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
 
     if (insertError) {
       if (insertError.code === '23505') {
-        return `Already in your "${listName}" list! ✅`;
+        return `Already in your "${trimmedListName}" list! ✅`;
       }
       console.error('Error adding to list:', insertError);
       return `Had trouble saving that cast 😅`;
     }
 
-    return `✅ Saved to "${listName}"! Check it out in HomieHouse 🏡`;
+    return `✅ Saved to "${trimmedListName}"! Check it out in HomieHouse 🏡`;
   } catch (error) {
     console.error('Curation error:', error);
     return `Something went wrong trying to save that 😕`;

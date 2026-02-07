@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { neynarFetch } from '@/lib/neynar';
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -16,15 +17,37 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     const body = await req.json();
-    const { text, signerUuid, fid, embeds = [], scheduled_time, channelKey } = body;
+    const { text, signerUuid, embeds = [], scheduled_time, channelKey } = body;
 
     // Validation
-    if (!text || !signerUuid || !fid || !scheduled_time) {
+    if (!text || !signerUuid || !scheduled_time) {
       return NextResponse.json(
-        { ok: false, error: 'Missing required fields: text, signerUuid, fid, scheduled_time' },
+        { ok: false, error: 'Missing required fields: text, signerUuid, scheduled_time' },
         { status: 400 }
       );
     }
+
+    // SECURITY: Verify signer UUID and get authenticated FID
+    let signerData;
+    try {
+      const signerResponse = await neynarFetch(`/signer/${signerUuid}`, {}, 'GET');
+      if (!signerResponse || !signerResponse.fid) {
+        return NextResponse.json(
+          { ok: false, error: 'Invalid signer' },
+          { status: 401 }
+        );
+      }
+      signerData = signerResponse;
+    } catch (error) {
+      console.error('Failed to verify signer:', error);
+      return NextResponse.json(
+        { ok: false, error: 'Unable to verify signer' },
+        { status: 401 }
+      );
+    }
+
+    // Use verified FID from signer, not client input
+    const fid = signerData.fid;
 
     // Verify scheduled time is in the future
     const scheduledDate = new Date(scheduled_time);
