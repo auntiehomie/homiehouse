@@ -80,8 +80,9 @@ export default function UrlPreview({ url }: { url: string }) {
     );
   }
 
-  // Fallback: show simple link
-  if (error || !preview?.ok) {
+  // If preview fetch failed or wasn't ok, show fallback
+  if (!preview?.ok) {
+    console.log('[UrlPreview] Preview not ok, showing fallback:', { url, preview });
     return (
       <a 
         href={url} 
@@ -96,7 +97,8 @@ export default function UrlPreview({ url }: { url: string }) {
 
   const m = preview.metadata || {};
   if (!m.title && !m.image && !m.description) {
-    // No useful metadata
+    // No useful metadata — show fallback
+    console.log('[UrlPreview] No useful metadata, showing fallback:', { url });
     return (
       <a 
         href={m.url || url} 
@@ -109,6 +111,7 @@ export default function UrlPreview({ url }: { url: string }) {
     );
   }
 
+  console.log('[UrlPreview] Rendering rich preview:', { url, title: m.title, hasImage: !!m.image });
   return (
     <a 
       href={m.url || url} 
@@ -123,6 +126,7 @@ export default function UrlPreview({ url }: { url: string }) {
             alt={m.title || m.siteName || url} 
             className="w-full h-auto object-cover"
             onError={(e) => {
+              console.warn('[UrlPreview] Image failed to load:', m.image);
               (e.target as HTMLImageElement).style.display = 'none';
             }}
           />

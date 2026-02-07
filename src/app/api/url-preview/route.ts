@@ -138,13 +138,26 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       logger.warn('Failed to fetch URL', { status: response.status });
       return NextResponse.json(
-        { error: 'Failed to fetch URL', status: response.status },
-        { status: response.status }
+        { ok: false, error: 'Failed to fetch URL', status: response.status },
+        { status: 200 }
       );
     }
 
-    const html = await response.text();
+    let html = '';
+    try {
+      html = await response.text();
+    } catch (e) {
+      logger.warn('Failed to read response body', { error: String(e) });
+      return NextResponse.json(
+        { ok: false, error: 'Failed to read response' },
+        { status: 200 }
+      );
+    }
+    
     const metadata = extractMetadata(html, url);
+    if (!metadata.title && !metadata.description && !metadata.image) {
+      logger.warn('No useful metadata extracted', { url });
+    }
     
     // Check if it's an article type
     const isArticle = metadata.type === 'article' || 
