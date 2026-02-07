@@ -190,13 +190,13 @@ function ProfileContent() {
             <div className="flex gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-zinc-800">
               <div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {profile.follower_count.toLocaleString()}
+                  {(profile.follower_count ?? 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Followers</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {profile.following_count.toLocaleString()}
+                  {(profile.following_count ?? 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Following</div>
               </div>
