@@ -46,6 +46,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Debug: log what we received from Neynar
+    logger.info('User data from Neynar', {
+      hasFid: !!user?.fid,
+      hasUsername: !!user?.username,
+      userKeys: Object.keys(user || {}).slice(0, 10)
+    });
+
     // Optionally fetch user's casts
     let casts = null;
     if (includeCasts && userFid) {
@@ -65,13 +72,20 @@ export async function GET(request: NextRequest) {
 
     // Normalize and ensure required fields are always present
     const normalizedUser = {
-      ...(user || {}),
+      fid: user?.fid ?? userFid,
+      username: user?.username || `user_${userFid}`,
+      display_name: user?.display_name || user?.username || 'Unknown User',
+      pfp_url: user?.pfp_url || '',
       follower_count: user?.follower_count ?? 0,
       following_count: user?.following_count ?? 0,
-      pfp_url: user?.pfp_url || '',
-      display_name: user?.display_name || user?.username || 'Unknown User',
-      username: user?.username || `user_${userFid}`,
+      ...(user || {}),
     };
+
+    logger.info('Sending normalized profile', {
+      fid: normalizedUser.fid,
+      username: normalizedUser.username,
+      displayName: normalizedUser.display_name
+    });
 
     return NextResponse.json({ ...normalizedUser, casts });
   } catch (error: any) {
