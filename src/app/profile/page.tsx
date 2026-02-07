@@ -194,13 +194,13 @@ function ProfileContent() {
             <div className="flex gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-zinc-800">
               <div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {(profile.follower_count ?? 0).toLocaleString()}
+                  {typeof profile.follower_count === 'number' ? profile.follower_count.toLocaleString() : '0'}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Followers</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {(profile.following_count ?? 0).toLocaleString()}
+                  {typeof profile.following_count === 'number' ? profile.following_count.toLocaleString() : '0'}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Following</div>
               </div>

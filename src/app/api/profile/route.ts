@@ -63,8 +63,17 @@ export async function GET(request: NextRequest) {
     logger.success('Profile fetched', { fid: userFid });
     logger.end();
 
-    // Spread user fields to match the client-side profile shape (expects fid, username, pfp_url, etc.)
-    return NextResponse.json({ ...(user || {}), casts });
+    // Normalize and ensure required fields are always present
+    const normalizedUser = {
+      ...(user || {}),
+      follower_count: user?.follower_count ?? 0,
+      following_count: user?.following_count ?? 0,
+      pfp_url: user?.pfp_url || '',
+      display_name: user?.display_name || user?.username || 'Unknown User',
+      username: user?.username || `user_${userFid}`,
+    };
+
+    return NextResponse.json({ ...normalizedUser, casts });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');
