@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import UrlPreview from './UrlPreview';
+import EmbedRenderer from './EmbedRenderer';
 import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
@@ -875,63 +876,12 @@ export default function FeedList({
                   </>
                 );              })()}            </div>
             
-            {/* Display embedded images */}
+            {/* Display embeds (images, videos, links, etc.) */}
             {it.embeds && it.embeds.length > 0 && (
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {it.embeds.map((embed: any, idx: number) => {
-                  // Check if embed is an image
-                  const embedUrl = embed.url || embed;
-                  const isImage = typeof embedUrl === 'string' && (
-                    embedUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) ||
-                    embedUrl.includes('imagedelivery.net') ||
-                    embedUrl.includes('imgur.com') ||
-                    embedUrl.includes('imgbb.com') ||
-                    embedUrl.includes('i.ibb.co') ||
-                    embedUrl.includes('cloudinary.com') ||
-                    embedUrl.includes('media.discordapp.net') ||
-                    embedUrl.includes('pbs.twimg.com')
-                  );
-                  
-                  if (isImage) {
-                    return (
-                      <a
-                        key={idx}
-                        href={embedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'block' }}
-                      >
-                        <img
-                          src={embedUrl}
-                          alt="Cast embed"
-                          style={{
-                            maxWidth: '100%',
-                            height: 'auto',
-                            borderRadius: '12px',
-                            border: '1px solid var(--border)',
-                            cursor: 'pointer',
-                            backgroundColor: 'var(--surface)'
-                          }}
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </a>
-                    );
-                  }
-                  
-                  // Display non-image embeds as previews when possible
-                  if (typeof embedUrl === 'string' && embedUrl.startsWith('http')) {
-                    return (
-                      <div key={idx}>
-                        <UrlPreview url={embedUrl} />
-                      </div>
-                    );
-                  }
-                  
-                  return null;
-                })}
+              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {it.embeds.map((embed: any, idx: number) => (
+                  <EmbedRenderer key={idx} embed={embed} index={idx} />
+                ))}
               </div>
             )}
             
