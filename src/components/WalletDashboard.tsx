@@ -45,9 +45,10 @@ export default function WalletDashboard() {
       
       const profile = JSON.parse(storedProfile);
       const response = await fetch(`/api/friends?fid=${profile.fid}`);
+      if (!response.ok) throw new Error(`Friends fetch failed: ${response.status}`);
       const data = await response.json();
-      
-      if (data.friends) {
+
+      if (Array.isArray(data?.friends)) {
         setFriends(data.friends);
       }
     } catch (error) {
@@ -59,7 +60,7 @@ export default function WalletDashboard() {
 
   const selectFriend = (friend: FarcasterFriend) => {
     setSelectedFriend(friend);
-    setRecipient(friend.ethAddresses[0]); // Use first verified address
+    setRecipient(friend.ethAddresses?.[0] || ''); // Use first verified address
     setSearchQuery(`@${friend.username}`);
     setShowFriendsList(false);
   };

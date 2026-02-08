@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Format basic token info
     const basicInfo = formatTokenDisplay(tokenData);
 
-    const PERPLEXITY_API_KEY = process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
+    const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY;
     
     // If no Perplexity key, return just the real-time data with simple analysis
     if (!PERPLEXITY_API_KEY) {

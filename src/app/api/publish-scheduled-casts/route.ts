@@ -82,15 +82,6 @@ async function handlePublishScheduledCasts(req: NextRequest) {
     const ip =
       req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
 
-    // TEMP DEBUG: log auth header presence and partial secret for debugging (strip full secret)
-    try {
-      const hasAuth = Boolean(authHeader);
-      const secretPreview = cronSecret ? `${cronSecret.substring(0, 8)}...${cronSecret.substring(cronSecret.length - 8)}` : 'none';
-      console.info('[DEBUG] cron auth incoming', { hasAuth, authHeaderPresent: !!authHeader, secretPreview, ip });
-    } catch (e) {
-      console.info('[DEBUG] cron auth debug failed', e);
-    }
-
     if (authHeader !== `Bearer ${cronSecret}`) {
       console.warn('❌ Unauthorized cron request from:', ip);
       return NextResponse.json(
@@ -205,6 +196,25 @@ async function handlePublishScheduledCasts(req: NextRequest) {
 // Manual trigger for a specific scheduled cast
 export async function PUT(req: NextRequest) {
   try {
+    // SECURITY: Verify authentication for manual triggers
+    const authHeader = req.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (!cronSecret || cronSecret.length < 32) {
+      console.error('CRON_SECRET not configured or too weak');
+      return NextResponse.json(
+        { ok: false, error: 'Service unavailable' },
+        { status: 503 }
+      );
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const supabase = getSupabaseClient();
     const body = await req.json();
     const { id, fid } = body;

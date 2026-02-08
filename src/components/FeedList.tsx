@@ -559,7 +559,7 @@ export default function FeedList({
       }
 
       console.log('[FeedList] Final items count:', res?.length || 0);
-      if (res?.length > 0) {
+      if (Array.isArray(res) && res.length > 0) {
         console.log('[FeedList] First cast structure:', JSON.stringify({
           hash: res[0]?.hash,
           hasEmbeds: !!res[0]?.embeds,
@@ -886,7 +886,7 @@ export default function FeedList({
                 );              })()}            </div>
             
             {/* Display embeds (images, videos, links, etc.) */}
-            {it.embeds && it.embeds.length > 0 && (
+            {Array.isArray(it.embeds) && it.embeds.length > 0 && (
               <>
                 {console.log('[FeedList] Rendering embeds for cast:', { hash: it.hash, embedCount: it.embeds.length, embeds: it.embeds })}
                 <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

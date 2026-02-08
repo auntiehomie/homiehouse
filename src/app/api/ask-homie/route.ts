@@ -21,12 +21,12 @@ function getAnthropic() {
 }
 
 function getGemini() {
-  const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  const key = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   return key ? new GoogleGenerativeAI(key) : null;
 }
 
 function getPerplexity() {
-  const key = process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
+  const key = process.env.PERPLEXITY_API_KEY || process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY;
   return key ? new OpenAI({ apiKey: key, baseURL: 'https://api.perplexity.ai' }) : null;
 }
 

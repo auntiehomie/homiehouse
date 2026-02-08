@@ -109,9 +109,10 @@ export default function ComposeModal() {
     try {
       // Fetch all available channels (not user-specific)
       const response = await fetch('/api/channels?limit=50');
+      if (!response.ok) throw new Error(`Channels fetch failed: ${response.status}`);
       const data = await response.json();
-      
-      if (data.ok && data.channels) {
+
+      if (data?.ok && Array.isArray(data?.channels)) {
         setChannels(data.channels);
       } else {
         // Fallback to popular channels
@@ -264,6 +265,7 @@ export default function ComposeModal() {
         body: formData
       });
 
+      if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
       const data = await response.json();
 
       if (data.ok && data.url) {
@@ -296,6 +298,7 @@ export default function ComposeModal() {
     setStatus("Creating signer...");
     try {
       const res = await fetch("/api/signer", { method: "POST" });
+      if (!res.ok) throw new Error(`Signer creation failed: ${res.status}`);
       const data = await res.json();
       console.log("Signer response:", data);
 
@@ -335,6 +338,7 @@ export default function ComposeModal() {
     setLoading(true);
     try {
       const res = await fetch(`/api/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
+      if (!res.ok) throw new Error(`Signer status check failed: ${res.status}`);
       const data = await res.json();
 
       if (data.ok) {
@@ -413,10 +417,10 @@ export default function ComposeModal() {
         embeds.push({ url: detectedUrl });
         
         // If it's an article with text, prepend summary to cast text
-        if (urlPreview.isArticle && urlPreview.articleText && !text.includes(urlPreview.metadata.title)) {
+        if (urlPreview.isArticle && urlPreview.articleText && !text.includes(urlPreview.metadata?.title || '')) {
           const summary = urlPreview.articleText.slice(0, 200) + '...';
-          body.text = `${urlPreview.metadata.title || 'Article'}\n\n${summary}\n\n${text}`;
-        } else if (urlPreview.metadata.title && !text.includes(urlPreview.metadata.title)) {
+          body.text = `${urlPreview.metadata?.title || 'Article'}\n\n${summary}\n\n${text}`;
+        } else if (urlPreview.metadata?.title && !text.includes(urlPreview.metadata.title)) {
           // For non-articles, just add the title if not already in text
           body.text = `${urlPreview.metadata.title}\n\n${text}`;
         }
