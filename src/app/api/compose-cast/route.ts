@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // Verify signer exists and is valid via Neynar
     let signerData;
     try {
-      signerData = await neynarFetch(`/signer/${signerUuid}`);
+      signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       if (!signerData?.fid) {
         return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
       }

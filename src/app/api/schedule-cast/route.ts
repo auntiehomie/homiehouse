@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     // SECURITY: Verify signer UUID and get authenticated FID
     let signerData;
     try {
-      const signerResponse = await neynarFetch(`/signer/${signerUuid}`, {}, 'GET');
+      const signerResponse = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       if (!signerResponse || !signerResponse.fid) {
         return NextResponse.json(
           { ok: false, error: 'Invalid signer' },
@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
     // Verify signer and derive FID from it (prevents FID spoofing)
     let verifiedFid: number;
     try {
-      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       if (!signerData?.fid) {
         return NextResponse.json({ ok: false, error: 'Invalid signer' }, { status: 401 });
       }
@@ -195,7 +195,7 @@ export async function DELETE(req: NextRequest) {
     // Verify signer and derive FID (prevents FID spoofing)
     let verifiedFid: number;
     try {
-      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       if (!signerData?.fid) {
         return NextResponse.json({ ok: false, error: 'Invalid signer' }, { status: 401 });
       }
