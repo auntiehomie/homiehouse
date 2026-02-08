@@ -5,10 +5,12 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
 
-const privy = new PrivyClient(
-  process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-  process.env.PRIVY_APP_SECRET!
-);
+function getPrivyClient() {
+  return new PrivyClient(
+    process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+    process.env.PRIVY_APP_SECRET!
+  );
+}
 
 export async function GET(request: NextRequest) {
   const logger = createApiLogger('/privy-feed');
@@ -28,6 +30,7 @@ export async function GET(request: NextRequest) {
 
     // If accessToken provided, get the user's FID
     if (accessToken && !fidParam) {
+      const privy = getPrivyClient();
       const authTokenClaims = await privy.verifyAuthToken(accessToken);
       const userId = authTokenClaims.userId;
       const user = await privy.getUser(userId);

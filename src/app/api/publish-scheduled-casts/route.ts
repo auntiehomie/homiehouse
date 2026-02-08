@@ -12,10 +12,9 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-const neynarApiKey = process.env.NEYNAR_API_KEY;
-
 // Function to publish a cast using Neynar
 async function publishCast(signerUuid: string, text: string, embeds: any[] = [], channelId?: string) {
+  const neynarApiKey = process.env.NEYNAR_API_KEY;
   if (!neynarApiKey) {
     throw new Error('NEYNAR_API_KEY must be set');
   }
