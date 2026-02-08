@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { neynarFetch } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-
-// Initialize supabase client only if credentials are available
-const supabase = supabaseUrl && supabaseKey 
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
+  }
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // GET /api/curated-lists - Get user's curated lists
 export async function GET(request: NextRequest) {
@@ -18,27 +20,31 @@ export async function GET(request: NextRequest) {
   logger.start();
 
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 503 }
-      );
-    }
-
+    const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
-    const fidParam = searchParams.get('fid');
-    
-    if (!fidParam) {
+    const signerUuid = searchParams.get('signerUuid');
+
+    if (!signerUuid) {
       return NextResponse.json(
-        { error: 'FID is required' },
+        { error: 'signerUuid is required' },
         { status: 400 }
       );
     }
-    
-    // Validate FID
-    const fid = validateFid(fidParam);
+
+    // Verify signer and derive FID
+    let fid: number;
+    try {
+      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      if (!signerData?.fid) {
+        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
+      }
+      fid = signerData.fid;
+    } catch {
+      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    }
+
     logger.info('Fetching curated lists', { fid });
-    
+
     const { data, error } = await supabase
       .from('curated_lists')
       .select('*')
@@ -68,27 +74,31 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 503 }
-      );
-    }
-
+    const supabase = getSupabaseClient();
     const body = await request.json();
-    const { fid, listName, description, isPublic } = body;
-    
-    if (!fid || !listName) {
+    const { signerUuid, listName, description, isPublic } = body;
+
+    if (!signerUuid || !listName) {
       return NextResponse.json(
-        { error: 'FID and listName are required' },
+        { error: 'signerUuid and listName are required' },
         { status: 400 }
       );
     }
-    
-    // Validate FID
-    const validatedFid = validateFid(fid);
+
+    // Verify signer and derive FID
+    let validatedFid: number;
+    try {
+      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      if (!signerData?.fid) {
+        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
+      }
+      validatedFid = signerData.fid;
+    } catch {
+      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    }
+
     logger.info('Creating list', { fid: validatedFid, listName });
-    
+
     const { data, error } = await supabase
       .from('curated_lists')
       .insert([{
@@ -129,26 +139,29 @@ export async function DELETE(request: NextRequest) {
   logger.start();
 
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 503 }
-      );
-    }
-
+    const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const listId = searchParams.get('id');
-    const fidParam = searchParams.get('fid');
-    
-    if (!listId || !fidParam) {
+    const signerUuid = searchParams.get('signerUuid');
+
+    if (!listId || !signerUuid) {
       return NextResponse.json(
-        { error: 'List ID and FID are required' },
+        { error: 'List ID and signerUuid are required' },
         { status: 400 }
       );
     }
-    
-    // Validate inputs
-    const fid = validateFid(fidParam);
+
+    // Verify signer and derive FID
+    let fid: number;
+    try {
+      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      if (!signerData?.fid) {
+        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
+      }
+      fid = signerData.fid;
+    } catch {
+      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    }
     const parsedListId = parseInt(listId);
     if (isNaN(parsedListId)) {
       return NextResponse.json({ error: 'Invalid list ID' }, { status: 400 });

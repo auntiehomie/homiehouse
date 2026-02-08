@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { neynarFetch } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-
-const supabase = supabaseUrl && supabaseKey 
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
+function getSupabaseClient() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
+  }
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 /**
  * POST /api/curate-cast
@@ -20,24 +23,28 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: 'Supabase not configured' },
-        { status: 503 }
-      );
-    }
-
+    const supabase = getSupabaseClient();
     const body = await request.json();
-    const { fid, listName, castHash, castData, notes } = body;
-    
-    if (!fid || !listName || !castHash) {
+    const { signerUuid, listName, castHash, castData, notes } = body;
+
+    if (!signerUuid || !listName || !castHash) {
       return NextResponse.json(
-        { error: 'FID, listName, and castHash are required' },
+        { error: 'signerUuid, listName, and castHash are required' },
         { status: 400 }
       );
     }
-    
-    const validatedFid = validateFid(fid);
+
+    // Verify signer and derive FID (prevents FID spoofing)
+    let validatedFid: number;
+    try {
+      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      if (!signerData?.fid) {
+        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
+      }
+      validatedFid = signerData.fid;
+    } catch {
+      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    }
     logger.info('Curating cast', { fid: validatedFid, listName, castHash });
     
     // Step 1: Find or create the list

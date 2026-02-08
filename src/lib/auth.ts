@@ -39,7 +39,10 @@ export function verifyBearerToken(request: NextRequest): string {
  */
 export function verifyCronSecret(request: NextRequest, requiredSecret?: string): void {
   if (!requiredSecret) {
-    // If no secret is configured, allow the request
+    // In production, reject requests if no secret is configured
+    if (process.env.NODE_ENV === 'production') {
+      throw new AuthError('CRON_SECRET not configured', 500, 'MISSING_CONFIG');
+    }
     return;
   }
 

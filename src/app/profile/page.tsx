@@ -53,18 +53,25 @@ function ProfileContent() {
             throw new Error('Failed to fetch profile');
           }
           const data = await response.json();
-          console.log('[Profile Page] Profile data received:', {
-            fid: data.fid,
-            username: data.username,
-            hasCasts: !!data.casts,
-            castsCount: data.casts?.length || 0
+          // Handle both shapes: { user, casts } and flattened { ...user, casts }
+          const user = data.user ?? data;
+          const castsResp = data.casts ?? (data.user?.casts ?? null);
+
+          console.log('[Profile Page] Full profile response:', data);
+          console.log('[Profile Page] Profile data received (summary):', {
+            fid: user?.fid,
+            username: user?.username,
+            hasCasts: !!castsResp,
+            castsCount: castsResp?.length || 0,
+            userKeys: user ? Object.keys(user).slice(0, 20) : null
           });
-          setProfile(data);
-          
+
+          setProfile(user);
+
           // Set casts if included
-          if (data.casts) {
-            console.log('[Profile Page] Setting casts:', data.casts.length);
-            setCasts(data.casts);
+          if (castsResp) {
+            console.log('[Profile Page] Setting casts:', castsResp.length);
+            setCasts(castsResp);
             setCastsLoading(false);
           } else {
             console.log('[Profile Page] No casts in response');
@@ -88,18 +95,25 @@ function ProfileContent() {
           }
 
           const data = await response.json();
-          console.log('[Profile Page] Profile data received:', {
-            fid: data.fid,
-            username: data.username,
-            hasCasts: !!data.casts,
-            castsCount: data.casts?.length || 0
+          // Handle both shapes: { user, casts } and flattened { ...user, casts }
+          const user = data.user ?? data;
+          const castsResp = data.casts ?? (data.user?.casts ?? null);
+
+          console.log('[Profile Page] Full profile response:', data);
+          console.log('[Profile Page] Profile data received (summary):', {
+            fid: user?.fid,
+            username: user?.username,
+            hasCasts: !!castsResp,
+            castsCount: castsResp?.length || 0,
+            userKeys: user ? Object.keys(user).slice(0, 20) : null
           });
-          setProfile(data);
-          
+
+          setProfile(user);
+
           // Set casts if included
-          if (data.casts) {
-            console.log('[Profile Page] Setting casts:', data.casts.length);
-            setCasts(data.casts);
+          if (castsResp) {
+            console.log('[Profile Page] Setting casts:', castsResp.length);
+            setCasts(castsResp);
             setCastsLoading(false);
           } else {
             console.log('[Profile Page] No casts in response');
@@ -159,9 +173,13 @@ function ProfileContent() {
             {/* Avatar */}
             <div className="relative -mt-16 mb-4">
               <img
-                src={profile.pfp_url}
-                alt={profile.display_name}
+                src={profile.pfp_url || '/default-avatar.png'}
+                alt={profile.display_name || 'User avatar'}
                 className="w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900"
+                onError={(e) => {
+                  // @ts-ignore - set fallback avatar on error
+                  e.currentTarget.src = '/default-avatar.png';
+                }}
               />
               {profile.power_badge && (
                 <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full w-10 h-10 flex items-center justify-center border-4 border-white dark:border-zinc-900">
@@ -180,13 +198,13 @@ function ProfileContent() {
             <div className="flex gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-zinc-800">
               <div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {profile.follower_count.toLocaleString()}
+                  {typeof profile.follower_count === 'number' ? profile.follower_count.toLocaleString() : '0'}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Followers</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {profile.following_count.toLocaleString()}
+                  {typeof profile.following_count === 'number' ? profile.following_count.toLocaleString() : '0'}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400">Following</div>
               </div>
@@ -223,8 +241,21 @@ function ProfileContent() {
           ) : (
             <div className="space-y-4">
               {casts.map((cast) => {
-                const timeLabel = formatDistanceToNow(new Date(cast.timestamp), { addSuffix: true });
-                
+                // Defensive: guard against missing/invalid timestamps which can throw in date-fns
+                let timeLabel = '';
+                try {
+                  if (cast?.timestamp) {
+                    const d = new Date(cast.timestamp);
+                    if (!isNaN(d.getTime())) {
+                      timeLabel = formatDistanceToNow(d, { addSuffix: true });
+                    } else {
+                      console.warn('[Profile Page] Invalid cast timestamp:', cast.timestamp);
+                    }
+                  }
+                } catch (e) {
+                  console.error('[Profile Page] Error formatting cast timestamp', e);
+                }
+
                 return (
                   <Link
                     key={cast.hash}

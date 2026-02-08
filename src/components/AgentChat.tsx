@@ -152,9 +152,10 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const loadUserProfile = async () => {
     try {
       const res = await fetch(`/api/ask-homie?userId=${userId}`);
+      if (!res.ok) throw new Error(`Profile load failed: ${res.status}`);
       const data = await res.json();
-      setUserProfile(data.profile);
-      setUserStats(data.stats);
+      setUserProfile(data?.profile || null);
+      setUserStats(data?.stats || null);
     } catch (error) {
       console.error('Failed to load profile:', error);
     }
@@ -182,6 +183,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         })
       });
 
+      if (!response.ok) throw new Error(`AI request failed: ${response.status}`);
       const data = await response.json();
 
       if (data.error) {
@@ -190,7 +192,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.response,
+        content: data.response || 'No response received.',
         suggestions: data.suggestions,
         agentRole: data.agentRole,
         metadata: data.metadata

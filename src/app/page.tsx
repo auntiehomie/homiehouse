@@ -92,7 +92,24 @@ export default function Home() {
             <h1 className="text-base sm:text-xl font-bold">HomieHouse</h1>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 hidden sm:block">Your Social Hub</p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ minWidth: 260 }}>
+              {/* Header search box */}
+              <form onSubmit={(e) => { e.preventDefault(); /* handled by input */ }}>
+                <input
+                  id="header-search-input"
+                  placeholder="Search people..."
+                  className="w-full p-2 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-white"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const v = (e.target as HTMLInputElement).value.trim();
+                      if (v) window.location.href = `/search?q=${encodeURIComponent(v)}`;
+                    }
+                  }}
+                />
+              </form>
+            </div>
+
             <Link
               href="/wallet"
               className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"

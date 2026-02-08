@@ -6,12 +6,17 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
-const neynarConfig = new Configuration({
-  apiKey: process.env.NEYNAR_API_KEY!
-});
-const neynar = new NeynarAPIClient(neynarConfig);
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Lazy client getters - re-read API keys on each request for key rotation support
+function getNeynar() {
+  const config = new Configuration({ apiKey: process.env.NEYNAR_API_KEY! });
+  return new NeynarAPIClient(config);
+}
+function getBotOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+function getBotAnthropic() {
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
 
 const BOT_FID = parseInt(process.env.APP_FID || '1987078');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
@@ -91,7 +96,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
         ]
       });
 
-      const response = await openai.chat.completions.create({
+      const response = await getBotOpenAI().chat.completions.create({
         model: 'gpt-4o',
         messages,
         max_tokens: 150,
@@ -122,7 +127,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
       content: `@${authorUsername} says: ${castText}`
     });
 
-    const response = await anthropic.messages.create({
+    const response = await getBotAnthropic().messages.create({
       model: 'claude-3-5-sonnet-latest',
       max_tokens: 150,
       system: BOT_PERSONALITY,
@@ -157,7 +162,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
       content: `@${authorUsername} says: ${castText}`
     });
 
-    const response = await openai.chat.completions.create({
+    const response = await getBotOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
       max_tokens: 80,
@@ -206,8 +211,11 @@ export async function GET(request: NextRequest) {
     
     let repliedCount = 0;
 
+    // Initialize Neynar client fresh (picks up rotated keys)
+    const neynar = getNeynar();
+
     // Fetch notifications
-    const notifications = await neynar.fetchAllNotifications({ 
+    const notifications = await neynar.fetchAllNotifications({
       fid: BOT_FID
     });
 

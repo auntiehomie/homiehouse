@@ -46,6 +46,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Debug: log what we received from Neynar
+    logger.info('User data from Neynar', {
+      hasFid: !!user?.fid,
+      hasUsername: !!user?.username,
+      userKeys: Object.keys(user || {}).slice(0, 10)
+    });
+
     // Optionally fetch user's casts
     let casts = null;
     if (includeCasts && userFid) {
@@ -63,7 +70,26 @@ export async function GET(request: NextRequest) {
     logger.success('Profile fetched', { fid: userFid });
     logger.end();
 
-    return NextResponse.json({ user, casts });
+    // Normalize and ensure required fields are always present (do NOT spread user after setting defaults, it overwrites with undefined)
+    const normalizedUser = {
+      fid: userFid || 0,
+      username: user?.username || `user_${userFid}`,
+      display_name: user?.display_name || user?.username || 'Unknown User',
+      pfp_url: user?.pfp_url || '',
+      follower_count: typeof user?.follower_count === 'number' ? user.follower_count : 0,
+      following_count: typeof user?.following_count === 'number' ? user.following_count : 0,
+      verified_addresses: user?.verified_addresses || { eth_addresses: [] },
+      power_badge: user?.power_badge || false,
+      profile: user?.profile || { bio: { text: '' } },
+    };
+
+    logger.info('Sending normalized profile', {
+      fid: normalizedUser.fid,
+      username: normalizedUser.username,
+      displayName: normalizedUser.display_name
+    });
+
+    return NextResponse.json({ ...normalizedUser, casts });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');

@@ -71,12 +71,32 @@ export class CuratedListService {
   // Create a new list
   static async createList(fid: number, listName: string, description?: string, isPublic: boolean = false) {
     try {
+      // SECURITY: Validate input
+      if (!listName || typeof listName !== 'string') {
+        return { ok: false, error: 'Invalid list name' };
+      }
+
+      const trimmedName = listName.trim();
+      
+      if (trimmedName.length < 1 || trimmedName.length > 100) {
+        return { ok: false, error: 'List name must be 1-100 characters' };
+      }
+
+      // Allow letters, numbers, spaces, hyphens, underscores
+      if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmedName)) {
+        return { ok: false, error: 'List name contains invalid characters' };
+      }
+
+      const trimmedDesc = description 
+        ? description.trim().slice(0, 500)
+        : null;
+
       const { data, error } = await supabase
         .from('curated_lists')
         .insert([{
           fid,
-          list_name: listName,
-          description,
+          list_name: trimmedName,
+          description: trimmedDesc,
           is_public: isPublic
         }])
         .select()
@@ -87,13 +107,13 @@ export class CuratedListService {
           return { ok: false, error: 'List with this name already exists' };
         }
         console.error('Error creating list:', error);
-        return { ok: false, error: error.message };
+        return { ok: false, error: 'Failed to create list' };
       }
       
       return { ok: true, data };
     } catch (error: any) {
       console.error('Exception creating list:', error);
-      return { ok: false, error: error?.message || 'Unknown error' };
+      return { ok: false, error: 'Failed to create list' };
     }
   }
 
@@ -124,8 +144,13 @@ export class CuratedListService {
         if (error.code === '23505') {
           return { ok: false, error: 'Cast already in this list' };
         }
-        console.error('Error adding cast to list:', error);
-        return { ok: false, error: error.message };
+        console.error('[DB Error] addCastToList failed', {
+          code: error.code,
+          message: error.message,
+          list_id: listId,
+          cast_hash: castHash
+        });
+        return { ok: false, error: 'Failed to add cast to list' };
       }
       
       return { ok: true, data };
