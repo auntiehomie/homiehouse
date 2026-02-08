@@ -423,7 +423,7 @@ export default function ComposePage() {
         }
       } else {
         // Post immediately
-        const res = await fetch("/api/privy-compose", {
+        const res = await fetch("/api/compose-cast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),

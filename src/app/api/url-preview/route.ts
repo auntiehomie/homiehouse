@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
+import { rateLimit } from '@/lib/ratelimit';
 
 export const maxDuration = 30;
 
@@ -86,6 +87,13 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
+    // Rate limit: 60 URL previews per hour per IP
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`url-preview:${ip}`, 60, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
+    }
+
     // Simple in-memory cache with TTL (serverless functions are ephemeral but this
     // helps for warm instances during preview/deploys). Cache key is URL.
     const CACHE_TTL = 60 * 60; // 1 hour

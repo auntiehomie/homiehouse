@@ -124,19 +124,31 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(req.url);
-    const fid = searchParams.get('fid');
+    const signerUuid = searchParams.get('signerUuid');
 
-    if (!fid) {
+    if (!signerUuid) {
       return NextResponse.json(
-        { ok: false, error: 'Missing fid parameter' },
+        { ok: false, error: 'Missing signerUuid parameter' },
         { status: 400 }
       );
+    }
+
+    // Verify signer and derive FID from it (prevents FID spoofing)
+    let verifiedFid: number;
+    try {
+      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      if (!signerData?.fid) {
+        return NextResponse.json({ ok: false, error: 'Invalid signer' }, { status: 401 });
+      }
+      verifiedFid = signerData.fid;
+    } catch {
+      return NextResponse.json({ ok: false, error: 'Unable to verify signer' }, { status: 401 });
     }
 
     const { data, error } = await supabase
       .from('scheduled_casts')
       .select('*')
-      .eq('user_fid', parseInt(fid))
+      .eq('user_fid', verifiedFid)
       .in('status', ['pending', 'failed'])
       .order('scheduled_time', { ascending: true });
 
@@ -144,7 +156,7 @@ export async function GET(req: NextRequest) {
       console.error('[DB Error] schedule-cast fetch failed', {
         code: error.code,
         message: error.message,
-        fid: fid
+        fid: verifiedFid
       });
       return NextResponse.json(
         { ok: false, error: 'Failed to fetch scheduled casts' },
@@ -171,13 +183,25 @@ export async function DELETE(req: NextRequest) {
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-    const fid = searchParams.get('fid');
+    const signerUuid = searchParams.get('signerUuid');
 
-    if (!id || !fid) {
+    if (!id || !signerUuid) {
       return NextResponse.json(
-        { ok: false, error: 'Missing id or fid parameter' },
+        { ok: false, error: 'Missing id or signerUuid parameter' },
         { status: 400 }
       );
+    }
+
+    // Verify signer and derive FID (prevents FID spoofing)
+    let verifiedFid: number;
+    try {
+      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      if (!signerData?.fid) {
+        return NextResponse.json({ ok: false, error: 'Invalid signer' }, { status: 401 });
+      }
+      verifiedFid = signerData.fid;
+    } catch {
+      return NextResponse.json({ ok: false, error: 'Unable to verify signer' }, { status: 401 });
     }
 
     // Update status to cancelled (only if pending or failed)
@@ -185,7 +209,7 @@ export async function DELETE(req: NextRequest) {
       .from('scheduled_casts')
       .update({ status: 'cancelled' })
       .eq('id', id)
-      .eq('user_fid', parseInt(fid))
+      .eq('user_fid', verifiedFid)
       .in('status', ['pending', 'failed'])
       .select()
       .single();

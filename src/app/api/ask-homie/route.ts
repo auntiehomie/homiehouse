@@ -6,6 +6,7 @@ import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
+import { rateLimit } from '@/lib/ratelimit';
 
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
@@ -303,6 +304,13 @@ export async function POST(req: NextRequest) {
   logger.start();
 
   try {
+    // Rate limit: 30 AI requests per hour per IP
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`ask-homie:${ip}`, 30, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
+    }
+
     const { 
       messages, 
       provider: requestedProvider, 
