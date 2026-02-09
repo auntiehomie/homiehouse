@@ -3,6 +3,7 @@ import { publishReaction, deleteReaction } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
+import { verifySignerAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-recast');
@@ -10,27 +11,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { castHash } = body;
+    const { castHash, signerUuid } = body;
 
     // Validate input
     const validatedCastHash = validateHash(castHash, 'castHash');
 
-    logger.info('Publishing recast', { 
-      castHash: validatedCastHash.substring(0, 10) + '...'
-    });
-
-    const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
-    if (!NEYNAR_SIGNER_UUID) {
-      logger.error('NEYNAR_SIGNER_UUID not configured');
+    // Authenticate
+    if (!signerUuid) {
       return NextResponse.json(
-        { error: "Neynar signer not configured" },
-        { status: 500 }
+        { error: 'signerUuid is required' },
+        { status: 401 }
       );
     }
+    const verifiedFid = await verifySignerAuth(signerUuid);
 
-    // Publish recast using shared utility
+    logger.info('Publishing recast', {
+      castHash: validatedCastHash.substring(0, 10) + '...',
+      fid: verifiedFid,
+    });
+
+    // Publish recast using the user's verified signer
     const data = await publishReaction({
-      signer_uuid: NEYNAR_SIGNER_UUID,
+      signer_uuid: signerUuid,
       reaction_type: 'recast',
       target: validatedCastHash,
     });
@@ -52,26 +54,31 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const castHashParam = searchParams.get("castHash");
+    const signerUuid = searchParams.get("signerUuid");
 
     // Validate input
-    const validatedCastHash = validateHash(castHashParam!, 'castHash');
+    if (!castHashParam) {
+      return NextResponse.json({ error: 'castHash is required' }, { status: 400 });
+    }
+    const validatedCastHash = validateHash(castHashParam, 'castHash');
 
-    logger.info('Removing recast', { 
-      castHash: validatedCastHash.substring(0, 10) + '...'
-    });
-
-    const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
-    if (!NEYNAR_SIGNER_UUID) {
-      logger.error('NEYNAR_SIGNER_UUID not configured');
+    // Authenticate
+    if (!signerUuid) {
       return NextResponse.json(
-        { error: "Neynar signer not configured" },
-        { status: 500 }
+        { error: 'signerUuid is required' },
+        { status: 401 }
       );
     }
+    const verifiedFid = await verifySignerAuth(signerUuid);
 
-    // Remove recast using shared utility
+    logger.info('Removing recast', {
+      castHash: validatedCastHash.substring(0, 10) + '...',
+      fid: verifiedFid,
+    });
+
+    // Remove recast using the user's verified signer
     const data = await deleteReaction({
-      signer_uuid: NEYNAR_SIGNER_UUID,
+      signer_uuid: signerUuid,
       reaction_type: 'recast',
       target: validatedCastHash,
     });

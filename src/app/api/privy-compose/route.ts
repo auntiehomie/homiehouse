@@ -3,7 +3,7 @@ import { publishCast } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateEmbeds, validateChannelKey } from '@/lib/validation';
-import { verifySignerOwnership, getOptionalAuth } from '@/lib/auth';
+import { verifySignerAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-compose');
@@ -11,56 +11,42 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { text, embeds, channelKey, parentUrl, signerUuid, fid } = body;
+    const { text, embeds, channelKey, parentUrl, signerUuid } = body;
 
-    logger.info('Compose request', { 
+    logger.info('Compose request', {
       textLength: text?.length,
       embedCount: embeds?.length,
       channelKey,
       hasParent: !!parentUrl,
       signerProvided: !!signerUuid,
-      fid
     });
 
     // Validate inputs
     const validatedText = validateCastText(text);
     const validatedEmbeds = validateEmbeds(embeds);
-    
+
     if (channelKey) {
       validateChannelKey(channelKey);
     }
 
-    // Get authenticated user (if available)
-    const authToken = getOptionalAuth(request);
-    
-    // Use user's signer if provided, otherwise fallback to bot signer
-    const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
-    const effectiveSignerUuid = signerUuid || NEYNAR_SIGNER_UUID;
-    
-    if (!effectiveSignerUuid) {
-      logger.error('No signer UUID available');
+    // Require signer authentication
+    if (!signerUuid) {
       return NextResponse.json(
-        { error: "No signer UUID available. Please create a signer first." },
-        { status: 400 }
+        { error: "signerUuid is required. Please sign in first." },
+        { status: 401 }
       );
     }
 
-    // TODO: Verify signer ownership if user is authenticated
-    if (authToken && signerUuid) {
-      logger.warn('Signer ownership verification not implemented', {
-        signerUuid: signerUuid.substring(0, 8) + '...'
-      });
-      // await verifySignerOwnership(signerUuid, authToken);
-    }
+    const verifiedFid = await verifySignerAuth(signerUuid);
 
-    logger.info('Using signer', { 
-      signerPrefix: effectiveSignerUuid.substring(0, 8) + '...',
-      fid: fid || 'not specified'
+    logger.info('Using verified signer', {
+      signerPrefix: signerUuid.substring(0, 8) + '...',
+      fid: verifiedFid,
     });
 
     // Build cast payload
     const castPayload: any = {
-      signer_uuid: effectiveSignerUuid,
+      signer_uuid: signerUuid,
       text: validatedText,
     };
 
@@ -77,21 +63,14 @@ export async function POST(request: NextRequest) {
       logger.info('Adding channel to cast', { channelKey });
     }
 
-    logger.info('Cast payload prepared', { 
-      hasText: !!castPayload.text,
-      hasEmbeds: !!castPayload.embeds,
-      hasParent: !!castPayload.parent,
-      channelId: castPayload.channel_id || 'none'
-    });
-
     // Publish cast using shared utility
     const result = await publishCast(castPayload);
 
-    logger.success('Cast published successfully', { 
-      hash: result?.cast?.hash 
+    logger.success('Cast published successfully', {
+      hash: result?.cast?.hash
     });
     logger.end();
-    
+
     return NextResponse.json({
       ok: true,
       success: true,

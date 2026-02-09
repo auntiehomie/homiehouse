@@ -3,6 +3,7 @@ import { publishCast } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash } from '@/lib/validation';
+import { verifySignerAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-reply');
@@ -10,29 +11,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { text, parentHash } = body;
+    const { text, parentHash, signerUuid } = body;
 
     // Validate inputs
     const validatedText = validateCastText(text);
     const validatedParentHash = validateHash(parentHash, 'parentHash');
 
-    logger.info('Publishing reply', { 
-      textLength: validatedText.length,
-      parentHash: validatedParentHash.substring(0, 10) + '...'
-    });
-
-    const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
-    if (!NEYNAR_SIGNER_UUID) {
-      logger.error('NEYNAR_SIGNER_UUID not configured');
+    // Authenticate
+    if (!signerUuid) {
       return NextResponse.json(
-        { error: "Neynar signer not configured" },
-        { status: 500 }
+        { error: 'signerUuid is required' },
+        { status: 401 }
       );
     }
+    const verifiedFid = await verifySignerAuth(signerUuid);
 
-    // Publish reply using shared utility
+    logger.info('Publishing reply', {
+      textLength: validatedText.length,
+      parentHash: validatedParentHash.substring(0, 10) + '...',
+      fid: verifiedFid,
+    });
+
+    // Publish reply using the user's verified signer
     const result = await publishCast({
-      signer_uuid: NEYNAR_SIGNER_UUID,
+      signer_uuid: signerUuid,
       text: validatedText,
       parent: validatedParentHash,
     });

@@ -112,8 +112,10 @@ export function handleApiError(error: any, context: string): NextResponse {
   }
 
   // Handle generic errors
-  const errorMessage = error?.message || 'Internal server error';
   const isProduction = process.env.NODE_ENV === 'production';
+  const errorMessage = isProduction
+    ? 'Internal server error'
+    : (error?.message || 'Internal server error');
 
   return NextResponse.json(
     {
