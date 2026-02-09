@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // Verify signer and derive FID (prevents FID spoofing)
     let validatedFid: number;
     try {
-      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       if (!signerData?.fid) {
         return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
       }

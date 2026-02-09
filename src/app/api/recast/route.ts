@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     // Verify signer exists and is valid via Neynar
     try {
-      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       if (!signerData?.fid) {
         return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
       }
@@ -69,7 +69,7 @@ export async function DELETE(request: NextRequest) {
 
     // Verify signer
     try {
-      const signerData = await neynarFetch(`/signer/${signerUuid}`);
+      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
       if (!signerData?.fid) {
         return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
       }
