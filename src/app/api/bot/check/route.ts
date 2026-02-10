@@ -13,7 +13,7 @@ const neynar = new NeynarAPIClient(neynarConfig);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const BOT_FID = parseInt(process.env.APP_FID || '1987078');
+const BOT_FID = parseInt(process.env.APP_FID || '1349780');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
 // ⚠️ WARNING: In-memory storage only works within same serverless instance

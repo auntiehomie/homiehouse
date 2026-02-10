@@ -3,7 +3,7 @@ import { searchUsers } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
-const HOMIEHOUSE_FID = 1987078;
+const HOMIEHOUSE_FID = 1349780;
 
 export async function GET(request: NextRequest) {
   const logger = createApiLogger('/search-users');
