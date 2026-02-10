@@ -9,6 +9,12 @@ export const maxDuration = 30;
 const MAX_RESPONSE_SIZE = 1 * 1024 * 1024; // 1MB
 const MAX_CACHE_SIZE = 500;
 
+// Type-safe global cache for URL preview data
+type CacheEntry = { ts: number; data: Record<string, unknown> };
+const globalCache = globalThis as typeof globalThis & {
+  __urlPreviewCache?: Map<string, CacheEntry>;
+};
+
 interface OpenGraphData {
   title?: string;
   description?: string;
@@ -152,9 +158,10 @@ export async function POST(request: NextRequest) {
 
     // Cache setup (persist across warm invocations)
     const CACHE_TTL = 60 * 60; // 1 hour
-    type CacheEntry = { ts: number; data: any };
-    // @ts-ignore global cache
-    globalThis.__urlPreviewCache = (globalThis.__urlPreviewCache || new Map()) as Map<string, CacheEntry>;
+    if (!globalCache.__urlPreviewCache) {
+      globalCache.__urlPreviewCache = new Map();
+    }
+    const cache = globalCache.__urlPreviewCache;
     const body = await request.json();
     const { url } = body;
 
@@ -192,7 +199,6 @@ export async function POST(request: NextRequest) {
     logger.info('Fetching URL preview', { url });
 
     // Return cached value when fresh
-    const cache = (globalThis.__urlPreviewCache as Map<string, CacheEntry>);
     const cached = cache.get(url);
     if (cached && (Date.now() - cached.ts) / 1000 < CACHE_TTL) {
       logger.info('Returning cached URL preview', { url });
