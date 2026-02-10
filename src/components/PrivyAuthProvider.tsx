@@ -19,9 +19,6 @@ export default function PrivyAuthProvider({ children }: { children: ReactNode })
             createOnLogin: 'users-without-wallets',
           },
         },
-        farcaster: {
-          enabled: true,
-        },
       }}
     >
       {children}
