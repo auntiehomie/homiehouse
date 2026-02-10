@@ -15,7 +15,9 @@ export default function PrivyAuthProvider({ children }: { children: ReactNode })
           logo: 'https://homiehouse.vercel.app/logo.png',
         },
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
+          ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
         },
         farcaster: {
           enabled: true,
