@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { neynarFetch } from '@/lib/neynar';
+import { verifySignerAuth } from '@/lib/auth';
 import { rateLimit } from '@/lib/ratelimit';
 
 function getSupabaseClient() {
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     // SECURITY: Rate limiting (10 casts per hour per IP)
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
     const { success: rateLimitOk } = rateLimit(`schedule-cast:${ip}`, 10, 3600);
-    
+
     if (!rateLimitOk) {
       return NextResponse.json(
         { ok: false, error: 'Rate limited. Try again later.' },
@@ -40,31 +40,12 @@ export async function POST(req: NextRequest) {
     }
 
     // SECURITY: Verify signer UUID and get authenticated FID
-    let signerData;
-    try {
-      const signerResponse = await neynarFetch(`/signer/${signerUuid}`, {}, 'GET');
-      if (!signerResponse || !signerResponse.fid) {
-        return NextResponse.json(
-          { ok: false, error: 'Invalid signer' },
-          { status: 401 }
-        );
-      }
-      signerData = signerResponse;
-    } catch (error) {
-      console.error('Failed to verify signer:', error);
-      return NextResponse.json(
-        { ok: false, error: 'Unable to verify signer' },
-        { status: 401 }
-      );
-    }
-
-    // Use verified FID from signer, not client input
-    const fid = signerData.fid;
+    const verifiedFid = await verifySignerAuth(signerUuid);
 
     // Verify scheduled time is in the future
     const scheduledDate = new Date(scheduled_time);
     const now = new Date();
-    
+
     if (scheduledDate <= now) {
       return NextResponse.json(
         { ok: false, error: 'Scheduled time must be in the future' },
@@ -72,9 +53,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Save scheduled cast to database
+    // Save scheduled cast to database using verified FID
     const insertData: any = {
-      user_fid: fid,
+      user_fid: verifiedFid,
       signer_uuid: signerUuid,
       text,
       embeds: embeds,
@@ -113,30 +94,32 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in schedule-cast API:', error);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Unknown error' },
+      { ok: false, error: 'Failed to schedule cast' },
       { status: 500 }
     );
   }
 }
 
-// Get user's scheduled casts
+// Get user's scheduled casts - requires signer auth
 export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(req.url);
-    const fid = searchParams.get('fid');
+    const signerUuid = searchParams.get('signerUuid');
 
-    if (!fid) {
+    if (!signerUuid) {
       return NextResponse.json(
-        { ok: false, error: 'Missing fid parameter' },
-        { status: 400 }
+        { ok: false, error: 'signerUuid is required for authentication' },
+        { status: 401 }
       );
     }
+
+    const verifiedFid = await verifySignerAuth(signerUuid);
 
     const { data, error } = await supabase
       .from('scheduled_casts')
       .select('*')
-      .eq('user_fid', parseInt(fid))
+      .eq('user_fid', verifiedFid)
       .in('status', ['pending', 'failed'])
       .order('scheduled_time', { ascending: true });
 
@@ -144,7 +127,6 @@ export async function GET(req: NextRequest) {
       console.error('[DB Error] schedule-cast fetch failed', {
         code: error.code,
         message: error.message,
-        fid: fid
       });
       return NextResponse.json(
         { ok: false, error: 'Failed to fetch scheduled casts' },
@@ -159,33 +141,35 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in schedule-cast GET:', error);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Unknown error' },
+      { ok: false, error: 'Failed to fetch scheduled casts' },
       { status: 500 }
     );
   }
 }
 
-// Delete/cancel a scheduled cast
+// Delete/cancel a scheduled cast - requires signer auth
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
-    const fid = searchParams.get('fid');
+    const signerUuid = searchParams.get('signerUuid');
 
-    if (!id || !fid) {
+    if (!id || !signerUuid) {
       return NextResponse.json(
-        { ok: false, error: 'Missing id or fid parameter' },
+        { ok: false, error: 'Missing id or signerUuid parameter' },
         { status: 400 }
       );
     }
 
-    // Update status to cancelled (only if pending or failed)
+    const verifiedFid = await verifySignerAuth(signerUuid);
+
+    // Update status to cancelled (only if pending or failed, scoped to verified user)
     const { data, error } = await supabase
       .from('scheduled_casts')
       .update({ status: 'cancelled' })
       .eq('id', id)
-      .eq('user_fid', parseInt(fid))
+      .eq('user_fid', verifiedFid)
       .in('status', ['pending', 'failed'])
       .select()
       .single();
@@ -195,7 +179,6 @@ export async function DELETE(req: NextRequest) {
         code: error.code,
         message: error.message,
         id: id,
-        fid: fid
       });
       return NextResponse.json(
         { ok: false, error: 'Failed to cancel scheduled cast' },
@@ -217,7 +200,7 @@ export async function DELETE(req: NextRequest) {
   } catch (error: any) {
     console.error('Error in schedule-cast DELETE:', error);
     return NextResponse.json(
-      { ok: false, error: error.message || 'Unknown error' },
+      { ok: false, error: 'Failed to cancel scheduled cast' },
       { status: 500 }
     );
   }

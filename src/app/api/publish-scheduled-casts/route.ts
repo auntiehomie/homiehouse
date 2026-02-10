@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifySignerAuth } from '@/lib/auth';
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -82,15 +83,6 @@ async function handlePublishScheduledCasts(req: NextRequest) {
     // Enforce authentication - reject unauthorized requests
     const ip =
       req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-
-    // TEMP DEBUG: log auth header presence and partial secret for debugging (strip full secret)
-    try {
-      const hasAuth = Boolean(authHeader);
-      const secretPreview = cronSecret ? `${cronSecret.substring(0, 8)}...${cronSecret.substring(cronSecret.length - 8)}` : 'none';
-      console.info('[DEBUG] cron auth incoming', { hasAuth, authHeaderPresent: !!authHeader, secretPreview, ip });
-    } catch (e) {
-      console.info('[DEBUG] cron auth debug failed', e);
-    }
 
     if (authHeader !== `Bearer ${cronSecret}`) {
       console.warn('❌ Unauthorized cron request from:', ip);
@@ -203,26 +195,29 @@ async function handlePublishScheduledCasts(req: NextRequest) {
   }
 }
 
-// Manual trigger for a specific scheduled cast
+// Manual trigger for a specific scheduled cast - requires signer auth
 export async function PUT(req: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     const body = await req.json();
-    const { id, fid } = body;
+    const { id, signerUuid } = body;
 
-    if (!id || !fid) {
+    if (!id || !signerUuid) {
       return NextResponse.json(
-        { ok: false, error: 'Missing id or fid' },
+        { ok: false, error: 'Missing id or signerUuid' },
         { status: 400 }
       );
     }
 
-    // Get the scheduled cast
+    // SECURITY: Verify signer and get authenticated FID
+    const verifiedFid = await verifySignerAuth(signerUuid);
+
+    // Get the scheduled cast (scoped to verified user)
     const { data: cast, error: fetchError } = await supabase
       .from('scheduled_casts')
       .select('*')
       .eq('id', id)
-      .eq('user_fid', fid)
+      .eq('user_fid', verifiedFid)
       .eq('status', 'pending')
       .single();
 

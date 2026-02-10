@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY: Rate limit (30 per hour per IP)
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const { success: rlOk } = rateLimit(`analyze-cast:${ip}`, 30, 3600);
+    if (!rlOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const castHash = searchParams.get('hash');
     const castUrl = searchParams.get('url');

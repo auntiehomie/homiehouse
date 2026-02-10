@@ -218,6 +218,10 @@ export default function ComposePage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      // SECURITY: Include signerUuid for authenticated upload
+      if (signerUuid) {
+        formData.append('signerUuid', signerUuid);
+      }
 
       const response = await fetch('/api/upload-image', {
         method: 'POST',

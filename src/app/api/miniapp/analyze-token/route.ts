@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
 import { calculateInvestmentRatingFromData } from './helpers';
+import { rateLimit } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Rate limit (30 per hour per IP)
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const { success: rlOk } = rateLimit(`analyze-token:${ip}`, 30, 3600);
+    if (!rlOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
     const { token } = await request.json();
 
     if (!token) {
@@ -26,7 +34,7 @@ export async function POST(request: NextRequest) {
     // Format basic token info
     const basicInfo = formatTokenDisplay(tokenData);
 
-    const PERPLEXITY_API_KEY = process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
+    const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
     
     // If no Perplexity key, return just the real-time data with simple analysis
     if (!PERPLEXITY_API_KEY) {

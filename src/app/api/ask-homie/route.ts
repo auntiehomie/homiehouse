@@ -6,6 +6,7 @@ import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
+import { rateLimit } from '@/lib/ratelimit';
 
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
@@ -21,11 +22,11 @@ const anthropic = new Anthropic({
 });
 
 // Only initialize Gemini if API key is available
-const geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const geminiApiKey = process.env.GEMINI_API_KEY;
 const gemini = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 
 // Perplexity for real-time data
-const perplexityApiKey = process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY || process.env.PERPLEXITY_API_KEY;
+const perplexityApiKey = process.env.PERPLEXITY_API_KEY;
 const perplexity = perplexityApiKey ? new OpenAI({
   apiKey: perplexityApiKey,
   baseURL: 'https://api.perplexity.ai'
@@ -306,9 +307,16 @@ export async function POST(req: NextRequest) {
   logger.start();
 
   try {
-    const { 
-      messages, 
-      provider: requestedProvider, 
+    // SECURITY: Rate limit (30 per hour per IP)
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const { success: rlOk } = rateLimit(`ask-homie:${ip}`, 30, 3600);
+    if (!rlOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
+    const {
+      messages,
+      provider: requestedProvider,
       castContext,
       mode = 'agent',
       userId,

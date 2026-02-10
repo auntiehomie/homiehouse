@@ -4,6 +4,7 @@ import { neynarFetch } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateUuid } from '@/lib/validation';
+import { rateLimit } from '@/lib/ratelimit';
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const APP_FID = process.env.APP_FID;
@@ -33,6 +34,16 @@ export async function POST(req: NextRequest) {
   logger.start();
   
   try {
+    // SECURITY: Rate limit signer creation (5 per hour per IP)
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const { success: rlOk } = rateLimit(`signer-create:${ip}`, 5, 3600);
+    if (!rlOk) {
+      return NextResponse.json(
+        { ok: false, error: 'Too many signer creation requests. Try again later.' },
+        { status: 429 }
+      );
+    }
+
     if (!NEYNAR_API_KEY || !APP_FID || !APP_MNEMONIC) {
       return NextResponse.json(
         { ok: false, error: "Server configuration incomplete" },
