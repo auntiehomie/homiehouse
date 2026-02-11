@@ -68,6 +68,8 @@ export async function verifySignerAuth(signerUuid: string): Promise<number> {
       // ignore
     }
     console.error(`[verifySignerAuth] Neynar API error: status=${response.status}, body=${errorBody}`);
+    console.error(`[verifySignerAuth] Request URL: ${response.url}`);
+    console.error(`[verifySignerAuth] Request headers: x-api-key=${NEYNAR_API_KEY ? '***' : 'missing'}`);
 
     if (response.status === 404) {
       throw new AuthError('Invalid signer', 401, 'INVALID_SIGNER');

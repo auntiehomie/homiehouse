@@ -53,11 +53,13 @@ function ProfileContent() {
             throw new Error('Failed to fetch profile');
           }
           const data = await response.json();
+          // Support wrapped responses like { data: { user, casts } }
+          const payload = data?.data ?? data;
           // Handle both shapes: { user, casts } and flattened { ...user, casts }
-          const user = data.user ?? data;
-          const castsResp = data.casts ?? (data.user?.casts ?? null);
+          const user = payload.user ?? payload;
+          const castsResp = payload.casts ?? (payload.user?.casts ?? null);
 
-          console.log('[Profile Page] Full profile response:', data);
+          console.log('[Profile Page] Full profile response (payload):', payload);
           console.log('[Profile Page] Profile data received (summary):', {
             fid: user?.fid,
             username: user?.username,
@@ -66,7 +68,14 @@ function ProfileContent() {
             userKeys: user ? Object.keys(user).slice(0, 20) : null
           });
 
-          setProfile(user);
+          // Normalize numeric fields to avoid client runtime errors (ensure toLocaleString safe)
+          const normalizedUser = {
+            ...user,
+            follower_count: typeof user?.follower_count === 'number' ? user.follower_count : Number(user?.follower_count) || 0,
+            following_count: typeof user?.following_count === 'number' ? user.following_count : Number(user?.following_count) || 0,
+          };
+
+          setProfile(normalizedUser as UserProfile);
 
           // Set casts if included
           if (castsResp) {
@@ -95,11 +104,13 @@ function ProfileContent() {
           }
 
           const data = await response.json();
+          // Support wrapped responses like { data: { user, casts } }
+          const payload = data?.data ?? data;
           // Handle both shapes: { user, casts } and flattened { ...user, casts }
-          const user = data.user ?? data;
-          const castsResp = data.casts ?? (data.user?.casts ?? null);
+          const user = payload.user ?? payload;
+          const castsResp = payload.casts ?? (payload.user?.casts ?? null);
 
-          console.log('[Profile Page] Full profile response:', data);
+          console.log('[Profile Page] Full profile response (payload):', payload);
           console.log('[Profile Page] Profile data received (summary):', {
             fid: user?.fid,
             username: user?.username,
@@ -108,7 +119,14 @@ function ProfileContent() {
             userKeys: user ? Object.keys(user).slice(0, 20) : null
           });
 
-          setProfile(user);
+          // Normalize numeric fields to avoid client runtime errors (ensure toLocaleString safe)
+          const normalizedUser = {
+            ...user,
+            follower_count: typeof user?.follower_count === 'number' ? user.follower_count : Number(user?.follower_count) || 0,
+            following_count: typeof user?.following_count === 'number' ? user.following_count : Number(user?.following_count) || 0,
+          };
+
+          setProfile(normalizedUser as UserProfile);
 
           // Set casts if included
           if (castsResp) {

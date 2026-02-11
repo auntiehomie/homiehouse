@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { text, embeds, channelKey, parentUrl, signerUuid } = body;
+    const { text, embeds, channelKey, parentUrl } = body;
+    const signerUuid = body.signerUuid || body.signer_uuid;
 
     logger.info('Compose request', {
       textLength: text?.length,
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest) {
       channelKey,
       hasParent: !!parentUrl,
       signerProvided: !!signerUuid,
+      signerField: body.signerUuid ? 'signerUuid' : body.signer_uuid ? 'signer_uuid' : 'none',
     });
 
     // Validate inputs
@@ -37,11 +39,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const verifiedFid = await verifySignerAuth(signerUuid);
+    let verifiedFid;
+    try {
+      verifiedFid = await verifySignerAuth(signerUuid);
+    } catch (authErr: any) {
+      logger.error('Signer verification failed', authErr);
+      console.error('[SIGNER_AUTH_ERROR]', {
+        message: authErr?.message,
+        code: authErr?.code,
+        status: authErr?.status,
+        signerUuidLength: signerUuid.length,
+        signerUuidPrefix: signerUuid.substring(0, 8),
+      });
+      throw authErr;
+    }
 
     logger.info('Using verified signer', {
       signerPrefix: signerUuid.substring(0, 8) + '...',
       fid: verifiedFid,
+      signerUuidLength: signerUuid.length,
     });
 
     // Build cast payload
