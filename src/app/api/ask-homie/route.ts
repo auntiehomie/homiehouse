@@ -251,7 +251,7 @@ async function fetchCastData(castHash: string) {
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
-        'api_key': apiKey,
+        'x-api-key': apiKey,
       },
     });
     
@@ -284,7 +284,7 @@ async function fetchUserProfile(username: string) {
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
-        'api_key': apiKey,
+        'x-api-key': apiKey,
       },
     });
     

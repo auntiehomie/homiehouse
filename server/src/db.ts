@@ -99,7 +99,7 @@ export async function searchCasts(query: string, limit: number = 10): Promise<an
   const response = await fetch(url, {
     headers: {
       'accept': 'application/json',
-      'api_key': apiKey,
+      'x-api-key': apiKey,
     },
   });
 
@@ -121,7 +121,7 @@ export async function getCastsByUsername(username: string, limit: number = 25): 
   const userResponse = await fetch(userUrl, {
     headers: {
       'accept': 'application/json',
-      'api_key': apiKey,
+      'x-api-key': apiKey,
     },
   });
 
@@ -141,7 +141,7 @@ export async function getCastsByUsername(username: string, limit: number = 25): 
   const castsResponse = await fetch(castsUrl, {
     headers: {
       'accept': 'application/json',
-      'api_key': apiKey,
+      'x-api-key': apiKey,
     },
   });
 

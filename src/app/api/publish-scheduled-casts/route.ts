@@ -40,7 +40,7 @@ async function publishCast(signerUuid: string, text: string, embeds: any[] = [],
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'api_key': neynarApiKey
+      'x-api-key': neynarApiKey
     },
     body: JSON.stringify(body)
   });

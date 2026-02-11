@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const response = await fetch(endpoint, {
       headers: {
         'accept': 'application/json',
-        'api_key': NEYNAR_API_KEY
+        'x-api-key': NEYNAR_API_KEY
       }
     });
 
