@@ -61,10 +61,21 @@ export async function verifySignerAuth(signerUuid: string): Promise<number> {
   );
 
   if (!response.ok) {
+    let errorBody = '';
+    try {
+      errorBody = await response.text();
+    } catch {
+      // ignore
+    }
+    console.error(`[verifySignerAuth] Neynar API error: status=${response.status}, body=${errorBody}`);
+
     if (response.status === 404) {
       throw new AuthError('Invalid signer', 401, 'INVALID_SIGNER');
     }
-    throw new AuthError('Unable to verify signer', 500, 'SIGNER_VERIFICATION_FAILED');
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthError('Neynar API key invalid or expired', 500, 'NEYNAR_AUTH_FAILED');
+    }
+    throw new AuthError(`Unable to verify signer (${response.status})`, 500, 'SIGNER_VERIFICATION_FAILED');
   }
 
   const data = await response.json();
