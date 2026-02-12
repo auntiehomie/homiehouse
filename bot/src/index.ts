@@ -18,7 +18,7 @@ const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_FID = process.env.APP_FID || '1349780';
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '60000');
-const BOT_USERNAME = process.env.BOT_USERNAME || 'homiehouse';
+const BOT_USERNAME = process.env.BOT_USERNAME || 'auntiehomie';
 
 if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID || !ANTHROPIC_API_KEY) {
   throw new Error('Missing required env vars: NEYNAR_API_KEY, NEYNAR_SIGNER_UUID, ANTHROPIC_API_KEY');
@@ -32,7 +32,7 @@ let memory: Awaited<ReturnType<typeof getMemory>>;
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @homiehouse, a chill friend. Talk super casually.
+const BOT_PERSONALITY = `You are @auntiehomie, a chill friend. Talk super casually.
 
 Your vibe:
 - Talk like you're texting a buddy
@@ -177,8 +177,32 @@ function extractKeywords(text: string): string[] {
     .map(([word]) => word);
 }
 
-// Detect if message is requesting curation
-function detectCurationIntent(text: string): boolean {
+// Detect if message is requesting curation, and extract list name if provided
+function detectCurationIntent(text: string): { isCuration: boolean; listName?: string } {
+  // Remove mentions from text for parsing
+  const cleanText = text.replace(/@\w+/g, '').trim();
+
+  // Patterns that extract a list name from the same message
+  const listNamePatterns = [
+    /curate\s+this\s+(?:to\s+)?(?:list\s+)?[""]?([^"""\n]+?)[""]?\s*$/i,
+    /add\s+this\s+to\s+(?:my\s+)?[""]?([^"""\n]+?)[""]?\s*$/i,
+    /save\s+this\s+to\s+(?:my\s+)?[""]?([^"""\n]+?)[""]?\s*$/i,
+    /add\s+to\s+(?:my\s+)?(?:list\s+)?[""]?([^"""\n]+?)[""]?\s*$/i,
+    /save\s+to\s+(?:my\s+)?(?:list\s+)?[""]?([^"""\n]+?)[""]?\s*$/i,
+  ];
+
+  for (const pattern of listNamePatterns) {
+    const match = cleanText.match(pattern);
+    if (match && match[1]) {
+      const name = match[1].trim();
+      // Filter out generic words that aren't list names
+      if (name && name.toLowerCase() !== 'list' && name.toLowerCase() !== 'this' && name.length > 0) {
+        return { isCuration: true, listName: name };
+      }
+    }
+  }
+
+  // Generic curation request without list name
   const curationKeywords = [
     /curate\s+this/i,
     /add\s+this\s+to/i,
@@ -186,38 +210,41 @@ function detectCurationIntent(text: string): boolean {
     /add\s+to\s+(my\s+)?list/i,
     /save\s+to\s+(my\s+)?list/i,
   ];
-  return curationKeywords.some(pattern => pattern.test(text));
+  const isCuration = curationKeywords.some(pattern => pattern.test(cleanText));
+  return { isCuration };
 }
 
 // Handle curation conversation flow
+// listNameFromIntent: if the user included a list name in their initial message (one-step curation)
 async function handleCurationRequest(
   cast: any,
   author: any,
-  repliedCasts: Set<string>
+  repliedCasts: Set<string>,
+  listNameFromIntent?: string
 ): Promise<{ reply: string; shouldContinue: boolean }> {
   try {
-    console.log(`   🎯 Detected curation intent`);
-    
+    console.log(`   🎯 Detected curation intent${listNameFromIntent ? ` with list: "${listNameFromIntent}"` : ''}`);
+
     // Check if this is a continuation of an existing conversation
     const existingConv = await BotConversationService.getActiveConversation(
       author.fid,
       'curation'
     );
-    
+
     if (existingConv) {
       console.log(`   💬 Continuing curation conversation (ID: ${existingConv.id})`);
-      
+
       // User is responding with a list name
       const listName = cast.text
         .replace(/@\w+/g, '') // Remove mentions
         .trim();
-      
+
       console.log(`   📝 User specified list: "${listName}"`);
-      
+
       // Get the original cast details from conversation context
       const contextData = existingConv.context_data;
       const originalCastHash = contextData?.cast_hash;
-      
+
       if (!originalCastHash || !existingConv.id) {
         if (existingConv.id) {
           await BotConversationService.endConversation(existingConv.id);
@@ -227,10 +254,10 @@ async function handleCurationRequest(
           shouldContinue: true
         };
       }
-      
+
       // Find or create the list
       let list = await CuratedListService.getListByName(author.fid, listName);
-      
+
       if (!list) {
         console.log(`   ✨ Creating new list: "${listName}"`);
         const createResult = await CuratedListService.createList(
@@ -238,7 +265,7 @@ async function handleCurationRequest(
           listName,
           `Created via @${BOT_USERNAME}`
         );
-        
+
         if (!createResult.ok || !existingConv.id) {
           if (existingConv.id) {
             await BotConversationService.endConversation(existingConv.id);
@@ -250,9 +277,9 @@ async function handleCurationRequest(
         }
         list = createResult.data;
       }
-      
+
       console.log(`   📋 Adding cast to list: "${list.list_name}" (ID: ${list.id})`);
-      
+
       // Add the cast to the list
       const addResult = await CuratedListService.addCastToList(
         list.id!,
@@ -264,12 +291,12 @@ async function handleCurationRequest(
           timestamp: contextData?.cast_timestamp
         }
       );
-      
+
       // End the conversation
       if (existingConv.id) {
         await BotConversationService.endConversation(existingConv.id);
       }
-      
+
       if (!addResult.ok) {
         if (addResult.error === 'Cast already in this list') {
           return {
@@ -282,20 +309,20 @@ async function handleCurationRequest(
           shouldContinue: true
         };
       }
-      
+
       console.log(`   ✅ Successfully added cast to list`);
       return {
         reply: `added to "${list.list_name}" 🏠✨`,
         shouldContinue: true
       };
-      
+
     } else {
-      console.log(`   🆕 Starting new curation conversation`);
-      
+      // New curation request
+
       // Get the parent cast (the one they want to curate)
       let parentCastHash = cast.parent_hash;
       let parentCastData: any = null;
-      
+
       // If they mentioned us in a cast without a parent, they might be referring to their own cast
       if (!parentCastHash) {
         console.log(`   ⚠️  No parent cast found - assuming they want to curate their own cast`);
@@ -329,16 +356,75 @@ async function handleCurationRequest(
           console.error('Error fetching parent cast:', error);
         }
       }
-      
+
+      // ONE-STEP CURATION: If list name was provided in the initial message, skip the conversation
+      if (listNameFromIntent) {
+        console.log(`   ⚡ One-step curation: adding to "${listNameFromIntent}"`);
+
+        // Find or create the list
+        let list = await CuratedListService.getListByName(author.fid, listNameFromIntent);
+
+        if (!list) {
+          console.log(`   ✨ Creating new list: "${listNameFromIntent}"`);
+          const createResult = await CuratedListService.createList(
+            author.fid,
+            listNameFromIntent,
+            `Created via @${BOT_USERNAME}`
+          );
+
+          if (!createResult.ok) {
+            return {
+              reply: `couldn't create that list: ${createResult.error} 😕`,
+              shouldContinue: true
+            };
+          }
+          list = createResult.data;
+        }
+
+        // Add cast to list
+        const addResult = await CuratedListService.addCastToList(
+          list.id!,
+          parentCastHash,
+          author.fid,
+          {
+            author_fid: parentCastData?.author_fid,
+            text: parentCastData?.text,
+            timestamp: parentCastData?.timestamp
+          }
+        );
+
+        if (!addResult.ok) {
+          if (addResult.error === 'Cast already in this list') {
+            return {
+              reply: `that cast is already in "${list.list_name}" 👍`,
+              shouldContinue: true
+            };
+          }
+          return {
+            reply: `couldn't add it: ${addResult.error} 😕`,
+            shouldContinue: true
+          };
+        }
+
+        console.log(`   ✅ One-step curation complete`);
+        return {
+          reply: `added to "${list.list_name}" 🏠✨`,
+          shouldContinue: true
+        };
+      }
+
+      // TWO-STEP CURATION: No list name provided, start conversation to ask
+      console.log(`   🆕 Starting curation conversation (no list name provided)`);
+
       // Get user's existing lists to suggest
       const userLists = await CuratedListService.getUserLists(author.fid);
-      
+
       let reply = "which list? 📝";
       if (userLists.length > 0) {
         const listNames = userLists.slice(0, 3).map(l => `"${l.list_name}"`).join(', ');
         reply = `which list? you have: ${listNames} (or say a new name) 📝`;
       }
-      
+
       // Start a conversation
       const convResult = await BotConversationService.startConversation(
         author.fid,
@@ -352,7 +438,7 @@ async function handleCurationRequest(
         },
         cast.hash
       );
-      
+
       if (!convResult.ok) {
         console.error('Error starting conversation:', convResult.error);
         return {
@@ -360,7 +446,7 @@ async function handleCurationRequest(
           shouldContinue: true
         };
       }
-      
+
       console.log(`   ✅ Started conversation (ID: ${convResult.data.id})`);
       return {
         reply,
@@ -617,15 +703,15 @@ async function checkNotifications(repliedCasts: Set<string>): Promise<void> {
       console.log(`   "${cast.text}"`);
 
       // Check if this is a curation request or continuation
-      const isCurationRequest = detectCurationIntent(cast.text);
+      const curationIntent = detectCurationIntent(cast.text);
       const hasActiveCuration = await BotConversationService.getActiveConversation(
         author.fid,
         'curation'
       );
-      
-      if (isCurationRequest || hasActiveCuration) {
+
+      if (curationIntent.isCuration || hasActiveCuration) {
         console.log(`   🎨 Handling curation conversation...`);
-        const curationResult = await handleCurationRequest(cast, author, repliedCasts);
+        const curationResult = await handleCurationRequest(cast, author, repliedCasts, curationIntent.listName);
         
         if (curationResult.shouldContinue) {
           // Mark as replied BEFORE posting

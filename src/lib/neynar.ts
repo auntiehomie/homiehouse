@@ -5,7 +5,6 @@
 
 import { NeynarError } from './errors';
 
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const NEYNAR_BASE_URL = 'https://api.neynar.com/v2/farcaster';
 
 export interface NeynarFetchOptions extends RequestInit {
@@ -23,12 +22,14 @@ export async function neynarFetch<T = any>(
   endpoint: string,
   options?: NeynarFetchOptions
 ): Promise<T> {
-  if (!NEYNAR_API_KEY && !options?.skipAuth) {
+  // Read API key fresh on each call for key rotation support
+  const apiKey = process.env.NEYNAR_API_KEY;
+  if (!apiKey && !options?.skipAuth) {
     throw new NeynarError('NEYNAR_API_KEY not configured', 500, 'MISSING_API_KEY');
   }
 
-  const url = endpoint.startsWith('http') 
-    ? endpoint 
+  const url = endpoint.startsWith('http')
+    ? endpoint
     : `${NEYNAR_BASE_URL}${endpoint}`;
 
   const { skipAuth, ...fetchOptions } = options || {};
@@ -38,7 +39,7 @@ export async function neynarFetch<T = any>(
     headers: {
       'accept': 'application/json',
       'content-type': 'application/json',
-      ...(skipAuth ? {} : { 'x-api-key': NEYNAR_API_KEY! }),
+    ...(skipAuth ? {} : { 'x-api-key': apiKey! }),
       ...fetchOptions?.headers,
     },
   });

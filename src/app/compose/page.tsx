@@ -444,7 +444,7 @@ export default function ComposePage() {
           console.error('[ComposePage] Schedule API error:', { status: res.status, error: errorMsg, code: errorCode });
           setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
-      } else {
+            } else {
         // Post immediately
         console.log('[ComposePage] Sending POST to /api/privy-compose with body:', JSON.stringify(body, null, 2));
         const res = await fetch("/api/privy-compose", {

@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
-import WalletProvider from "../components/WalletProvider";
 import NeynarAuthProvider from "../components/NeynarAuthProvider";
 import NeynarProvider from "../components/NeynarProvider";
 import BottomNav from "../components/BottomNav";
@@ -31,13 +30,11 @@ export default function RootLayout({
       <body className={`antialiased`}>
         <NeynarProvider>
           <NeynarAuthProvider>
-            <WalletProvider>
-              <SdkDevMock />
-              <div className="pb-20 md:pb-8">
-                {children}
-              </div>
-              <BottomNav />
-            </WalletProvider>
+            <SdkDevMock />
+            <div className="pb-20 md:pb-8">
+              {children}
+            </div>
+            <BottomNav />
           </NeynarAuthProvider>
         </NeynarProvider>
       </body>

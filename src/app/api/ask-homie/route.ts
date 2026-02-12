@@ -11,33 +11,30 @@ import { rateLimit } from '@/lib/ratelimit';
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
 
-const AI_PROVIDER = process.env.AI_PROVIDER || 'openai'; // 'openai' or 'claude'
+// Lazy client getters - re-read API keys from env on each request
+// so rotated keys are picked up without redeployment
+function getOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getAnthropic() {
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+function getGemini() {
+  const key = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  return key ? new GoogleGenerativeAI(key) : null;
+}
 
-// Only initialize Gemini if API key is available
-const geminiApiKey = process.env.GEMINI_API_KEY;
-const gemini = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
+function getPerplexity() {
+  const key = process.env.PERPLEXITY_API_KEY || process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY;
+  return key ? new OpenAI({ apiKey: key, baseURL: 'https://api.perplexity.ai' }) : null;
+}
 
-// Perplexity for real-time data
-const perplexityApiKey = process.env.PERPLEXITY_API_KEY;
-const perplexity = perplexityApiKey ? new OpenAI({
-  apiKey: perplexityApiKey,
-  baseURL: 'https://api.perplexity.ai'
-}) : null;
-
-// Kimi (Moonshot AI) - OpenAI-compatible API
-const kimiApiKey = process.env.KIMI_API_KEY;
-const kimi = kimiApiKey ? new OpenAI({
-  apiKey: kimiApiKey,
-  baseURL: 'https://api.moonshot.cn/v1'
-}) : null;
+function getKimi() {
+  const key = process.env.KIMI_API_KEY;
+  return key ? new OpenAI({ apiKey: key, baseURL: 'https://api.moonshot.cn/v1' }) : null;
+}
 
 const SYSTEM_PROMPT = `You are Homie, a helpful AI assistant for HomieHouse - a Farcaster-based social platform. 
 
@@ -174,7 +171,7 @@ function selectBestProvider(question: string): 'perplexity' | 'gemini' | 'claude
   }
   
   // Return provider with highest score
-  if (perplexityScore > 0 && perplexity) return 'perplexity';
+  if (perplexityScore > 0 && getPerplexity()) return 'perplexity';
   if (geminiScore > claudeScore && geminiScore > openaiScore) return 'gemini';
   if (openaiScore > claudeScore) return 'openai';
   return 'claude'; // Default to Claude for general questions
@@ -311,7 +308,7 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
     const { success: rlOk } = rateLimit(`ask-homie:${ip}`, 30, 3600);
     if (!rlOk) {
-      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+      return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
     }
 
     const {
@@ -517,6 +514,13 @@ Profile URL: https://warpcast.com/${profileData.username}]`
 
     // Smart provider selection: use requested provider, or auto-select based on content
     const selectedProvider = requestedProvider || selectBestProvider(question);
+
+    // Initialize clients fresh for this request (picks up rotated keys)
+    const openai = getOpenAI();
+    const anthropic = getAnthropic();
+    const gemini = getGemini();
+    const perplexity = getPerplexity();
+    const kimi = getKimi();
 
     let response: string;
     let usedProvider = selectedProvider;

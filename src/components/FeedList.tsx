@@ -210,7 +210,7 @@ export default function FeedList({
       
       if (isLiked) {
         // Unlike
-        const res = await fetch(`/api/privy-like?castHash=${castHash}&signerUuid=${signerUuid}`, {
+        const res = await fetch(`/api/like?castHash=${castHash}&signerUuid=${signerUuid}`, {
           method: "DELETE",
         });
         if (!res.ok) {
@@ -229,7 +229,7 @@ export default function FeedList({
         });
       } else {
         // Like
-        const res = await fetch("/api/privy-like", {
+        const res = await fetch("/api/like", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ castHash, signerUuid }),
@@ -266,7 +266,7 @@ export default function FeedList({
       
       if (isRecasted) {
         // Remove recast
-        const res = await fetch(`/api/privy-recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
+        const res = await fetch(`/api/recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
           method: "DELETE",
         });
         if (!res.ok) {
@@ -285,7 +285,7 @@ export default function FeedList({
         });
       } else {
         // Recast
-        const res = await fetch("/api/privy-recast", {
+        const res = await fetch("/api/recast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ castHash, signerUuid }),
@@ -322,7 +322,7 @@ export default function FeedList({
 
     setReplyLoading(true);
     try {
-      const res = await fetch("/api/privy-reply", {
+      const res = await fetch("/api/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -429,7 +429,7 @@ export default function FeedList({
         return;
       }
 
-      const res = await fetch("/api/privy-compose", {
+      const res = await fetch("/api/compose-cast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -559,7 +559,7 @@ export default function FeedList({
       }
 
       console.log('[FeedList] Final items count:', res?.length || 0);
-      if (res?.length > 0) {
+      if (Array.isArray(res) && res.length > 0) {
         console.log('[FeedList] First cast structure:', JSON.stringify({
           hash: res[0]?.hash,
           hasEmbeds: !!res[0]?.embeds,
@@ -886,7 +886,7 @@ export default function FeedList({
                 );              })()}            </div>
             
             {/* Display embeds (images, videos, links, etc.) */}
-            {it.embeds && it.embeds.length > 0 && (
+            {Array.isArray(it.embeds) && it.embeds.length > 0 && (
               <>
                 {console.log('[FeedList] Rendering embeds for cast:', { hash: it.hash, embedCount: it.embeds.length, embeds: it.embeds })}
                 <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

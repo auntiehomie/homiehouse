@@ -127,6 +127,7 @@ export async function GET(req: NextRequest) {
       console.error('[DB Error] schedule-cast fetch failed', {
         code: error.code,
         message: error.message,
+        fid: verifiedFid
       });
       return NextResponse.json(
         { ok: false, error: 'Failed to fetch scheduled casts' },

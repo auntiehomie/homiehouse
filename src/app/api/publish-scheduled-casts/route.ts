@@ -13,10 +13,9 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-const neynarApiKey = process.env.NEYNAR_API_KEY;
-
 // Function to publish a cast using Neynar
 async function publishCast(signerUuid: string, text: string, embeds: any[] = [], channelId?: string) {
+  const neynarApiKey = process.env.NEYNAR_API_KEY;
   if (!neynarApiKey) {
     throw new Error('NEYNAR_API_KEY must be set');
   }
@@ -198,6 +197,25 @@ async function handlePublishScheduledCasts(req: NextRequest) {
 // Manual trigger for a specific scheduled cast - requires signer auth
 export async function PUT(req: NextRequest) {
   try {
+    // SECURITY: Verify authentication for manual triggers
+    const authHeader = req.headers.get('authorization');
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (!cronSecret || cronSecret.length < 32) {
+      console.error('CRON_SECRET not configured or too weak');
+      return NextResponse.json(
+        { ok: false, error: 'Service unavailable' },
+        { status: 503 }
+      );
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json(
+        { ok: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const supabase = getSupabaseClient();
     const body = await req.json();
     const { id, signerUuid } = body;

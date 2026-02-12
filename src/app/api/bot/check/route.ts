@@ -2,16 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@supabase/supabase-js';
+import { neynarFetch } from '@/lib/neynar';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
-const neynarConfig = new Configuration({
-  apiKey: process.env.NEYNAR_API_KEY!
-});
-const neynar = new NeynarAPIClient(neynarConfig);
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Lazy client getters - re-read API keys on each request for key rotation support
+function getNeynar() {
+  const config = new Configuration({ apiKey: process.env.NEYNAR_API_KEY! });
+  return new NeynarAPIClient(config);
+}
+function getBotOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+}
+function getBotAnthropic() {
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
 
 const BOT_FID = parseInt(process.env.APP_FID || '1349780');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
@@ -50,6 +57,157 @@ function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUr
   }
 
   return { hasImage: false };
+}
+
+// Detect curation intent and extract list name if provided
+function detectCurationIntent(text: string): { isCuration: boolean; listName?: string } {
+  const cleanText = text.replace(/@\w+/g, '').trim();
+
+  // Patterns that extract a list name from the same message
+  const listNamePatterns = [
+    /curate\s+this\s+(?:to\s+)?(?:list\s+)?[""\u201c]?([^""\u201c\u201d\n]+?)[""\u201d]?\s*$/i,
+    /add\s+this\s+to\s+(?:my\s+)?[""\u201c]?([^""\u201c\u201d\n]+?)[""\u201d]?\s*$/i,
+    /save\s+this\s+to\s+(?:my\s+)?[""\u201c]?([^""\u201c\u201d\n]+?)[""\u201d]?\s*$/i,
+    /add\s+to\s+(?:my\s+)?(?:list\s+)?[""\u201c]?([^""\u201c\u201d\n]+?)[""\u201d]?\s*$/i,
+    /save\s+to\s+(?:my\s+)?(?:list\s+)?[""\u201c]?([^""\u201c\u201d\n]+?)[""\u201d]?\s*$/i,
+  ];
+
+  for (const pattern of listNamePatterns) {
+    const match = cleanText.match(pattern);
+    if (match && match[1]) {
+      const name = match[1].trim();
+      if (name && name.toLowerCase() !== 'list' && name.toLowerCase() !== 'this' && name.length > 0) {
+        return { isCuration: true, listName: name };
+      }
+    }
+  }
+
+  // Generic curation request without list name
+  const curationKeywords = [
+    /curate\s+this/i,
+    /add\s+this\s+to/i,
+    /save\s+this\s+to/i,
+    /add\s+to\s+(my\s+)?list/i,
+    /save\s+to\s+(my\s+)?list/i,
+  ];
+  const isCuration = curationKeywords.some(pattern => pattern.test(cleanText));
+  return { isCuration };
+}
+
+// Handle curation: add a cast to a user's curated list
+async function handleCuration(
+  cast: any,
+  listName: string | undefined,
+  logger: ReturnType<typeof createApiLogger>
+): Promise<string> {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return "curation isn't set up yet 😅";
+  }
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const userFid = cast.author?.fid;
+  if (!userFid) return "couldn't identify you 🤔";
+
+  // The cast to curate is the parent (the one they replied to)
+  const parentHash = cast.parent_hash;
+  let parentText: string | undefined;
+  let parentAuthorFid: number | undefined;
+  let parentTimestamp: string | undefined;
+
+  if (parentHash) {
+    try {
+      const parentData = await neynarFetch(`/cast?identifier=${parentHash}&type=hash`);
+      parentText = parentData?.cast?.text;
+      parentAuthorFid = parentData?.cast?.author?.fid;
+      parentTimestamp = parentData?.cast?.timestamp;
+    } catch {
+      logger.warn('Could not fetch parent cast for curation');
+    }
+  }
+
+  const targetHash = parentHash || cast.hash;
+
+  if (!listName) {
+    // No list name: show user's existing lists
+    const { data: userLists } = await supabase
+      .from('curated_lists')
+      .select('list_name')
+      .eq('fid', userFid)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (userLists && userLists.length > 0) {
+      const names = userLists.map((l: any) => `"${l.list_name}"`).join(', ');
+      return `which list? you have: ${names} (or reply with a new name) 📝`;
+    }
+    return `which list? reply with: "@auntiehomie curate this [list name]" 📝`;
+  }
+
+  // Validate list name
+  if (listName.length > 100) {
+    return "list name too long! keep it under 100 chars 📝";
+  }
+
+  // Find or create the list
+  let { data: existingList } = await supabase
+    .from('curated_lists')
+    .select('id, list_name')
+    .eq('fid', userFid)
+    .ilike('list_name', listName)
+    .maybeSingle();
+
+  let listId: number;
+  let finalListName: string;
+
+  if (existingList) {
+    listId = existingList.id;
+    finalListName = existingList.list_name;
+  } else {
+    const { data: newList, error: createError } = await supabase
+      .from('curated_lists')
+      .insert([{
+        fid: userFid,
+        list_name: listName,
+        description: `Created via @auntiehomie`,
+        is_public: false
+      }])
+      .select('id, list_name')
+      .single();
+
+    if (createError || !newList) {
+      logger.error('Failed to create list', createError);
+      return `couldn't create "${listName}" 😕`;
+    }
+    listId = newList.id;
+    finalListName = newList.list_name;
+    logger.info(`Created new list: "${finalListName}"`);
+  }
+
+  // Add cast to list
+  const { error: insertError } = await supabase
+    .from('curated_list_items')
+    .insert([{
+      list_id: listId,
+      cast_hash: targetHash,
+      cast_author_fid: parentAuthorFid || cast.author?.fid,
+      cast_text: parentText || cast.text,
+      cast_timestamp: parentTimestamp || cast.timestamp,
+      added_by_fid: userFid,
+      notes: 'Curated via bot'
+    }]);
+
+  if (insertError) {
+    if (insertError.code === '23505') {
+      return `already in "${finalListName}" 👍`;
+    }
+    logger.error('Failed to add cast to list', insertError);
+    return "had trouble saving that 😅";
+  }
+
+  logger.info(`Curated cast ${targetHash} to list "${finalListName}"`);
+  return `added to "${finalListName}" 🏠✨`;
 }
 
 async function generateReply(cast: any, conversationHistory: any[]): Promise<string> {
@@ -91,7 +249,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
         ]
       });
 
-      const response = await openai.chat.completions.create({
+      const response = await getBotOpenAI().chat.completions.create({
         model: 'gpt-4o',
         messages,
         max_tokens: 150,
@@ -122,7 +280,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
       content: `@${authorUsername} says: ${castText}`
     });
 
-    const response = await anthropic.messages.create({
+    const response = await getBotAnthropic().messages.create({
       model: 'claude-3-5-sonnet-latest',
       max_tokens: 150,
       system: BOT_PERSONALITY,
@@ -157,7 +315,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
       content: `@${authorUsername} says: ${castText}`
     });
 
-    const response = await openai.chat.completions.create({
+    const response = await getBotOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
       max_tokens: 80,
@@ -206,8 +364,11 @@ export async function GET(request: NextRequest) {
     
     let repliedCount = 0;
 
+    // Initialize Neynar client fresh (picks up rotated keys)
+    const neynar = getNeynar();
+
     // Fetch notifications
-    const notifications = await neynar.fetchAllNotifications({ 
+    const notifications = await neynar.fetchAllNotifications({
       fid: BOT_FID
     });
 
@@ -300,19 +461,26 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        logger.info(`Generating reply for parent ${parentHash}`);
-        
-        // Generate reply
-        const reply = await generateReply(cast, []);
+        // Check for curation intent before generating a generic reply
+        const curationIntent = detectCurationIntent(cast.text || '');
+        let reply: string;
 
-        // Post reply (reply to the parent, not the notification)
+        if (curationIntent.isCuration) {
+          logger.info(`Curation request detected for parent ${parentHash}`);
+          reply = await handleCuration(cast, curationIntent.listName, logger);
+        } else {
+          logger.info(`Generating reply for parent ${parentHash}`);
+          reply = await generateReply(cast, []);
+        }
+
+        // Post reply (reply to the cast, not the parent)
         await neynar.publishCast({
           signerUuid: SIGNER_UUID,
           text: reply,
-          parent: parentHash
+          parent: castHash
         });
 
-        logger.success(`Posted reply to parent ${parentHash}`, { reply });
+        logger.success(`Posted reply to ${castHash}`, { reply });
         
         // Cache ALL tracking keys after successful reply to prevent duplicates
         trackingKeys.forEach(key => {
