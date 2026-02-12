@@ -171,7 +171,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
         .insert([{
           fid: userFid,
           list_name: trimmedListName,
-          description: `Created via @homiehouse bot`,
+          description: `Created via @auntiehomie bot`,
           is_public: false
         }])
         .select()

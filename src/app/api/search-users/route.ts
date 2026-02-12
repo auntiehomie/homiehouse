@@ -20,13 +20,13 @@ export async function GET(request: NextRequest) {
 
     logger.info('Searching users', { query: query.substring(0, 50) });
 
-    // Always include @homiehouse if query matches
+    // Always include @auntiehomie if query matches
     const queryLower = query.toLowerCase();
-    const includeHomie = 'homiehouse'.includes(queryLower) || queryLower.includes('homie');
-    
+    const includeHomie = 'auntiehomie'.includes(queryLower) || queryLower.includes('homie') || queryLower.includes('auntie');
+
     let users: any[] = [];
 
-    // If searching for homiehouse, fetch it directly first
+    // If searching for auntiehomie, fetch it directly first
     if (includeHomie) {
       try {
         const { neynarFetch } = await import('@/lib/neynar');
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
           users.push(homieData.users[0]);
         }
       } catch (e) {
-        logger.warn('Could not fetch homiehouse user', { error: String(e) });
+        logger.warn('Could not fetch auntiehomie user', { error: String(e) });
       }
     }
 
