@@ -248,7 +248,7 @@ async function fetchCastData(castHash: string) {
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
-        'api_key': apiKey,
+        'x-api-key': apiKey,
       },
     });
     
@@ -281,7 +281,7 @@ async function fetchUserProfile(username: string) {
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
-        'api_key': apiKey,
+        'x-api-key': apiKey,
       },
     });
     
@@ -304,16 +304,16 @@ export async function POST(req: NextRequest) {
   logger.start();
 
   try {
-    // Rate limit: 30 AI requests per hour per IP
+    // SECURITY: Rate limit (30 per hour per IP)
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`ask-homie:${ip}`, 30, 3600);
-    if (!rateLimitOk) {
+    const { success: rlOk } = rateLimit(`ask-homie:${ip}`, 30, 3600);
+    if (!rlOk) {
       return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
     }
 
-    const { 
-      messages, 
-      provider: requestedProvider, 
+    const {
+      messages,
+      provider: requestedProvider,
       castContext,
       mode = 'agent',
       userId,

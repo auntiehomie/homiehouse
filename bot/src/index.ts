@@ -16,7 +16,7 @@ dotenv.config();
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const APP_FID = process.env.APP_FID || '1987078';
+const APP_FID = process.env.APP_FID || '1349780';
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '60000');
 const BOT_USERNAME = process.env.BOT_USERNAME || 'auntiehomie';
 

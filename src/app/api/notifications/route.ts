@@ -3,6 +3,7 @@ import { fetchNotifications } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
+import { verifySignerAuth } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/notifications');
@@ -11,66 +12,66 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const fidParam = searchParams.get('fid');
+    const signerUuid = searchParams.get('signerUuid');
     const cursor = searchParams.get('cursor');
     const type = searchParams.get('type');
-    
+
     if (!fidParam) {
       return NextResponse.json({ error: 'FID is required' }, { status: 400 });
     }
 
-    // Validate input
+    // SECURITY: Require signer authentication for private notification data
+    if (!signerUuid) {
+      return NextResponse.json({ error: 'signerUuid is required' }, { status: 401 });
+    }
+
+    const verifiedFid = await verifySignerAuth(signerUuid);
     const fid = validateFid(fidParam).toString();
+
+    // Ensure user can only access their own notifications
+    if (verifiedFid.toString() !== fid) {
+      return NextResponse.json(
+        { error: 'Cannot access notifications for another user' },
+        { status: 403 }
+      );
+    }
 
     logger.info('Fetching notifications', { fid, cursor, type });
 
-    // Fetch notifications using shared utility
     const data = await fetchNotifications({
       fid,
       priority_mode: true,
       cursor: cursor || undefined,
       type: type || undefined,
     });
-    
-    // Transform the data to make it easier to work with
+
     const transformedNotifications = data.notifications?.map((notif: any) => {
-      // Extract actors from various possible fields based on notification type
       let actors = [];
       let actor = null;
-      
-      // For likes, get users from reactions array
+
       if (notif.type === 'likes' && notif.reactions) {
         actors = notif.reactions.map((r: any) => r.user).filter(Boolean);
         actor = actors[0];
-      }
-      // For recasts, get users from recasts array
-      else if (notif.type === 'recasts' && notif.recasts) {
+      } else if (notif.type === 'recasts' && notif.recasts) {
         actors = notif.recasts.map((r: any) => r.user).filter(Boolean);
         actor = actors[0];
-      }
-      // For follows, get users from follows array
-      else if (notif.type === 'follows' && notif.follows) {
+      } else if (notif.type === 'follows' && notif.follows) {
         actors = notif.follows.map((f: any) => f.user).filter(Boolean);
         actor = actors[0];
-      }
-      // For quotes, get users from quotes array
-      else if (notif.type === 'quote' && notif.quotes) {
+      } else if (notif.type === 'quote' && notif.quotes) {
         actors = notif.quotes.map((q: any) => q.author).filter(Boolean);
         actor = actors[0];
-      }
-      // For replies/mentions, use cast author
-      else if ((notif.type === 'reply' || notif.type === 'mention') && notif.cast?.author) {
+      } else if ((notif.type === 'reply' || notif.type === 'mention') && notif.cast?.author) {
         actor = notif.cast.author;
         actors = [actor];
-      }
-      // Fallback to other fields
-      else if (notif.reactor) {
+      } else if (notif.reactor) {
         actor = notif.reactor;
       } else if (notif.user) {
         actor = notif.user;
       } else if (notif.author) {
         actor = notif.author;
       }
-      
+
       return {
         ...notif,
         actor: actor,

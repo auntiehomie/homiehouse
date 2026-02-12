@@ -8,7 +8,8 @@ import { neynarFetch, publishCast, publishReaction } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash, validateFid } from '@/lib/validation';
-import { verifyBearerToken, getOptionalAuth, checkRateLimit } from '@/lib/auth';
+import { verifySignerAuth, verifyCronSecret } from '@/lib/auth';
+import { rateLimit } from '@/lib/ratelimit';
 
 // ============================================
 // EXAMPLE 1: Simple GET endpoint with Neynar
@@ -81,13 +82,11 @@ export async function exampleAuthRequired(request: NextRequest) {
   logger.start();
 
   try {
-    // Require authentication
-    const token = verifyBearerToken(request);
-    
-    // TODO: Get user ID from token
-    // const userId = await getUserIdFromToken(token);
-    
-    logger.info('Authenticated request');
+    // Require signer authentication
+    const body = await request.json();
+    const verifiedFid = await verifySignerAuth(body.signerUuid);
+
+    logger.info('Authenticated request', { fid: verifiedFid });
     
     // Your logic here
     
@@ -107,22 +106,11 @@ export async function exampleOptionalAuth(request: NextRequest) {
   logger.start();
 
   try {
-    // Get auth token if present (returns null if not)
-    const token = getOptionalAuth(request);
-    
     const { searchParams } = new URL(request.url);
     const fidParam = searchParams.get('fid');
     const fid = validateFid(fidParam);
-    
-    // Fetch data with or without viewer context
-    const params: any = { fid };
-    if (token) {
-      // TODO: Get viewer FID from token
-      // params.viewer_fid = viewerFid;
-      logger.info('Authenticated request', { fid });
-    } else {
-      logger.info('Public request', { fid });
-    }
+
+    logger.info('Public request', { fid });
     
     const data = await neynarFetch('/feed', { 
       method: 'GET'
@@ -151,7 +139,10 @@ export async function exampleRateLimited(request: NextRequest) {
                'unknown';
     
     // Check rate limit: 10 requests per minute
-    await checkRateLimit(`api:compose:${ip}`, 10, 60);
+    const { success: rlOk } = rateLimit(`api:compose:${ip}`, 10, 60);
+    if (!rlOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     
     const body = await request.json();
     const text = validateCastText(body.text);
@@ -181,7 +172,6 @@ export async function exampleCronJob(request: NextRequest) {
   
   try {
     // Verify CRON secret
-    const { verifyCronSecret } = await import('@/lib/auth');
     verifyCronSecret(request, process.env.CRON_SECRET);
     
     logger.start();

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifySignerAuth } from '@/lib/auth';
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -38,7 +39,7 @@ async function publishCast(signerUuid: string, text: string, embeds: any[] = [],
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'api_key': neynarApiKey
+      'x-api-key': neynarApiKey
     },
     body: JSON.stringify(body)
   });
@@ -193,7 +194,7 @@ async function handlePublishScheduledCasts(req: NextRequest) {
   }
 }
 
-// Manual trigger for a specific scheduled cast
+// Manual trigger for a specific scheduled cast - requires signer auth
 export async function PUT(req: NextRequest) {
   try {
     // SECURITY: Verify authentication for manual triggers
@@ -217,21 +218,24 @@ export async function PUT(req: NextRequest) {
 
     const supabase = getSupabaseClient();
     const body = await req.json();
-    const { id, fid } = body;
+    const { id, signerUuid } = body;
 
-    if (!id || !fid) {
+    if (!id || !signerUuid) {
       return NextResponse.json(
-        { ok: false, error: 'Missing id or fid' },
+        { ok: false, error: 'Missing id or signerUuid' },
         { status: 400 }
       );
     }
 
-    // Get the scheduled cast
+    // SECURITY: Verify signer and get authenticated FID
+    const verifiedFid = await verifySignerAuth(signerUuid);
+
+    // Get the scheduled cast (scoped to verified user)
     const { data: cast, error: fetchError } = await supabase
       .from('scheduled_casts')
       .select('*')
       .eq('id', id)
-      .eq('user_fid', fid)
+      .eq('user_fid', verifiedFid)
       .eq('status', 'pending')
       .single();
 

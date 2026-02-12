@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateImageFile } from '@/lib/validation';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
+import { verifySignerAuth } from '@/lib/auth';
 import { rateLimit } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
@@ -9,15 +10,23 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
-    // Rate limit: 20 uploads per hour per IP
+    // SECURITY: Rate limit (20 per hour per IP)
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`upload-image:${ip}`, 20, 3600);
-    if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
+    const { success: rlOk } = rateLimit(`upload-image:${ip}`, 20, 3600);
+    if (!rlOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
+
+    // SECURITY: Require signer authentication
+    const signerUuid = formData.get('signerUuid') as string;
+    if (!signerUuid) {
+      return NextResponse.json({ error: 'signerUuid is required' }, { status: 401 });
+    }
+    const verifiedFid = await verifySignerAuth(signerUuid);
+    logger.info('Upload authenticated', { fid: verifiedFid });
     
     if (!file) {
       return NextResponse.json(

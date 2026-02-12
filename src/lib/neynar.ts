@@ -39,7 +39,7 @@ export async function neynarFetch<T = any>(
     headers: {
       'accept': 'application/json',
       'content-type': 'application/json',
-      ...(skipAuth ? {} : { 'api_key': apiKey! }),
+    ...(skipAuth ? {} : { 'x-api-key': apiKey! }),
       ...fetchOptions?.headers,
     },
   });

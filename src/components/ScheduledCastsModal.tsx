@@ -16,14 +16,28 @@ export default function ScheduledCastsModal() {
   const [loading, setLoading] = useState(false);
   const [scheduledCasts, setScheduledCasts] = useState<ScheduledCast[]>([]);
   const [userFid, setUserFid] = useState<number | null>(null);
+  const [signerUuid, setSignerUuid] = useState<string | null>(null);
 
-  // Load user profile
+  // Load user profile and signer
   useEffect(() => {
     const storedProfile = localStorage.getItem("hh_profile");
     if (storedProfile) {
       try {
         const profile = JSON.parse(storedProfile);
-        setUserFid(profile?.fid);
+        const fid = profile?.fid;
+        setUserFid(fid);
+
+        if (fid) {
+          const signerData = localStorage.getItem(`signer_${fid}`);
+          if (signerData) {
+            try {
+              const parsed = JSON.parse(signerData);
+              setSignerUuid(parsed.signer_uuid || null);
+            } catch {
+              // ignore
+            }
+          }
+        }
       } catch {
         // ignore
       }
@@ -51,11 +65,11 @@ export default function ScheduledCastsModal() {
   }, []);
 
   async function fetchScheduledCasts() {
-    if (!userFid) return;
-    
+    if (!userFid || !signerUuid) return;
+
     setLoading(true);
     try {
-      const res = await fetch(`/api/schedule-cast?fid=${userFid}`);
+      const res = await fetch(`/api/schedule-cast?signerUuid=${encodeURIComponent(signerUuid)}`);
       const data = await res.json();
       
       if (data.ok) {
@@ -69,10 +83,10 @@ export default function ScheduledCastsModal() {
   }
 
   async function cancelCast(id: string) {
-    if (!userFid) return;
-    
+    if (!userFid || !signerUuid) return;
+
     try {
-      const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
+      const res = await fetch(`/api/schedule-cast?id=${id}&signerUuid=${encodeURIComponent(signerUuid)}`, {
         method: 'DELETE'
       });
       
@@ -88,13 +102,13 @@ export default function ScheduledCastsModal() {
   }
 
   async function publishNow(id: string) {
-    if (!userFid) return;
-    
+    if (!userFid || !signerUuid) return;
+
     try {
       const res = await fetch('/api/publish-scheduled-casts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, fid: userFid })
+        body: JSON.stringify({ id, signerUuid })
       });
       
       const data = await res.json();

@@ -218,6 +218,10 @@ export default function ComposePage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      // SECURITY: Include signerUuid for authenticated upload
+      if (signerUuid) {
+        formData.append('signerUuid', signerUuid);
+      }
 
       const response = await fetch('/api/upload-image', {
         method: 'POST',
@@ -399,13 +403,28 @@ export default function ComposePage() {
 
         body.scheduled_time = scheduledDate.toISOString();
         
+        console.log('[ComposePage] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
         const res = await fetch("/api/schedule-cast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
 
-        const data = await res.json();
+        console.log(`[ComposePage] Schedule response status: ${res.status} ${res.statusText}`);
+        
+        let data;
+        try {
+          data = await res.json();
+          console.log('[ComposePage] Schedule response body:', data);
+        } catch (parseErr) {
+          console.error('[ComposePage] Failed to parse schedule response:', parseErr);
+          const text = await res.text();
+          console.error('[ComposePage] Raw schedule response:', text);
+          setStatus(`Server error (${res.status}): Could not parse response. Check console.`);
+          setLoading(false);
+          return;
+        }
+        
         if (data.ok) {
           setStatus("✓ Cast scheduled successfully!");
           setText("");
@@ -419,17 +438,36 @@ export default function ComposePage() {
             router.push('/');
           }, 800);
         } else {
-          setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+          const errorMsg = data.error || data.message || "unknown error";
+          const errorCode = data.code || '';
+          const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
+          console.error('[ComposePage] Schedule API error:', { status: res.status, error: errorMsg, code: errorCode });
+          setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
-      } else {
+            } else {
         // Post immediately
-        const res = await fetch("/api/compose-cast", {
+        console.log('[ComposePage] Sending POST to /api/privy-compose with body:', JSON.stringify(body, null, 2));
+        const res = await fetch("/api/privy-compose", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
 
-        const data = await res.json();
+        console.log(`[ComposePage] Response status: ${res.status} ${res.statusText}`);
+        
+        let data;
+        try {
+          data = await res.json();
+          console.log('[ComposePage] Response body:', data);
+        } catch (parseErr) {
+          console.error('[ComposePage] Failed to parse response as JSON:', parseErr);
+          const text = await res.text();
+          console.error('[ComposePage] Raw response:', text);
+          setStatus(`Server error (${res.status}): Could not parse response. Check console for details.`);
+          setLoading(false);
+          return;
+        }
+        
         if (data.ok) {
           setStatus("✓ Posted successfully!");
           setText("");
@@ -441,7 +479,11 @@ export default function ComposePage() {
             router.push('/');
           }, 800);
         } else {
-          setStatus(`Failed: ${data.error || data.message || "unknown error"}`);
+          const errorMsg = data.error || data.message || "unknown error";
+          const errorCode = data.code || '';
+          const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
+          console.error('[ComposePage] API returned error:', { status: res.status, error: errorMsg, code: errorCode });
+          setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
       }
     } catch (err: any) {
