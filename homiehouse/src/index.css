@@ -146,3 +146,67 @@ button.btn[disabled] { opacity: 0.6; cursor: not-allowed; }
 .modal-header h3 { margin: 0 0 0.5rem 0; }
 .modal-body { margin-bottom: 0.75rem; }
 .modal-footer { display:flex; justify-content:flex-end; gap: 0.5rem; }
+
+/* ── Mobile responsive ── */
+@media (max-width: 600px) {
+  body { padding: 0.75rem; }
+
+  /* Stack header vertically on mobile */
+  .header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Wallet address: truncate long hex addresses */
+  .connect-info {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  .connect-info .address-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    font-size: 0.85rem;
+  }
+
+  .connect-container {
+    align-items: stretch;
+  }
+
+  /* Stack sign buttons vertically */
+  .sign-buttons {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .sign-buttons .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Nav links: wrap instead of overflow */
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+  }
+
+  nav .nav-sep {
+    display: none;
+  }
+
+  nav a {
+    padding: 0.2rem 0;
+  }
+
+  main { margin-top: 0.5rem; }
+}

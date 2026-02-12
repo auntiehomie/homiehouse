@@ -48,7 +48,7 @@ function ConnectMenu() {
   if (isConnected) {
     return (
       <div className="connect-info">
-        <div>Connected: {address}</div>
+        <div className="address-label">Connected: {address}</div>
         <SignButton />
       </div>
     );
@@ -111,7 +111,7 @@ function SignButton() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div className="sign-buttons" style={{ display: 'flex', gap: 8 }}>
         <button type="button" className="btn primary" onClick={() => signMessage({ message: 'homiehouse' })} disabled={isPending}>
           {isPending ? 'Signing...' : 'Sign message'}
         </button>
