@@ -1,13 +1,71 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useNeynarContext } from "@neynar/react";
 
+type Channel = {
+  name: string;
+  url: string;
+  id: string;
+};
+
+type ApiChannel = {
+  id: string;
+  name?: string | null;
+};
+
 export default function ChannelsList() {
   const { user, isAuthenticated } = useNeynarContext();
-  const [channels, setChannels] = useState<any[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const showPopularChannels = useCallback(() => {
+    const popularChannels: Channel[] = [
+      { name: "Home", url: "/", id: "home" },
+      { name: "Base", url: "/channel/base", id: "base" },
+      { name: "Farcaster", url: "/channel/farcaster", id: "farcaster" },
+      { name: "Dev", url: "/channel/dev", id: "dev" },
+      { name: "Art", url: "/channel/art", id: "art" },
+      { name: "Music", url: "/channel/music", id: "music" },
+    ];
+    setChannels(popularChannels);
+    setLoading(false);
+  }, []);
+
+  const fetchChannels = useCallback(async (fid: number) => {
+    try {
+      console.log('[ChannelsList] Fetching channels for FID:', fid);
+      const response = await fetch(`/api/channels?fid=${fid}`);
+      const data = (await response.json()) as { ok?: boolean; channels?: ApiChannel[] };
+
+      console.log('[ChannelsList] API response:', data);
+
+      if (data.ok && data.channels && data.channels.length > 0) {
+        // Map channels to our format
+        const userChannels: Channel[] = [
+          { name: "Home", url: "/", id: "home" },
+          ...data.channels.slice(0, 10).map((ch) => ({
+            name: ch.name || ch.id,
+            url: `/channel/${ch.id}`,
+            id: ch.id,
+          })),
+        ];
+
+        console.log('[ChannelsList] Loaded user channels:', userChannels.length);
+        setChannels(userChannels);
+      } else {
+        console.log('[ChannelsList] No channels found, using popular');
+        showPopularChannels();
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error("[ChannelsList] Error fetching channels:", error);
+      showPopularChannels();
+      setLoading(false);
+    }
+  }, [showPopularChannels]);
 
   useEffect(() => {
     const loadUserChannels = () => {
@@ -22,7 +80,7 @@ export default function ChannelsList() {
       const storedProfile = localStorage.getItem("hh_profile");
       if (storedProfile) {
         try {
-          const profile = JSON.parse(storedProfile);
+          const profile = JSON.parse(storedProfile) as { fid?: number };
           const fid = profile?.fid;
           
           if (fid) {
@@ -41,54 +99,7 @@ export default function ChannelsList() {
     };
 
     loadUserChannels();
-  }, [user, isAuthenticated]); // Re-run when auth state changes
-
-  async function fetchChannels(fid: number) {
-    try {
-      console.log('[ChannelsList] Fetching channels for FID:', fid);
-      const response = await fetch(`/api/channels?fid=${fid}`);
-      const data = await response.json();
-      
-      console.log('[ChannelsList] API response:', data);
-      
-      if (data.ok && data.channels && data.channels.length > 0) {
-        // Map channels to our format
-        const userChannels = [
-          { name: "Home", url: "/", id: "home" },
-          ...data.channels.slice(0, 10).map((ch: any) => ({
-            name: ch.name || ch.id,
-            url: `/channel/${ch.id}`,
-            id: ch.id
-          }))
-        ];
-        
-        console.log('[ChannelsList] Loaded user channels:', userChannels.length);
-        setChannels(userChannels);
-      } else {
-        console.log('[ChannelsList] No channels found, using popular');
-        showPopularChannels();
-      }
-      
-      setLoading(false);
-    } catch (error) {
-      console.error("[ChannelsList] Error fetching channels:", error);
-      showPopularChannels();
-      setLoading(false);
-    }
-  }
-
-  function showPopularChannels() {
-    const popularChannels = [
-      { name: "Home", url: "/", id: "home" },
-      { name: "Base", url: "/channel/base", id: "base" },
-      { name: "Farcaster", url: "/channel/farcaster", id: "farcaster" },
-      { name: "Dev", url: "/channel/dev", id: "dev" },
-      { name: "Art", url: "/channel/art", id: "art" },
-      { name: "Music", url: "/channel/music", id: "music" },
-    ];
-    setChannels(popularChannels);
-    setLoading(false);
-  }
+  }, [fetchChannels, isAuthenticated, showPopularChannels, user]); // Re-run when auth state changes
 
   if (loading) {
     return null;

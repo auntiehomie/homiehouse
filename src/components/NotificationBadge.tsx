@@ -1,28 +1,22 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface NotificationBadgeProps {
   className?: string;
 }
 
+type NotificationItem = {
+  timestamp?: string | number;
+  most_recent_timestamp?: string | number;
+};
+
 export default function NotificationBadge({ className = '' }: NotificationBadgeProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadUnreadCount();
-
-    // Poll for updates every 60 seconds
-    const interval = setInterval(() => {
-      loadUnreadCount();
-    }, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadUnreadCount = async () => {
+  const loadUnreadCount = useCallback(async () => {
     try {
       const storedProfile = localStorage.getItem('hh_profile');
       if (!storedProfile) {
@@ -30,7 +24,7 @@ export default function NotificationBadge({ className = '' }: NotificationBadgeP
         return;
       }
 
-      const profile = JSON.parse(storedProfile);
+      const profile = JSON.parse(storedProfile) as { fid?: number };
       const fid = profile?.fid;
 
       if (!fid) {
@@ -48,11 +42,11 @@ export default function NotificationBadge({ className = '' }: NotificationBadgeP
         return;
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as { notifications?: NotificationItem[] };
       const notifications = data.notifications || [];
 
       // Count notifications newer than last viewed
-      const unread = notifications.filter((notif: any) => {
+      const unread = notifications.filter((notif) => {
         const notifTime = new Date(notif.timestamp || notif.most_recent_timestamp || 0);
         return notifTime > lastViewedTime;
       }).length;
@@ -63,7 +57,18 @@ export default function NotificationBadge({ className = '' }: NotificationBadgeP
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadUnreadCount();
+
+    // Poll for updates every 60 seconds
+    const interval = setInterval(() => {
+      loadUnreadCount();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [loadUnreadCount]);
 
   // Mark notifications as viewed when clicking the badge
   const handleClick = () => {

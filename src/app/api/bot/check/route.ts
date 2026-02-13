@@ -142,7 +142,7 @@ async function handleCuration(
       const names = userLists.map((l: any) => `"${l.list_name}"`).join(', ');
       return `which list? you have: ${names} (or reply with a new name) 📝`;
     }
-    return `which list? reply with: "@auntiehomie curate this [list name]" 📝`;
+    return `which list? reply with: "@aunthomie curate this [list name]" 📝`;
   }
 
   // Validate list name
@@ -170,7 +170,7 @@ async function handleCuration(
       .insert([{
         fid: userFid,
         list_name: listName,
-        description: `Created via @auntiehomie`,
+        description: `Created via @aunthomie`,
         is_public: false
       }])
       .select('id, list_name')

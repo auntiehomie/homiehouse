@@ -1,30 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useNeynarContext } from "@neynar/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import TrendingList from "../../components/TrendingList";
 import NeynarSignIn from "../../components/NeynarSignIn";
 
 export default function TrendingPage() {
-  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
   const { isAuthenticated } = useNeynarContext();
 
-  // Wait for client-side mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Prevent hydration mismatch - show nothing until mounted
-  if (!mounted) {
-    return null;
-  }
-
   // Redirect to home if not authenticated
-  if (!isAuthenticated) {
-    if (typeof window !== 'undefined') {
-      window.location.href = '/';
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/');
     }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -47,7 +41,7 @@ export default function TrendingPage() {
       <main className="max-w-4xl mx-auto px-6 pb-24">
         <div className="mb-4">
           <p className="text-zinc-600 dark:text-zinc-400">
-            See what's hot on Farcaster right now
+            See what’s hot on Farcaster right now
           </p>
         </div>
         

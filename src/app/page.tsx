@@ -17,16 +17,10 @@ const MESSAGES = [
 ];
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [fade, setFade] = useState(true);
   
   const { isAuthenticated } = useNeynarContext();
-
-  // Wait for client-side mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const showLanding = !isAuthenticated;
 
@@ -45,11 +39,6 @@ export default function Home() {
 
     return () => clearInterval(interval);
   }, [showLanding]);
-
-  // Prevent hydration mismatch - show nothing until mounted
-  if (!mounted) {
-    return null;
-  }
 
   // Landing page for unauthenticated users
   if (showLanding) {

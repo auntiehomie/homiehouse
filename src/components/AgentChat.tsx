@@ -484,7 +484,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   <button
                     onClick={() => {
                       // Attribution for shared responses
-                      const attribution = '\n\nshared from @auntiehomie';
+                      const attribution = '\n\nshared from @aunthomie';
                       const finalText = msg.content + attribution;
                       
                       // Check if we're in a Farcaster mini app context

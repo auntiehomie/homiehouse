@@ -18,7 +18,7 @@ const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const APP_FID = process.env.APP_FID || '1349780';
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '60000');
-const BOT_USERNAME = process.env.BOT_USERNAME || 'auntiehomie';
+const BOT_USERNAME = process.env.BOT_USERNAME || 'aunthomie';
 
 if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID || !ANTHROPIC_API_KEY) {
   throw new Error('Missing required env vars: NEYNAR_API_KEY, NEYNAR_SIGNER_UUID, ANTHROPIC_API_KEY');
@@ -32,7 +32,7 @@ let memory: Awaited<ReturnType<typeof getMemory>>;
 const REPLIED_CASTS_FILE = path.join(__dirname, '..', 'replied_casts.json');
 
 // System prompt for the bot
-const BOT_PERSONALITY = `You are @auntiehomie, a chill friend. Talk super casually.
+const BOT_PERSONALITY = `You are @aunthomie, a chill friend. Talk super casually.
 
 Your vibe:
 - Talk like you're texting a buddy

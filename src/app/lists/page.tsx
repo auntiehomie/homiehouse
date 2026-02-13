@@ -135,12 +135,12 @@ export default function CuratedListsPage() {
             <div className="text-6xl mb-4">📝</div>
             <h2 className="text-xl font-semibold mb-2">No Lists Yet</h2>
             <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-              Mention @auntiehomie with "curate this" on any cast to save it to a list
+              Mention @aunthomie with "curate this" on any cast to save it to a list
             </p>
             <div className="bg-zinc-100 dark:bg-zinc-900 rounded-lg p-4 max-w-md mx-auto text-left">
               <p className="text-sm font-medium mb-2">Example:</p>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Reply to a cast: &quot;@auntiehomie curate this cool art&quot;<br />
+                Reply to a cast: &quot;@aunthomie curate this cool art&quot;<br />
                 ✅ Cast added to your &quot;cool art&quot; list!
               </p>
               <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-2">

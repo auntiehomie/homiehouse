@@ -2,29 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
 import { useNeynarContext } from "@neynar/react";
 import NotificationBadge from "./NotificationBadge";
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const [showCompose, setShowCompose] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useNeynarContext();
-
-  // Wait for client-side mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const isActive = (path: string) => {
     return pathname === path;
   };
-
-  // Don't render until mounted
-  if (!mounted) {
-    return null;
-  }
 
   // Only show bottom nav if authenticated
   if (!isAuthenticated) {

@@ -1,15 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import farcaster from "../../lib/farcaster";
 
 export default function DevPage() {
-  const [info, setInfo] = useState<any>(null);
-
-  useEffect(() => {
-    const inspected = farcaster.inspectSDK();
-    setInfo(inspected);
-  }, []);
+  const info = useMemo(() => farcaster.inspectSDK(), []);
 
   return (
     <div className="min-h-screen p-8 bg-zinc-50 dark:bg-black text-black dark:text-white">
