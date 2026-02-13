@@ -1,16 +1,22 @@
-import { NeynarAPIClient, CastParamType } from '@neynar/nodejs-sdk';
+import { NeynarAPIClient } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 import { searchCasts, getCastsByUsername } from './db';
 
-const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
+const neynar = new (NeynarAPIClient as any)({ apiKey: process.env.NEYNAR_API_KEY! });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const BOT_FID = parseInt(process.env.APP_FID || '1349780');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
+const BOT_HANDLE = process.env.BOT_USERNAME || 'aunthomie';
+const BOT_ALIASES = (process.env.BOT_ALIASES || 'auntiehomie')
+  .split(',')
+  .map(alias => alias.trim())
+  .filter(Boolean)
+  .filter(alias => alias !== BOT_HANDLE);
 
 // Persistent storage file (works on Render!)
 const REPLIED_CASTS_FILE = path.join(process.cwd(), 'replied_casts.json');
@@ -171,7 +177,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
         .insert([{
           fid: userFid,
           list_name: trimmedListName,
-          description: `Created via @auntiehomie bot`,
+          description: `Created via @${BOT_HANDLE} bot`,
           is_public: false
         }])
         .select()
@@ -462,39 +468,50 @@ async function generateReply(cast: any): Promise<string> {
   }
 }
 
+export interface CheckMentionsOptions {
+  backfill?: boolean;
+  maxPages?: number;
+  maxReplies?: number;
+  backfillAliases?: boolean;
+}
+
 // Main function to check for mentions
-export async function checkForMentions() {
+export async function checkForMentions(options: CheckMentionsOptions = {}) {
   try {
+    const resolvedOptions = {
+      backfill: false,
+      maxPages: 3,
+      maxReplies: 1,
+      backfillAliases: false,
+      ...options
+    };
+
     // Load previously replied casts
     const repliedCasts = loadRepliedCasts();
     console.log(`📂 Loaded ${repliedCasts.size} previously replied casts`);
     
     let repliedCount = 0;
+    let cursor: string | undefined = undefined;
+    let pagesChecked = 0;
+    let totalNotifications = 0;
 
-    // Fetch notifications using v2 API
-    const response = await neynar.fetchMentionAndReplyNotifications(BOT_FID, {
-      cursor: undefined
-    });
-
-    const allNotifications = response.result.notifications || [];
-    console.log(`📬 Found ${allNotifications.length} notifications`);
-
-    for (const notification of allNotifications) {
-      if (repliedCount >= 1) {
-        console.log('✋ Already replied to 1 cast in this run, stopping');
-        break;
-      }
-
-      // The notification itself is the cast
-      const cast = notification;
+    const processCast = async (cast: any): Promise<boolean> => {
       if (!cast || !cast.hash) {
-        continue;
+        return false;
       }
 
       // Track multiple hashes to prevent duplicates
       const castHash = cast.hash;
-      const parentHash = cast.parentHash || cast.parentUrl || cast.hash;
-      const rootParentHash = (cast as any).rootParentUrl || parentHash;
+      const parentHash =
+        cast.parent_hash ||
+        cast.parentHash ||
+        cast.parent_url ||
+        cast.parentUrl ||
+        cast.hash;
+      const rootParentHash =
+        (cast as any).root_parent_url ||
+        (cast as any).rootParentUrl ||
+        parentHash;
       
       const trackingKeys = [
         `cast_${castHash}`,
@@ -505,22 +522,19 @@ export async function checkForMentions() {
       console.log(`🔍 Checking cast=${castHash.slice(0, 10)}..., parent=${parentHash.slice(0, 10)}...`);
 
       // Check if already replied to any of these keys
-      let alreadyReplied = false;
       for (const key of trackingKeys) {
         if (repliedCasts.has(key) || repliedCastsCache.has(key)) {
           console.log(`✓ Already replied to ${key}, skipping`);
-          alreadyReplied = true;
-          break;
+          return false;
         }
-      }
-      
-      if (alreadyReplied) {
-        continue;
       }
 
       // Double-check by fetching the cast and looking for bot replies
       try {
-        const conversation = await neynar.lookupCastConversation(parentHash, CastParamType.Hash);
+        const conversation = await (neynar as any).lookupCastConversation({
+          identifier: parentHash,
+          type: 'hash'
+        });
         
         const directReplies = conversation.conversation?.cast?.direct_replies || [];
         
@@ -532,13 +546,13 @@ export async function checkForMentions() {
         if (botAlreadyReplied) {
           console.log(`✓ Found existing bot reply in thread, saving and skipping`);
           trackingKeys.forEach(key => saveRepliedCast(key));
-          continue;
+          return false;
         }
       } catch (error) {
         console.error(`⚠️ Error checking replies:`, error);
         // Be conservative - skip if we can't check
         trackingKeys.forEach(key => saveRepliedCast(key));
-        continue;
+        return false;
       }
 
       // Generate and post reply
@@ -547,24 +561,92 @@ export async function checkForMentions() {
         
         const reply = await generateReply(cast);
 
-        await neynar.publishCast(SIGNER_UUID, reply, { replyTo: parentHash });
+        await (neynar as any).publishCast({
+          signerUuid: SIGNER_UUID,
+          text: reply,
+          parent: parentHash
+        });
 
         console.log(`✅ Posted reply: ${reply}`);
         
         // Save all tracking keys
         trackingKeys.forEach(key => saveRepliedCast(key));
         repliedCount++;
-
+        return true;
       } catch (error) {
         console.error(`❌ Error replying:`, error);
         // Mark as attempted even on error
         trackingKeys.forEach(key => saveRepliedCast(key));
+        return false;
+      }
+    };
+
+    do {
+      // Fetch notifications using v2 API
+      const response: any = await (neynar as any).fetchAllNotifications({
+        fid: BOT_FID,
+        type: ['mentions', 'replies'],
+        cursor
+      });
+
+      const allNotifications = (response as any).notifications || (response as any).result?.notifications || [];
+      const nextCursor: any =
+        (response as any).next?.cursor ||
+        (response as any).next_cursor ||
+        (response as any).cursor ||
+        (response as any).result?.next?.cursor;
+
+      totalNotifications += allNotifications.length;
+      console.log(`📬 Found ${allNotifications.length} notifications (page ${pagesChecked + 1})`);
+
+      for (const notification of allNotifications) {
+        if (repliedCount >= resolvedOptions.maxReplies) {
+          console.log(`✋ Already replied to ${resolvedOptions.maxReplies} cast(s) in this run, stopping`);
+          break;
+        }
+
+        // The notification contains a cast payload in v2
+        const cast = (notification as any).cast || notification;
+        await processCast(cast);
+      }
+
+      pagesChecked++;
+      cursor = resolvedOptions.backfill ? nextCursor : undefined;
+    } while (cursor && pagesChecked < resolvedOptions.maxPages && repliedCount < resolvedOptions.maxReplies);
+
+    if (resolvedOptions.backfillAliases && BOT_ALIASES.length > 0 && repliedCount < resolvedOptions.maxReplies) {
+      console.log(`🔎 Alias backfill enabled for: ${BOT_ALIASES.join(', ')}`);
+
+      for (const alias of BOT_ALIASES) {
+        if (repliedCount >= resolvedOptions.maxReplies) {
+          break;
+        }
+
+        try {
+          const aliasCasts = await searchCasts(`@${alias}`, 25);
+          console.log(`📎 Found ${aliasCasts.length} casts mentioning @${alias}`);
+
+          for (const cast of aliasCasts) {
+            if (repliedCount >= resolvedOptions.maxReplies) {
+              break;
+            }
+
+            const curateIntent = detectCurateIntent(cast.text || '');
+            if (!curateIntent.isCurate) {
+              continue;
+            }
+
+            await processCast(cast);
+          }
+        } catch (error) {
+          console.error(`⚠️ Alias backfill error for @${alias}:`, error);
+        }
       }
     }
 
     return {
       success: true,
-      checked: allNotifications.length,
+      checked: totalNotifications,
       replied: repliedCount,
       timestamp: new Date().toISOString()
     };
