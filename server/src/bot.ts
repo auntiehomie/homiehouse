@@ -9,7 +9,7 @@ const neynar = new NeynarAPIClient(process.env.NEYNAR_API_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const BOT_FID = parseInt(process.env.APP_FID || '1987078');
+const BOT_FID = parseInt(process.env.APP_FID || '1349780');
 const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
 
 // Persistent storage file (works on Render!)
@@ -171,7 +171,7 @@ async function curateThisCast(cast: any, listName?: string): Promise<string> {
         .insert([{
           fid: userFid,
           list_name: trimmedListName,
-          description: `Created via @homiehouse bot`,
+          description: `Created via @auntiehomie bot`,
           is_public: false
         }])
         .select()

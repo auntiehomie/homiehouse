@@ -31,12 +31,15 @@ export async function GET(request: NextRequest) {
       const username = validateUsername(usernameParam);
       const data = await fetchUserByUsername(username);
       user = data.user;
-      userFid = user?.fid;
+      // Extract FID from response (might be in different places)
+      userFid = user?.fid || data?.result?.user?.fid || user?.id;
+      logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid, userKeys: Object.keys(user || {}).slice(0, 5) });
     } else if (fidParam) {
       // Validate and fetch by FID
       userFid = validateFid(fidParam);
       const data = await neynarFetch(`/user/bulk?fids=${userFid}`);
       user = data.users?.[0];
+      logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
     }
 
     if (!user) {
@@ -48,8 +51,9 @@ export async function GET(request: NextRequest) {
 
     // Debug: log what we received from Neynar
     logger.info('User data from Neynar', {
-      hasFid: !!user?.fid,
-      hasUsername: !!user?.username,
+      extractedFid: userFid,
+      userFidField: user?.fid,
+      hasFid: userFid !== undefined,
       userKeys: Object.keys(user || {}).slice(0, 10)
     });
 

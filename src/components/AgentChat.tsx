@@ -85,6 +85,23 @@ function parseTextWithMentions(text: string): ReactNode[] {
   return parts.length > 0 ? parts : [text];
 }
 
+// Helper to get signerUuid from localStorage
+function getSignerUuid(): string | null {
+  try {
+    const storedProfile = localStorage.getItem('hh_profile');
+    if (!storedProfile) return null;
+    const profile = JSON.parse(storedProfile);
+    const fid = profile?.fid;
+    if (!fid) return null;
+    const signerData = localStorage.getItem(`signer_${fid}`);
+    if (!signerData) return null;
+    const parsed = JSON.parse(signerData);
+    return parsed.signer_uuid || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AgentChat({ userId, userContext, castContext, onCastSelect }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -467,7 +484,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   <button
                     onClick={() => {
                       // Attribution for shared responses
-                      const attribution = '\n\nshared from @homiehouse';
+                      const attribution = '\n\nshared from @auntiehomie';
                       const finalText = msg.content + attribution;
                       
                       // Check if we're in a Farcaster mini app context

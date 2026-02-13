@@ -2,8 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
+import dns from 'dns/promises';
 
 export const maxDuration = 30;
+
+const MAX_RESPONSE_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_CACHE_SIZE = 500;
+
+// Type-safe global cache for URL preview data
+type CacheEntry = { ts: number; data: Record<string, unknown> };
+const globalCache = globalThis as typeof globalThis & {
+  __urlPreviewCache?: Map<string, CacheEntry>;
+};
 
 interface OpenGraphData {
   title?: string;
@@ -15,19 +25,74 @@ interface OpenGraphData {
 }
 
 /**
+ * Check if an IP address belongs to a private/internal range (SSRF protection).
+ */
+function isPrivateIP(ip: string): boolean {
+  // IPv6 loopback
+  if (ip === '::1' || ip === '::') return true;
+
+  // IPv6 private (fc00::/7)
+  if (ip.startsWith('fc') || ip.startsWith('fd')) return true;
+
+  // IPv4
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) return false;
+
+  const [a, b] = parts;
+  if (a === 10) return true;                         // 10.0.0.0/8
+  if (a === 172 && b >= 16 && b <= 31) return true;  // 172.16.0.0/12
+  if (a === 192 && b === 168) return true;            // 192.168.0.0/16
+  if (a === 127) return true;                         // 127.0.0.0/8
+  if (a === 169 && b === 254) return true;            // 169.254.0.0/16
+  if (a === 0) return true;                           // 0.0.0.0/8
+
+  return false;
+}
+
+/**
+ * Resolve hostname and verify it doesn't point to a private IP.
+ */
+async function resolveAndCheckHost(hostname: string): Promise<void> {
+  // Check if hostname is already an IP literal
+  if (isPrivateIP(hostname)) {
+    throw new Error('URL resolves to a private/internal IP address');
+  }
+
+  try {
+    const addresses = await dns.resolve4(hostname);
+    for (const addr of addresses) {
+      if (isPrivateIP(addr)) {
+        throw new Error('URL resolves to a private/internal IP address');
+      }
+    }
+  } catch (err: any) {
+    if (err.message?.includes('private')) throw err;
+    // Also try IPv6
+    try {
+      const addresses6 = await dns.resolve6(hostname);
+      for (const addr of addresses6) {
+        if (isPrivateIP(addr)) {
+          throw new Error('URL resolves to a private/internal IP address');
+        }
+      }
+    } catch {
+      // If DNS fails entirely, fetch will also fail
+    }
+  }
+}
+
+/**
  * Extract Open Graph and meta tags from HTML
  */
 function extractMetadata(html: string, url: string): OpenGraphData {
   const metadata: OpenGraphData = {};
 
-  // Extract OG tags
   const ogTitleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i);
   const ogDescMatch = html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i);
   const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
   const ogSiteMatch = html.match(/<meta\s+property=["']og:site_name["']\s+content=["']([^"']+)["']/i);
   const ogTypeMatch = html.match(/<meta\s+property=["']og:type["']\s+content=["']([^"']+)["']/i);
 
-  // Extract standard meta tags as fallback
   const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
   const descMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i);
 
@@ -38,7 +103,6 @@ function extractMetadata(html: string, url: string): OpenGraphData {
   metadata.type = ogTypeMatch?.[1] || '';
   metadata.url = url;
 
-  // Decode HTML entities
   const decodeHtml = (str: string) => {
     return str
       .replace(/&amp;/g, '&')
@@ -59,26 +123,24 @@ function extractMetadata(html: string, url: string): OpenGraphData {
  * Extract first few paragraphs from article for summary
  */
 function extractArticleText(html: string): string {
-  // Remove script and style tags
   let cleaned = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   cleaned = cleaned.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-  
-  // Extract paragraphs
+
   const paragraphs: string[] = [];
   const pMatches = cleaned.matchAll(/<p[^>]*>([^<]+(?:<[^\/p][^>]*>[^<]*<\/[^>]+>)*[^<]*)<\/p>/gi);
-  
+
   for (const match of pMatches) {
     const text = match[1]
-      .replace(/<[^>]+>/g, '') // Remove HTML tags
-      .replace(/\s+/g, ' ')    // Normalize whitespace
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
-    
+
     if (text.length > 50 && !text.match(/cookie|privacy policy|terms of service/i)) {
       paragraphs.push(text);
       if (paragraphs.length >= 3) break;
     }
   }
-  
+
   return paragraphs.join(' ').slice(0, 500);
 }
 
@@ -87,19 +149,19 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
-    // Rate limit: 60 URL previews per hour per IP
+    // Rate limit by IP
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`url-preview:${ip}`, 60, 3600);
-    if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
+    const { success: rlOk } = rateLimit(`url-preview:${ip}`, 60, 3600);
+    if (!rlOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
 
-    // Simple in-memory cache with TTL (serverless functions are ephemeral but this
-    // helps for warm instances during preview/deploys). Cache key is URL.
+    // Cache setup (persist across warm invocations)
     const CACHE_TTL = 60 * 60; // 1 hour
-    type CacheEntry = { ts: number; data: any };
-    // @ts-ignore global cache (persist across invocations when warmed)
-    globalThis.__urlPreviewCache = (globalThis.__urlPreviewCache || new Map()) as Map<string, CacheEntry>;
+    if (!globalCache.__urlPreviewCache) {
+      globalCache.__urlPreviewCache = new Map();
+    }
+    const cache = globalCache.__urlPreviewCache;
     const body = await request.json();
     const { url } = body;
 
@@ -124,10 +186,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SSRF protection: resolve hostname and block private IPs
+    try {
+      await resolveAndCheckHost(validUrl.hostname);
+    } catch {
+      return NextResponse.json(
+        { error: 'URL not allowed' },
+        { status: 400 }
+      );
+    }
+
     logger.info('Fetching URL preview', { url });
 
     // Return cached value when fresh
-    const cache = (globalThis.__urlPreviewCache as Map<string, CacheEntry>);
     const cached = cache.get(url);
     if (cached && (Date.now() - cached.ts) / 1000 < CACHE_TTL) {
       logger.info('Returning cached URL preview', { url });
@@ -135,12 +206,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(cached.data);
     }
 
-    // Fetch the URL with a user agent
+    // Fetch the URL
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; HomieHouseBot/1.0; +https://homiehouse.lol)',
       },
-      signal: AbortSignal.timeout(10000), // 10 second timeout
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {
@@ -151,9 +222,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Read response with size limit
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > MAX_RESPONSE_SIZE) {
+      logger.warn('Response too large', { contentLength });
+      return NextResponse.json(
+        { ok: false, error: 'Response too large' },
+        { status: 200 }
+      );
+    }
+
     let html = '';
     try {
-      html = await response.text();
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > MAX_RESPONSE_SIZE) {
+        logger.warn('Response body too large', { size: buffer.byteLength });
+        return NextResponse.json(
+          { ok: false, error: 'Response too large' },
+          { status: 200 }
+        );
+      }
+      html = new TextDecoder().decode(buffer);
     } catch (e) {
       logger.warn('Failed to read response body', { error: String(e) });
       return NextResponse.json(
@@ -161,14 +250,13 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     }
-    
+
     const metadata = extractMetadata(html, url);
     if (!metadata.title && !metadata.description && !metadata.image) {
       logger.warn('No useful metadata extracted', { url });
     }
-    
-    // Check if it's an article type
-    const isArticle = metadata.type === 'article' || 
+
+    const isArticle = metadata.type === 'article' ||
                      validUrl.hostname.includes('medium.com') ||
                      validUrl.hostname.includes('substack.com') ||
                      html.includes('article');
@@ -178,7 +266,7 @@ export async function POST(request: NextRequest) {
       articleText = extractArticleText(html);
     }
 
-    logger.success('URL preview generated', { 
+    logger.success('URL preview generated', {
       hasTitle: !!metadata.title,
       hasDescription: !!metadata.description,
       hasImage: !!metadata.image,
@@ -191,10 +279,14 @@ export async function POST(request: NextRequest) {
       isArticle
     };
 
-    // Store in cache
+    // Store in cache (capped at MAX_CACHE_SIZE)
     try {
+      if (cache.size >= MAX_CACHE_SIZE) {
+        const firstKey = cache.keys().next().value;
+        if (firstKey) cache.delete(firstKey);
+      }
       cache.set(url, { ts: Date.now(), data: responsePayload });
-    } catch (e) {
+    } catch {
       // ignore cache errors
     }
 

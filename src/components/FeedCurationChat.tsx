@@ -224,14 +224,14 @@ export default function FeedCurationChat({ onClose }: FeedCurationChatProps) {
             <h3 style={{ fontSize: '16px', fontWeight: 600, margin: 0 }}>Need Help?</h3>
           </div>
           <p style={{ fontSize: '14px', color: 'var(--muted-on-dark)', marginBottom: '12px', lineHeight: 1.5 }}>
-            Not sure what to add? Chat with @homiehouse for personalized recommendations based on your activity.
+            Not sure what to add? Chat with @auntiehomie for personalized recommendations based on your activity.
           </p>
           <Link href="/ask-homie">
             <button
               className="btn primary"
               style={{ fontSize: '14px', width: '100%' }}
             >
-              Chat with @homiehouse
+              Chat with @auntiehomie
             </button>
           </Link>
         </div>

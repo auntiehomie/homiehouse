@@ -4,16 +4,117 @@
 
 import { NextRequest } from 'next/server';
 import { AuthError } from './errors';
+import { validateUuid } from './validation';
+
+// ── Signer-based authentication ──────────────────────────────────────────────
+
+/**
+ * In-memory signer verification cache (5-minute TTL, max 500 entries).
+ * Each entry maps a signer UUID to the verified FID it belongs to.
+ */
+interface SignerCacheEntry {
+  fid: number;
+  expiresAt: number;
+}
+
+const signerCache = new Map<string, SignerCacheEntry>();
+const SIGNER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const SIGNER_CACHE_MAX = 500;
+
+/**
+ * Verify a signer UUID via Neynar API and return the associated FID.
+ * Results are cached for 5 minutes to avoid excessive Neynar calls.
+ *
+ * @param signerUuid - The signer UUID from the request
+ * @returns The verified FID associated with this signer
+ * @throws AuthError if signer is invalid, not approved, or missing
+ */
+export async function verifySignerAuth(signerUuid: string): Promise<number> {
+  if (!signerUuid) {
+    throw new AuthError('signerUuid is required', 401, 'MISSING_SIGNER');
+  }
+
+  // Validate UUID format
+  validateUuid(signerUuid, 'signerUuid');
+
+  // Check cache first
+  const now = Date.now();
+  const cached = signerCache.get(signerUuid);
+  if (cached && cached.expiresAt > now) {
+    return cached.fid;
+  }
+
+  // Call Neynar GET /signer endpoint
+  const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+  if (!NEYNAR_API_KEY) {
+    throw new AuthError('Server auth configuration error', 500, 'MISSING_CONFIG');
+  }
+
+  const response = await fetch(
+    `https://api.neynar.com/v2/farcaster/signer?signer_uuid=${encodeURIComponent(signerUuid)}`,
+    {
+      headers: {
+        'accept': 'application/json',
+        'x-api-key': NEYNAR_API_KEY,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    let errorBody = '';
+    try {
+      errorBody = await response.text();
+    } catch {
+      // ignore
+    }
+    console.error(`[verifySignerAuth] Neynar API error: status=${response.status}, body=${errorBody}`);
+    console.error(`[verifySignerAuth] Request URL: ${response.url}`);
+    console.error(`[verifySignerAuth] Request headers: x-api-key=${NEYNAR_API_KEY ? '***' : 'missing'}`);
+
+    if (response.status === 404) {
+      throw new AuthError('Invalid signer', 401, 'INVALID_SIGNER');
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new AuthError('Neynar API key invalid or expired', 500, 'NEYNAR_AUTH_FAILED');
+    }
+    throw new AuthError(`Unable to verify signer (${response.status})`, 500, 'SIGNER_VERIFICATION_FAILED');
+  }
+
+  const data = await response.json();
+
+  if (data.status !== 'approved') {
+    throw new AuthError('Signer is not approved', 401, 'SIGNER_NOT_APPROVED');
+  }
+
+  if (!data.fid) {
+    throw new AuthError('Signer has no associated FID', 401, 'SIGNER_NO_FID');
+  }
+
+  const fid = Number(data.fid);
+
+  // Evict oldest if cache is full
+  if (signerCache.size >= SIGNER_CACHE_MAX) {
+    const firstKey = signerCache.keys().next().value;
+    if (firstKey) signerCache.delete(firstKey);
+  }
+
+  // Cache the result
+  signerCache.set(signerUuid, {
+    fid,
+    expiresAt: now + SIGNER_CACHE_TTL,
+  });
+
+  return fid;
+}
+
+// ── Bearer token auth ────────────────────────────────────────────────────────
 
 /**
  * Verify authorization header with Bearer token
- * @param request - Next.js request object
- * @returns Token if valid
- * @throws AuthError if invalid or missing
  */
 export function verifyBearerToken(request: NextRequest): string {
   const authHeader = request.headers.get('authorization');
-  
+
   if (!authHeader) {
     throw new AuthError('Authorization header required', 401, 'MISSING_AUTH_HEADER');
   }
@@ -23,7 +124,7 @@ export function verifyBearerToken(request: NextRequest): string {
   }
 
   const token = authHeader.substring(7);
-  
+
   if (!token) {
     throw new AuthError('Token is required', 401, 'MISSING_TOKEN');
   }
@@ -32,17 +133,15 @@ export function verifyBearerToken(request: NextRequest): string {
 }
 
 /**
- * Verify CRON secret for scheduled tasks
- * @param request - Next.js request object
- * @param requiredSecret - Expected secret value (from env)
- * @throws AuthError if invalid or missing
+ * Verify CRON secret for scheduled tasks.
+ * Fails closed in production: if no secret is configured, rejects the request.
  */
 export function verifyCronSecret(request: NextRequest, requiredSecret?: string): void {
   if (!requiredSecret) {
-    // In production, reject requests if no secret is configured
     if (process.env.NODE_ENV === 'production') {
-      throw new AuthError('CRON_SECRET not configured', 500, 'MISSING_CONFIG');
+      throw new AuthError('CRON_SECRET not configured', 500, 'MISSING_CRON_SECRET');
     }
+    // Allow in development without secret
     return;
   }
 
@@ -56,15 +155,12 @@ export function verifyCronSecret(request: NextRequest, requiredSecret?: string):
 
 /**
  * Verify API key for internal API-to-API calls
- * @param request - Next.js request object
- * @throws AuthError if invalid or missing
  */
 export function verifyApiKey(request: NextRequest): void {
   const apiKey = request.headers.get('x-api-key');
   const validApiKey = process.env.INTERNAL_API_KEY;
 
   if (!validApiKey) {
-    // If no API key is configured, skip validation (dev mode)
     if (process.env.NODE_ENV === 'production') {
       throw new AuthError('API key validation not configured', 500, 'MISSING_CONFIG');
     }
@@ -78,89 +174,11 @@ export function verifyApiKey(request: NextRequest): void {
 
 /**
  * Optional auth - returns token if present, null otherwise
- * Useful for endpoints that have different behavior for authenticated users
  */
 export function getOptionalAuth(request: NextRequest): string | null {
   try {
     return verifyBearerToken(request);
   } catch {
     return null;
-  }
-}
-
-/**
- * Verify that a signer UUID belongs to the authenticated user
- * This is a placeholder - implement based on your auth provider (Privy, etc.)
- * 
- * @param signerUuid - The signer UUID to validate
- * @param userId - The authenticated user's ID
- * @throws AuthError if signer doesn't belong to user
- */
-export async function verifySignerOwnership(
-  signerUuid: string,
-  userId: string
-): Promise<void> {
-  // TODO: Implement actual verification by checking your signer database
-  // Example:
-  // const signer = await db.signers.findByUuid(signerUuid);
-  // if (signer.userId !== userId) {
-  //   throw new AuthError('Signer does not belong to user', 403, 'FORBIDDEN');
-  // }
-  
-  // For now, just log a warning
-  console.warn('[Auth] Signer ownership verification not implemented', {
-    signerUuid: signerUuid.substring(0, 8) + '...',
-    userId,
-  });
-}
-
-/**
- * Verify that a user has permission to act as a specific FID
- * 
- * @param fid - The Farcaster ID
- * @param userId - The authenticated user's ID
- * @throws AuthError if user doesn't own the FID
- */
-export async function verifyFidOwnership(
-  fid: number,
-  userId: string
-): Promise<void> {
-  // TODO: Implement actual verification by checking user's connected accounts
-  // Example:
-  // const user = await db.users.findById(userId);
-  // if (!user.fids.includes(fid)) {
-  //   throw new AuthError('FID does not belong to user', 403, 'FORBIDDEN');
-  // }
-  
-  // For now, just log a warning
-  console.warn('[Auth] FID ownership verification not implemented', {
-    fid,
-    userId,
-  });
-}
-
-/**
- * Rate limiting check (placeholder)
- * Implement with Redis/Upstash or similar
- */
-export async function checkRateLimit(
-  identifier: string,
-  limit: number = 10,
-  windowSeconds: number = 60
-): Promise<void> {
-  // TODO: Implement rate limiting with Redis
-  // Example using Upstash Redis:
-  // const ratelimit = new Ratelimit({
-  //   redis: Redis.fromEnv(),
-  //   limiter: Ratelimit.slidingWindow(limit, `${windowSeconds}s`),
-  // });
-  // const { success } = await ratelimit.limit(identifier);
-  // if (!success) {
-  //   throw new RateLimitError();
-  // }
-  
-  // For now, just log
-  if (process.env.NODE_ENV === 'production') {
-    console.warn('[Auth] Rate limiting not implemented. Please add Upstash Redis or similar.');
   }
 }

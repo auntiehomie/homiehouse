@@ -612,7 +612,7 @@ async function searchSimilarCasts(castText: string): Promise<string> {
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
-        'api_key': apiKey,
+        'x-api-key': apiKey,
       },
     });
 

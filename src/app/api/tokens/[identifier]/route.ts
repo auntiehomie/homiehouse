@@ -12,10 +12,10 @@ import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { identifier: string } }
+  { params }: { params: Promise<{ identifier: string }> }
 ) {
   try {
-    const identifier = params.identifier;
+    const { identifier } = await params;
 
     if (!identifier) {
       return NextResponse.json(

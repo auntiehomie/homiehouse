@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
+import { verifySignerAuth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const logger = createApiLogger('/curation');
@@ -44,17 +45,22 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { fid, preference_type, preference_value, action, priority } = body;
+    const { fid, preference_type, preference_value, action, priority, signerUuid } = body;
 
-    if (!fid || !preference_type || !preference_value || !action) {
+    if (!preference_type || !preference_value || !action) {
       return NextResponse.json(
         { ok: false, error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Validate FID
-    const validatedFid = validateFid(fid);
+    // SECURITY: Require signer authentication
+    if (!signerUuid) {
+      return NextResponse.json({ ok: false, error: 'signerUuid is required' }, { status: 401 });
+    }
+    const verifiedFid = await verifySignerAuth(signerUuid);
+
+    const validatedFid = verifiedFid;
     logger.info('Adding curation preference', { fid: validatedFid, preference_type, action });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
@@ -86,7 +92,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, ...updates } = body;
+    const { id, signerUuid, ...updates } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -94,6 +100,12 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // SECURITY: Require signer authentication
+    if (!signerUuid) {
+      return NextResponse.json({ ok: false, error: 'signerUuid is required' }, { status: 401 });
+    }
+    await verifySignerAuth(signerUuid);
 
     logger.info('Updating curation preference', { id });
 
@@ -121,6 +133,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
+    const signerUuid = searchParams.get("signerUuid");
 
     if (!id) {
       return NextResponse.json(
@@ -128,6 +141,12 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // SECURITY: Require signer authentication
+    if (!signerUuid) {
+      return NextResponse.json({ ok: false, error: 'signerUuid is required' }, { status: 401 });
+    }
+    await verifySignerAuth(signerUuid);
 
     logger.info('Deleting curation preference', { id });
 

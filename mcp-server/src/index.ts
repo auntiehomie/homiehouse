@@ -14,7 +14,7 @@ dotenv.config();
 
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const USER_FID = process.env.USER_FID || '1987078';
+const USER_FID = process.env.USER_FID || '1349780';
 
 if (!NEYNAR_API_KEY || !ANTHROPIC_API_KEY) {
   throw new Error('Missing required environment variables: NEYNAR_API_KEY and ANTHROPIC_API_KEY');

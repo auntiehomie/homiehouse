@@ -61,7 +61,7 @@ export default function NotificationsPage() {
   const loadNotifications = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      
+
       const storedProfile = localStorage.getItem('hh_profile');
       if (!storedProfile) {
         router.push('/');
@@ -77,7 +77,25 @@ export default function NotificationsPage() {
         return;
       }
 
-      const response = await fetch(`/api/notifications?fid=${fid}`);
+      // Get signerUuid for authenticated request
+      let signerUuid = '';
+      const signerData = localStorage.getItem(`signer_${fid}`);
+      if (signerData) {
+        try {
+          const parsed = JSON.parse(signerData);
+          signerUuid = parsed.signer_uuid || '';
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!signerUuid) {
+        setError('Please sign in and approve a signer to view notifications');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`/api/notifications?fid=${fid}&signerUuid=${encodeURIComponent(signerUuid)}`);
       if (!response.ok) {
         throw new Error('Failed to fetch notifications');
       }
