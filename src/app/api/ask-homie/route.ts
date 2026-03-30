@@ -233,66 +233,68 @@ function extractCastReference(question: string): string | null {
   return null;
 }
 
-// Fetch cast data from Neynar API
+// Fetch cast data from Pinata Farcaster API
 async function fetchCastData(castHash: string) {
   try {
-    const apiKey = process.env.NEYNAR_API_KEY;
-    if (!apiKey) {
-      console.error('NEYNAR_API_KEY not configured');
+    const jwt = process.env.PINATA_JWT;
+    if (!jwt) {
+      console.error('PINATA_JWT not configured');
       return null;
     }
 
-    const url = `https://api.neynar.com/v2/farcaster/cast?identifier=${castHash}&type=hash`;
-    console.log(`Fetching cast ${castHash} from Neynar API`);
-    
+    const url = `https://api.pinata.cloud/v3/farcaster/casts/${encodeURIComponent(castHash)}`;
+    console.log(`Fetching cast ${castHash} from Pinata API`);
+
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
-        'x-api-key': apiKey,
+        'Authorization': `Bearer ${jwt}`,
       },
     });
-    
+
     if (!response.ok) {
       console.error(`Cast fetch failed: ${response.status} ${response.statusText}`);
       return null;
     }
-    
+
     const data = await response.json();
     console.log(`Cast fetched successfully: ${castHash}`);
-    return data.cast;
+    // Pinata returns { data: { ... } } or { cast: { ... } }
+    return data?.data ?? data.cast;
   } catch (error) {
     console.error('Error fetching cast:', error);
     return null;
   }
 }
 
-// Fetch profile directly from Neynar API
+// Fetch profile from Pinata Farcaster API
 async function fetchUserProfile(username: string) {
   try {
-    const apiKey = process.env.NEYNAR_API_KEY;
-    if (!apiKey) {
-      console.error('NEYNAR_API_KEY not configured');
+    const jwt = process.env.PINATA_JWT;
+    if (!jwt) {
+      console.error('PINATA_JWT not configured');
       return null;
     }
 
-    const url = `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`;
-    console.log(`Fetching profile for ${username} from Neynar API`);
-    
+    const url = `https://api.pinata.cloud/v3/farcaster/users/by_username?username=${encodeURIComponent(username)}`;
+    console.log(`Fetching profile for ${username} from Pinata API`);
+
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
-        'x-api-key': apiKey,
+        'Authorization': `Bearer ${jwt}`,
       },
     });
-    
+
     if (!response.ok) {
       console.error(`Profile fetch failed: ${response.status} ${response.statusText}`);
       return null;
     }
-    
+
     const data = await response.json();
     console.log(`Profile fetched successfully for ${username}`);
-    return data.user;
+    // Pinata returns { data: { ... } } or { user: { ... } }
+    return data?.data ?? data.user;
   } catch (error) {
     console.error('Error fetching profile:', error);
     return null;

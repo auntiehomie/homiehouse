@@ -327,20 +327,25 @@ export async function getClankerToken(identifier: string): Promise<TokenInfo | n
 /**
  * Get token data from Neynar Fungibles API (Base network tokens)
  * Requires full fungible identifier: eip155:8453/erc20:0xaddress
+ *
+ * NOTE: Pinata Farcaster API does not have a /fungibles endpoint.
+ * This function retains the Neynar call as a fallback for token enrichment only.
+ * NEYNAR_API_KEY must remain set for this feature to work.
+ * See docs/PINATA_MIGRATION.md → "Known Gaps".
  */
 export async function getNeynarToken(address: string): Promise<TokenInfo | null> {
   try {
     const apiKey = process.env.NEYNAR_API_KEY;
     if (!apiKey) {
-      console.log('NEYNAR_API_KEY not configured');
+      console.log('NEYNAR_API_KEY not configured (required for fungible token lookup)');
       return null;
     }
 
     // Format as Neynar fungible identifier for Base network
     const fungibleId = `eip155:8453/erc20:${address.toLowerCase()}`;
-    
+
     const url = `https://api.neynar.com/v2/farcaster/fungibles?fungibles=${encodeURIComponent(fungibleId)}`;
-    
+
     const response = await fetch(url, {
       headers: {
         'accept': 'application/json',
@@ -349,7 +354,7 @@ export async function getNeynarToken(address: string): Promise<TokenInfo | null>
     });
 
     if (!response.ok) {
-      console.error('Neynar API error:', response.status);
+      console.error('Neynar fungibles API error:', response.status);
       return null;
     }
 

@@ -44,7 +44,9 @@ export async function verifySignerAuth(signerUuid: string): Promise<number> {
     return cached.fid;
   }
 
-  // Call Neynar GET /signer endpoint
+  // NOTE: Signer verification uses Neynar — Pinata has no /signer endpoint.
+  // Keep NEYNAR_API_KEY configured, or replace with a custom verification flow.
+  // See docs/PINATA_MIGRATION.md → "Known Gaps".
   const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
   if (!NEYNAR_API_KEY) {
     throw new AuthError('Server auth configuration error', 500, 'MISSING_CONFIG');
@@ -67,7 +69,7 @@ export async function verifySignerAuth(signerUuid: string): Promise<number> {
     } catch {
       // ignore
     }
-    console.error(`[verifySignerAuth] Neynar API error: status=${response.status}, body=${errorBody}`);
+    console.error(`[verifySignerAuth] API error: status=${response.status}, body=${errorBody}`);
     console.error(`[verifySignerAuth] Request URL: ${response.url}`);
     console.error(`[verifySignerAuth] Request headers: x-api-key=${NEYNAR_API_KEY ? '***' : 'missing'}`);
 
@@ -75,7 +77,7 @@ export async function verifySignerAuth(signerUuid: string): Promise<number> {
       throw new AuthError('Invalid signer', 401, 'INVALID_SIGNER');
     }
     if (response.status === 401 || response.status === 403) {
-      throw new AuthError('Neynar API key invalid or expired', 500, 'NEYNAR_AUTH_FAILED');
+      throw new AuthError('API key invalid or expired', 500, 'AUTH_KEY_FAILED');
     }
     throw new AuthError(`Unable to verify signer (${response.status})`, 500, 'SIGNER_VERIFICATION_FAILED');
   }

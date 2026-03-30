@@ -591,72 +591,12 @@ Be accurate, cite what you know, and admit when you're not certain.`;
 }
 
 // Search for similar casts to enrich context
-async function searchSimilarCasts(castText: string): Promise<string> {
-  try {
-    const apiKey = process.env.NEYNAR_API_KEY;
-    if (!apiKey) {
-      console.log('NEYNAR_API_KEY not configured for cast search');
-      return '';
-    }
-
-    // Extract keywords from the cast
-    const keywords = extractKeywordsForSearch(castText);
-    if (keywords.length === 0) return '';
-
-    console.log(`🔍 Searching for similar casts about: ${keywords.slice(0, 3).join(', ')}`);
-
-    // Search for casts with similar content
-    const searchQuery = keywords.slice(0, 3).join(' ');
-    const url = `https://api.neynar.com/v2/farcaster/cast/search?q=${encodeURIComponent(searchQuery)}&limit=10`;
-
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'x-api-key': apiKey,
-      },
-    });
-
-    if (!response.ok) {
-      console.error(`Cast search failed: ${response.status}`);
-      return '';
-    }
-
-    const data = await response.json();
-    const casts = data.casts || [];
-
-    if (casts.length === 0) {
-      console.log('📭 No similar casts found');
-      return '';
-    }
-
-    // Filter for relevant, engaging casts
-    const relevantCasts = casts
-      .filter((c: any) => {
-        // Skip if it's too short or too old
-        const hoursOld = (Date.now() - new Date(c.timestamp).getTime()) / (1000 * 60 * 60);
-        return c.text.length > 50 && hoursOld < 48; // Last 48 hours
-      })
-      .slice(0, 5);
-
-    if (relevantCasts.length === 0) {
-      console.log('📭 No recent relevant casts found');
-      return '';
-    }
-
-    console.log(`✅ Found ${relevantCasts.length} similar casts for context`);
-
-    let similarContext = '\n\n**Related discussions on Farcaster:**\n';
-    relevantCasts.forEach((cast: any, idx: number) => {
-      const preview = cast.text.slice(0, 120).replace(/\n/g, ' ');
-      const engagement = cast.reactions.likes_count + cast.replies.count;
-      similarContext += `${idx + 1}. @${cast.author.username}: "${preview}..." (${engagement} engagement)\n`;
-    });
-
-    return similarContext;
-  } catch (error) {
-    console.error('Error searching similar casts:', error);
-    return '';
-  }
+// NOTE: Pinata Farcaster API does not expose a cast search endpoint.
+// This function is a no-op stub until an alternative search provider is integrated.
+// See docs/PINATA_MIGRATION.md → "Known Gaps".
+async function searchSimilarCasts(_castText: string): Promise<string> {
+  console.log('[agents] searchSimilarCasts: cast search not supported by Pinata API — skipping');
+  return '';
 }
 
 // Extract keywords from text for search

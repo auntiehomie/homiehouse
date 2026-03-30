@@ -21,13 +21,10 @@ export default function CastDetailPage() {
 
     const fetchCastDetail = async () => {
       try {
-        const apiKey = process.env.NEXT_PUBLIC_NEYNAR_API_KEY;
-        
-        // Try to fetch from our API first (would need to create this endpoint)
-        const response = await fetch(`https://api.neynar.com/v2/farcaster/cast?identifier=${hash}&type=hash`, {
+        // Fetch cast via our own API route which uses Pinata under the hood
+        const response = await fetch(`/api/miniapp/analyze-cast?hash=${encodeURIComponent(hash)}`, {
           headers: {
             'accept': 'application/json',
-            'api_key': '8C6F1E4E-677E-419A-A8C7-EF849B0E366B',
           },
         });
 
@@ -36,7 +33,12 @@ export default function CastDetailPage() {
         }
 
         const data = await response.json();
-        setCast(data.cast);
+        // /api/miniapp/analyze-cast returns { cast, author, engagement, reputation }
+        // Reconstruct a cast-shaped object for the page
+        const castData = data.cast
+          ? { ...data.cast, author: data.author, reactions: { likes_count: data.engagement?.likes, recasts_count: data.engagement?.recasts }, replies: { count: data.engagement?.replies } }
+          : data;
+        setCast(castData);
       } catch (err: any) {
         console.error('Error fetching cast:', err);
         setError(err.message || 'Failed to load cast');

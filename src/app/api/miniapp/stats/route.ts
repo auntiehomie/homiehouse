@@ -12,8 +12,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-    if (!NEYNAR_API_KEY) {
+    const PINATA_JWT = process.env.PINATA_JWT;
+    if (!PINATA_JWT) {
       return NextResponse.json(
         { error: 'API key not configured' },
         { status: 500 }
@@ -21,21 +21,22 @@ export async function GET(request: NextRequest) {
     }
 
     const response = await fetch(
-      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+      `https://api.pinata.cloud/v3/farcaster/users/${fid}`,
       {
         headers: {
           'accept': 'application/json',
-          'x-api-key': NEYNAR_API_KEY
-        }
+          'Authorization': `Bearer ${PINATA_JWT}`,
+        },
       }
     );
 
     if (!response.ok) {
-      throw new Error(`Neynar API error: ${response.status}`);
+      throw new Error(`Farcaster API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const user = data.users?.[0];
+    // Pinata returns { data: { ... } }
+    const user = data?.data ?? data.users?.[0];
 
     if (!user) {
       return NextResponse.json(

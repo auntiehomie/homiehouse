@@ -13,18 +13,18 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-// Function to publish a cast using Neynar
+// Function to publish a cast using Pinata Farcaster API
 async function publishCast(signerUuid: string, text: string, embeds: any[] = [], channelId?: string) {
-  const neynarApiKey = process.env.NEYNAR_API_KEY;
-  if (!neynarApiKey) {
-    throw new Error('NEYNAR_API_KEY must be set');
+  const jwt = process.env.PINATA_JWT;
+  if (!jwt) {
+    throw new Error('PINATA_JWT must be set');
   }
 
-  const url = 'https://api.neynar.com/v2/farcaster/cast';
-  
+  const url = 'https://api.pinata.cloud/v3/farcaster/casts';
+
   const body: any = {
-    signer_uuid: signerUuid,
-    text
+    signerId: signerUuid,
+    text,
   };
 
   if (embeds && embeds.length > 0) {
@@ -32,21 +32,21 @@ async function publishCast(signerUuid: string, text: string, embeds: any[] = [],
   }
 
   if (channelId) {
-    body.channel_id = channelId;
+    body.channelId = channelId;
   }
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': neynarApiKey
+      'Authorization': `Bearer ${jwt}`,
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Neynar API error: ${response.status} - ${errorText}`);
+    throw new Error(`Farcaster API error: ${response.status} - ${errorText}`);
   }
 
   return await response.json();

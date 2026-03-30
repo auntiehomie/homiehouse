@@ -6,6 +6,9 @@ import { createApiLogger } from '@/lib/logger';
 import { validateUuid } from '@/lib/validation';
 import { rateLimit } from '@/lib/ratelimit';
 
+// NOTE: Signer registration still requires Neynar API — Pinata has no equivalent endpoint.
+// Keep NEYNAR_API_KEY set in env, OR replace this flow with a custom signer implementation.
+// See docs/PINATA_MIGRATION.md → "Known Gaps".
 const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
 const APP_FID = process.env.APP_FID;
 const APP_MNEMONIC = process.env.APP_MNEMONIC;

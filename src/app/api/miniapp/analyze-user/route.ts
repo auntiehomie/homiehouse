@@ -21,32 +21,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-    if (!NEYNAR_API_KEY) {
+    const PINATA_JWT = process.env.PINATA_JWT;
+    if (!PINATA_JWT) {
       return NextResponse.json(
         { error: 'API key not configured' },
         { status: 500 }
       );
     }
 
-    // Fetch user from Neynar
-    const endpoint = username 
-      ? `https://api.neynar.com/v2/farcaster/user/by_username?username=${username}`
-      : `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`;
+    // Fetch user from Pinata Farcaster API
+    // Note: Pinata supports by_username; bulk-by-fid uses /users/<fid>
+    const endpoint = username
+      ? `https://api.pinata.cloud/v3/farcaster/users/by_username?username=${username}`
+      : `https://api.pinata.cloud/v3/farcaster/users/${fid}`;
 
     const response = await fetch(endpoint, {
       headers: {
         'accept': 'application/json',
-        'x-api-key': NEYNAR_API_KEY
-      }
+        'Authorization': `Bearer ${PINATA_JWT}`,
+      },
     });
 
     if (!response.ok) {
-      throw new Error(`Neynar API error: ${response.status}`);
+      throw new Error(`Farcaster API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const user = username ? data.user : data.users?.[0];
+    // Pinata returns { data: { ... } } for single-user endpoints
+    const user = data?.data ?? (username ? data.user : data.users?.[0]);
 
     if (!user) {
       return NextResponse.json(

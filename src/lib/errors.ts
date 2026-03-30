@@ -5,15 +5,37 @@
 import { NextResponse } from 'next/server';
 
 /**
- * Custom error class for Neynar API errors
+ * Generic Farcaster API error — provider-agnostic.
+ * Use this for new code; NeynarError / PinataError are aliases for back-compat.
  */
-export class NeynarError extends Error {
+export class FarcasterAPIError extends Error {
   constructor(
     public details: string,
     public status: number = 500,
-    public code: string = 'NEYNAR_ERROR'
+    public code: string = 'FARCASTER_API_ERROR'
   ) {
-    super('Neynar API error');
+    super('Farcaster API error');
+    this.name = 'FarcasterAPIError';
+  }
+}
+
+/**
+ * Alias for FarcasterAPIError — used by the Pinata connector.
+ */
+export const PinataError = FarcasterAPIError;
+export type PinataError = FarcasterAPIError;
+
+/**
+ * @deprecated Use FarcasterAPIError instead.
+ * Kept for backward compatibility with existing catch blocks.
+ */
+export class NeynarError extends FarcasterAPIError {
+  constructor(
+    details: string,
+    status: number = 500,
+    code: string = 'NEYNAR_ERROR'
+  ) {
+    super(details, status, code);
     this.name = 'NeynarError';
   }
 }
@@ -69,10 +91,10 @@ export function handleApiError(error: any, context: string): NextResponse {
   console.error(`[${context}] Error:`, error);
 
   // Handle known error types
-  if (error instanceof NeynarError) {
+  if (error instanceof FarcasterAPIError) {
     return NextResponse.json(
       {
-        error: 'Neynar API request failed',
+        error: 'Farcaster API request failed',
         details: error.details,
         code: error.code,
       },

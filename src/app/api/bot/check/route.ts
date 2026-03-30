@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+// NOTE: @neynar/nodejs-sdk is still used here for bot notification polling and cast
+// lookup, as Pinata does not provide equivalent SDK-level wrappers for these flows.
+// Keep NEYNAR_API_KEY configured for this route.
+// See docs/PINATA_MIGRATION.md → "Known Gaps".
 import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
