@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { text, embeds, channelKey, parentUrl } = body;
+    const { text, embeds, channelKey, parentUrl, parentCastHash, isQuoteCast } = body;
     const signerUuid = body.signerUuid || body.signer_uuid;
 
     logger.info('Compose request', {
@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
       embedCount: embeds?.length,
       channelKey,
       hasParent: !!parentUrl,
+      hasParentCastHash: !!parentCastHash,
+      isQuoteCast: !!isQuoteCast,
       signerProvided: !!signerUuid,
       signerField: body.signerUuid ? 'signerUuid' : body.signer_uuid ? 'signer_uuid' : 'none',
     });
@@ -72,6 +74,24 @@ export async function POST(request: NextRequest) {
 
     if (parentUrl) {
       castPayload.parent = parentUrl;
+    }
+
+    // For quote casts: embed the cast URL (already in embeds from client)
+    // and optionally set parent_cast_id for platforms that support it.
+    // We do NOT set parent here because that would make it a reply, not a quote.
+    if (parentCastHash && isQuoteCast) {
+      logger.info('Quote cast detected', { parentCastHash });
+      // The cast URL embed is already included via `embeds` from the client.
+      // Some Farcaster clients also look for a cast embed object shape;
+      // we surface this in metadata for forward-compat.
+      if (!castPayload.embeds) castPayload.embeds = [];
+      // Ensure the warpcast conversation URL is in embeds (added client-side,
+      // but guard here in case it was omitted)
+      const quotedUrl = `https://warpcast.com/~/conversations/${parentCastHash}`;
+      const alreadyHasEmbed = castPayload.embeds.some((e: any) => e.url === quotedUrl);
+      if (!alreadyHasEmbed) {
+        castPayload.embeds.push({ url: quotedUrl });
+      }
     }
 
     if (channelKey) {

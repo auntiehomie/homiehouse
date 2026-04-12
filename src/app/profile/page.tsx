@@ -151,18 +151,18 @@ function ProfileContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading profile...</div>
+      <div style={{ minHeight: '100vh', background: 'var(--background)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--muted-on-dark)' }}>Loading profile...</div>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Profile not found'}</p>
-          <Link href="/" className="text-orange-600 dark:text-orange-400 hover:underline">
+      <div style={{ minHeight: '100vh', background: 'var(--background)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: '#f87171', marginBottom: '1rem' }}>{error || 'Profile not found'}</p>
+          <Link href="/" style={{ color: 'var(--accent)' }}>
             Go back home
           </Link>
         </div>
@@ -171,72 +171,90 @@ function ProfileContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black pb-20">
-      <div className="px-2">
+    <div style={{ minHeight: '100vh', background: 'var(--background)', color: 'var(--foreground)', paddingBottom: '5rem' }}>
+      <div style={{ maxWidth: '680px', margin: '0 auto', padding: '0 0.75rem' }}>
         {/* Back button */}
         <Link
           href="/"
-          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 py-4"
+          style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--muted-on-dark)', padding: '1rem 0', textDecoration: 'none' }}
         >
           ← Back to feed
         </Link>
 
         {/* Profile card */}
-        <div className="bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 overflow-hidden mb-6">
-          {/* Header with gradient */}
-          <div className="h-32 bg-gradient-to-r from-purple-500 to-blue-500"></div>
+        <div className="surface" style={{ borderRadius: '12px', overflow: 'hidden', marginBottom: '1.5rem', padding: 0 }}>
+          {/* Header with brand gradient */}
+          <div style={{ height: '7rem', background: 'linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)' }} />
 
           {/* Profile info */}
-          <div className="px-6 pb-6">
+          <div style={{ padding: '0 1.5rem 1.5rem' }}>
             {/* Avatar */}
-            <div className="relative -mt-16 mb-4">
+            <div style={{ position: 'relative', marginTop: '-4rem', marginBottom: '1rem' }}>
               <img
                 src={profile.pfp_url || '/default-avatar.png'}
                 alt={profile.display_name || 'User avatar'}
-                className="w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900"
+                style={{
+                  width: '8rem',
+                  height: '8rem',
+                  borderRadius: '50%',
+                  border: '4px solid var(--surface)',
+                  objectFit: 'cover',
+                }}
                 onError={(e) => {
-                  // @ts-ignore - set fallback avatar on error
+                  // @ts-ignore
                   e.currentTarget.src = '/default-avatar.png';
                 }}
               />
               {profile.power_badge && (
-                <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full w-10 h-10 flex items-center justify-center border-4 border-white dark:border-zinc-900">
-                  <span className="text-white text-xl">✓</span>
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  background: '#3b82f6',
+                  borderRadius: '50%',
+                  width: '2.25rem',
+                  height: '2.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '3px solid var(--surface)',
+                }}>
+                  <span style={{ color: '#fff', fontSize: '1rem', lineHeight: 1 }}>✓</span>
                 </div>
               )}
             </div>
 
             {/* Name and username */}
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>
               {profile.display_name}
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">@{profile.username}</p>
+            <p style={{ color: 'var(--muted-on-dark)', marginBottom: '1rem' }}>@{profile.username}</p>
 
             {/* Stats */}
-            <div className="flex gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-zinc-800">
+            <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
               <div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>
                   {typeof profile.follower_count === 'number' ? profile.follower_count.toLocaleString() : '0'}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Followers</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>Followers</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>
                   {typeof profile.following_count === 'number' ? profile.following_count.toLocaleString() : '0'}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Following</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>Following</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{profile.fid}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">FID</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{profile.fid}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>FID</div>
               </div>
             </div>
 
             {/* Bio */}
             {profile.profile?.bio?.text && (
               <div>
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Bio</h2>
-                <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                <h2 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted-on-dark)', marginBottom: '0.5rem' }}>Bio</h2>
+                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                   {profile.profile.bio.text}
                 </p>
               </div>
@@ -246,28 +264,25 @@ function ProfileContent() {
 
         {/* User's Casts */}
         <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 px-2">Recent Casts</h2>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', paddingLeft: '0.25rem' }}>Recent Casts</h2>
           
           {castsLoading ? (
-            <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
               Loading casts...
             </div>
           ) : casts.length === 0 ? (
-            <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
               No casts yet
             </div>
           ) : (
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {casts.map((cast) => {
-                // Defensive: guard against missing/invalid timestamps which can throw in date-fns
                 let timeLabel = '';
                 try {
                   if (cast?.timestamp) {
                     const d = new Date(cast.timestamp);
                     if (!isNaN(d.getTime())) {
                       timeLabel = formatDistanceToNow(d, { addSuffix: true });
-                    } else {
-                      console.warn('[Profile Page] Invalid cast timestamp:', cast.timestamp);
                     }
                   }
                 } catch (e) {
@@ -278,13 +293,23 @@ function ProfileContent() {
                   <Link
                     key={cast.hash}
                     href={`/cast/${cast.hash}`}
-                    className="block bg-white dark:bg-zinc-900 rounded-lg border border-gray-200 dark:border-zinc-800 p-4 hover:border-orange-500 dark:hover:border-orange-600 transition-colors"
+                    className="surface"
+                    style={{
+                      display: 'block',
+                      padding: '1rem',
+                      borderRadius: '10px',
+                      textDecoration: 'none',
+                      color: 'inherit',
+                      transition: 'border-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
                   >
-                    <p className="text-gray-900 dark:text-white mb-3 whitespace-pre-wrap break-words">
+                    <p style={{ marginBottom: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>
                       {cast.text}
                     </p>
                     
-                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>
                       <span>{timeLabel}</span>
                       <span>💬 {cast.replies?.count || 0}</span>
                       <span>❤️ {cast.reactions?.likes_count || 0}</span>
@@ -304,8 +329,8 @@ function ProfileContent() {
 export default function ProfilePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading profile...</div>
+      <div style={{ minHeight: '100vh', background: 'var(--background)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--muted-on-dark)' }}>Loading profile...</div>
       </div>
     }>
       <ProfileContent />

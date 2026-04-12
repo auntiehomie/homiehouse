@@ -1,333 +1,542 @@
 /**
- * Pinata Farcaster API utilities
- * Drop-in replacement for Neynar API connector.
+ * Piñata — combined IPFS storage + Farcaster API connector.
  *
- * Base URL: https://api.pinata.cloud/v3/farcaster
- * Auth: Authorization: Bearer <PINATA_JWT>
- *
- * NOTE: Some Neynar-specific endpoints (signer management, fungibles, bulk user lookup)
- * have no direct Pinata equivalent. Those fall back to neynar-compat shims that throw
- * descriptive errors — see PINATA_MIGRATION.md for details.
+ * Farcaster functions at the bottom of this file power all social
+ * reads/writes (feed, casts, reactions, notifications, users, channels).
+ * The IPFS storage class (PinataService) remains unchanged.
  */
 
-import { FarcasterAPIError } from './errors';
+import pinataSDK from '@pinata/sdk';
+import { pinataConfig } from '@/config/web3';
+import { Web3Error } from '@/config/web3';
 
-const PINATA_BASE_URL = 'https://api.pinata.cloud/v3/farcaster';
+// ─── Farcaster API ──────────────────────────────────────────────────────────
+
+const PINATA_FARCASTER_BASE = 'https://api.pinata.cloud/v3/farcaster';
 
 export interface PinataFetchOptions extends RequestInit {
-  skipAuth?: boolean;
+  method?: string;
+  body?: BodyInit;
 }
 
-// ─── Core fetch wrapper ───────────────────────────────────────────────────────
+function getPinataJwt(): string {
+  const jwt = process.env.PINATA_JWT;
+  if (!jwt) throw new Error('PINATA_JWT environment variable is not set');
+  return jwt;
+}
 
 /**
- * Wrapper for Pinata Farcaster API calls with automatic error handling.
- * @param endpoint - API endpoint (without base URL), or full URL
- * @param options  - Fetch options
- * @returns Parsed JSON response
- * @throws FarcasterAPIError on API errors
+ * Generic authenticated fetch to the Pinata Farcaster API.
  */
-export async function pinataFetch<T = any>(
-  endpoint: string,
-  options?: PinataFetchOptions
-): Promise<T> {
-  const jwt = process.env.PINATA_JWT;
-  if (!jwt && !options?.skipAuth) {
-    throw new FarcasterAPIError('PINATA_JWT not configured', 500, 'MISSING_API_KEY');
-  }
-
-  const url = endpoint.startsWith('http')
-    ? endpoint
-    : `${PINATA_BASE_URL}${endpoint}`;
-
-  const { skipAuth, ...fetchOptions } = options || {};
-
-  const response = await fetch(url, {
-    ...fetchOptions,
+export async function pinataFetch(endpoint: string, opts: PinataFetchOptions = {}): Promise<any> {
+  const jwt = getPinataJwt();
+  const url = `${PINATA_FARCASTER_BASE}${endpoint}`;
+  const res = await fetch(url, {
+    ...opts,
     headers: {
       'accept': 'application/json',
-      'content-type': 'application/json',
-      ...(skipAuth ? {} : { 'Authorization': `Bearer ${jwt!}` }),
-      ...fetchOptions?.headers,
+      'Authorization': `Bearer ${jwt}`,
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(opts.headers || {}),
     },
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorDetails = errorText;
-
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorDetails = errorJson.message || errorJson.error || errorText;
-    } catch {
-      // keep raw error text
-    }
-
-    throw new FarcasterAPIError(errorDetails, response.status, 'PINATA_API_ERROR');
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Pinata Farcaster API error ${res.status}: ${text}`);
   }
-
-  return response.json();
+  return res.json();
 }
 
-// ─── Re-exported as neynarFetch alias for backward compat ────────────────────
-
-/**
- * Alias of pinataFetch — keeps callers that imported neynarFetch working.
- * Internally routes to Pinata.
- */
+/** Re-exported as neynarFetch for backward compat */
 export const neynarFetch = pinataFetch;
 
-// ─── Cast operations ──────────────────────────────────────────────────────────
-
 /**
- * Post a cast via Pinata API
- * Pinata POST /casts accepts: { signerId, text, embeds, parentCastId, channelId }
+ * Publish a cast (or reply / quote cast) via Pinata Farcaster API.
+ * Payload shape: { signer_uuid, text, embeds?, parent?, channel_id?,
+ *                  parent_cast_id?: { hash, fid } }
  */
 export async function publishCast(payload: {
   signer_uuid: string;
   text: string;
-  embeds?: any[];
+  embeds?: { url: string }[];
   parent?: string;
   channel_id?: string;
-}) {
+  parent_cast_id?: { hash: string; fid: number };
+}): Promise<any> {
   return pinataFetch('/casts', {
     method: 'POST',
-    body: JSON.stringify({
-      signerId: payload.signer_uuid,
-      text: payload.text,
-      ...(payload.embeds?.length ? { embeds: payload.embeds } : {}),
-      ...(payload.parent ? { parentCastId: payload.parent } : {}),
-      ...(payload.channel_id ? { channelId: payload.channel_id } : {}),
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
-/**
- * Fetch cast by hash
- * Pinata: GET /casts/<hash>
- */
-export async function fetchCast(castHash: string) {
-  return pinataFetch(`/casts/${encodeURIComponent(castHash)}`);
-}
-
-// ─── Reaction operations ──────────────────────────────────────────────────────
-
-/**
- * Post a reaction (like/recast) via Pinata API
- * Pinata POST /reactions: { signerId, reactionType, target }
- */
+/** Publish a reaction (like or recast). */
 export async function publishReaction(payload: {
   signer_uuid: string;
   reaction_type: 'like' | 'recast';
   target: string;
-}) {
+  target_author_fid?: number;
+}): Promise<any> {
   return pinataFetch('/reactions', {
     method: 'POST',
-    body: JSON.stringify({
-      signerId: payload.signer_uuid,
-      reactionType: payload.reaction_type,
-      target: payload.target,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
-/**
- * Delete a reaction via Pinata API
- * Pinata DELETE /reactions: { signerId, reactionType, target }
- */
+/** Delete a reaction. */
 export async function deleteReaction(payload: {
   signer_uuid: string;
   reaction_type: 'like' | 'recast';
   target: string;
-}) {
+  target_author_fid?: number;
+}): Promise<any> {
   return pinataFetch('/reactions', {
     method: 'DELETE',
-    body: JSON.stringify({
-      signerId: payload.signer_uuid,
-      reactionType: payload.reaction_type,
-      target: payload.target,
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
-// ─── Feed operations ──────────────────────────────────────────────────────────
-
-/**
- * Fetch user/following feed
- * Pinata: GET /feed/following?fid=<fid>
- * Falls back to trending for unknown feed_type values.
- */
-export async function fetchFeed(params: {
-  feed_type?: string;
-  fid?: string;
-  channel_id?: string;
-  filter_type?: string;
-  viewer_fid?: string;
-  limit?: number;
-  cursor?: string;
-}) {
-  const searchParams = new URLSearchParams();
-  if (params.fid) searchParams.set('fid', params.fid);
-  if (params.limit) searchParams.set('limit', params.limit.toString());
-  if (params.cursor) searchParams.set('pageToken', params.cursor);
-
-  // Pinata endpoint selection:
-  // feed_type=filter+filter_type=fids → following feed for that fid
-  // feed_type=following → following feed
-  // anything else      → trending
-  const useFollowing =
-    params.feed_type === 'following' ||
-    (params.feed_type === 'filter' && params.filter_type === 'fids');
-
-  const endpoint = useFollowing
-    ? `/feed/following?${searchParams.toString()}`
-    : `/feed/trending?${searchParams.toString()}`;
-
-  return pinataFetch(endpoint);
+/** Fetch a cast by hash. */
+export async function fetchCast(hash: string): Promise<any> {
+  return pinataFetch(`/casts/${encodeURIComponent(hash)}`);
 }
 
-/**
- * Fetch trending feed
- * Pinata: GET /feed/trending
- */
-export async function fetchTrendingFeed(params: {
-  limit?: number;
-  time_window?: string;
-  viewer_fid?: string;
-  channel_id?: string;
-  cursor?: string;
-}) {
-  const searchParams = new URLSearchParams();
-  if (params.limit) searchParams.set('limit', params.limit.toString());
-  if (params.cursor) searchParams.set('pageToken', params.cursor);
-
-  return pinataFetch(`/feed/trending?${searchParams.toString()}`);
-}
-
-// ─── User operations ──────────────────────────────────────────────────────────
-
-/**
- * Fetch user profile by username
- * Pinata: GET /users/by_username?username=<u>
- */
-export async function fetchUserByUsername(username: string) {
-  try {
-    return await pinataFetch(
-      `/users/by_username?username=${encodeURIComponent(username)}`
-    );
-  } catch (error) {
-    console.error(`Failed to fetch user @${username}:`, error);
-    if (error instanceof FarcasterAPIError && error.status === 404) {
-      throw new Error(
-        `User @${username} not found on Farcaster. Please check the username and try again.`
-      );
-    }
-    throw error;
+/** Fetch the home / following / trending feed. */
+export async function fetchFeed(params: Record<string, any> = {}): Promise<any> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) qs.set(k, String(v));
   }
+  // Pinata: GET /feed/following?fid=... or /feed/trending
+  const feedType = params.feed_type || 'following';
+  const endpoint = feedType === 'filter' && params.filter_type === 'global_trending'
+    ? '/feed/trending'
+    : '/feed/following';
+  return pinataFetch(`${endpoint}?${qs.toString()}`);
 }
 
-/**
- * Fetch user channels
- * Pinata: GET /channel/list (filtered by member)
- * Note: Pinata doesn't have a per-user channel endpoint; returns all channels.
- */
-export async function fetchUserChannels(fid: string, limit: number = 25) {
+/** Fetch trending feed. */
+export async function fetchTrendingFeed(params: Record<string, any> = {}): Promise<any> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) qs.set(k, String(v));
+  }
+  return pinataFetch(`/feed/trending?${qs.toString()}`);
+}
+
+/** Fetch a user by username. */
+export async function fetchUserByUsername(username: string): Promise<any> {
+  const data = await pinataFetch(`/users/by_username?username=${encodeURIComponent(username)}`);
+  // Normalize: Pinata returns { data: { user } } or { user }
+  const user = data?.data?.user ?? data?.user ?? data?.data ?? data;
+  return { user };
+}
+
+/** Fetch user's channels. */
+export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
   return pinataFetch(`/channel/list?limit=${limit}`);
 }
 
-/**
- * Fetch channel list
- * Pinata: GET /channel/list
- */
-export async function fetchChannelList(limit: number = 25) {
+/** Fetch full channel list. */
+export async function fetchChannelList(limit = 50): Promise<any> {
   return pinataFetch(`/channel/list?limit=${limit}`);
 }
 
-/**
- * Fetch user following
- * Pinata: GET /feed/following?fid=<fid>
- */
-export async function fetchFollowing(fid: string, limit: number = 100) {
+/** Fetch following feed for a FID. */
+export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
   return pinataFetch(`/feed/following?fid=${fid}&limit=${limit}`);
 }
 
-/**
- * Fetch notifications for a user
- * Pinata: GET /notifications?fid=<fid>
- */
-export async function fetchNotifications(params: {
-  fid: string;
-  priority_mode?: boolean;
-  cursor?: string;
-  type?: string;
-}) {
-  const searchParams = new URLSearchParams();
-  searchParams.set('fid', params.fid);
-  if (params.cursor) searchParams.set('pageToken', params.cursor);
-  if (params.type) searchParams.set('type', params.type);
-
-  return pinataFetch(`/notifications?${searchParams.toString()}`);
+/** Fetch notifications for a FID. */
+export async function fetchNotifications(params: { fid: number; limit?: number; cursor?: string }): Promise<any> {
+  const { fid, limit = 25, cursor } = params;
+  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
+  return pinataFetch(`/notifications?${qs.toString()}`);
 }
 
-/**
- * Search users by query
- * Pinata: GET /users/by_username?username=<q> (partial-match where supported)
- * NOTE: Pinata does not have a dedicated search-users endpoint;
- * this performs a username lookup as a best-effort substitute.
- */
-export async function searchUsers(query: string, limit: number = 5) {
-  return pinataFetch(
-    `/users/by_username?username=${encodeURIComponent(query)}&limit=${limit}`
-  );
+/** Search users by query (best-effort via username prefix). */
+export async function searchUsers(query: string, limit = 10): Promise<any> {
+  const data = await pinataFetch(`/users/by_username?username=${encodeURIComponent(query)}`);
+  const user = data?.data?.user ?? data?.user ?? data?.data;
+  return { users: user ? [user] : [] };
 }
 
-/**
- * Search casts by text
- * NOTE: Pinata Farcaster API does not expose a cast search endpoint.
- * Returns an empty result set rather than throwing.
- */
-export async function searchCasts(_query: string, _limit: number = 10) {
-  console.warn('[pinata] searchCasts: not supported by Pinata API — returning empty result');
+/** Search casts — not supported by Pinata; returns empty stub. */
+export async function searchCasts(_query: string): Promise<any> {
   return { casts: [] };
 }
 
-/**
- * Get casts authored by a username
- * Resolves username → fid, then fetches via following feed.
- */
-export async function getCastsByUsername(username: string, limit: number = 25) {
-  try {
-    const userData = await fetchUserByUsername(username);
+/** Fetch casts by username. */
+export async function getCastsByUsername(username: string, limit = 25): Promise<any> {
+  const userData = await fetchUserByUsername(username);
+  const fid = userData?.user?.fid;
+  if (!fid) return { casts: [] };
+  return pinataFetch(`/casts?fid=${fid}&limit=${limit}`);
+}
 
-    // Pinata returns the user under a "data" key
-    const user = userData?.data ?? userData?.user ?? userData;
-    if (!user?.fid) {
-      throw new Error(`User @${username} was found but has no FID (Farcaster ID)`);
+// File upload options interface
+export interface UploadOptions {
+  pinataMetadata?: {
+    name?: string;
+    keyvalues?: Record<string, string | number>;
+  };
+  pinataOptions?: {
+    cidVersion?: number;
+    wrapWithDirectory?: boolean;
+  };
+}
+
+// Upload result interface
+export interface UploadResult {
+  IpfsHash: string;
+  PinSize: number;
+  Timestamp: string;
+  isDuplicate?: boolean;
+  gatewayUrl: string;
+}
+
+// Metadata service interface
+export interface MetadataService {
+  name: string;
+  description?: string;
+  image?: string;
+  external_url?: string;
+  attributes?: Array<{
+    trait_type: string;
+    value: string | number;
+  }>;
+}
+
+class PinataService {
+  private client: any;
+  private isConfigured: boolean;
+
+  constructor() {
+    this.isConfigured = false;
+    
+    if (pinataConfig.jwt) {
+      try {
+        this.client = new pinataSDK({ pinataJWTKey: pinataConfig.jwt });
+        this.isConfigured = true;
+      } catch (error) {
+        console.warn('Failed to initialize Piñata client:', error);
+      }
+    } else {
+      console.warn('Piñata JWT not configured. IPFS uploads will be disabled.');
+    }
+  }
+
+  /**
+   * Upload a file to IPFS via Piñata
+   */
+  async uploadFile(
+    file: File | Buffer | ArrayBuffer,
+    options: UploadOptions = {}
+  ): Promise<UploadResult> {
+    if (!this.isConfigured) {
+      throw new Web3Error(
+        'Piñata is not configured. Please set PINATA_JWT environment variable.',
+        'PINATA_NOT_CONFIGURED'
+      );
     }
 
-    console.log(`Fetching ${limit} casts from @${username} (FID: ${user.fid})`);
+    try {
+      console.log('[PinataService] Uploading file...', {
+        type: file instanceof File ? 'File' : 'Buffer',
+        name: file instanceof File ? file.name : 'buffer',
+        size: file instanceof File ? file.size : file.byteLength,
+      });
 
-    const castsData = await pinataFetch(
-      `/casts?fid=${user.fid}&limit=${limit}`
-    );
+      let uploadResult;
+      
+      if (file instanceof File) {
+        const readableStream = file.stream();
+        uploadResult = await this.client.pinFileToIPFS(readableStream, {
+          pinataMetadata: {
+            name: options.pinataMetadata?.name || file.name,
+            keyvalues: {
+              originalName: file.name,
+              fileType: file.type,
+              uploadSource: 'homiehouse-web',
+              uploadedAt: new Date().toISOString(),
+              ...options.pinataMetadata?.keyvalues,
+            },
+          },
+          pinataOptions: options.pinataOptions || {
+            cidVersion: 1,
+            wrapWithDirectory: false,
+          },
+        });
+      } else {
+        // Handle Buffer or ArrayBuffer
+        const buffer = Buffer.from(file);
+        uploadResult = await this.client.pinFileToIPFS(buffer, {
+          pinataMetadata: {
+            name: options.pinataMetadata?.name || 'upload.bin',
+            keyvalues: {
+              uploadSource: 'homiehouse-web',
+              uploadedAt: new Date().toISOString(),
+              ...options.pinataMetadata?.keyvalues,
+            },
+          },
+          pinataOptions: options.pinataOptions || {
+            cidVersion: 1,
+            wrapWithDirectory: false,
+          },
+        });
+      }
 
-    if (!castsData?.casts || castsData.casts.length === 0) {
-      console.log(`No casts found for @${username}`);
-      return { casts: [] };
+      const result: UploadResult = {
+        ...uploadResult,
+        gatewayUrl: `${pinataConfig.gateway}/ipfs/${uploadResult.IpfsHash}`,
+      };
+
+      console.log('[PinataService] File uploaded successfully', {
+        ipfsHash: result.IpfsHash,
+        gatewayUrl: result.gatewayUrl,
+        size: result.PinSize,
+      });
+
+      return result;
+    } catch (error) {
+      console.error('[PinataService] File upload failed:', error);
+      throw new Web3Error(
+        'Failed to upload file to IPFS',
+        'IPFS_UPLOAD_FAILED',
+        error
+      );
+    }
+  }
+
+  /**
+   * Upload JSON metadata to IPFS
+   */
+  async uploadMetadata(
+    metadata: MetadataService,
+    options: UploadOptions = {}
+  ): Promise<UploadResult> {
+    if (!this.isConfigured) {
+      throw new Web3Error(
+        'Piñata is not configured. Please set PINATA_JWT environment variable.',
+        'PINATA_NOT_CONFIGURED'
+      );
     }
 
-    console.log(`Successfully fetched ${castsData.casts.length} casts from @${username}`);
-    return castsData;
-  } catch (error) {
-    console.error(`Error in getCastsByUsername for @${username}:`, error);
-    throw error;
+    try {
+      console.log('[PinataService] Uploading metadata...', {
+        name: metadata.name,
+        hasImage: !!metadata.image,
+        hasAttributes: !!metadata.attributes?.length,
+      });
+
+      const metadataString = JSON.stringify(metadata, null, 2);
+      const buffer = Buffer.from(metadataString);
+
+      const uploadResult = await this.client.pinFileToIPFS(buffer, {
+        pinataMetadata: {
+          name: `${metadata.name} - Metadata`,
+          keyvalues: {
+            type: 'metadata',
+            uploadSource: 'homiehouse-web',
+            uploadedAt: new Date().toISOString(),
+            ...options.pinataMetadata?.keyvalues,
+          },
+        },
+        pinataOptions: options.pinataOptions || {
+          cidVersion: 1,
+          wrapWithDirectory: false,
+        },
+      });
+
+      const result: UploadResult = {
+        ...uploadResult,
+        gatewayUrl: `${pinataConfig.gateway}/ipfs/${uploadResult.IpfsHash}`,
+      };
+
+      console.log('[PinataService] Metadata uploaded successfully', {
+        ipfsHash: result.IpfsHash,
+        gatewayUrl: result.gatewayUrl,
+      });
+
+      return result;
+    } catch (error) {
+      console.error('[PinataService] Metadata upload failed:', error);
+      throw new Web3Error(
+        'Failed to upload metadata to IPFS',
+        'IPFS_METADATA_UPLOAD_FAILED',
+        error
+      );
+    }
+  }
+
+  /**
+   * Pin existing content by hash
+   */
+  async pinByHash(hash: string, options: UploadOptions = {}): Promise<UploadResult> {
+    if (!this.isConfigured) {
+      throw new Web3Error(
+        'Piñata is not configured. Please set PINATA_JWT environment variable.',
+        'PINATA_NOT_CONFIGURED'
+      );
+    }
+
+    try {
+      console.log('[PinataService] Pinning by hash...', { hash });
+
+      const pinResult = await this.client.pinByHash(hash, {
+        pinataMetadata: {
+          name: options.pinataMetadata?.name || `Pinned - ${hash}`,
+          keyvalues: {
+            pinSource: 'homiehouse-web',
+            pinnedAt: new Date().toISOString(),
+            ...options.pinataMetadata?.keyvalues,
+          },
+        },
+      });
+
+      const result: UploadResult = {
+        ...pinResult,
+        gatewayUrl: `${pinataConfig.gateway}/ipfs/${hash}`,
+      };
+
+      console.log('[PinataService] Hash pinned successfully', {
+        ipfsHash: result.IpfsHash,
+        gatewayUrl: result.gatewayUrl,
+      });
+
+      return result;
+    } catch (error) {
+      console.error('[PinataService] Hash pinning failed:', error);
+      throw new Web3Error(
+        'Failed to pin content by hash',
+        'IPFS_PIN_BY_HASH_FAILED',
+        error
+      );
+    }
+  }
+
+  /**
+   * Get pinned content information
+   */
+  async getPinnedContent(hash: string) {
+    if (!this.isConfigured) {
+      throw new Web3Error(
+        'Piñata is not configured. Please set PINATA_JWT environment variable.',
+        'PINATA_NOT_CONFIGURED'
+      );
+    }
+
+    try {
+      console.log('[PinataService] Getting pinned content...', { hash });
+
+      const result = await this.client.pinList({
+        hashContains: hash,
+        status: 'pinned',
+      });
+
+      return result;
+    } catch (error) {
+      console.error('[PinataService] Failed to get pinned content:', error);
+      throw new Web3Error(
+        'Failed to get pinned content',
+        'IPFS_GET_PINNED_FAILED',
+        error
+      );
+    }
+  }
+
+  /**
+   * Unpin content
+   */
+  async unpin(hash: string): Promise<void> {
+    if (!this.isConfigured) {
+      throw new Web3Error(
+        'Piñata is not configured. Please set PINATA_JWT environment variable.',
+        'PINATA_NOT_CONFIGURED'
+      );
+    }
+
+    try {
+      console.log('[PinataService] Unpinning content...', { hash });
+
+      await this.client.unpin(hash);
+
+      console.log('[PinataService] Content unpinned successfully', { hash });
+    } catch (error) {
+      console.error('[PinataService] Unpin failed:', error);
+      throw new Web3Error(
+        'Failed to unpin content',
+        'IPFS_UNPIN_FAILED',
+        error
+      );
+    }
+  }
+
+  /**
+   * Generate IPFS gateway URL
+   */
+  getGatewayUrl(ipfsHash: string): string {
+    return `${pinataConfig.gateway}/ipfs/${ipfsHash}`;
+  }
+
+  /**
+   * Test Piñata connection
+   */
+  async testConnection(): Promise<boolean> {
+    if (!this.isConfigured) {
+      return false;
+    }
+
+    try {
+      console.log('[PinataService] Testing connection...');
+      
+      const result = await this.client.testAuthentication();
+      const isValid = result.authenticated === true;
+      
+      console.log('[PinataService] Connection test result:', isValid);
+      return isValid;
+    } catch (error) {
+      console.error('[PinataService] Connection test failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Create metadata for NFTs or social content
+   */
+  createContentMetadata(params: {
+    name: string;
+    description: string;
+    image: string;
+    externalUrl?: string;
+    content?: string;
+    attributes?: Array<{
+      trait_type: string;
+      value: string | number;
+    }>;
+  }): MetadataService {
+    return {
+      name: params.name,
+      description: params.description,
+      image: params.image.startsWith('ipfs://') 
+        ? this.getGatewayUrl(params.image.replace('ipfs://', ''))
+        : params.image,
+      external_url: params.externalUrl,
+      attributes: [
+        ...(params.attributes || []),
+        {
+          trait_type: 'Created At',
+          value: new Date().toISOString(),
+        },
+        {
+          trait_type: 'Platform',
+          value: 'HomieHouse',
+        },
+      ],
+    };
   }
 }
 
-// ─── Signer operations (NOT supported by Pinata) ─────────────────────────────
-// Neynar /signer and /signer/signed_key endpoints have no Pinata equivalent.
-// auth.ts and signer/route.ts still call neynarFetch for these paths;
-// at runtime those calls will be routed through pinataFetch → Pinata base URL,
-// which will 404. The app must keep NEYNAR_API_KEY set for signer flows,
-// OR implement a custom signer registration flow.
-// See docs/PINATA_MIGRATION.md → "Known Gaps" section.
+// Export singleton instance
+export const pinataService = new PinataService();
+export default pinataService;

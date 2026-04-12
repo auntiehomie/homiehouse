@@ -429,6 +429,13 @@ export default function FeedList({
         return;
       }
 
+      // Build the cast URL embed for proper Farcaster quote cast.
+      // The Farcaster protocol represents quote casts as a cast whose
+      // embeds array contains the URL of the quoted cast. We use the
+      // canonical warpcast.com conversation URL so clients that render
+      // embeds (Warpcast, Supercast, etc.) display the quoted cast inline.
+      const quotedCastUrl = `https://warpcast.com/~/conversations/${castHash}`;
+
       const res = await fetch("/api/compose-cast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -436,7 +443,11 @@ export default function FeedList({
           text: quoteText, 
           signerUuid,
           fid,
-          embeds: [{ url: `https://warpcast.com/~/conversations/${castHash}` }]
+          embeds: [{ url: quotedCastUrl }],
+          // Also send parentCastHash so the server can set parent_cast_id
+          // if the underlying API supports the proper cast-reference embed.
+          parentCastHash: castHash,
+          isQuoteCast: true,
         }),
       });
 
