@@ -10,7 +10,7 @@ export async function GET() {
   // 1. Enable Developer Mode in Farcaster
   // 2. Go to https://farcaster.xyz/~/settings/developer-tools
   // 3. Use "Create Manifest" tool
-  // 4. Enter your domain: homiehouse.xyz
+  // 4. Enter your domain: 1481393129444737075.xyz
   // 5. Copy the generated manifest and replace this placeholder
   
   const manifest = {
@@ -22,11 +22,11 @@ export async function GET() {
     frame: {
       version: "1",
       name: "Ask Homie",
-      iconUrl: "https://homiehouse.xyz/icon-512.png",
-      homeUrl: "https://homiehouse.xyz/mini/ask-homie",
-      imageUrl: "https://homiehouse.xyz/og-ask-homie.png",
+      iconUrl: "https://1481393129444737075.xyz/icon-512.png",
+      homeUrl: "https://1481393129444737075.xyz/mini/ask-homie",
+      imageUrl: "https://1481393129444737075.xyz/og-ask-homie.png",
       buttonTitle: "Ask Homie",
-      splashImageUrl: "https://homiehouse.xyz/og-ask-homie.png",
+      splashImageUrl: "https://1481393129444737075.xyz/og-ask-homie.png",
       splashBackgroundColor: "#8B5CF6"
     }
   };
