@@ -201,7 +201,7 @@ Auto-refresh every 30 seconds
 
 Already configured in your `.env`:
 ```
-NEYNAR_API_KEY=8C6F1E4E-677E-419A-A8C7-EF849B0E366B
+NEYNAR_API_KEY=your_neynar_api_key_here
 ```
 
 ### Dependencies

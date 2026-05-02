@@ -26,8 +26,8 @@ This audit reveals **3 CRITICAL** and **4 HIGH** security vulnerabilities in the
 **Location:** `.env.local` (lines 29-30)
 
 ```
-SUPABASE_URL=https://afpxttdtxzdmaiyvnvjd.supabase.co
-SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmcHh0dGR0eHpkbWFpeXZudmpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NjM4NTEsImV4cCI6MjA4NDIzOTg1MX0.AxCRoYIGUdgZH49JWYxxZ6Jwxt6V2cfjHEzwMBlDzRU
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your_supabase_anon_key_here
 ```
 
 **Risk:** This is the **anon** role key (public client key), but it's still exposed. If `.env.local` gets committed:

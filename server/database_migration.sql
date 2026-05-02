@@ -1,5 +1,5 @@
 -- Bot Replies Tracking Table
--- Run this SQL in your Supabase SQL Editor: https://afpxttdtxzdmaiyvnvjd.supabase.co
+-- Run this SQL in your Supabase SQL Editor: https://your-project-id.supabase.co
 
 -- Create the bot_replies table
 CREATE TABLE IF NOT EXISTS bot_replies (

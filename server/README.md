@@ -71,7 +71,7 @@ The server will:
 In Render dashboard, add all environment variables from `.env`:
 
 ```
-NEYNAR_API_KEY=8C6F1E4E-677E-419A-A8C7-EF849B0E366B
+NEYNAR_API_KEY=your_neynar_api_key_here
 NEYNAR_SIGNER_UUID=0603c233-00c3-4513-9fe1-46d5dd5debeb
 APP_FID=1987078
 APP_MNEMONIC=amount bike fancy position great clarify bargain genre hub world isolate popular

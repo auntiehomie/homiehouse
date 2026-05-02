@@ -1,5 +1,5 @@
 -- User Curation Preferences Table
--- Run this SQL in your Supabase SQL Editor: https://afpxttdtxzdmaiyvnvjd.supabase.co
+-- Run this SQL in your Supabase SQL Editor: https://your-project-id.supabase.co
 
 -- Create the user_curation_preferences table
 CREATE TABLE IF NOT EXISTS user_curation_preferences (

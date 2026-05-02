@@ -3,8 +3,8 @@
 Add these environment variables in your Render dashboard for the homiehouse-server:
 
 ```
-SUPABASE_URL=https://afpxttdtxzdmaiyvnvjd.supabase.co
-SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmcHh0dGR0eHpkbWFpeXZudmpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NjM4NTEsImV4cCI6MjA4NDIzOTg1MX0.AxCRoYIGUdgZH49JWYxxZ6Jwxt6V2cfjHEzwMBlDzRU
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your_supabase_anon_key_here
 ```
 
 ## Steps:
@@ -22,6 +22,6 @@ SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
 
 ## Verify it's working:
 After deploy, check your Supabase dashboard:
-https://afpxttdtxzdmaiyvnvjd.supabase.co/project/_/editor
+https://your-project-id.supabase.co/project/_/editor
 
 The bot_replies table should start populating with parent_hash entries when the bot replies to mentions.

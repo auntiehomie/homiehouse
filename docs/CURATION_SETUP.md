@@ -4,7 +4,7 @@
 
 ### 1. Run Database Migration
 
-1. Open Supabase SQL Editor: https://afpxttdtxzdmaiyvnvjd.supabase.co
+1. Open Supabase SQL Editor: https://your-project-id.supabase.co
 2. Copy and paste the SQL from `server/curation_migration.sql`
 3. Click "Run" to create the table
 
@@ -90,7 +90,7 @@ The app should start on port 3000.
 ### Server errors
 - Verify `.env` file in `server/` directory has:
   ```
-  SUPABASE_URL=https://afpxttdtxzdmaiyvnvjd.supabase.co
+  SUPABASE_URL=https://your-project-id.supabase.co
   SUPABASE_KEY=your_key_here
   ```
 
