@@ -14,7 +14,6 @@ export async function GET(req: NextRequest) {
     const fidParam = searchParams.get('fid');
     const signerUuid = searchParams.get('signerUuid');
     const cursor = searchParams.get('cursor');
-    const type = searchParams.get('type');
 
     if (!fidParam) {
       return NextResponse.json({ error: 'FID is required' }, { status: 400 });
@@ -26,27 +25,32 @@ export async function GET(req: NextRequest) {
     }
 
     const verifiedFid = await verifySignerAuth(signerUuid);
-    const fid = validateFid(fidParam).toString();
+    // validateFid returns a number; use it directly for Pinata (expects number)
+    const fid = validateFid(fidParam);
 
     // Ensure user can only access their own notifications
-    if (verifiedFid.toString() !== fid) {
+    if (verifiedFid.toString() !== fid.toString()) {
       return NextResponse.json(
         { error: 'Cannot access notifications for another user' },
         { status: 403 }
       );
     }
 
-    logger.info('Fetching notifications', { fid, cursor, type });
+    logger.info('Fetching notifications', { fid, cursor });
 
-    const data = await fetchNotifications({
+    // fetchNotifications → pinata.ts → Pinata Farcaster /notifications?fid=
+    // Pinata response shape: { data: { notifications: [...], next_page_token: "..." } }
+    const raw = await fetchNotifications({
       fid,
-      priority_mode: true,
       cursor: cursor || undefined,
-      type: type || undefined,
     });
 
-    const transformedNotifications = data.notifications?.map((notif: any) => {
-      let actors = [];
+    // Unwrap Pinata data envelope
+    const notificationsRaw: any[] = raw?.data?.notifications ?? raw?.notifications ?? [];
+    const nextToken: string | undefined = raw?.data?.next_page_token ?? raw?.next?.cursor;
+
+    const transformedNotifications = notificationsRaw.map((notif: any) => {
+      let actors: any[] = [];
       let actor = null;
 
       if (notif.type === 'likes' && notif.reactions) {
@@ -74,20 +78,20 @@ export async function GET(req: NextRequest) {
 
       return {
         ...notif,
-        actor: actor,
-        actors: actors,
+        actor,
+        actors,
         actorCount: actors.length,
         timestamp: notif.most_recent_timestamp || notif.timestamp
       };
-    }) || [];
+    });
 
     logger.success('Notifications fetched', { count: transformedNotifications.length });
     logger.end();
 
     return NextResponse.json({
       notifications: transformedNotifications,
-      next_cursor: data.next?.cursor,
-      has_more: !!data.next?.cursor
+      next_cursor: nextToken,
+      has_more: !!nextToken
     });
   } catch (error: any) {
     logger.error('Failed to fetch notifications', error);

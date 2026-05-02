@@ -100,12 +100,14 @@ Neynar's `/signer` and `/signer/signed_key` endpoints manage Farcaster signers (
 Pinata does not expose signer management.  
 **Workaround:** Keep `NEYNAR_API_KEY` set, or implement a custom signer flow against the Farcaster protocol directly (see [Warpcast Signer API](https://docs.farcaster.xyz/developers/guides/signers/)).
 
-### 2. Bot notification polling
+### 2. ~~Bot notification polling~~ ✅ RESOLVED (2026-05-02)
 **File:** `src/app/api/bot/check/route.ts`
 
-The bot uses `@neynar/nodejs-sdk`'s `fetchAllNotifications` and `lookupCastByHashOrUrl` SDK methods.  
-Pinata has a `/notifications?fid=` endpoint, but no equivalent SDK.  
-**Workaround:** Keep `NEYNAR_API_KEY` for this route, OR refactor bot to call `pinataFetch('/notifications?fid=...')` directly and handle response parsing.
+**Resolved:** Migrated to `fetchNotifications` + `fetchCast` + `publishCast` from `@/lib/pinata`.  
+The Neynar SDK (`@neynar/nodejs-sdk`) is no longer imported in this route.  
+`NEYNAR_API_KEY` is no longer required for bot notification polling.  
+Also fixed: `src/app/api/notifications/route.ts` was passing Neynar-specific `priority_mode`/`type` params  
+and a string `fid` to `fetchNotifications` (which expects `number`); both corrected.
 
 ### 3. Fungible token enrichment
 **File:** `src/lib/token-data.ts` → `getNeynarToken()`

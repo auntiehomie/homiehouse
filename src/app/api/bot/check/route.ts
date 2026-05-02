@@ -1,22 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-// NOTE: @neynar/nodejs-sdk is still used here for bot notification polling and cast
-// lookup, as Pinata does not provide equivalent SDK-level wrappers for these flows.
-// Keep NEYNAR_API_KEY configured for this route.
-// See docs/PINATA_MIGRATION.md → "Known Gaps".
-import { NeynarAPIClient, Configuration } from '@neynar/nodejs-sdk';
+// CONNECTOR: Pinata — migrated from @neynar/nodejs-sdk (was a "Known Gap" in PINATA_MIGRATION.md)
+// fetchNotifications and fetchCast now call pinataFetch directly; publishCast uses pinata.ts.
+// NEYNAR_API_KEY is no longer required for this route.
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
-import { neynarFetch } from '@/lib/neynar';
+import { fetchNotifications, fetchCast, publishCast, pinataFetch } from '@/lib/pinata';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
-// Lazy client getters - re-read API keys on each request for key rotation support
-function getNeynar() {
-  const config = new Configuration({ apiKey: process.env.NEYNAR_API_KEY! });
-  return new NeynarAPIClient(config);
-}
 function getBotOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
@@ -122,10 +115,12 @@ async function handleCuration(
 
   if (parentHash) {
     try {
-      const parentData = await neynarFetch(`/cast?identifier=${parentHash}&type=hash`);
-      parentText = parentData?.cast?.text;
-      parentAuthorFid = parentData?.cast?.author?.fid;
-      parentTimestamp = parentData?.cast?.timestamp;
+      const parentData = await fetchCast(parentHash);
+      // Pinata wraps in data key: { data: { cast: { ... } } }
+      const parentCast = parentData?.data?.cast ?? parentData?.cast;
+      parentText = parentCast?.text;
+      parentAuthorFid = parentCast?.author?.fid;
+      parentTimestamp = parentCast?.timestamp;
     } catch {
       logger.warn('Could not fetch parent cast for curation');
     }
@@ -368,24 +363,28 @@ export async function GET(request: NextRequest) {
     
     let repliedCount = 0;
 
-    // Initialize Neynar client fresh (picks up rotated keys)
-    const neynar = getNeynar();
+    // Fetch notifications via Pinata (no SDK needed)
+    const notifData = await fetchNotifications({ fid: BOT_FID, limit: 50 });
+    // Pinata wraps response: { data: { notifications: [...], next_page_token: ... } }
+    const notificationList: any[] = notifData?.data?.notifications ?? notifData?.notifications ?? [];
 
-    // Fetch notifications
-    const notifications = await neynar.fetchAllNotifications({
-      fid: BOT_FID
-    });
+    console.log(`Found ${notificationList.length} notifications`);
 
-    console.log(`Found ${notifications.notifications.length} notifications`);
-
-    for (const notification of notifications.notifications) {
+    for (const notification of notificationList) {
       if (repliedCount >= 1) {
         console.log('Already replied to 1 cast in this run, stopping');
         break; // Only reply to 1 per run
       }
 
-      const cast = notification.cast;
+      // Pinata notification shapes: mention/reply have a cast object
+      const cast = notification.cast ?? notification;
       if (!cast || !cast.hash) {
+        continue;
+      }
+
+      // Only process mention and reply notifications
+      const notifType = notification.type ?? notification.notification_type;
+      if (notifType && !['mention', 'reply'].includes(notifType)) {
         continue;
       }
 
@@ -420,22 +419,17 @@ export async function GET(request: NextRequest) {
       try {
         logger.info(`Checking if already replied to parent ${parentHash}`);
         
-        // Fetch the parent cast with all replies to check if bot already replied
-        const conversation = await neynar.lookupCastByHashOrUrl({
-          identifier: parentHash,
-          type: 'hash'
-        });
+        // Fetch the parent cast via Pinata to check if bot already replied
+        const castData = await fetchCast(parentHash);
+        // Pinata: { data: { cast: { ..., direct_replies: [...] } } }
+        const parentCast = castData?.data?.cast ?? castData?.cast;
         
-        // Check all possible reply structures
-        const directReplies = (conversation.cast as any)?.direct_replies || [];
-        const threadReplies = (conversation.cast as any)?.replies?.casts || [];
+        // Check direct_replies for existing bot reply
+        const directReplies: any[] = parentCast?.direct_replies ?? [];
         
-        // Combine all replies and check if bot already replied
-        const allReplies = [...directReplies, ...threadReplies];
-        
-        const botAlreadyReplied = allReplies.some(
+        const botAlreadyReplied = directReplies.some(
           (reply: any) => {
-            const replyFid = reply.author?.fid || reply.fid;
+            const replyFid = reply.author?.fid ?? reply.fid;
             const didReply = replyFid === BOT_FID;
             if (didReply) {
               console.log(`Found existing bot reply to parent ${parentHash}`);
@@ -477,9 +471,9 @@ export async function GET(request: NextRequest) {
           reply = await generateReply(cast, []);
         }
 
-        // Post reply (reply to the cast, not the parent)
-        await neynar.publishCast({
-          signerUuid: SIGNER_UUID,
+        // Post reply via Pinata publishCast
+        await publishCast({
+          signer_uuid: SIGNER_UUID,
           text: reply,
           parent: castHash
         });
@@ -501,11 +495,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    logger.end({ checked: notifications.notifications.length, replied: repliedCount });
+    logger.end({ checked: notificationList.length, replied: repliedCount });
 
     return NextResponse.json({
       success: true,
-      checked: notifications.notifications.length,
+      checked: notificationList.length,
       replied: repliedCount,
       timestamp: new Date().toISOString()
     });
