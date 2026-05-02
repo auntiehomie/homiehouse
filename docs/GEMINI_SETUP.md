@@ -3,7 +3,7 @@
 Add this new variable to your homiehouse service on Render:
 
 ```
-GEMINI_API_KEY=AIzaSyB8iu-QBuY2Mgi7o-BdKcSyKL_ANxH5dNI
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 ## How it works now:
