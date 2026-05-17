@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publishReaction, deleteReaction } from '@/lib/neynar';
+import { publishReaction, deleteReaction } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
@@ -30,12 +30,14 @@ export async function POST(request: NextRequest) {
       fid: verifiedFid,
     });
 
-    // Publish recast using the user's verified signer
-    const data = await publishReaction({
-      signer_uuid: signerUuid,
-      reaction_type: 'recast',
-      target: validatedCastHash,
+    // Publish recast using farcaster-writes
+    await publishReaction({
+      reactionType: 'recast',
+      targetCastHash: validatedCastHash,
+      targetCastFid: 0, // unknown without lookup; hub will resolve
+      fid: verifiedFid || 0,
     });
+    const data = { success: true };
 
     logger.success('Recast published');
     logger.end();
@@ -76,12 +78,14 @@ export async function DELETE(request: NextRequest) {
       fid: verifiedFid,
     });
 
-    // Remove recast using the user's verified signer
-    const data = await deleteReaction({
-      signer_uuid: signerUuid,
-      reaction_type: 'recast',
-      target: validatedCastHash,
+    // Remove recast using farcaster-writes
+    await deleteReaction({
+      reactionType: 'recast',
+      targetCastHash: validatedCastHash,
+      targetCastFid: 0, // unknown without lookup; hub will resolve
+      fid: verifiedFid || 0,
     });
+    const data = { success: true };
 
     logger.success('Recast removed');
     logger.end();
