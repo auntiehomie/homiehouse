@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publishCast } from '@/lib/neynar';
+import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateEmbeds, validateChannelKey } from '@/lib/validation';
@@ -62,55 +62,43 @@ export async function POST(request: NextRequest) {
       signerUuidLength: signerUuid.length,
     });
 
-    // Build cast payload
-    const castPayload: any = {
-      signer_uuid: signerUuid,
-      text: validatedText,
-    };
+    // Build cast payload for farcaster-writes
+    let embedsForCast = validatedEmbeds.length > 0 ? validatedEmbeds : undefined;
 
-    if (validatedEmbeds.length > 0) {
-      castPayload.embeds = validatedEmbeds;
-    }
-
-    if (parentUrl) {
-      castPayload.parent = parentUrl;
-    }
-
-    // For quote casts: embed the cast URL (already in embeds from client)
-    // and optionally set parent_cast_id for platforms that support it.
-    // We do NOT set parent here because that would make it a reply, not a quote.
+    // For quote casts: ensure the warpcast conversation URL is in embeds
     if (parentCastHash && isQuoteCast) {
       logger.info('Quote cast detected', { parentCastHash });
-      // The cast URL embed is already included via `embeds` from the client.
-      // Some Farcaster clients also look for a cast embed object shape;
-      // we surface this in metadata for forward-compat.
-      if (!castPayload.embeds) castPayload.embeds = [];
-      // Ensure the warpcast conversation URL is in embeds (added client-side,
-      // but guard here in case it was omitted)
       const quotedUrl = `https://warpcast.com/~/conversations/${parentCastHash}`;
-      const alreadyHasEmbed = castPayload.embeds.some((e: any) => e.url === quotedUrl);
+      if (!embedsForCast) embedsForCast = [];
+      const alreadyHasEmbed = embedsForCast.some((e: any) => e.url === quotedUrl);
       if (!alreadyHasEmbed) {
-        castPayload.embeds.push({ url: quotedUrl });
+        embedsForCast = [...embedsForCast, { url: quotedUrl }];
       }
     }
 
     if (channelKey) {
-      castPayload.channel_id = channelKey;
       logger.info('Adding channel to cast', { channelKey });
     }
 
-    // Publish cast using shared utility
-    const result = await publishCast(castPayload);
+    // Publish cast using farcaster-writes
+    const result = await publishCast({
+      text: validatedText,
+      fid: verifiedFid || 0,
+      embeds: embedsForCast,
+      parentCastHash: parentCastHash && !isQuoteCast ? parentCastHash : undefined,
+      parentUrl: parentUrl || undefined,
+      channelKey: channelKey || undefined,
+    });
 
     logger.success('Cast published successfully', {
-      hash: result?.cast?.hash
+      hash: result.castHash,
     });
     logger.end();
 
     return NextResponse.json({
       ok: true,
       success: true,
-      cast: result.cast,
+      cast: { hash: result.castHash },
     });
 
   } catch (error: any) {
