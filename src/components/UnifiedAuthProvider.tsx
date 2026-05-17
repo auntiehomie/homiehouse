@@ -2,9 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
-import { WagmiConfig } from 'wagmi';
+import { WagmiProvider } from 'wagmi';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
-import { wagmiConfig, walletConnectConfig, privyConfig } from '@/config/web3';
+import { wagmiConfig, walletConnectConfig, privyConfig, chains } from '@/config/web3';
 import { Web3Error } from '@/config/web3';
 
 import '@rainbow-me/rainbowkit/styles.css';
@@ -47,8 +47,10 @@ export function useAuth() {
   return context;
 }
 
-// Unified authentication provider
-export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
+// Inner component that uses Privy hooks (must be inside PrivyProvider)
+function AuthStateManager({ children }: { children: ReactNode }) {
+  const { authenticated, user } = usePrivy();
+
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     user: null,
@@ -66,7 +68,6 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
     error: null,
   });
 
-  // Initialize authentication on mount
   useEffect(() => {
     initializeAuth();
   }, []);
@@ -74,25 +75,19 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
   const initializeAuth = async () => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }));
-      
-      // Check for existing session
       const savedAuth = localStorage.getItem('homiehouse_auth');
       if (savedAuth) {
         const parsed = JSON.parse(savedAuth);
-        setAuthState(prev => ({
-          ...prev,
-          ...parsed,
-          isLoading: false,
-        }));
+        setAuthState(prev => ({ ...prev, ...parsed, isLoading: false }));
       } else {
         setAuthState(prev => ({ ...prev, isLoading: false }));
       }
     } catch (error) {
       console.error('Failed to initialize auth:', error);
-      setAuthState(prev => ({ 
-        ...prev, 
+      setAuthState(prev => ({
+        ...prev,
         isLoading: false,
-        error: new Web3Error('Failed to initialize authentication', 'AUTH_INIT_FAILED', error)
+        error: new Web3Error('Failed to initialize authentication', 'AUTH_INIT_FAILED', error),
       }));
     }
   };
@@ -100,8 +95,6 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
   const saveAuthState = (newState: Partial<AuthState>) => {
     const updatedState = { ...authState, ...newState };
     setAuthState(updatedState);
-    
-    // Persist to localStorage
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('homiehouse_auth', JSON.stringify({
@@ -119,18 +112,12 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
   const connectWallet = async (provider: 'privy' | 'walletconnect' | 'rainbowkit' = 'privy') => {
     try {
       setAuthState(prev => ({ ...prev, isConnecting: true, error: null }));
-      
-      // Provider-specific connection logic will be implemented in child components
-      // For now, we'll trigger Privy login
-      window.dispatchEvent(new CustomEvent('homiehouse:connect-wallet', { 
-        detail: { provider } 
-      }));
-      
+      window.dispatchEvent(new CustomEvent('homiehouse:connect-wallet', { detail: { provider } }));
     } catch (error) {
       setAuthState(prev => ({
         ...prev,
         isConnecting: false,
-        error: new Web3Error('Failed to connect wallet', 'WALLET_CONNECTION_FAILED', error)
+        error: new Web3Error('Failed to connect wallet', 'WALLET_CONNECTION_FAILED', error),
       }));
       throw error;
     }
@@ -139,38 +126,24 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
   const disconnect = async () => {
     try {
       setAuthState(prev => ({ ...prev, isConnecting: true }));
-      
-      // Clear local storage
       if (typeof window !== 'undefined') {
         localStorage.removeItem('homiehouse_auth');
       }
-      
-      // Reset state
       setAuthState({
         isAuthenticated: false,
         user: null,
-        wallet: {
-          address: null,
-          chainId: null,
-          provider: null,
-        },
-        farcaster: {
-          fid: null,
-          signerUuid: null,
-        },
+        wallet: { address: null, chainId: null, provider: null },
+        farcaster: { fid: null, signerUuid: null },
         isConnecting: false,
         isLoading: false,
         error: null,
       });
-      
-      // Dispatch disconnect event
       window.dispatchEvent(new CustomEvent('homiehouse:disconnect-wallet'));
-      
     } catch (error) {
       setAuthState(prev => ({
         ...prev,
         isConnecting: false,
-        error: new Web3Error('Failed to disconnect', 'DISCONNECT_FAILED', error)
+        error: new Web3Error('Failed to disconnect', 'DISCONNECT_FAILED', error),
       }));
     }
   };
@@ -179,26 +152,18 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
     if (!authState.isAuthenticated || !authState.wallet.address) {
       throw new Web3Error('Not authenticated', 'NOT_AUTHENTICATED');
     }
-    
-    // Message signing will be implemented via provider-specific logic
     return new Promise((resolve, reject) => {
       const handleSigned = (event: CustomEvent) => {
         window.removeEventListener('homiehouse:message-signed', handleSigned as EventListener);
         resolve(event.detail.signature);
       };
-      
       const handleError = (event: CustomEvent) => {
         window.removeEventListener('homiehouse:sign-error', handleError as EventListener);
         reject(new Web3Error('Message signing failed', 'SIGN_FAILED', event.detail.error));
       };
-      
       window.addEventListener('homiehouse:message-signed', handleSigned as EventListener);
       window.addEventListener('homiehouse:sign-error', handleError as EventListener);
-      
-      // Request signature
-      window.dispatchEvent(new CustomEvent('homiehouse:sign-message', { 
-        detail: { message } 
-      }));
+      window.dispatchEvent(new CustomEvent('homiehouse:sign-message', { detail: { message } }));
     });
   };
 
@@ -206,29 +171,18 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
     if (!authState.isAuthenticated) {
       throw new Web3Error('Not authenticated', 'NOT_AUTHENTICATED');
     }
-    
-    // Chain switching will be implemented via provider-specific logic
-    window.dispatchEvent(new CustomEvent('homiehouse:switch-chain', { 
-      detail: { chainId } 
-    }));
+    window.dispatchEvent(new CustomEvent('homiehouse:switch-chain', { detail: { chainId } }));
   };
 
   const getFarcasterSigner = async () => {
-    // Use Privy to get the signer
-    const { authenticated, user } = usePrivy();
-
     if (!authenticated || !user) {
-        console.log("User not authenticated with Privy");
-        return null;
+      console.log('User not authenticated with Privy');
+      return null;
     }
-
-    // Placeholder: Replace with actual Privy signer retrieval logic
-    const signer = "DUMMY_PRIVY_SIGNER"; 
-
-    return {
-      signerUuid: signer,
-      fid: user.id,
-    };
+    const farcasterAccount = user.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
+    return farcasterAccount
+      ? { signerUuid: farcasterAccount.signerPublicKey ?? '', fid: farcasterAccount.fid ?? 0 }
+      : null;
   };
 
   const contextValue: AuthContextType = {
@@ -242,19 +196,27 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={contextValue}>
-      <PrivyProvider {...privyConfig}>
-        <WagmiConfig config={wagmiConfig}>
-          <RainbowKitProvider
-            chains={chains}
-            theme={darkTheme({
-              accentColor: '#E87722',
-              borderRadius: 'medium',
-            })}
-          >
-            {children}
-          </RainbowKitProvider>
-        </WagmiConfig>
-      </PrivyProvider>
+      {children}
     </AuthContext.Provider>
+  );
+}
+
+// Unified authentication provider
+export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
+  return (
+    <PrivyProvider {...privyConfig}>
+      <WagmiProvider config={wagmiConfig}>
+        <RainbowKitProvider
+          theme={darkTheme({
+            accentColor: '#E87722',
+            borderRadius: 'medium',
+          })}
+        >
+          <AuthStateManager>
+            {children}
+          </AuthStateManager>
+        </RainbowKitProvider>
+      </WagmiProvider>
+    </PrivyProvider>
   );
 }
