@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Validate input
-    const fid = validateFid(fidParam).toString();
+    const fid = validateFid(fidParam);
 
     logger.info('Fetching following list', { fid });
 
