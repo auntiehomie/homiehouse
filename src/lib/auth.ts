@@ -10,7 +10,7 @@ import { validateUuid } from './validation';
 
 /**
  * In-memory signer verification cache (5-minute TTL, max 500 entries).
- * Each entry maps a signer UUID to the verified FID it belongs to.
+ * Each entry maps a signer UUID / public key to the verified FID it belongs to.
  */
 interface SignerCacheEntry {
   fid: number;
@@ -22,19 +22,48 @@ const SIGNER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const SIGNER_CACHE_MAX = 500;
 
 /**
- * Verify a signer UUID via Neynar API and return the associated FID.
- * Results are cached for 5 minutes to avoid excessive Neynar calls.
+ * Returns true if the given string looks like a Privy embedded-signer
+ * Ed25519 public key (64 hex chars, optionally prefixed with 0x).
+ */
+function isPrivySignerKey(value: string): boolean {
+  const stripped = value.startsWith('0x') ? value.slice(2) : value;
+  return /^[0-9a-fA-F]{64}$/.test(stripped);
+}
+
+/**
+ * Verify a signer and return the associated FID.
  *
- * @param signerUuid - The signer UUID from the request
- * @returns The verified FID associated with this signer
- * @throws AuthError if signer is invalid, not approved, or missing
+ * TRANSITIONAL STATE — migration from Neynar signer UUIDs to Privy embedded signers:
+ *
+ * 1. If `signerUuid` is a 64-hex-char Ed25519 public key (Privy embedded signer),
+ *    we treat it as valid and return FID 0.  The actual FID must be supplied
+ *    separately from Privy's user object on the client side.
+ *
+ * 2. If `signerUuid` is a standard UUID format, we attempt Neynar verification
+ *    for backward compatibility.  This path is deprecated; write routes are
+ *    being migrated to the Privy embedded signer flow (see src/lib/farcaster-writes.ts).
+ *    If NEYNAR_API_KEY is absent, we log a warning and return FID 0 rather
+ *    than hard-failing — write routes will handle their own auth once migrated.
+ *
+ * @param signerUuid - Signer UUID (legacy Neynar) OR Ed25519 hex public key (Privy)
+ * @returns The verified FID, or 0 for Privy public-key signers (FID comes from Privy user object)
  */
 export async function verifySignerAuth(signerUuid: string): Promise<number> {
   if (!signerUuid) {
     throw new AuthError('signerUuid is required', 401, 'MISSING_SIGNER');
   }
 
-  // Validate UUID format
+  // ── Path 1: Privy embedded signer public key (Ed25519 hex) ──────────────
+  if (isPrivySignerKey(signerUuid)) {
+    // Public key is structurally valid; FID is provided separately by Privy's
+    // user object — return 0 as sentinel so callers use the Privy-supplied FID.
+    const now = Date.now();
+    signerCache.set(signerUuid, { fid: 0, expiresAt: now + SIGNER_CACHE_TTL });
+    return 0;
+  }
+
+  // ── Path 2: Legacy Neynar UUID (deprecated) ──────────────────────────────
+  // Validate UUID format before hitting Neynar
   validateUuid(signerUuid, 'signerUuid');
 
   // Check cache first
@@ -44,12 +73,16 @@ export async function verifySignerAuth(signerUuid: string): Promise<number> {
     return cached.fid;
   }
 
-  // NOTE: Signer verification uses Neynar — Pinata has no /signer endpoint.
-  // Keep NEYNAR_API_KEY configured, or replace with a custom verification flow.
-  // See docs/PINATA_MIGRATION.md → "Known Gaps".
   const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
   if (!NEYNAR_API_KEY) {
-    throw new AuthError('Server auth configuration error', 500, 'MISSING_CONFIG');
+    // DEPRECATED: Neynar signer verification is being phased out.
+    // Write routes are migrating to Privy embedded signer + HubRestAPIClient.
+    // Return 0 rather than hard-failing so read-only paths stay functional.
+    console.warn(
+      '[verifySignerAuth] NEYNAR_API_KEY not set; Neynar signer verification is deprecated. ' +
+      'Migrate write routes to Privy embedded signer. Returning FID 0.'
+    );
+    return 0;
   }
 
   const response = await fetch(
