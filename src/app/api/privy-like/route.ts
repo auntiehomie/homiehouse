@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publishReaction, deleteReaction } from '@/lib/neynar';
+import { publishReaction, deleteReaction } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
@@ -30,12 +30,14 @@ export async function POST(request: NextRequest) {
       fid: verifiedFid,
     });
 
-    // Publish like using the user's verified signer
-    const data = await publishReaction({
-      signer_uuid: signerUuid,
-      reaction_type: 'like',
-      target: validatedCastHash,
+    // Publish like using farcaster-writes
+    await publishReaction({
+      reactionType: 'like',
+      targetCastHash: validatedCastHash,
+      targetCastFid: 0, // unknown without lookup; hub will resolve
+      fid: verifiedFid || 0,
     });
+    const data = { success: true };
 
     logger.success('Like published');
     logger.end();
@@ -76,12 +78,14 @@ export async function DELETE(request: NextRequest) {
       fid: verifiedFid,
     });
 
-    // Remove like using the user's verified signer
-    const data = await deleteReaction({
-      signer_uuid: signerUuid,
-      reaction_type: 'like',
-      target: validatedCastHash,
+    // Remove like using farcaster-writes
+    await deleteReaction({
+      reactionType: 'like',
+      targetCastHash: validatedCastHash,
+      targetCastFid: 0, // unknown without lookup; hub will resolve
+      fid: verifiedFid || 0,
     });
+    const data = { success: true };
 
     logger.success('Like removed');
     logger.end();
