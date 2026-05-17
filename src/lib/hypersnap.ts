@@ -1,0 +1,233 @@
+/**
+ * Hypersnap — Farcaster read/write client replacing the Pinata Farcaster API.
+ *
+ * Read endpoints are unauthenticated GETs to /v2/farcaster/*.
+ * Write endpoints (publishCast, publishReaction, deleteReaction) require the
+ * Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient.
+ * Those stubs throw descriptive errors pointing to the proper implementation path.
+ *
+ * Base URL: process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com'
+ */
+
+const HYPERSNAP_BASE =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_HYPERSNAP_URL) ||
+  'https://haatz.quilibrium.com';
+
+// ─── Generic fetch ──────────────────────────────────────────────────────────
+
+/**
+ * Generic unauthenticated fetch to Hypersnap.
+ * No auth needed for read endpoints.
+ */
+export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}): Promise<any> {
+  const url = `${HYPERSNAP_BASE}${endpoint}`;
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      accept: 'application/json',
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Hypersnap API error ${res.status} at ${endpoint}: ${text}`);
+  }
+  return res.json();
+}
+
+/** Backward-compat alias — callers that imported neynarFetch still work. */
+export const neynarFetch = hypersnapFetch;
+
+// ─── Read endpoints ──────────────────────────────────────────────────────────
+
+/**
+ * Fetch users that a FID is following.
+ * GET /v2/farcaster/user/following?fid=:fid&limit=:limit
+ * Maps Hypersnap's `result` array to `users` for API compatibility.
+ */
+export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
+  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  const data = await hypersnapFetch(`/v2/farcaster/user/following?${qs.toString()}`);
+  // Normalise: some Hypersnap builds return { result: [...] }, others { users: [...] }
+  if (data?.result && !data?.users) {
+    return { ...data, users: data.result };
+  }
+  return data;
+}
+
+/**
+ * Fetch a feed (following / trending).
+ * feed_type=following       → GET /v2/farcaster/feed/following?fid=:fid&limit=:limit
+ * feed_type=filter/global_trending → GET /v2/farcaster/feed/trending?limit=:limit
+ * default                   → GET /v2/farcaster/feed/following?fid=:fid&limit=:limit
+ */
+export async function fetchFeed(params: Record<string, any> = {}): Promise<any> {
+  const feedType = params.feed_type || 'following';
+  const isTrending =
+    feedType === 'filter' && params.filter_type === 'global_trending';
+
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) qs.set(k, String(v));
+  }
+
+  const endpoint = isTrending
+    ? `/v2/farcaster/feed/trending?${qs.toString()}`
+    : `/v2/farcaster/feed/following?${qs.toString()}`;
+
+  return hypersnapFetch(endpoint);
+}
+
+/**
+ * Fetch the global trending feed.
+ * GET /v2/farcaster/feed/trending
+ */
+export async function fetchTrendingFeed(params: Record<string, any> = {}): Promise<any> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) qs.set(k, String(v));
+  }
+  return hypersnapFetch(`/v2/farcaster/feed/trending?${qs.toString()}`);
+}
+
+/**
+ * Fetch a Farcaster user by username.
+ * GET /v2/farcaster/user/by-username?username=:username
+ * Normalises the response to { user: { fid, username, display_name, pfp_url, profile, ... } }.
+ */
+export async function fetchUserByUsername(username: string): Promise<any> {
+  const data = await hypersnapFetch(
+    `/v2/farcaster/user/by-username?username=${encodeURIComponent(username)}`
+  );
+  // Various shapes: { user }, { result: { ... } }, { data: { user } }
+  const user =
+    data?.user ??
+    data?.result ??
+    data?.data?.user ??
+    data?.data ??
+    data;
+  return { user };
+}
+
+/**
+ * Fetch the channels a user belongs to.
+ * GET /v2/farcaster/user/channels?fid=:fid&limit=:limit
+ */
+export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
+  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  return hypersnapFetch(`/v2/farcaster/user/channels?${qs.toString()}`);
+}
+
+/**
+ * Fetch the full channel list.
+ * GET /v2/farcaster/channel/list?limit=:limit
+ */
+export async function fetchChannelList(limit = 50): Promise<any> {
+  return hypersnapFetch(`/v2/farcaster/channel/list?limit=${limit}`);
+}
+
+/**
+ * Fetch a single cast by hash.
+ * GET /v2/farcaster/cast?identifier=:hash&type=hash
+ */
+export async function fetchCast(hash: string): Promise<any> {
+  return hypersnapFetch(
+    `/v2/farcaster/cast?identifier=${encodeURIComponent(hash)}&type=hash`
+  );
+}
+
+/**
+ * Fetch notifications for a FID.
+ * GET /v2/farcaster/notifications?fid=:fid&limit=:limit[&cursor=:cursor]
+ */
+export async function fetchNotifications(params: {
+  fid: number;
+  limit?: number;
+  cursor?: string;
+}): Promise<any> {
+  const { fid, limit = 25, cursor } = params;
+  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
+  return hypersnapFetch(`/v2/farcaster/notifications?${qs.toString()}`);
+}
+
+/**
+ * Search for Farcaster users.
+ * GET /v2/farcaster/user/search?q=:query&limit=:limit
+ * Returns { users: [...] }.
+ */
+export async function searchUsers(query: string, limit = 10): Promise<any> {
+  const qs = new URLSearchParams({ q: query, limit: String(limit) });
+  const data = await hypersnapFetch(`/v2/farcaster/user/search?${qs.toString()}`);
+  // Normalise: { result: [...] } → { users: [...] }
+  if (data?.result && !data?.users) {
+    return { ...data, users: data.result };
+  }
+  return data;
+}
+
+/**
+ * Search for casts.
+ * GET /v2/farcaster/cast/search?q=:query&limit=:limit
+ * Returns { casts: [...] }.
+ */
+export async function searchCasts(query: string, limit = 10): Promise<any> {
+  const qs = new URLSearchParams({ q: query, limit: String(limit) });
+  const data = await hypersnapFetch(`/v2/farcaster/cast/search?${qs.toString()}`);
+  // Normalise: { result: [...] } → { casts: [...] }
+  if (data?.result && !data?.casts) {
+    return { ...data, casts: data.result };
+  }
+  return data;
+}
+
+/**
+ * Fetch casts by username.
+ * Resolves the FID via fetchUserByUsername, then fetches the feed.
+ * GET /v2/farcaster/feed/user-casts?fid=:fid&limit=:limit
+ */
+export async function getCastsByUsername(username: string, limit = 25): Promise<any> {
+  const userData = await fetchUserByUsername(username);
+  const fid = userData?.user?.fid;
+  if (!fid) return { casts: [] };
+  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  return hypersnapFetch(`/v2/farcaster/feed/user-casts?${qs.toString()}`);
+}
+
+// ─── Write stubs ─────────────────────────────────────────────────────────────
+//
+// Farcaster writes require submitting signed MessageData protobuf messages to
+// a Hub. The old signer_uuid pattern was Neynar-specific.
+// To implement writes, use the Privy embedded signer to obtain an Ed25519
+// keypair, then sign casts/reactions with @standard-crypto/farcaster-js
+// HubRestAPIClient (see src/lib/farcaster-writes.ts).
+
+/**
+ * @deprecated Use the Privy embedded signer + @standard-crypto/farcaster-js
+ * HubRestAPIClient to submit casts. See src/lib/farcaster-writes.ts.
+ */
+export async function publishCast(_payload: any): Promise<any> {
+  throw new Error(
+    'publishCast: Use the Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient to submit casts. See src/lib/farcaster-writes.ts'
+  );
+}
+
+/**
+ * @deprecated Use the Privy embedded signer + @standard-crypto/farcaster-js
+ * HubRestAPIClient. See src/lib/farcaster-writes.ts.
+ */
+export async function publishReaction(_payload: any): Promise<any> {
+  throw new Error(
+    'publishReaction: Use the Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient. See src/lib/farcaster-writes.ts'
+  );
+}
+
+/**
+ * @deprecated Use the Privy embedded signer + @standard-crypto/farcaster-js
+ * HubRestAPIClient. See src/lib/farcaster-writes.ts.
+ */
+export async function deleteReaction(_payload: any): Promise<any> {
+  throw new Error(
+    'deleteReaction: Use the Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient. See src/lib/farcaster-writes.ts'
+  );
+}
