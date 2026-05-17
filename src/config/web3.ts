@@ -1,38 +1,47 @@
 /**
  * Web3 Configuration
  * Unified configuration for wallet providers, chains, and Web3 services
+ * Updated for wagmi v3 / viem v2 (configureChains removed; use http() transports)
  */
 
-import { configureChains, createConfig } from 'wagmi';
+import { createConfig, http } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
-import { publicProvider } from 'wagmi/providers/public';
-import { alchemyProvider } from 'wagmi/providers/alchemy';
-import { infuraProvider } from 'wagmi/providers/infura';
 
-// Chain configuration
-const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [mainnet, polygon, optimism, arbitrum, base],
-  [
-    alchemyProvider({ 
-      apiKey: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '',
-      priority: 0 
-    }),
-    infuraProvider({ 
-      apiKey: process.env.NEXT_PUBLIC_INFURA_API_KEY || '',
-      priority: 1 
-    }),
-    publicProvider({ priority: 2 }),
-  ]
-);
-
-// Wagmi configuration
+// Wagmi v3 config — no configureChains, no provider subpaths.
+// Transports are per-chain; fall back to the public RPC when API keys are absent.
 export const wagmiConfig = createConfig({
-  autoConnect: true,
-  publicClient,
-  webSocketPublicClient,
+  chains: [mainnet, polygon, optimism, arbitrum, base],
+  transports: {
+    [mainnet.id]: http(
+      process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+        ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+        : undefined
+    ),
+    [polygon.id]: http(
+      process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+        ? `https://polygon-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+        : undefined
+    ),
+    [optimism.id]: http(
+      process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+        ? `https://opt-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+        : undefined
+    ),
+    [arbitrum.id]: http(
+      process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+        ? `https://arb-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+        : undefined
+    ),
+    [base.id]: http(
+      process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+        ? `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+        : undefined
+    ),
+  },
 });
 
-export { chains };
+// Convenience export — the configured chain list
+export const chains = wagmiConfig.chains;
 
 // WalletConnect v2 Configuration
 export const walletConnectConfig = {
@@ -82,31 +91,31 @@ export const supportedChains = {
     id: 1,
     name: 'Ethereum',
     symbol: 'ETH',
-    rpcUrls: ['https://eth-mainnet.alchemyapi.io/v2/', 'https://mainnet.infura.io/v3/'],
+    rpcUrls: ['https://eth-mainnet.g.alchemy.com/v2/', 'https://mainnet.infura.io/v3/'],
   },
   polygon: {
     id: 137,
     name: 'Polygon',
     symbol: 'MATIC',
-    rpcUrls: ['https://polygon-mainnet.g.alchemyapi.io/v2/', 'https://polygon-rpc.com'],
+    rpcUrls: ['https://polygon-mainnet.g.alchemy.com/v2/', 'https://polygon-rpc.com'],
   },
   optimism: {
     id: 10,
     name: 'Optimism',
     symbol: 'ETH',
-    rpcUrls: ['https://opt-mainnet.g.alchemyapi.io/v2/', 'https://mainnet.optimism.io'],
+    rpcUrls: ['https://opt-mainnet.g.alchemy.com/v2/', 'https://mainnet.optimism.io'],
   },
   arbitrum: {
     id: 42161,
     name: 'Arbitrum',
     symbol: 'ETH',
-    rpcUrls: ['https://arb-mainnet.g.alchemyapi.io/v2/', 'https://arb1.arbitrum.io/rpc'],
+    rpcUrls: ['https://arb-mainnet.g.alchemy.com/v2/', 'https://arb1.arbitrum.io/rpc'],
   },
   base: {
     id: 8453,
     name: 'Base',
     symbol: 'ETH',
-    rpcUrls: ['https://base-mainnet.g.alchemyapi.io/v2/', 'https://mainnet.base.org'],
+    rpcUrls: ['https://base-mainnet.g.alchemy.com/v2/', 'https://mainnet.base.org'],
   },
 };
 
@@ -119,7 +128,7 @@ export function validateWeb3Config(): void {
   ];
 
   const missing = requiredEnvVars.filter(key => !process.env[key]);
-  
+
   if (missing.length > 0) {
     console.warn('Missing Web3 environment variables:', missing);
   }
@@ -130,7 +139,7 @@ export class Web3Error extends Error {
   constructor(
     message: string,
     public code: string,
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = 'Web3Error';

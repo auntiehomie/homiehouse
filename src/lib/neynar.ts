@@ -11,7 +11,6 @@
 
 export {
   pinataFetch as neynarFetch,
-  neynarFetch,
   publishCast,
   publishReaction,
   deleteReaction,

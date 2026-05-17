@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
     // Validate inputs
     const limit = validateLimit(limitParam, 100);
-    const fid = fidParam ? validateFid(fidParam).toString() : null;
+    const fid = fidParam ? validateFid(fidParam) : null;
 
     logger.info('Request params', { fid, limit });
 
