@@ -62,7 +62,7 @@ export const privyConfig = {
     appearance: {
       loginMethods: ['farcaster', 'wallet', 'email'] as ('farcaster' | 'wallet' | 'email')[],
       theme: 'dark' as const,
-      accentColor: '#E87722',
+      accentColor: '#E87722' as `#${string}`,
       logo: 'https://1481393129444737075.vercel.app/logo.png',
     },
     embeddedWallets: {
