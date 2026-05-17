@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
   // Override at deploy time via NEXT_PUBLIC_HYPERSNAP_URL env var.
   env: {
     NEXT_PUBLIC_HYPERSNAP_URL: process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com',
+    NEXT_PUBLIC_FARCASTER_HUB_URL: process.env.NEXT_PUBLIC_FARCASTER_HUB_URL || 'https://nemes.farcaster.xyz:2281',
   },
   // Exclude problematic packages from server component bundling
   serverExternalPackages: ['pino', 'thread-stream', '@walletconnect/logger', '@privy-io/react-auth'],
