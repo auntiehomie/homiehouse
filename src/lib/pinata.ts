@@ -1,16 +1,18 @@
 /**
  * Piñata — combined IPFS storage + Farcaster API connector.
  *
- * Farcaster functions at the bottom of this file power all social
- * reads/writes (feed, casts, reactions, notifications, users, channels).
- * The IPFS storage class (PinataService) remains unchanged.
+ * Farcaster functions at the bottom of this file are now thin re-exports
+ * delegating to src/lib/hypersnap.ts, which replaced the Pinata Farcaster API.
+ * The IPFS storage class (PinataService) remains completely unchanged.
+ *
+ * See docs/HYPERSNAP_MIGRATION.md for full migration details.
  */
 
 import pinataSDK from '@pinata/sdk';
 import { pinataConfig } from '@/config/web3';
 import { Web3Error } from '@/config/web3';
 
-// ─── Farcaster API ──────────────────────────────────────────────────────────
+// ─── IPFS-only fetch (kept for PinataService internals) ──────────────────────
 
 const PINATA_FARCASTER_BASE = 'https://api.pinata.cloud/v3/farcaster';
 
@@ -27,6 +29,7 @@ function getPinataJwt(): string {
 
 /**
  * Generic authenticated fetch to the Pinata Farcaster API.
+ * Kept for backward compat; Farcaster reads now go through hypersnap.ts.
  */
 export async function pinataFetch(endpoint: string, opts: PinataFetchOptions = {}): Promise<any> {
   const jwt = getPinataJwt();
@@ -47,132 +50,28 @@ export async function pinataFetch(endpoint: string, opts: PinataFetchOptions = {
   return res.json();
 }
 
-/** Re-exported as neynarFetch for backward compat */
-export const neynarFetch = pinataFetch;
+// ─── Farcaster API — delegated to Hypersnap ──────────────────────────────────
+//
+// All Farcaster social reads/writes are now served by hypersnap.ts.
+// These re-exports maintain 100 % API compatibility for existing callers.
 
-/**
- * Publish a cast (or reply / quote cast) via Pinata Farcaster API.
- * Payload shape: { signer_uuid, text, embeds?, parent?, channel_id?,
- *                  parent_cast_id?: { hash, fid } }
- */
-export async function publishCast(payload: {
-  signer_uuid: string;
-  text: string;
-  embeds?: { url: string }[];
-  parent?: string;
-  channel_id?: string;
-  parent_cast_id?: { hash: string; fid: number };
-}): Promise<any> {
-  return pinataFetch('/casts', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-/** Publish a reaction (like or recast). */
-export async function publishReaction(payload: {
-  signer_uuid: string;
-  reaction_type: 'like' | 'recast';
-  target: string;
-  target_author_fid?: number;
-}): Promise<any> {
-  return pinataFetch('/reactions', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-/** Delete a reaction. */
-export async function deleteReaction(payload: {
-  signer_uuid: string;
-  reaction_type: 'like' | 'recast';
-  target: string;
-  target_author_fid?: number;
-}): Promise<any> {
-  return pinataFetch('/reactions', {
-    method: 'DELETE',
-    body: JSON.stringify(payload),
-  });
-}
-
-/** Fetch a cast by hash. */
-export async function fetchCast(hash: string): Promise<any> {
-  return pinataFetch(`/casts/${encodeURIComponent(hash)}`);
-}
-
-/** Fetch the home / following / trending feed. */
-export async function fetchFeed(params: Record<string, any> = {}): Promise<any> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null) qs.set(k, String(v));
-  }
-  // Pinata: GET /feed/following?fid=... or /feed/trending
-  const feedType = params.feed_type || 'following';
-  const endpoint = feedType === 'filter' && params.filter_type === 'global_trending'
-    ? '/feed/trending'
-    : '/feed/following';
-  return pinataFetch(`${endpoint}?${qs.toString()}`);
-}
-
-/** Fetch trending feed. */
-export async function fetchTrendingFeed(params: Record<string, any> = {}): Promise<any> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null) qs.set(k, String(v));
-  }
-  return pinataFetch(`/feed/trending?${qs.toString()}`);
-}
-
-/** Fetch a user by username. */
-export async function fetchUserByUsername(username: string): Promise<any> {
-  const data = await pinataFetch(`/users/by_username?username=${encodeURIComponent(username)}`);
-  // Normalize: Pinata returns { data: { user } } or { user }
-  const user = data?.data?.user ?? data?.user ?? data?.data ?? data;
-  return { user };
-}
-
-/** Fetch user's channels. */
-export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
-  return pinataFetch(`/channel/list?limit=${limit}`);
-}
-
-/** Fetch full channel list. */
-export async function fetchChannelList(limit = 50): Promise<any> {
-  return pinataFetch(`/channel/list?limit=${limit}`);
-}
-
-/** Fetch following feed for a FID. */
-export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
-  return pinataFetch(`/feed/following?fid=${fid}&limit=${limit}`);
-}
-
-/** Fetch notifications for a FID. */
-export async function fetchNotifications(params: { fid: number; limit?: number; cursor?: string }): Promise<any> {
-  const { fid, limit = 25, cursor } = params;
-  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-  if (cursor) qs.set('cursor', cursor);
-  return pinataFetch(`/notifications?${qs.toString()}`);
-}
-
-/** Search users by query (best-effort via username prefix). */
-export async function searchUsers(query: string, limit = 10): Promise<any> {
-  const data = await pinataFetch(`/users/by_username?username=${encodeURIComponent(query)}`);
-  const user = data?.data?.user ?? data?.user ?? data?.data;
-  return { users: user ? [user] : [] };
-}
-
-/** Search casts — not supported by Pinata; returns empty stub. */
-export async function searchCasts(_query: string): Promise<any> {
-  return { casts: [] };
-}
-
-/** Fetch casts by username. */
-export async function getCastsByUsername(username: string, limit = 25): Promise<any> {
-  const userData = await fetchUserByUsername(username);
-  const fid = userData?.user?.fid;
-  if (!fid) return { casts: [] };
-  return pinataFetch(`/casts?fid=${fid}&limit=${limit}`);
-}
+export {
+  hypersnapFetch as neynarFetch,
+  publishCast,
+  publishReaction,
+  deleteReaction,
+  fetchFeed,
+  fetchTrendingFeed,
+  fetchUserByUsername,
+  fetchCast,
+  fetchUserChannels,
+  fetchChannelList,
+  fetchFollowing,
+  fetchNotifications,
+  searchUsers,
+  searchCasts,
+  getCastsByUsername,
+} from './hypersnap';
 
 // File upload options interface
 export interface UploadOptions {
