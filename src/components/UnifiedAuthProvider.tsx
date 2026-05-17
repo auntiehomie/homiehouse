@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
+import { PrivyProvider, usePrivy, useFarcasterSigner } from '@privy-io/react-auth';
 import { WagmiProvider } from 'wagmi';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { wagmiConfig, walletConnectConfig, privyConfig, chains } from '@/config/web3';
@@ -34,6 +34,10 @@ interface AuthContextType extends AuthState {
   signMessage: (message: string) => Promise<string>;
   switchChain: (chainId: number) => Promise<void>;
   getFarcasterSigner: () => Promise<{ signerUuid: string; fid: number } | null>;
+  farcasterSigner: {
+    hasActiveSigner: boolean;
+    requestSigner: () => Promise<void>;
+  };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,6 +54,7 @@ export function useAuth() {
 // Inner component that uses Privy hooks (must be inside PrivyProvider)
 function AuthStateManager({ children }: { children: ReactNode }) {
   const { authenticated, user } = usePrivy();
+  const { requestFarcasterSignerFromWarpcast, getFarcasterSignerPublicKey } = useFarcasterSigner();
 
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -180,9 +185,19 @@ function AuthStateManager({ children }: { children: ReactNode }) {
       return null;
     }
     const farcasterAccount = user.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
-    return farcasterAccount
-      ? { signerUuid: farcasterAccount.signerPublicKey ?? '', fid: farcasterAccount.fid ?? 0 }
-      : null;
+    if (!farcasterAccount) return null;
+    return {
+      signerUuid: farcasterAccount.signerPublicKey ?? '',
+      fid: farcasterAccount.fid ?? 0,
+    };
+  };
+
+  // Farcaster signer state derived from Privy user
+  const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
+  const hasActiveSigner = !!(farcasterAccount?.signerPublicKey && authenticated);
+
+  const requestSigner = async () => {
+    await requestFarcasterSignerFromWarpcast();
   };
 
   const contextValue: AuthContextType = {
@@ -192,6 +207,10 @@ function AuthStateManager({ children }: { children: ReactNode }) {
     signMessage,
     switchChain,
     getFarcasterSigner,
+    farcasterSigner: {
+      hasActiveSigner,
+      requestSigner,
+    },
   };
 
   return (
