@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publishCast } from '@/lib/neynar';
+import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash } from '@/lib/validation';
@@ -32,17 +32,17 @@ export async function POST(request: NextRequest) {
       fid: verifiedFid,
     });
 
-    // Publish reply using the user's verified signer
+    // Publish reply using farcaster-writes
     const result = await publishCast({
-      signer_uuid: signerUuid,
       text: validatedText,
-      parent: validatedParentHash,
+      fid: verifiedFid || 0,
+      parentCastHash: validatedParentHash,
     });
 
-    logger.success('Reply published', { hash: result?.cast?.hash });
+    logger.success('Reply published', { hash: result.castHash });
     logger.end();
 
-    return NextResponse.json({ ok: true, cast: result.cast });
+    return NextResponse.json({ ok: true, cast: { hash: result.castHash } });
   } catch (error: any) {
     logger.error('Failed to publish reply', error);
     return handleApiError(error, 'POST /privy-reply');
