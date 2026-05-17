@@ -1,16 +1,16 @@
-// CONNECTOR: Pinata (migrated from Neynar)
+// CONNECTOR: Hypersnap (migrated from Neynar → Pinata → Hypersnap)
 /**
- * Neynar compatibility shim — all exports delegate to src/lib/pinata.ts.
+ * Neynar compatibility shim — all exports delegate to src/lib/pinata.ts,
+ * which in turn delegates Farcaster reads/writes to src/lib/hypersnap.ts.
  *
  * This file exists so that existing imports of '@/lib/neynar' continue to
- * work without changes.  The actual implementation now lives in pinata.ts
- * and calls the Pinata Farcaster API.
+ * work without changes.
  *
- * See docs/PINATA_MIGRATION.md for full migration details.
+ * See docs/HYPERSNAP_MIGRATION.md for full migration details.
  */
 
 export {
-  pinataFetch as neynarFetch,
+  neynarFetch,
   publishCast,
   publishReaction,
   deleteReaction,
