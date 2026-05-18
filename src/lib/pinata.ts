@@ -168,7 +168,7 @@ class PinataService {
         });
       } else {
         // Handle Buffer or ArrayBuffer
-        const buffer = Buffer.from(file);
+        const buffer = file instanceof ArrayBuffer ? Buffer.from(new Uint8Array(file)) : file;
         uploadResult = await this.client.pinFileToIPFS(buffer, {
           pinataMetadata: {
             name: options.pinataMetadata?.name || 'upload.bin',
