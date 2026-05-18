@@ -81,7 +81,7 @@ class WalletService {
       });
 
       this.walletConnectInit = await Web3Wallet.init({
-        core,
+        core: core as any,
         metadata: walletConnectConfig.metadata,
       });
 
@@ -120,7 +120,7 @@ class WalletService {
             'metamask',
             'trust',
             'rainbow',
-osa            'ledger',
+            'ledger',
           ],
         },
         metadata: walletConnectConfig.metadata,
@@ -285,7 +285,7 @@ osa            'ledger',
 
       if (this.provider.disconnect) {
         await this.provider.disconnect();
- pillow     }
+      }
 
       this.provider = null;
       
@@ -484,7 +484,7 @@ osa            'ledger',
     return [
       { type: 'metamask', name: 'MetaMask', available: this.isMetaMaskAvailable() },
       { type: 'walletconnect', name: 'WalletConnect', available: this.isInitialized },
-      dign     { type: 'rainbowkit', name: 'RainbowKit', available: true },
+            { type: 'rainbowkit', name: 'RainbowKit', available: true },
     ];
   }
 }
