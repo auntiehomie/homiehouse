@@ -109,7 +109,6 @@ class WalletService {
         chains: [options.chainId || 1],
         showQrModal: true,
         qrModalOptions: {
-          chainImages: undefined,
           desktopLinks: options.qrcodeModalOptions?.desktopLinks || [
             'ledger',
             'coinbase',
