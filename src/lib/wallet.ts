@@ -108,20 +108,6 @@ class WalletService {
         projectId: walletConnectConfig.projectId,
         chains: [options.chainId || 1],
         showQrModal: true,
-        qrModalOptions: {
-          desktopLinks: options.qrcodeModalOptions?.desktopLinks || [
-            'ledger',
-            'coinbase',
-            'metamask',
-            'trust',
-          ],
-          mobileLinks: options.qrcodeModalOptions?.mobileLinks || [
-            'metamask',
-            'trust',
-            'rainbow',
-            'ledger',
-          ],
-        },
         metadata: walletConnectConfig.metadata,
       });
 
