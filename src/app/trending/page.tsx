@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNeynarContext } from "@neynar/react";
+import { useNeynarContext } from "@/hooks/useNeynarCompat";
 import Link from "next/link";
 import TrendingList from "../../components/TrendingList";
 import NeynarSignIn from "../../components/NeynarSignIn";

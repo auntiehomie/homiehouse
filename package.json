@@ -17,6 +17,7 @@
     "@langchain/community": "^1.1.4",
     "@langchain/core": "^1.1.46",
     "@langchain/openai": "^1.2.2",
+    "@neondatabase/serverless": "^1.1.0",
     "@neynar/nodejs-sdk": "^3.120.0",
     "@neynar/react": "^1.2.22",
     "@noble/ed25519": "^3.0.0",

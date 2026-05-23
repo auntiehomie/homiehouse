@@ -1,6 +1,6 @@
 'use client';
 
-import { useNeynarContext } from '@neynar/react';
+import { useNeynarContext } from '@/hooks/useNeynarCompat';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 

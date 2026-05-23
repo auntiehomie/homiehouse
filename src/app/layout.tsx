@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
-import NeynarAuthProvider from "../components/NeynarAuthProvider";
-import NeynarProvider from "../components/NeynarProvider";
+import PrivyAuthProvider from "../components/PrivyAuthProvider";
+import PrivyAuthSync from "../components/PrivyAuthSync";
 import BottomNav from "../components/BottomNav";
 
 export const metadata: Metadata = {
@@ -28,15 +28,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`antialiased`}>
-        <NeynarProvider>
-          <NeynarAuthProvider>
-            <SdkDevMock />
-            <div className="pb-20 md:pb-8">
-              {children}
-            </div>
-            <BottomNav />
-          </NeynarAuthProvider>
-        </NeynarProvider>
+        <PrivyAuthProvider>
+          <PrivyAuthSync />
+          <SdkDevMock />
+          <div className="pb-20 md:pb-8">
+            {children}
+          </div>
+          <BottomNav />
+        </PrivyAuthProvider>
       </body>
     </html>
   );

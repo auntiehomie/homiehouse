@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useNeynarContext } from "@neynar/react";
+import { useNeynarContext } from "@/hooks/useNeynarCompat";
 
 export default function ChannelsList() {
   const { user, isAuthenticated } = useNeynarContext();

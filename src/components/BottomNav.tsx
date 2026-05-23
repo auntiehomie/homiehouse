@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useNeynarContext } from "@neynar/react";
+import { useNeynarContext } from "@/hooks/useNeynarCompat";
 import NotificationBadge from "./NotificationBadge";
 
 export default function BottomNav() {

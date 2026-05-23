@@ -1,12 +1,13 @@
 'use client';
 
-import { NeynarAuthButton, useNeynarContext } from "@neynar/react";
-import "@neynar/react/dist/style.css";
+import { usePrivy } from '@privy-io/react-auth';
+import { useNeynarContext } from '@/hooks/useNeynarCompat';
 
 export default function NeynarSignIn() {
-  const { user, isAuthenticated } = useNeynarContext();
+  const { login, logout, authenticated } = usePrivy();
+  const { user } = useNeynarContext();
 
-  if (isAuthenticated && user) {
+  if (authenticated && user && user.fid) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -31,10 +32,39 @@ export default function NeynarSignIn() {
             </div>
           </div>
         </div>
-        <NeynarAuthButton />
+        <button
+          onClick={logout}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '6px',
+            border: '1px solid #333',
+            background: 'transparent',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '13px',
+          }}
+        >
+          Sign out
+        </button>
       </div>
     );
   }
 
-  return <NeynarAuthButton />;
+  return (
+    <button
+      onClick={login}
+      style={{
+        padding: '8px 18px',
+        borderRadius: '8px',
+        background: '#E87722',
+        color: '#fff',
+        border: 'none',
+        cursor: 'pointer',
+        fontWeight: 600,
+        fontSize: '14px',
+      }}
+    >
+      Sign in
+    </button>
+  );
 }
