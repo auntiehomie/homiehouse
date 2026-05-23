@@ -1,29 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getDb } from '@/lib/db';
 import { neynarFetch } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
-import { validateFid } from '@/lib/validation';
 
-function getSupabaseClient() {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_KEY;
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('SUPABASE_URL and SUPABASE_KEY must be set');
-  }
-  return createClient(supabaseUrl, supabaseKey);
-}
-
-/**
- * POST /api/curate-cast
- * Add a cast to a curated list (creates list if it doesn't exist)
- */
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/curate-cast');
   logger.start();
 
   try {
-    const supabase = getSupabaseClient();
+    const db = getDb();
     const body = await request.json();
     const { signerUuid, listName, castHash, castData, notes } = body;
 
@@ -34,111 +20,93 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify signer and derive FID (prevents FID spoofing)
     let validatedFid: number;
     try {
       const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) {
-        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      }
+      if (!signerData?.fid) return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
       validatedFid = signerData.fid;
     } catch {
       return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
     }
+
     logger.info('Curating cast', { fid: validatedFid, listName, castHash });
-    
-    // Step 1: Find or create the list
+
+    // Find or create list
     let listId: number;
-    
-    // First try to find existing list
-    const { data: existingList } = await supabase
-      .from('curated_lists')
-      .select('id')
-      .eq('fid', validatedFid)
-      .eq('list_name', listName)
-      .single();
-    
-    if (existingList) {
-      listId = existingList.id;
+    const { rows: existingLists } = await db.query(
+      `SELECT id FROM curated_lists WHERE fid = $1 AND list_name = $2`,
+      [validatedFid, listName]
+    );
+
+    if (existingLists.length > 0) {
+      listId = existingLists[0].id;
       logger.info('Found existing list', { listId });
     } else {
-      // Create new list
-      const { data: newList, error: createError } = await supabase
-        .from('curated_lists')
-        .insert([{
-          fid: validatedFid,
-          list_name: listName,
-          description: `Curated collection: ${listName}`,
-          is_public: false
-        }])
-        .select('id')
-        .single();
-      
-      if (createError) {
-        logger.error('Failed to create list', createError);
-        return NextResponse.json(
-          { error: 'Failed to create list' },
-          { status: 500 }
+      try {
+        const { rows: newList } = await db.query(
+          `INSERT INTO curated_lists (fid, list_name, description, is_public)
+           VALUES ($1, $2, $3, false)
+           RETURNING id, list_name`,
+          [validatedFid, listName, `Curated collection: ${listName}`]
         );
+        listId = newList[0].id;
+        logger.info('Created new list', { listId });
+      } catch (err: any) {
+        logger.error('Failed to create list', err);
+        return NextResponse.json({ error: 'Failed to create list' }, { status: 500 });
       }
-      
-      listId = newList.id;
-      logger.info('Created new list', { listId });
     }
-    
-    // Step 2: Check if cast is already in list
-    const { data: existingItem } = await supabase
-      .from('curated_list_items')
-      .select('id')
-      .eq('list_id', listId)
-      .eq('cast_hash', castHash)
-      .single();
-    
-    if (existingItem) {
+
+    // Check if already in list
+    const { rows: existingItem } = await db.query(
+      `SELECT id FROM curated_list_items WHERE list_id = $1 AND cast_hash = $2`,
+      [listId, castHash]
+    );
+
+    if (existingItem.length > 0) {
       logger.info('Cast already in list', { castHash, listId });
       return NextResponse.json({
         success: true,
         message: 'Cast already in list',
         listId,
         listName,
-        alreadyAdded: true
+        alreadyAdded: true,
       });
     }
-    
-    // Step 3: Add cast to list
-    const { data: newItem, error: addError } = await supabase
-      .from('curated_list_items')
-      .insert([{
-        list_id: listId,
-        cast_hash: castHash,
-        cast_author_fid: castData?.authorFid || castData?.author_fid,
-        cast_text: castData?.text,
-        cast_timestamp: castData?.timestamp,
-        added_by_fid: validatedFid,
-        notes: notes || null
-      }])
-      .select()
-      .single();
-    
-    if (addError) {
-      logger.error('Failed to add cast to list', addError);
-      return NextResponse.json(
-        { error: 'Failed to add cast to list' },
-        { status: 500 }
+
+    // Add cast
+    try {
+      const { rows: newItem } = await db.query(
+        `INSERT INTO curated_list_items
+          (list_id, cast_hash, cast_author_fid, cast_text, cast_timestamp, added_by_fid, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [
+          listId,
+          castHash,
+          castData?.authorFid || castData?.author_fid || null,
+          castData?.text || null,
+          castData?.timestamp || null,
+          validatedFid,
+          notes || null,
+        ]
       );
+
+      logger.success('Cast added to list', { listId, castHash });
+      logger.end();
+
+      return NextResponse.json({
+        success: true,
+        message: `Added to "${listName}"`,
+        listId,
+        listName,
+        item: newItem[0],
+        alreadyAdded: false,
+      });
+    } catch (err: any) {
+      logger.error('Failed to add cast to list', err);
+      return NextResponse.json({ error: 'Failed to add cast to list' }, { status: 500 });
     }
-    
-    logger.success('Cast added to list', { listId, castHash });
-    logger.end();
-    
-    return NextResponse.json({
-      success: true,
-      message: `Added to "${listName}"`,
-      listId,
-      listName,
-      item: newItem,
-      alreadyAdded: false
-    });
   } catch (error: any) {
     logger.error('Failed to curate cast', error);
     return handleApiError(error, 'POST /curate-cast');

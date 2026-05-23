@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // NEYNAR_API_KEY is no longer required for this route.
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@supabase/supabase-js';
+import { getDb } from '@/lib/db';
 import { fetchNotifications, fetchCast, publishCast, pinataFetch } from '@/lib/pinata';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -97,17 +97,16 @@ async function handleCuration(
   listName: string | undefined,
   logger: ReturnType<typeof createApiLogger>
 ): Promise<string> {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_KEY;
-  if (!supabaseUrl || !supabaseKey) {
+  let db: any;
+  try {
+    db = getDb();
+  } catch {
     return "curation isn't set up yet 😅";
   }
-  const supabase = createClient(supabaseUrl, supabaseKey);
 
   const userFid = cast.author?.fid;
   if (!userFid) return "couldn't identify you 🤔";
 
-  // The cast to curate is the parent (the one they replied to)
   const parentHash = cast.parent_hash;
   let parentText: string | undefined;
   let parentAuthorFid: number | undefined;
@@ -116,7 +115,6 @@ async function handleCuration(
   if (parentHash) {
     try {
       const parentData = await fetchCast(parentHash);
-      // Pinata wraps in data key: { data: { cast: { ... } } }
       const parentCast = parentData?.data?.cast ?? parentData?.cast;
       parentText = parentCast?.text;
       parentAuthorFid = parentCast?.author?.fid;
@@ -129,75 +127,65 @@ async function handleCuration(
   const targetHash = parentHash || cast.hash;
 
   if (!listName) {
-    // No list name: show user's existing lists
-    const { data: userLists } = await supabase
-      .from('curated_lists')
-      .select('list_name')
-      .eq('fid', userFid)
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (userLists && userLists.length > 0) {
+    const { rows: userLists } = await db.query(
+      `SELECT list_name FROM curated_lists WHERE fid = $1 ORDER BY created_at DESC LIMIT 5`,
+      [userFid]
+    );
+    if (userLists.length > 0) {
       const names = userLists.map((l: any) => `"${l.list_name}"`).join(', ');
       return `which list? you have: ${names} (or reply with a new name) 📝`;
     }
     return `which list? reply with: "@auntiehomie curate this [list name]" 📝`;
   }
 
-  // Validate list name
   if (listName.length > 100) {
     return "list name too long! keep it under 100 chars 📝";
   }
 
-  // Find or create the list
-  let { data: existingList } = await supabase
-    .from('curated_lists')
-    .select('id, list_name')
-    .eq('fid', userFid)
-    .ilike('list_name', listName)
-    .maybeSingle();
+  // Find or create list (case-insensitive)
+  const { rows: existingLists } = await db.query(
+    `SELECT id, list_name FROM curated_lists WHERE fid = $1 AND LOWER(list_name) = LOWER($2)`,
+    [userFid, listName]
+  );
 
   let listId: number;
   let finalListName: string;
 
-  if (existingList) {
-    listId = existingList.id;
-    finalListName = existingList.list_name;
+  if (existingLists.length > 0) {
+    listId = existingLists[0].id;
+    finalListName = existingLists[0].list_name;
   } else {
-    const { data: newList, error: createError } = await supabase
-      .from('curated_lists')
-      .insert([{
-        fid: userFid,
-        list_name: listName,
-        description: `Created via @auntiehomie`,
-        is_public: false
-      }])
-      .select('id, list_name')
-      .single();
-
-    if (createError || !newList) {
+    try {
+      const { rows: newList } = await db.query(
+        `INSERT INTO curated_lists (fid, list_name, description, is_public)
+         VALUES ($1, $2, $3, false)
+         RETURNING id, list_name`,
+        [userFid, listName, `Created via @auntiehomie`]
+      );
+      listId = newList[0].id;
+      finalListName = newList[0].list_name;
+      logger.info(`Created new list: "${finalListName}"`);
+    } catch (createError) {
       logger.error('Failed to create list', createError);
       return `couldn't create "${listName}" 😕`;
     }
-    listId = newList.id;
-    finalListName = newList.list_name;
-    logger.info(`Created new list: "${finalListName}"`);
   }
 
-  // Add cast to list
-  const { error: insertError } = await supabase
-    .from('curated_list_items')
-    .insert([{
-      list_id: listId,
-      cast_hash: targetHash,
-      cast_author_fid: parentAuthorFid || cast.author?.fid,
-      cast_text: parentText || cast.text,
-      cast_timestamp: parentTimestamp || cast.timestamp,
-      added_by_fid: userFid,
-      notes: 'Curated via bot'
-    }]);
-
-  if (insertError) {
+  try {
+    await db.query(
+      `INSERT INTO curated_list_items
+        (list_id, cast_hash, cast_author_fid, cast_text, cast_timestamp, added_by_fid, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, 'Curated via bot')`,
+      [
+        listId,
+        targetHash,
+        parentAuthorFid || cast.author?.fid || null,
+        parentText || cast.text || null,
+        parentTimestamp || cast.timestamp || null,
+        userFid,
+      ]
+    );
+  } catch (insertError: any) {
     if (insertError.code === '23505') {
       return `already in "${finalListName}" 👍`;
     }
