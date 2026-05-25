@@ -325,66 +325,13 @@ export async function getClankerToken(identifier: string): Promise<TokenInfo | n
 }
 
 /**
- * Get token data from Neynar Fungibles API (Base network tokens)
- * Requires full fungible identifier: eip155:8453/erc20:0xaddress
- *
- * NOTE: Pinata Farcaster API does not have a /fungibles endpoint.
- * This function retains the Neynar call as a fallback for token enrichment only.
- * NEYNAR_API_KEY must remain set for this feature to work.
- * See docs/PINATA_MIGRATION.md → "Known Gaps".
+ * Get token data for Base network tokens using DexScreener
+ * Replaces the removed Neynar fungibles endpoint.
+ * DexScreener covers Base DEX pairs with price, liquidity, and volume data.
  */
 export async function getNeynarToken(address: string): Promise<TokenInfo | null> {
-  try {
-    const apiKey = process.env.NEYNAR_API_KEY;
-    if (!apiKey) {
-      console.log('NEYNAR_API_KEY not configured (required for fungible token lookup)');
-      return null;
-    }
-
-    // Format as Neynar fungible identifier for Base network
-    const fungibleId = `eip155:8453/erc20:${address.toLowerCase()}`;
-
-    const url = `https://api.neynar.com/v2/farcaster/fungibles?fungibles=${encodeURIComponent(fungibleId)}`;
-
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'x-api-key': apiKey,
-      },
-    });
-
-    if (!response.ok) {
-      console.error('Neynar fungibles API error:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-    
-    if (!data.fungibles || data.fungibles.length === 0) {
-      return null;
-    }
-
-    const fungible = data.fungibles[0];
-    const token = fungible.fungible;
-    
-    // Convert Neynar format to TokenInfo
-    return {
-      id: token.address,
-      symbol: token.symbol?.toUpperCase() || '',
-      name: token.name || '',
-      address: token.address,
-      chainId: 'base',
-      image: token.logo || undefined,
-      currentPrice: token.price?.in_usd ? parseFloat(token.price.in_usd) : undefined,
-      description: `${token.name} on Base network. Mentioned in ${fungible.cast_count || 0} Farcaster casts.`,
-      links: {
-        homepage: [`https://basescan.org/token/${token.address}`],
-      },
-    };
-  } catch (error) {
-    console.error('Error fetching Neynar fungible data:', error);
-    return null;
-  }
+  // Delegate to DexScreener for Base token lookups — no external API key required
+  return getDexScreenerToken(address);
 }
 
 /**
@@ -395,10 +342,10 @@ export async function getTokenData(identifier: string): Promise<TokenInfo | null
   const upperIdentifier = identifier.toUpperCase();
   if (BASE_TOKENS[upperIdentifier]) {
     const address = BASE_TOKENS[upperIdentifier];
-    // Try Neynar first for known Base tokens
-    const neynarData = await getNeynarToken(address);
-    if (neynarData) {
-      return neynarData;
+    // Try DexScreener for known Base tokens (covers DEX pairs on Base)
+    const dexData = await getDexScreenerToken(address);
+    if (dexData) {
+      return dexData;
     }
   }
 
@@ -418,10 +365,10 @@ export async function getTokenData(identifier: string): Promise<TokenInfo | null
       return clankerData;
     }
     
-    // Try Neynar
-    const neynarData = await getNeynarToken(identifier);
-    if (neynarData) {
-      return neynarData;
+    // Try DexScreener for contract addresses on Base
+    const dexData2 = await getDexScreenerToken(identifier);
+    if (dexData2) {
+      return dexData2;
     }
   }
 
