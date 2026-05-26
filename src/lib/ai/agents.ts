@@ -591,12 +591,33 @@ Be accurate, cite what you know, and admit when you're not certain.`;
 }
 
 // Search for similar casts to enrich context
-// NOTE: Pinata Farcaster API does not expose a cast search endpoint.
-// This function is a no-op stub until an alternative search provider is integrated.
-// See docs/PINATA_MIGRATION.md → "Known Gaps".
-async function searchSimilarCasts(_castText: string): Promise<string> {
-  console.log('[agents] searchSimilarCasts: cast search not supported by Pinata API — skipping');
-  return '';
+// Uses HyperSync's /v2/farcaster/cast/search endpoint via searchCasts() in lib/neynar.ts.
+// Cast search is fully operational via the self-hosted HyperSync hub index.
+async function searchSimilarCasts(castText: string): Promise<string> {
+  try {
+    const keywords = extractKeywordsForSearch(castText);
+    if (keywords.length === 0) {
+      console.log('[agents] searchSimilarCasts: no keywords extracted, skipping');
+      return '';
+    }
+    const query = keywords.slice(0, 3).join(' ');
+    console.log(`[agents] searchSimilarCasts: querying HyperSync for "${query}"`);
+    const results = await searchCasts(query, 5);
+    if (!results || !results.casts || results.casts.length === 0) {
+      return '';
+    }
+    const formatted = results.casts.map((c: any, i: number) => {
+      const author = c.author?.username || 'unknown';
+      const text = (c.text || '').slice(0, 200);
+      const likes = c.reactions?.likes_count || 0;
+      const recasts = c.reactions?.recasts_count || 0;
+      return `${i + 1}. @${author}: "${text}" [${likes} likes, ${recasts} recasts]`;
+    }).join('\n');
+    return `\n\n--- Similar Casts Found via Cast Search ---\n${formatted}\n---`;
+  } catch (error) {
+    console.warn('[agents] searchSimilarCasts error:', error instanceof Error ? error.message : error);
+    return '';
+  }
 }
 
 // Extract keywords from text for search

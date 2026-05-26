@@ -1,4 +1,15 @@
 import type { NextConfig } from "next";
+// withSentryConfig is loaded conditionally so the build doesn't fail without Sentry installed
+let withSentryConfig: ((config: NextConfig, options?: Record<string, unknown>) => NextConfig) | null = null;
+if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const sentry = require('@sentry/nextjs');
+    withSentryConfig = sentry.withSentryConfig;
+  } catch {
+    // @sentry/nextjs not installed yet — skip wrapping
+  }
+}
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -27,4 +38,10 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig
+  ? withSentryConfig(nextConfig, {
+      silent: true,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+    })
+  : nextConfig;

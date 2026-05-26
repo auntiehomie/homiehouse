@@ -47,6 +47,8 @@ export default function FeedList({
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
   const [curateLoading, setCurateLoading] = useState(false);
+  const [kbSaving, setKbSaving] = useState<string | null>(null);
+  const [kbSaved, setKbSaved] = useState<Set<string>>(new Set());
 
   const [showSignerModal, setShowSignerModal] = useState(false);
   const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
@@ -394,6 +396,41 @@ export default function FeedList({
       alert("Failed to curate cast");
     } finally {
       setCurateLoading(false);
+    }
+  };
+
+  const handleSaveToKB = async (castHash: string, castData: any) => {
+    const profile = getProfile();
+    if (!profile?.fid) {
+      alert("Please sign in to save to Knowledge Base");
+      return;
+    }
+    setKbSaving(castHash);
+    try {
+      const res = await fetch("/api/curate-cast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fid: profile.fid,
+          listName: "knowledge-base",
+          castHash,
+          castData: {
+            authorFid: castData.authorFid,
+            text: castData.text,
+            timestamp: castData.timestamp
+          }
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setKbSaved((prev) => new Set([...prev, castHash]));
+      } else {
+        alert(`Failed to save: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("KB save error:", error);
+    } finally {
+      setKbSaving(null);
     }
   };
 
@@ -1087,6 +1124,36 @@ export default function FeedList({
                 }}
               >
                 📌 Curate
+              </button>
+
+              {/* Save to Knowledge Base */}
+              <button
+                onClick={() => {
+                  const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
+                  handleSaveToKB(key, {
+                    authorFid: authorObj?.fid,
+                    text: castText,
+                    timestamp: rawTs
+                  });
+                }}
+                disabled={kbSaving === key || kbSaved.has(key)}
+                title={kbSaved.has(key) ? 'Saved to Knowledge Base' : 'Save to Knowledge Base'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: kbSaved.has(key) ? '#f59e0b' : 'var(--muted-on-dark)',
+                  cursor: kbSaving === key || kbSaved.has(key) ? 'default' : 'pointer',
+                  fontSize: '14px',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s ease',
+                  opacity: kbSaving === key ? 0.6 : 1
+                }}
+              >
+                {kbSaved.has(key) ? '🔖' : '🔖'} {kbSaved.has(key) ? 'Saved' : 'Save'}
               </button>
 
               <button

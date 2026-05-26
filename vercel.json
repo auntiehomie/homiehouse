@@ -3,6 +3,10 @@
     {
       "path": "/api/publish-scheduled-casts",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/bot/check",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -59,7 +59,8 @@ export default function Home() {
           <NeynarSignIn />
         </header>
         
-        <main className="flex-1 flex items-center justify-center px-4 sm:px-6">
+        <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6">
+          {/* Animated headline */}
           <div className="text-center max-w-5xl w-full">
             <h1 
               className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold transition-opacity duration-500 px-4 ${
@@ -77,7 +78,48 @@ export default function Home() {
               {MESSAGES[currentMessageIndex]}
             </h1>
           </div>
+
+          {/* Value proposition */}
+          <p className="mt-4 text-lg sm:text-xl text-zinc-500 dark:text-zinc-400 max-w-2xl text-center px-4">
+            Your home on the decentralized social web. Browse Farcaster feeds, compose casts, get AI-powered insights, and build your personal knowledge base.
+          </p>
+
+          {/* Feature grid */}
+          <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-3xl w-full px-4">
+            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+              <span className="text-2xl">📡</span>
+              <span className="text-sm font-medium text-center">Browse Feeds</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">Follow channels &amp; people you love</span>
+            </div>
+            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+              <span className="text-2xl">✍️</span>
+              <span className="text-sm font-medium text-center">Compose Casts</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">Post, schedule, and reply with ease</span>
+            </div>
+            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+              <span className="text-2xl">🤖</span>
+              <span className="text-sm font-medium text-center">Ask Homie</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">AI-powered cast analysis &amp; insights</span>
+            </div>
+            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+              <span className="text-2xl">📚</span>
+              <span className="text-sm font-medium text-center">Knowledge Base</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">Save &amp; curate your favorite casts</span>
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="mt-10 flex flex-col sm:flex-row items-center gap-4">
+            <div className="scale-110">
+              <NeynarSignIn />
+            </div>
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">Sign in with your Farcaster account</span>
+          </div>
         </main>
+
+        <footer className="py-6 text-center text-xs text-zinc-400">
+          Built on Farcaster &bull; Powered by HomieHouse
+        </footer>
       </div>
     );
   }

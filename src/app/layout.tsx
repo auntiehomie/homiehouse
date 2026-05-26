@@ -7,18 +7,43 @@ import BottomNav from "../components/BottomNav";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.xyz';
 
+// JSON-LD structured data for SEO
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'HomieHouse',
+  url: BASE_URL,
+  description: 'A Farcaster social client — browse your feed, compose casts, and explore the decentralized web.',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${BASE_URL}/search?q={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
 export const metadata: Metadata = {
   title: {
     default: 'HomieHouse',
     template: '%s | HomieHouse',
   },
-  description: 'A Farcaster social client — browse your feed, compose casts, and explore the decentralized web.',
+  description: 'HomieHouse — Your Farcaster social hub. Browse feeds, compose casts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.',
+  keywords: [
+    'Farcaster', 'social client', 'decentralized social', 'casts', 'web3 social',
+    'Ask Homie', 'AI assistant', 'knowledge base', 'crypto social', 'Farcaster client',
+    'decentralized web', 'blockchain social', 'HomieHouse'
+  ],
   metadataBase: new URL(BASE_URL),
+  alternates: {
+    canonical: BASE_URL,
+  },
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
     title: 'HomieHouse — Farcaster Social Client',
-    description: 'Browse your Farcaster feed, compose casts, explore channels, and connect with the decentralized social web.',
+    description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
     url: BASE_URL,
     images: [
       {
@@ -32,12 +57,19 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'HomieHouse — Farcaster Social Client',
-    description: 'Browse your Farcaster feed, compose casts, explore channels, and connect with the decentralized social web.',
+    description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
     images: ['/og-image.png'],
   },
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 };
 
@@ -58,6 +90,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className={`antialiased`}>
         <PrivyAuthProvider>
           <PrivyAuthSync />

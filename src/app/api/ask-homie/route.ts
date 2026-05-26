@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
 import { createApiLogger } from '@/lib/logger';
@@ -21,20 +20,6 @@ function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
-function getGemini() {
-  const key = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-  return key ? new GoogleGenerativeAI(key) : null;
-}
-
-function getPerplexity() {
-  const key = process.env.PERPLEXITY_API_KEY || process.env.NEXT_PUBLIC_PERPLEXITY_API_KEY;
-  return key ? new OpenAI({ apiKey: key, baseURL: 'https://api.perplexity.ai' }) : null;
-}
-
-function getKimi() {
-  const key = process.env.KIMI_API_KEY;
-  return key ? new OpenAI({ apiKey: key, baseURL: 'https://api.moonshot.cn/v1' }) : null;
-}
 
 const SYSTEM_PROMPT = `You are Homie, a helpful AI assistant for HomieHouse - a Farcaster-based social platform. 
 
@@ -96,85 +81,28 @@ When analyzing a cast:
 
 Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
 
-// Intelligent provider selection based on question content
-function selectBestProvider(question: string): 'perplexity' | 'gemini' | 'claude' | 'openai' {
+// Provider selection: Claude for general/analysis/writing, OpenAI for code/math
+function selectBestProvider(question: string): 'claude' | 'openai' {
   const lowerQuestion = question.toLowerCase();
-  
-  // Keywords that suggest Perplexity would be best (real-time data)
-  const perplexityKeywords = [
-    'latest', 'current', 'now', 'today', 'tonight', 'recent', 'just',
-    'live', 'right now', 'this week', 'this month', 'this year',
-    'price', 'score', 'weather', 'news', 'breaking', 'update',
-    'happening', 'trending', 'what happened', 'did', 'market',
-    'stock', 'crypto', 'bitcoin', 'eth', 'when did', 'who won'
-  ];
-  
-  // Keywords that suggest Gemini with web search would be better
-  const geminiKeywords = [
-    'search', 'find', 'what is', 'explain', 'tell me about', 
-    'link', 'url', 'website', 'https://', 'http://', '.com', 
-    'article', 'documentation', 'guide', 'tutorial', 'how to'
-  ];
-  
-  // Keywords that suggest Claude would be better
-  const claudeKeywords = [
-    'write', 'story', 'creative', 'essay', 'poem', 'philosophical',
-    'explain like', 'eli5', 'analogy', 'metaphor', 'analyze',
-    'opinion', 'think about', 'perspective', 'nuance', 'ethics',
-    'summarize', 'rewrite', 'improve', 'feedback', 'critique'
-  ];
-  
-  // Keywords that suggest OpenAI would be better
+
+  // Keywords that suggest OpenAI (code, math, structured output)
   const openaiKeywords = [
     'code', 'function', 'debug', 'error', 'api', 'typescript',
     'javascript', 'python', 'sql', 'algorithm', 'data structure',
     'calculate', 'math', 'number', 'formula', 'json',
     'parse', 'regex', 'syntax', 'compile', 'implement'
   ];
-  
-  let perplexityScore = 0;
-  let geminiScore = 0;
-  let claudeScore = 0;
+
   let openaiScore = 0;
-  
-  // Count keyword matches
-  for (const keyword of perplexityKeywords) {
-    if (lowerQuestion.includes(keyword)) perplexityScore++;
-  }
-  
-  for (const keyword of geminiKeywords) {
-    if (lowerQuestion.includes(keyword)) geminiScore++;
-  }
-  
-  for (const keyword of claudeKeywords) {
-    if (lowerQuestion.includes(keyword)) claudeScore++;
-  }
-  
   for (const keyword of openaiKeywords) {
     if (lowerQuestion.includes(keyword)) openaiScore++;
   }
-  
-  // Check for URLs in the question - strong signal for Gemini
-  if (/https?:\/\/[^\s]+/.test(question)) {
-    geminiScore += 3;
-  }
-  
-  // Additional heuristics
-  if (lowerQuestion.includes('?') && lowerQuestion.split(' ').length > 15) {
-    // Long questions tend to be better for Claude's analysis
-    claudeScore++;
-  }
-  
+
   if (lowerQuestion.includes('```') || lowerQuestion.includes('function') || lowerQuestion.includes('const')) {
-    // Code blocks suggest technical question
     openaiScore += 2;
   }
-  
-  // Return provider with highest score
-  if (perplexityScore > 0 && getPerplexity()) return 'perplexity';
-  if (geminiScore > claudeScore && geminiScore > openaiScore) return 'gemini';
-  if (openaiScore > claudeScore) return 'openai';
-  return 'claude'; // Default to Claude for general questions
+
+  return openaiScore >= 2 ? 'openai' : 'claude'; // Claude is the default primary
 }
 
 // Detect if user is asking for a profile and extract username
@@ -515,89 +443,22 @@ Profile URL: https://warpcast.com/${profileData.username}]`
     }
 
     // Smart provider selection: use requested provider, or auto-select based on content
-    const selectedProvider = requestedProvider || selectBestProvider(question);
+    // Claude is primary for general/analysis/writing; OpenAI for code/math
+    const selectedProvider = (requestedProvider === 'gemini' || requestedProvider === 'perplexity' || requestedProvider === 'kimi')
+      ? 'claude' // Redirect removed providers to Claude
+      : (requestedProvider as 'claude' | 'openai' | undefined) || selectBestProvider(question);
 
     // Initialize clients fresh for this request (picks up rotated keys)
     const openai = getOpenAI();
     const anthropic = getAnthropic();
-    const gemini = getGemini();
-    const perplexity = getPerplexity();
-    const kimi = getKimi();
 
     let response: string;
     let usedProvider = selectedProvider;
 
     try {
-      if (selectedProvider === 'perplexity' && perplexity) {
-        // Use Perplexity for real-time data
-        console.log('Using Perplexity for real-time data');
-        const completion = await perplexity.chat.completions.create({
-          model: 'sonar',
-          messages: [
-            {
-              role: 'system',
-              content: SYSTEM_PROMPT
-            },
-            ...conversationMessages
-          ],
-          temperature: 0.2,
-          max_tokens: 1024,
-        });
-        response = completion.choices[0].message.content || '';
-      } else if (selectedProvider === 'perplexity' && !perplexity) {
-        // Fallback to Gemini if Perplexity not available
-        console.log('Perplexity not available, falling back to Gemini');
-        usedProvider = 'gemini';
-        if (gemini) {
-          const model = gemini.getGenerativeModel({ 
-            model: 'gemini-2.0-flash-exp',
-            systemInstruction: SYSTEM_PROMPT
-          });
-          const geminiHistory = conversationMessages
-            .filter((msg: any) => msg.role !== 'system')
-            .map((msg: any) => ({
-              role: msg.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: msg.content }]
-            }));
-          const result = await model.generateContent({
-            contents: geminiHistory,
-            generationConfig: {
-              temperature: 0.8,
-              maxOutputTokens: 1024,
-            }
-          });
-          response = result.response.text();
-        } else {
-          throw new Error('No AI provider available');
-        }
-      } else if (selectedProvider === 'gemini' && gemini) {
-        // Use Gemini with web search capability
-        console.log('Using Gemini for web-enhanced response');
-        const model = gemini.getGenerativeModel({ 
-          model: 'gemini-2.0-flash-exp',
-          systemInstruction: SYSTEM_PROMPT
-        });
-        
-        // Build conversation history for Gemini
-        const geminiHistory = conversationMessages
-          .filter((msg: any) => msg.role !== 'system')
-          .map((msg: any) => ({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: msg.content }]
-          }));
-        
-        const result = await model.generateContent({
-          contents: geminiHistory,
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 1024,
-          }
-        });
-        
-        response = result.response.text();
-      } else if (selectedProvider === 'gemini' && !gemini) {
-        // Fallback to Claude if Gemini is not available
-        console.log('Gemini not available, falling back to Claude');
+      if (selectedProvider === 'claude') {
+        // Claude is the primary provider for general questions, analysis, and writing
+        console.log('Using Claude as primary provider');
         const completion = await anthropic.messages.create({
           model: 'claude-sonnet-4-5-20250929',
           max_tokens: 1024,
@@ -607,125 +468,49 @@ Profile URL: https://warpcast.com/${profileData.username}]`
             content: msg.content,
           })),
         });
-
-        response = completion.content[0].type === 'text' ? completion.content[0].text : '';
-        usedProvider = 'claude';
-      } else if (selectedProvider === 'claude') {
-        // Use Claude (Anthropic)
-        const completion = await anthropic.messages.create({
-          model: 'claude-sonnet-4-5-20250929',
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          messages: conversationMessages.map((msg: any) => ({
-            role: msg.role === 'system' ? 'user' : msg.role,
-            content: msg.content,
-          })),
-        });
-
         response = completion.content[0].type === 'text' ? completion.content[0].text : '';
       } else {
-        // Use OpenAI
+        // OpenAI for code/math/structured output
+        console.log('Using OpenAI for code/math response');
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [
-            {
-              role: 'system',
-              content: SYSTEM_PROMPT
-            },
+            { role: 'system', content: SYSTEM_PROMPT },
             ...conversationMessages
           ],
           temperature: 0.7,
-          max_tokens: 500,
+          max_tokens: 1024,
         });
-
         response = completion.choices[0].message.content || '';
       }
     } catch (primaryError) {
-      // Multi-level fallback chain: Primary → Gemini → Kimi
-      console.warn(`${selectedProvider} failed, trying fallback chain:`, primaryError);
-      
-      try {
-        // First fallback: Try Gemini if available and not already tried
-        if (gemini && selectedProvider !== 'gemini') {
-          console.log('Trying Gemini as first fallback...');
-          const model = gemini.getGenerativeModel({ 
-            model: 'gemini-2.0-flash-exp',
-            systemInstruction: SYSTEM_PROMPT
-          });
+      // Fallback chain: Claude → OpenAI (or OpenAI → Claude)
+      console.warn(`${selectedProvider} failed, trying fallback:`, primaryError);
+      const fallback = selectedProvider === 'claude' ? 'openai' : 'claude';
+      usedProvider = `${fallback} (fallback)`;
 
-          const result = await model.generateContent({
-            contents: conversationMessages.map((msg: any) => ({
-              role: msg.role === 'user' ? 'user' : 'model',
-              parts: [{ text: msg.content }],
-            })),
-          });
-          
-          response = result.response.text();
-          usedProvider = 'gemini (fallback)';
-        } else {
-          throw new Error('Gemini not available or already tried');
-        }
-      } catch (geminiError) {
-        console.warn('Gemini fallback failed, trying Kimi:', geminiError);
-        
-        try {
-          // Second fallback: Try Kimi if available
-          if (kimi) {
-            console.log('Trying Kimi as second fallback...');
-            const completion = await kimi.chat.completions.create({
-              model: 'moonshot-v1-8k',
-              messages: [
-                {
-                  role: 'system',
-                  content: SYSTEM_PROMPT
-                },
-                ...conversationMessages
-              ],
-              temperature: 0.7,
-              max_tokens: 1000,
-            });
-
-            response = completion.choices[0].message.content || '';
-            usedProvider = 'kimi (fallback)';
-          } else {
-            throw new Error('Kimi not available');
-          }
-        } catch (kimiError) {
-          console.warn('Kimi fallback also failed, trying final fallback:', kimiError);
-          
-          // Final fallback: Use whatever wasn't tried yet (OpenAI or Claude)
-          const finalFallback = selectedProvider === 'claude' || selectedProvider === 'openai' ? 'openai' : 'claude';
-          usedProvider = `${finalFallback} (final fallback)`;
-
-          if (finalFallback === 'claude') {
-            const completion = await anthropic.messages.create({
-              model: 'claude-sonnet-4-5-20250929',
-              max_tokens: 1024,
-              system: SYSTEM_PROMPT,
-              messages: messages.map((msg: any) => ({
-                role: msg.role === 'system' ? 'user' : msg.role,
-                content: msg.content,
-              })),
-            });
-
-            response = completion.content[0].type === 'text' ? completion.content[0].text : '';
-          } else {
-            const completion = await openai.chat.completions.create({
-              model: 'gpt-4o',
-              messages: [
-                {
-                  role: 'system',
-                  content: SYSTEM_PROMPT
-                },
-                ...messages
-              ],
-              temperature: 0.7,
-              max_tokens: 500,
-            });
-
-            response = completion.choices[0].message.content || '';
-          }
-        }
+      if (fallback === 'openai') {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            ...messages
+          ],
+          temperature: 0.7,
+          max_tokens: 1024,
+        });
+        response = completion.choices[0].message.content || '';
+      } else {
+        const completion = await anthropic.messages.create({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: messages.map((msg: any) => ({
+            role: msg.role === 'system' ? 'user' : msg.role,
+            content: msg.content,
+          })),
+        });
+        response = completion.content[0].type === 'text' ? completion.content[0].text : '';
       }
     }
 
