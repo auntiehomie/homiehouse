@@ -1,17 +1,19 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { QRCodeSVG } from 'qrcode.react';
+import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+import { usePrivy } from "@privy-io/react-auth";
 
 export default function ComposeModal() {
+  const { user } = usePrivy();
+  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
+  const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
+  const userFid: number | null = farcasterAccount?.fid ?? null;
+
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [signerUuid, setSignerUuid] = useState<string | null>(null);
-  const [signerStatus, setSignerStatus] = useState<string | null>(null);
-  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
-  const [userFid, setUserFid] = useState<number | null>(null);
   const [mentionSearch, setMentionSearch] = useState('');
   const [mentionResults, setMentionResults] = useState<any[]>([]);
   const [showMentions, setShowMentions] = useState(false);
@@ -29,57 +31,15 @@ export default function ComposeModal() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
 
-  // Load user profile and signer from localStorage
-  useEffect(() => {
-    const storedProfile = localStorage.getItem("hh_profile");
-    if (storedProfile) {
-      try {
-        const profile = JSON.parse(storedProfile);
-        const fid = profile?.fid;
-        setUserFid(fid);
-        
-        if (fid) {
-          const key = `signer_${fid}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            try {
-              const parsed = JSON.parse(stored);
-              setSignerUuid(parsed.signer_uuid || null);
-              setSignerStatus(parsed.status || null);
-              setApprovalUrl(parsed.signer_approval_url || null);
-              
-              // If we have a signer UUID and status is approved, we're ready to post
-              if (parsed.signer_uuid && parsed.status === 'approved') {
-                console.log('Neynar signer ready:', parsed.signer_uuid);
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }, []);
-
-  // Reload signer data when modal opens (important for mobile)
-  useEffect(() => {
-    if (open && userFid) {
-      const key = `signer_${userFid}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setSignerUuid(parsed.signer_uuid || null);
-          setSignerStatus(parsed.status || null);
-          setApprovalUrl(parsed.signer_approval_url || null);
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }, [open, userFid]);
+  // Get signerUuid from localStorage for server-side API calls (legacy compat)
+  const getStoredSignerUuid = (): string | undefined => {
+    if (!userFid) return undefined;
+    try {
+      const stored = localStorage.getItem(`signer_${userFid}`);
+      if (stored) return JSON.parse(stored)?.signer_uuid;
+    } catch { /* ignore */ }
+    return undefined;
+  };
 
   // Listen for custom event to open compose with pre-filled text
   useEffect(() => {
@@ -260,8 +220,11 @@ export default function ComposeModal() {
       const formData = new FormData();
       formData.append('file', file);
       // SECURITY: Include signerUuid for authenticated upload
-      if (signerUuid) {
-        formData.append('signerUuid', signerUuid);
+      const uploadSignerUuid = getStoredSignerUuid();
+      if (uploadSignerUuid) {
+        formData.append('signerUuid', uploadSignerUuid);
+      }
+      if (false) {
       }
 
       const response = await fetch('/api/upload-image', {
@@ -292,89 +255,12 @@ export default function ComposeModal() {
     setUploadedImage(null);
   };
 
-  async function createSigner() {
-    if (!userFid) {
-      setStatus("Sign in first.");
-      return;
-    }
-
+  async function handleEnablePosting() {
     setLoading(true);
-    setStatus("Creating signer...");
+    setStatus("Opening Warpcast approval...");
     try {
-      const res = await fetch("/api/signer", { method: "POST" });
-      if (!res.ok) throw new Error(`Signer creation failed: ${res.status}`);
-      const data = await res.json();
-      console.log("Signer response:", data);
-
-      if (data.ok && data.signer_uuid) {
-        setSignerUuid(data.signer_uuid);
-        setSignerStatus(data.status);
-        setApprovalUrl(data.signer_approval_url);
-
-        const key = `signer_${userFid}`;
-        localStorage.setItem(key, JSON.stringify({
-          signer_uuid: data.signer_uuid,
-          status: data.status,
-          signer_approval_url: data.signer_approval_url
-        }));
-
-        // On mobile, automatically open approval link
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        if (isMobile && data.signer_approval_url) {
-          setStatus("Opening approval page...");
-          window.location.href = data.signer_approval_url;
-        } else {
-          setStatus("Signer created! Approve it to enable posting.");
-        }
-      } else {
-        setStatus(`Failed: ${data.error || "unknown"}`);
-      }
-    } catch (e: any) {
-      setStatus(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function checkStatus() {
-    if (!signerUuid) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!res.ok) throw new Error(`Signer status check failed: ${res.status}`);
-      const data = await res.json();
-
-      if (data.ok) {
-        setSignerStatus(data.status);
-        
-        // Update approval URL if returned
-        if (data.signer_approval_url) {
-          setApprovalUrl(data.signer_approval_url);
-        }
-
-        if (userFid) {
-          const key = `signer_${userFid}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            parsed.status = data.status;
-            // Preserve approval URL
-            if (data.signer_approval_url) {
-              parsed.signer_approval_url = data.signer_approval_url;
-            }
-            localStorage.setItem(key, JSON.stringify(parsed));
-          }
-        }
-
-        if (data.status === "approved") {
-          setStatus("✓ Signer approved! You can now post.");
-        } else {
-          setStatus(`Status: ${data.status}`);
-        }
-      } else {
-        setStatus(`Error: ${data.error}`);
-      }
+      await requestSigner();
+      setStatus(null);
     } catch (e: any) {
       setStatus(`Error: ${e.message}`);
     } finally {
@@ -393,13 +279,14 @@ export default function ComposeModal() {
       }
 
       // Check if signer is approved
-      if (signerStatus !== "approved" && !signerUuid) {
-        setStatus("Please create and approve a signer first.");
+      if (!hasActiveSigner) {
+        setStatus("Please enable posting first.");
         setLoading(false);
         return;
       }
 
-      console.log("Posting with:", { userFid, signerUuid, signerStatus, text, isScheduled, scheduleTime });
+      const signerUuid = getStoredSignerUuid();
+      console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
 
       // Prepare cast data
       const body: any = { 
@@ -573,7 +460,7 @@ export default function ComposeModal() {
             </div>
 
             {/* Show approval screen if signer not approved */}
-            {userFid && signerStatus !== "approved" ? (
+            {userFid && !hasActiveSigner ? (
               <div style={{ marginTop: 24 }}>
                 <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                   <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
@@ -581,76 +468,17 @@ export default function ComposeModal() {
                     Enable Posting
                   </h3>
                   <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
-                    To post casts from HomieHouse, you need to approve posting permissions. 
+                    To post casts from HomieHouse, you need to approve posting permissions in Warpcast.
                     This only needs to be done once.
                   </p>
-                  
-                  {!signerUuid ? (
-                    <button 
-                      className="btn primary" 
-                      onClick={createSigner} 
-                      disabled={loading}
-                      style={{ width: '100%', padding: '12px', fontSize: 16 }}
-                    >
-                      {loading ? "Creating..." : "Enable Posting"}
-                    </button>
-                  ) : (
-                    <>
-                      {signerStatus !== "approved" && (
-                        <div style={{ marginBottom: 16 }}>
-                          {approvalUrl ? (
-                            <>
-                              <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
-                                <QRCodeSVG value={approvalUrl} size={200} />
-                              </div>
-                              <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
-                                Scan this QR code or click below to approve:
-                              </p>
-                              <a 
-                                href={approvalUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="btn primary" 
-                                style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
-                              >
-                                Approve in Warpcast →
-                              </a>
-                            </>
-                          ) : (
-                            <div style={{ 
-                              padding: '12px', 
-                              background: 'rgba(232, 119, 34, 0.1)', 
-                              borderRadius: '8px', 
-                              marginBottom: '12px',
-                              fontSize: '14px',
-                              color: 'var(--muted-on-dark)'
-                            }}>
-                              Approval URL not found. Try creating a new signer.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      <button 
-                        className="btn" 
-                        onClick={checkStatus} 
-                        disabled={loading}
-                        style={{ width: '100%', padding: '12px', marginBottom: '8px' }}
-                      >
-                        {loading ? "Checking..." : "Check Approval Status"}
-                      </button>
-                      {signerStatus && (
-                        <div style={{ 
-                          fontSize: '13px', 
-                          color: 'var(--muted-on-dark)', 
-                          textAlign: 'center',
-                          padding: '8px'
-                        }}>
-                          Status: {signerStatus}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  
+                  <button 
+                    className="btn primary" 
+                    onClick={handleEnablePosting} 
+                    disabled={loading}
+                    style={{ width: '100%', padding: '12px', fontSize: 16 }}
+                  >
+                    {loading ? "Opening Warpcast..." : "Enable Posting"}
+                  </button>
                   {status && (
                     <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: 'var(--surface)', fontSize: 14 }}>
                       {status}
