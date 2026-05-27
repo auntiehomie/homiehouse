@@ -2,17 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { QRCodeSVG } from 'qrcode.react';
+import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
 export default function ComposePage() {
   const router = useRouter();
+  const { user } = usePrivy();
+  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
+  const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
+  const userFid: number | null = farcasterAccount?.fid ?? null;
+
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [signerUuid, setSignerUuid] = useState<string | null>(null);
-  const [signerStatus, setSignerStatus] = useState<string | null>(null);
-  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
-  const [userFid, setUserFid] = useState<number | null>(null);
   const [mentionSearch, setMentionSearch] = useState('');
   const [mentionResults, setMentionResults] = useState<any[]>([]);
   const [showMentions, setShowMentions] = useState(false);
@@ -30,42 +32,10 @@ export default function ComposePage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
 
-  // Load user profile and signer from localStorage
+  // Load channels on mount
   useEffect(() => {
-    const storedProfile = localStorage.getItem("hh_profile");
-    if (storedProfile) {
-      try {
-        const profile = JSON.parse(storedProfile);
-        const fid = profile?.fid;
-        setUserFid(fid);
-        
-        if (fid) {
-          const key = `signer_${fid}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            try {
-              const parsed = JSON.parse(stored);
-              setSignerUuid(parsed.signer_uuid || null);
-              setSignerStatus(parsed.status || null);
-              setApprovalUrl(parsed.signer_approval_url || null);
-              
-              // If we have a signer UUID and status is approved, we're ready to post
-              if (parsed.signer_uuid && parsed.status === 'approved') {
-                console.log('Neynar signer ready:', parsed.signer_uuid);
-              }
-            } catch {
-              // ignore
-            }
-          }
-          
-          // Fetch channels
-          fetchChannels(fid);
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }, []);
+    if (userFid) fetchChannels(userFid);
+  }, [userFid]);
 
   async function fetchChannels(fid: number) {
     try {
@@ -218,9 +188,10 @@ export default function ComposePage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // SECURITY: Include signerUuid for authenticated upload
-      if (signerUuid) {
-        formData.append('signerUuid', signerUuid);
+      // Include Privy signer public key for authenticated upload
+      const signerKey = farcasterAccount?.signerPublicKey;
+      if (signerKey) {
+        formData.append('signerUuid', signerKey);
       }
 
       const response = await fetch('/api/upload-image', {
@@ -250,83 +221,12 @@ export default function ComposePage() {
     setUploadedImage(null);
   };
 
-  async function createSigner() {
-    if (!userFid) {
-      setStatus("Sign in first.");
-      return;
-    }
-
+  async function handleEnablePosting() {
     setLoading(true);
-    setStatus("Creating signer...");
+    setStatus("Opening Warpcast approval...");
     try {
-      const res = await fetch("/api/signer", { method: "POST" });
-      const data = await res.json();
-
-      if (data.ok && data.signer_uuid) {
-        setSignerUuid(data.signer_uuid);
-        setSignerStatus(data.status);
-        setApprovalUrl(data.signer_approval_url);
-
-        const key = `signer_${userFid}`;
-        localStorage.setItem(key, JSON.stringify({
-          signer_uuid: data.signer_uuid,
-          status: data.status,
-          signer_approval_url: data.signer_approval_url
-        }));
-
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        if (isMobile && data.signer_approval_url) {
-          setStatus("Opening approval page...");
-          window.location.href = data.signer_approval_url;
-        } else {
-          setStatus("Signer created! Approve it to enable posting.");
-        }
-      } else {
-        setStatus(`Failed: ${data.error || "unknown"}`);
-      }
-    } catch (e: any) {
-      setStatus(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function checkStatus() {
-    if (!signerUuid) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      const data = await res.json();
-
-      if (data.ok) {
-        setSignerStatus(data.status);
-        
-        if (data.signer_approval_url) {
-          setApprovalUrl(data.signer_approval_url);
-        }
-
-        if (userFid) {
-          const key = `signer_${userFid}`;
-          const stored = localStorage.getItem(key);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            parsed.status = data.status;
-            if (data.signer_approval_url) {
-              parsed.signer_approval_url = data.signer_approval_url;
-            }
-            localStorage.setItem(key, JSON.stringify(parsed));
-          }
-        }
-
-        if (data.status === "approved") {
-          setStatus("✓ Signer approved! You can now post.");
-        } else {
-          setStatus(`Status: ${data.status}`);
-        }
-      } else {
-        setStatus(`Error: ${data.error}`);
-      }
+      await requestSigner();
+      setStatus(null);
     } catch (e: any) {
       setStatus(`Error: ${e.message}`);
     } finally {
@@ -344,15 +244,15 @@ export default function ComposePage() {
         return;
       }
 
-      if (signerStatus !== "approved" && !signerUuid) {
-        setStatus("Please create and approve a signer first.");
+      if (!hasActiveSigner) {
+        setStatus("Please enable posting first.");
         setLoading(false);
         return;
       }
 
       const body: any = { 
         text, 
-        signerUuid: signerUuid || undefined,
+        signerUuid: farcasterAccount?.signerPublicKey || undefined,
         fid: userFid 
       };
 
@@ -523,58 +423,21 @@ export default function ComposePage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-6">
-        {userFid && signerStatus !== "approved" ? (
+        {userFid && !hasActiveSigner ? (
           <div className="text-center py-12">
             <div className="text-6xl mb-6">🔐</div>
             <h2 className="text-2xl font-bold mb-4">Enable Posting</h2>
             <p className="text-zinc-400 mb-8 max-w-md mx-auto">
-              To post casts from HomieHouse, you need to approve posting permissions. 
+              To post casts from HomieHouse, approve posting permissions via Warpcast.
               This only needs to be done once.
             </p>
-            
-            {!signerUuid ? (
-              <button 
-                className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
-                onClick={createSigner} 
-                disabled={loading}
-              >
-                {loading ? "Creating..." : "Enable Posting"}
-              </button>
-            ) : (
-              <div>
-                {signerStatus !== "approved" && approvalUrl && (
-                  <div className="mb-6">
-                    <div className="bg-white p-4 rounded-lg inline-block mb-4">
-                      <QRCodeSVG value={approvalUrl} size={200} />
-                    </div>
-                    <p className="text-sm text-zinc-400 mb-4">
-                      Scan this QR code or click below to approve:
-                    </p>
-                    <a 
-                      href={approvalUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="inline-block bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors mb-4"
-                    >
-                      Approve in Warpcast →
-                    </a>
-                  </div>
-                )}
-                <button 
-                  className="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-2 rounded-lg transition-colors"
-                  onClick={checkStatus} 
-                  disabled={loading}
-                >
-                  {loading ? "Checking..." : "Check Approval Status"}
-                </button>
-                {signerStatus && (
-                  <div className="text-sm text-zinc-400 mt-2">
-                    Status: {signerStatus}
-                  </div>
-                )}
-              </div>
-            )}
-            
+            <button
+              className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+              onClick={handleEnablePosting}
+              disabled={loading}
+            >
+              {loading ? "Opening Warpcast..." : "Enable Posting"}
+            </button>
             {status && (
               <div className="mt-6 p-4 bg-zinc-900 rounded-lg text-sm">
                 {status}
