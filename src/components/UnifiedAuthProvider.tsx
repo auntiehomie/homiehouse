@@ -199,14 +199,18 @@ function AuthStateManager({ children }: { children: ReactNode }) {
 
   const requestSigner = async () => {
     // Ensure an embedded wallet exists first (required by Privy for Farcaster signers)
+    // Check both 'privy' (v1) and 'privy-v2' embedded wallet types.
     const embeddedWallet = user?.linkedAccounts?.find(
-      (a: any) => a.type === 'wallet' && a.walletClientType === 'privy'
+      (a: any) => a.type === 'wallet' &&
+        (a.walletClientType === 'privy' || a.walletClientType === 'privy-v2')
     );
     if (!embeddedWallet) {
       try {
         await createWallet();
       } catch (e: any) {
-        if (!e?.message?.toLowerCase().includes('already')) throw e;
+        const code = e?.privyErrorCode ?? e?.code ?? '';
+        const msg = e?.message?.toLowerCase() ?? '';
+        if (code !== 'embedded_wallet_already_exists' && !msg.includes('already')) throw e;
       }
     }
     await requestFarcasterSignerFromWarpcast();
