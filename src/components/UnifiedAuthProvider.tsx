@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { PrivyProvider, usePrivy, useFarcasterSigner } from '@privy-io/react-auth';
+import { PrivyProvider, usePrivy, useFarcasterSigner, useCreateWallet } from '@privy-io/react-auth';
 import { WagmiProvider } from 'wagmi';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { wagmiConfig, walletConnectConfig, privyConfig, chains } from '@/config/web3';
@@ -55,6 +55,7 @@ export function useAuth() {
 function AuthStateManager({ children }: { children: ReactNode }) {
   const { authenticated, user } = usePrivy();
   const { requestFarcasterSignerFromWarpcast, getFarcasterSignerPublicKey } = useFarcasterSigner();
+  const { createWallet } = useCreateWallet();
 
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -197,6 +198,17 @@ function AuthStateManager({ children }: { children: ReactNode }) {
   const hasActiveSigner = !!(farcasterAccount?.signerPublicKey && authenticated);
 
   const requestSigner = async () => {
+    // Ensure an embedded wallet exists first (required by Privy for Farcaster signers)
+    const embeddedWallet = user?.linkedAccounts?.find(
+      (a: any) => a.type === 'wallet' && a.walletClientType === 'privy'
+    );
+    if (!embeddedWallet) {
+      try {
+        await createWallet({ type: 'ethereum' });
+      } catch (e: any) {
+        if (!e?.message?.toLowerCase().includes('already')) throw e;
+      }
+    }
     await requestFarcasterSignerFromWarpcast();
   };
 

@@ -16,7 +16,8 @@ export default function PrivyAuthProvider({ children }: { children: ReactNode })
         },
         embeddedWallets: {
           ethereum: {
-            createOnLogin: 'users-without-wallets',
+            // 'all-users' is required for Farcaster embedded signers.
+            createOnLogin: 'all-users',
           },
         },
       }}

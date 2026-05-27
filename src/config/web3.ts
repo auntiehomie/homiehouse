@@ -67,7 +67,10 @@ export const privyConfig = {
     },
     embeddedWallets: {
       ethereum: {
-        createOnLogin: 'users-without-wallets' as const,
+        // 'all-users' is required for Farcaster embedded signers:
+        // every Farcaster-logged-in user needs an embedded wallet before
+        // requestFarcasterSignerFromWarpcast() can be called.
+        createOnLogin: 'all-users' as const,
         showWalletUIs: true,
       },
     },

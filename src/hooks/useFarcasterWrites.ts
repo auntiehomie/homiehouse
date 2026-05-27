@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { usePrivy, useFarcasterSigner } from '@privy-io/react-auth';
+import { usePrivy, useFarcasterSigner, useCreateWallet } from '@privy-io/react-auth';
 import { HubRestAPIClient, ExternalEd25519Signer } from '@standard-crypto/farcaster-js';
 
 const HUB_URL = process.env.NEXT_PUBLIC_FARCASTER_HUB_URL || 'https://nemes.farcaster.xyz:2281';
@@ -50,6 +50,7 @@ export interface ReplyParams {
 
 export function useFarcasterWrites(): UseFarcasterWritesReturn {
   const { user, authenticated } = usePrivy();
+  const { createWallet } = useCreateWallet();
   const {
     getFarcasterSignerPublicKey,
     signFarcasterMessage,
@@ -79,8 +80,23 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
 
   const requestSigner = useCallback(async () => {
     if (!authenticated) throw Object.assign(new Error('Not authenticated'), { code: 'NOT_AUTHENTICATED' });
+
+    // Privy requires an embedded wallet to exist before a Farcaster signer can be created.
+    // Create one if the user doesn't already have one (idempotent — safe to call multiple times).
+    const embeddedWallet = user?.linkedAccounts?.find(
+      (a: any) => a.type === 'wallet' && a.walletClientType === 'privy'
+    );
+    if (!embeddedWallet) {
+      try {
+        await createWallet({ type: 'ethereum' });
+      } catch (e: any) {
+        // Wallet may already exist — ignore "already has embedded wallet" errors
+        if (!e?.message?.toLowerCase().includes('already')) throw e;
+      }
+    }
+
     await requestFarcasterSignerFromWarpcast();
-  }, [authenticated, requestFarcasterSignerFromWarpcast]);
+  }, [authenticated, user, createWallet, requestFarcasterSignerFromWarpcast]);
 
   const submitCast = useCallback(async (params: SubmitCastParams): Promise<{ castHash: string }> => {
     const { client, signer } = getSigner();
