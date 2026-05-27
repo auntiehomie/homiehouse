@@ -1150,21 +1150,7 @@ export default function FeedList({
         );
       })}
 
-      {/* Signer approval is handled by Privy's useFarcasterSigner — no modal needed */
-      false && (
-        <div style={{ display: 'none' }}>
-          <button style={{ display: 'none' }}
-              >
-                Cancel
-              </button>
-              
-              <p style={{ fontSize: '13px', color: 'var(--muted-on-dark)', marginTop: '16px' }}>
-                After approving in Warpcast, click "Check Status" to verify.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Signer approval handled by Privy — no modal needed */}
 
       {/* Recast Modal */}
       {showRecastModal && (
