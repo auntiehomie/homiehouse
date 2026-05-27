@@ -204,7 +204,7 @@ function AuthStateManager({ children }: { children: ReactNode }) {
     );
     if (!embeddedWallet) {
       try {
-        await createWallet({ type: 'ethereum' });
+        await createWallet();
       } catch (e: any) {
         if (!e?.message?.toLowerCase().includes('already')) throw e;
       }
@@ -251,3 +251,4 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
     </PrivyProvider>
   );
 }
+
