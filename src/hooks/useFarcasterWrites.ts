@@ -88,7 +88,7 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     );
     if (!embeddedWallet) {
       try {
-        await createWallet({ type: 'ethereum' });
+        await createWallet();
       } catch (e: any) {
         // Wallet may already exist — ignore "already has embedded wallet" errors
         if (!e?.message?.toLowerCase().includes('already')) throw e;
