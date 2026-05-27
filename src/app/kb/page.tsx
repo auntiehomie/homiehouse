@@ -37,7 +37,8 @@ export default function KnowledgeBasePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/curated-lists?signerUuid=${encodeURIComponent(user!.signer_uuid)}`);
+      const signerUuid = user?.signer_uuid ?? '';
+      const res = await fetch(`/api/curated-lists?signerUuid=${encodeURIComponent(signerUuid)}`);
       if (!res.ok) throw new Error("Failed to load knowledge base");
       const data = await res.json();
       const allLists: CuratedList[] = data.lists || [];
@@ -51,7 +52,7 @@ export default function KnowledgeBasePage() {
       if (kbList) {
         // Fetch items for the KB list
         const itemsRes = await fetch(
-          `/api/curated-lists/${kbList.id}/items?signerUuid=${encodeURIComponent(user!.signer_uuid)}`
+          `/api/curated-lists/${kbList.id}/items?signerUuid=${encodeURIComponent(user?.signer_uuid ?? '')}`
         );
         if (itemsRes.ok) {
           const itemsData = await itemsRes.json();
@@ -198,3 +199,4 @@ export default function KnowledgeBasePage() {
     </div>
   );
 }
+
