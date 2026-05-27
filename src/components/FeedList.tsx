@@ -7,7 +7,7 @@ import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import { FeedType } from "./FeedTrendingTabs";
-import { QRCodeSVG } from 'qrcode.react';
+import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -50,9 +50,7 @@ export default function FeedList({
   const [kbSaving, setKbSaving] = useState<string | null>(null);
   const [kbSaved, setKbSaved] = useState<Set<string>>(new Set());
 
-  const [showSignerModal, setShowSignerModal] = useState(false);
-  const [signerApprovalUrl, setSignerApprovalUrl] = useState<string | null>(null);
-  const [creatingSignerFor, setCreatingSignerFor] = useState<'like' | 'recast' | null>(null);
+  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
 
   // Get profile from localStorage
   const getProfile = () => {
@@ -65,146 +63,29 @@ export default function FeedList({
     }
   };
 
-  // Get user's signer UUID from localStorage (only if approved)
+  // Get user's signer UUID from localStorage for server-side API calls
   const getSignerUuid = () => {
     const storedProfile = localStorage.getItem("hh_profile");
     if (!storedProfile) return null;
-    
     try {
       const profile = JSON.parse(storedProfile);
       const fid = profile?.fid;
       if (!fid) return null;
-      
-      const key = `signer_${fid}`;
-      const stored = localStorage.getItem(key);
+      const stored = localStorage.getItem(`signer_${fid}`);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Only return signer if it's approved
-        if (parsed.status === 'approved' && parsed.signer_uuid) {
-          return parsed.signer_uuid;
-        }
+        if (parsed.status === 'approved' && parsed.signer_uuid) return parsed.signer_uuid;
       }
-    } catch {
-      return null;
-    }
+    } catch { /* ignore */ }
     return null;
   };
 
-  const pollSignerStatus = async (signerUuid: string, fid: number) => {
-    let attempts = 0;
-    const maxAttempts = 30; // Try for 30 seconds
-    
-    const checkStatus = async (): Promise<boolean> => {
-      try {
-        const res = await fetch(`/api/signer?signer_uuid=${signerUuid}`);
-        const data = await res.json();
-        
-        if (data.status === 'approved') {
-          // Update localStorage
-          const key = `signer_${fid}`;
-          localStorage.setItem(key, JSON.stringify({
-            signer_uuid: signerUuid,
-            status: 'approved'
-          }));
-          return true;
-        }
-        
-        if (attempts < maxAttempts) {
-          attempts++;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return checkStatus();
-        }
-        return false;
-      } catch (error) {
-        console.error('Poll error:', error);
-        return false;
-      }
-    };
-    
-    return checkStatus();
-  };
-
-  const createSignerAutomatically = async (actionType?: 'like' | 'recast') => {
-    try {
-      const storedProfile = localStorage.getItem("hh_profile");
-      if (!storedProfile) {
-        alert("Please sign in first");
-        return;
-      }
-      
-      const profile = JSON.parse(storedProfile);
-      const fid = profile?.fid;
-      if (!fid) {
-        alert("Profile FID not found");
-        return;
-      }
-
-      const key = `signer_${fid}`;
-      
-      // Check if we already have a signer (even if pending)
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.signer_uuid) {
-          // Check its status
-          const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
-          const checkData = await checkRes.json();
-          
-          if (checkData.ok) {
-            if (checkData.status === "approved") {
-              // Already approved, just return
-              return;
-            } else if (checkData.status === "pending_approval") {
-              // Still pending, show the approval modal again
-              setSignerApprovalUrl(checkData.signer_approval_url);
-              setShowSignerModal(true);
-              setCreatingSignerFor(actionType || 'recast');
-              return;
-            }
-          }
-        }
-      }
-
-      // No existing signer or it's invalid, create a new one
-      setCreatingSignerFor(actionType || 'recast');
-      const res = await fetch("/api/signer", { method: "POST" });
-      const data = await res.json();
-
-      if (data.ok && data.signer_uuid) {
-        localStorage.setItem(key, JSON.stringify({
-          signer_uuid: data.signer_uuid,
-          status: data.status,
-          signer_approval_url: data.signer_approval_url
-        }));
-
-        // Show approval modal
-        setSignerApprovalUrl(data.signer_approval_url);
-        setShowSignerModal(true);
-
-        // On mobile, auto-redirect and poll for approval
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        if (isMobile && data.signer_approval_url) {
-          // Store pending action
-          localStorage.setItem('hh_pending_action', JSON.stringify({ type: actionType || 'recast', signerUuid: data.signer_uuid }));
-          
-          // Redirect to Warpcast
-          window.location.href = data.signer_approval_url;
-        }
-      }
-    } catch (error) {
-      console.error("Signer creation error:", error);
-      alert("Failed to create signer. Please try again.");
-    } finally {
-      setCreatingSignerFor(null);
-    }
-  };
-
   const handleLike = async (castHash: string) => {
-    const signerUuid = getSignerUuid();
-    if (!signerUuid) {
-      await createSignerAutomatically('like');
+    if (!hasActiveSigner) {
+      await requestSigner();
       return;
     }
+    const signerUuid = getSignerUuid();
 
     setActionLoading(`like-${castHash}`);
     try {
@@ -256,11 +137,11 @@ export default function FeedList({
   };
 
   const handleRecast = async (castHash: string) => {
-    const signerUuid = getSignerUuid();
-    if (!signerUuid) {
-      await createSignerAutomatically('recast');
+    if (!hasActiveSigner) {
+      await requestSigner();
       return;
     }
+    const signerUuid = getSignerUuid();
 
     setActionLoading(`recast-${castHash}`);
     try {
@@ -312,11 +193,11 @@ export default function FeedList({
   };
 
   const handleReply = async (castHash: string) => {
-    const signerUuid = getSignerUuid();
-    if (!signerUuid) {
-      await createSignerAutomatically('like');
+    if (!hasActiveSigner) {
+      await requestSigner();
       return;
     }
+    const signerUuid = getSignerUuid();
 
     if (!replyText.trim()) {
       return;
@@ -435,11 +316,11 @@ export default function FeedList({
   };
 
   const handleQuoteCast = async (castHash: string) => {
-    const signerUuid = getSignerUuid();
-    if (!signerUuid) {
-      await createSignerAutomatically('recast');
+    if (!hasActiveSigner) {
+      await requestSigner();
       return;
     }
+    const signerUuid = getSignerUuid();
 
     if (!quoteText.trim()) {
       alert("Please add some text to your quote cast");
@@ -508,7 +389,7 @@ export default function FeedList({
           }
           setShowQuoteModal(null);
           alert("Signer not approved. Please approve in Warpcast.");
-          await createSignerAutomatically('recast');
+          await requestSigner();
         } else {
           alert(`Failed to post quote cast: ${data.error || 'Unknown error'}`);
         }
@@ -532,35 +413,7 @@ export default function FeedList({
     }
   }, []);
 
-  // Check for pending signer approval (after returning from Warpcast on mobile)
-  useEffect(() => {
-    const checkPendingApproval = async () => {
-      const pending = localStorage.getItem('hh_pending_action');
-      if (pending) {
-        try {
-          const { signerUuid } = JSON.parse(pending);
-          const storedProfile = localStorage.getItem('hh_profile');
-          if (storedProfile) {
-            const profile = JSON.parse(storedProfile);
-            const fid = profile?.fid;
-            if (fid) {
-              // Poll for approval
-              const approved = await pollSignerStatus(signerUuid, fid);
-              if (approved) {
-                alert('Signer approved! You can now interact with casts.');
-              }
-              // Clear pending action
-              localStorage.removeItem('hh_pending_action');
-            }
-          }
-        } catch (e) {
-          console.error('Error checking pending approval:', e);
-        }
-      }
-    };
-    
-    checkPendingApproval();
-  }, []);
+  // Privy handles signer approval natively — no pending action polling needed
 
   useEffect(() => {
     let mounted = true;
@@ -1297,107 +1150,10 @@ export default function FeedList({
         );
       })}
 
-      {/* Signer Approval Modal */}
-      {showSignerModal && (
-        <div className="modal-overlay" onClick={() => setShowSignerModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', padding: '24px 16px' }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
-              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-                Approve Posting Permissions
-              </h3>
-              <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
-                To interact with casts (like, recast, reply, quote), you need to approve posting permissions in Warpcast.
-                This only needs to be done once for all actions.
-              </p>
-              
-              {signerApprovalUrl && (
-                <>
-                  <div style={{ background: 'white', padding: '16px', borderRadius: '8px', display: 'inline-block', marginBottom: '12px' }}>
-                    <QRCodeSVG value={signerApprovalUrl} size={200} />
-                  </div>
-                  <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
-                    Scan this QR code or click below to approve:
-                  </p>
-                  <a 
-                    href={signerApprovalUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="btn primary" 
-                    style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
-                  >
-                    Approve in Warpcast →
-                  </a>
-                </>
-              )}
-              
-              <button 
-                className="btn primary" 
-                onClick={async () => {
-                  // Try to get the signer and check if it's approved
-                  try {
-                    const storedProfile = localStorage.getItem("hh_profile");
-                    if (storedProfile) {
-                      const profile = JSON.parse(storedProfile);
-                      const fid = profile?.fid;
-                      if (fid) {
-                        const key = `signer_${fid}`;
-                        const stored = localStorage.getItem(key);
-                        if (stored) {
-                          const parsed = JSON.parse(stored);
-                          
-                          // Show checking status
-                          const button = document.activeElement as HTMLButtonElement;
-                          const originalText = button?.textContent;
-                          if (button) button.textContent = 'Checking...';
-                          
-                          // Poll for approval (try up to 5 times with 2 second gaps)
-                          let approved = false;
-                          for (let i = 0; i < 5; i++) {
-                            const checkRes = await fetch(`/api/signer?signer_uuid=${parsed.signer_uuid}`);
-                            if (checkRes.ok) {
-                              const checkData = await checkRes.json();
-                              if (checkData.ok && checkData.status === 'approved') {
-                                // Update localStorage with approved status
-                                localStorage.setItem(key, JSON.stringify({
-                                  signer_uuid: parsed.signer_uuid,
-                                  status: 'approved'
-                                }));
-                                approved = true;
-                                break;
-                              }
-                            }
-                            // Wait 2 seconds before next check
-                            if (i < 4) await new Promise(resolve => setTimeout(resolve, 2000));
-                          }
-                          
-                          if (button) button.textContent = originalText || 'Check Status';
-                          
-                          if (approved) {
-                            alert('✓ Signer approved! You can now interact with casts.');
-                            setShowSignerModal(false);
-                            // Reload to ensure everything is fresh
-                            window.location.reload();
-                          } else {
-                            alert('⚠️ Signer not approved yet. Please make sure you approved it in Warpcast, then try again in a few seconds.');
-                          }
-                        }
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Check approval error:', error);
-                    alert('Failed to check approval status. Please try again.');
-                  }
-                }}
-                style={{ width: '100%', padding: '12px', marginBottom: '8px' }}
-              >
-                ✓ I've Approved - Check Status
-              </button>
-              
-              <button 
-                className="btn" 
-                onClick={() => setShowSignerModal(false)}
-                style={{ width: '100%', padding: '12px' }}
+      {/* Signer approval is handled by Privy's useFarcasterSigner — no modal needed */
+      false && (
+        <div style={{ display: 'none' }}>
+          <button style={{ display: 'none' }}
               >
                 Cancel
               </button>
