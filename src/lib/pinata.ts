@@ -56,7 +56,7 @@ export async function pinataFetch(endpoint: string, opts: PinataFetchOptions = {
 // These re-exports maintain 100 % API compatibility for existing callers.
 
 export {
-  hypersnapFetch as neynarFetch,
+  hypersnapFetch,
   publishCast,
   publishReaction,
   deleteReaction,

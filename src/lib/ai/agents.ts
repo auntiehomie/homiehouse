@@ -591,7 +591,7 @@ Be accurate, cite what you know, and admit when you're not certain.`;
 }
 
 // Search for similar casts to enrich context
-// Uses HyperSync's /v2/farcaster/cast/search endpoint via searchCasts() in lib/neynar.ts.
+// Uses Hypersnap /v2/farcaster/cast/search endpoint via searchCasts() in lib/hypersnap.ts.
 // Cast search is fully operational via the self-hosted HyperSync hub index.
 async function searchSimilarCasts(castText: string): Promise<string> {
   try {

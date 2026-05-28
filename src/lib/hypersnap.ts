@@ -36,7 +36,7 @@ export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}): 
 }
 
 /** Backward-compat alias — callers that imported neynarFetch still work. */
-export const neynarFetch = hypersnapFetch;
+// neynarFetch alias removed — use hypersnapFetch directly
 
 // ─── Read endpoints ──────────────────────────────────────────────────────────
 
