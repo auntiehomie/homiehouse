@@ -36,7 +36,7 @@ async function submitMessage(message: Uint8Array): Promise<unknown> {
   const res = await fetch('/api/submit-cast', {
     method: 'POST',
     headers: { 'content-type': 'application/octet-stream' },
-    body: message,
+    body: message as unknown as BodyInit,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
