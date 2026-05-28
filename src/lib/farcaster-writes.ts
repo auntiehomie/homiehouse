@@ -72,9 +72,12 @@ export async function publishCast(params: {
   parentCastHash?: string;
   parentUrl?: string;
   channelKey?: string;
+  /** Ed25519 private key hex from the registered signer (preferred over APP_MNEMONIC derivation) */
+  signerPrivateKey?: string;
 }): Promise<{ castHash: string }> {
   const client = getHubClient();
-  const { privateKeyHex, fid: appFid } = getAppSignerKey();
+  const { privateKeyHex: derivedKey, fid: appFid } = getAppSignerKey();
+  const privateKeyHex = params.signerPrivateKey || derivedKey;
   const castFid = params.fid || appFid;
 
   const castParams: Parameters<HubRestAPIClient['submitCast']>[0] = {
@@ -104,9 +107,12 @@ export async function publishReaction(params: {
   targetCastHash: string;
   targetCastFid: number;
   fid: number;
+  /** Ed25519 private key hex from the registered signer (preferred over APP_MNEMONIC derivation) */
+  signerPrivateKey?: string;
 }): Promise<void> {
   const client = getHubClient();
-  const { privateKeyHex, fid: appFid } = getAppSignerKey();
+  const { privateKeyHex: derivedKey, fid: appFid } = getAppSignerKey();
+  const privateKeyHex = params.signerPrivateKey || derivedKey;
   const castFid = params.fid || appFid;
 
   await client.submitReaction(
@@ -127,9 +133,12 @@ export async function deleteReaction(params: {
   targetCastHash: string;
   targetCastFid: number;
   fid: number;
+  /** Ed25519 private key hex from the registered signer (preferred over APP_MNEMONIC derivation) */
+  signerPrivateKey?: string;
 }): Promise<void> {
   const client = getHubClient();
-  const { privateKeyHex, fid: appFid } = getAppSignerKey();
+  const { privateKeyHex: derivedKey, fid: appFid } = getAppSignerKey();
+  const privateKeyHex = params.signerPrivateKey || derivedKey;
   const castFid = params.fid || appFid;
 
   await client.removeReaction(

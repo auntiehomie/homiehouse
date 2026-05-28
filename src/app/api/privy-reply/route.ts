@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { text, parentHash, parentCastHash, fid, parentCastFid } = body;
+    const { text, parentHash, parentCastHash, fid, parentCastFid, signerPrivateKey } = body;
 
     // Support both parentHash and parentCastHash field names
     const resolvedParentHash = parentCastHash || parentHash;
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       text: validatedText,
       fid: castFid,
       parentCastHash: validatedParentHash,
+      signerPrivateKey: signerPrivateKey || undefined,
     });
 
     logger.success('Reply published', { hash: result.castHash });

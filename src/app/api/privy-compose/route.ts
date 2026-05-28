@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { text, embeds, channelKey, parentUrl, parentCastHash, isQuoteCast, fid } = body;
+    const { text, embeds, channelKey, parentUrl, parentCastHash, isQuoteCast, fid, signerPrivateKey } = body;
 
     logger.info('Compose request', {
       textLength: text?.length,
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       parentCastHash: parentCastHash && !isQuoteCast ? parentCastHash : undefined,
       parentUrl: parentUrl || undefined,
       channelKey: channelKey || undefined,
+      signerPrivateKey: signerPrivateKey || undefined,
     });
 
     logger.success('Cast published successfully', { hash: result.castHash });

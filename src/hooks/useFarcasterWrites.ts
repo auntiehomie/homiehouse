@@ -65,7 +65,14 @@ export interface ReplyParams {
 // localStorage key helpers
 function signerKey(fid: number) { return `signer_${fid}`; }
 
-function getStoredSigner(fid: number): { signer_uuid: string; status: string; signer_approval_url?: string } | null {
+interface StoredSigner {
+  signer_uuid: string;
+  status: string;
+  signer_approval_url?: string;
+  private_key?: string;
+}
+
+function getStoredSigner(fid: number): StoredSigner | null {
   if (typeof window === 'undefined' || !fid) return null;
   try {
     const raw = localStorage.getItem(signerKey(fid));
@@ -73,7 +80,7 @@ function getStoredSigner(fid: number): { signer_uuid: string; status: string; si
   } catch { return null; }
 }
 
-function setStoredSigner(fid: number, data: { signer_uuid: string; status: string; signer_approval_url?: string }) {
+function setStoredSigner(fid: number, data: StoredSigner) {
   if (typeof window === 'undefined' || !fid) return;
   try { localStorage.setItem(signerKey(fid), JSON.stringify(data)); } catch { /* ignore */ }
 }
@@ -115,7 +122,12 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
       throw new Error(data.error || 'Failed to create signer');
     }
 
-    const stored = { signer_uuid: data.signer_uuid, status: data.status, signer_approval_url: data.signer_approval_url };
+    const stored: StoredSigner = {
+      signer_uuid: data.signer_uuid,
+      status: data.status,
+      signer_approval_url: data.signer_approval_url,
+      private_key: data.private_key,  // store the Ed25519 private key locally
+    };
     setSignerUuid(data.signer_uuid);
     setSignerStatus(data.status);
     setSignerApprovalUrl(data.signer_approval_url ?? null);
@@ -153,73 +165,85 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     return signerUuid;
   }, [hasActiveSigner, signerUuid]);
 
+  /** Get the Ed25519 private key for the registered signer */
+  const getSignerPrivateKey = useCallback((): string | undefined => {
+    if (!fid) return undefined;
+    return getStoredSigner(fid)?.private_key;
+  }, [fid]);
+
   const submitCast = useCallback(async (params: SubmitCastParams): Promise<{ castHash: string }> => {
     const uuid = getSignerUuid();
+    const signerPrivateKey = getSignerPrivateKey();
     const res = await fetch('/api/privy-compose', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: params.text, embeds: params.embeds, channelKey: params.channelKey, parentUrl: params.parentUrl, signerUuid: uuid, fid }),
+      body: JSON.stringify({ text: params.text, embeds: params.embeds, channelKey: params.channelKey, parentUrl: params.parentUrl, signerUuid: uuid, fid, signerPrivateKey }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed to post cast');
     return { castHash: data.cast?.hash };
-  }, [getSignerUuid, fid]);
+  }, [getSignerUuid, getSignerPrivateKey, fid]);
 
   const likeCast = useCallback(async (params: ReactionParams): Promise<void> => {
     const uuid = getSignerUuid();
+    const signerPrivateKey = getSignerPrivateKey();
     const res = await fetch('/api/privy-like', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetCastHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid }),
+      body: JSON.stringify({ castHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid, signerPrivateKey }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed to like cast');
-  }, [getSignerUuid, fid]);
+  }, [getSignerUuid, getSignerPrivateKey, fid]);
 
   const unlikeCast = useCallback(async (params: ReactionParams): Promise<void> => {
     const uuid = getSignerUuid();
+    const signerPrivateKey = getSignerPrivateKey();
     const res = await fetch('/api/privy-like', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetCastHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid }),
+      body: JSON.stringify({ castHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid, signerPrivateKey }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed to unlike cast');
-  }, [getSignerUuid, fid]);
+  }, [getSignerUuid, getSignerPrivateKey, fid]);
 
   const recast = useCallback(async (params: ReactionParams): Promise<void> => {
     const uuid = getSignerUuid();
+    const signerPrivateKey = getSignerPrivateKey();
     const res = await fetch('/api/privy-recast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetCastHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid }),
+      body: JSON.stringify({ castHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid, signerPrivateKey }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed to recast');
-  }, [getSignerUuid, fid]);
+  }, [getSignerUuid, getSignerPrivateKey, fid]);
 
   const removeRecast = useCallback(async (params: ReactionParams): Promise<void> => {
     const uuid = getSignerUuid();
+    const signerPrivateKey = getSignerPrivateKey();
     const res = await fetch('/api/privy-recast', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetCastHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid }),
+      body: JSON.stringify({ castHash: params.targetCastHash, targetCastFid: params.targetCastFid, signerUuid: uuid, fid, signerPrivateKey }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed to remove recast');
-  }, [getSignerUuid, fid]);
+  }, [getSignerUuid, getSignerPrivateKey, fid]);
 
   const reply = useCallback(async (params: ReplyParams): Promise<{ castHash: string }> => {
     const uuid = getSignerUuid();
+    const signerPrivateKey = getSignerPrivateKey();
     const res = await fetch('/api/privy-reply', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: params.text, parentCastHash: params.parentCastHash, parentCastFid: params.parentCastFid, embeds: params.embeds, signerUuid: uuid, fid }),
+      body: JSON.stringify({ text: params.text, parentCastHash: params.parentCastHash, parentCastFid: params.parentCastFid, embeds: params.embeds, signerUuid: uuid, fid, signerPrivateKey }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed to reply');
     return { castHash: data.cast?.hash };
-  }, [getSignerUuid, fid]);
+  }, [getSignerUuid, getSignerPrivateKey, fid]);
 
   return {
     hasActiveSigner,
