@@ -8,7 +8,7 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 export default function ComposePage() {
   const router = useRouter();
   const { user } = usePrivy();
-  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, signerApprovalUrl, checkSignerStatus } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
@@ -223,10 +223,21 @@ export default function ComposePage() {
 
   async function handleEnablePosting() {
     setLoading(true);
-    setStatus("Opening Warpcast approval...");
+    setStatus(null);
     try {
       await requestSigner();
-      setStatus(null);
+      setStatus("Approve in the Warpcast tab that just opened, then click Check Status.");
+    } catch (e: any) {
+      setStatus(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCheckStatus() {
+    setLoading(true);
+    try {
+      await checkSignerStatus();
     } catch (e: any) {
       setStatus(`Error: ${e.message}`);
     } finally {
@@ -431,13 +442,35 @@ export default function ComposePage() {
               To post casts from HomieHouse, approve posting permissions via Warpcast.
               This only needs to be done once.
             </p>
-            <button
-              className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
-              onClick={handleEnablePosting}
-              disabled={loading}
-            >
-              {loading ? "Opening Warpcast..." : "Enable Posting"}
-            </button>
+            {!signerApprovalUrl ? (
+              <button
+                className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+                onClick={handleEnablePosting}
+                disabled={loading}
+              >
+                {loading ? "Creating..." : "Enable Posting"}
+              </button>
+            ) : (
+              <div className="space-y-4">
+                <a
+                  href={signerApprovalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+                >
+                  Approve in Warpcast →
+                </a>
+                <div>
+                  <button
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-2 rounded-lg transition-colors text-sm"
+                    onClick={handleCheckStatus}
+                    disabled={loading}
+                  >
+                    {loading ? "Checking..." : "Check Status"}
+                  </button>
+                </div>
+              </div>
+            )}
             {status && (
               <div className="mt-6 p-4 bg-zinc-900 rounded-lg text-sm">
                 {status}

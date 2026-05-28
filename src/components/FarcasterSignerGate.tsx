@@ -21,7 +21,7 @@ interface FarcasterSignerGateProps {
  */
 export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateProps) {
   const { authenticated, login } = usePrivy();
-  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, signerApprovalUrl, checkSignerStatus } = useFarcasterWrites();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,26 +50,47 @@ export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateP
           <div style={{ padding: '16px', textAlign: 'center' }}>
             <p>Authorize Homiehouse to post on your behalf</p>
             <p style={{ fontSize: '0.875rem', color: '#888', marginTop: '4px' }}>
-              This opens Warpcast to approve a non-custodial signer. You stay in control.
+              This opens Warpcast to approve a signer. You stay in control.
             </p>
             {error && <p style={{ color: 'red', marginTop: '8px' }}>{error}</p>}
-            <button
-              onClick={async () => {
-                setLoading(true);
-                setError(null);
-                try {
-                  await requestSigner();
-                } catch (e: any) {
-                  setError(e?.message ?? 'Failed to request signer');
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={loading}
-              style={{ marginTop: '8px', padding: '8px 16px', cursor: loading ? 'wait' : 'pointer' }}
-            >
-              {loading ? 'Opening Warpcast…' : 'Authorize Signer'}
-            </button>
+            {!signerApprovalUrl ? (
+              <button
+                onClick={async () => {
+                  setLoading(true);
+                  setError(null);
+                  try {
+                    await requestSigner();
+                  } catch (e: any) {
+                    setError(e?.message ?? 'Failed to request signer');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                style={{ marginTop: '8px', padding: '8px 16px', cursor: loading ? 'wait' : 'pointer' }}
+              >
+                {loading ? 'Creating…' : 'Authorize Signer'}
+              </button>
+            ) : (
+              <div style={{ marginTop: '8px' }}>
+                <a
+                  href={signerApprovalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-block', padding: '8px 16px', background: '#ea580c', color: 'white', borderRadius: '6px', textDecoration: 'none', marginBottom: '8px' }}
+                >
+                  Approve in Warpcast →
+                </a>
+                <br />
+                <button
+                  onClick={async () => { setLoading(true); try { await checkSignerStatus(); } finally { setLoading(false); } }}
+                  disabled={loading}
+                  style={{ padding: '6px 12px', fontSize: '0.8rem', cursor: loading ? 'wait' : 'pointer' }}
+                >
+                  {loading ? 'Checking…' : 'Check Status'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

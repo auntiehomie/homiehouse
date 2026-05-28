@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { PrivyProvider, usePrivy, useFarcasterSigner, useCreateWallet } from '@privy-io/react-auth';
+import { PrivyProvider, usePrivy } from '@privy-io/react-auth';
 import { WagmiProvider } from 'wagmi';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { wagmiConfig, walletConnectConfig, privyConfig, chains } from '@/config/web3';
@@ -54,8 +54,7 @@ export function useAuth() {
 // Inner component that uses Privy hooks (must be inside PrivyProvider)
 function AuthStateManager({ children }: { children: ReactNode }) {
   const { authenticated, user } = usePrivy();
-  const { requestFarcasterSignerFromWarpcast, getFarcasterSignerPublicKey } = useFarcasterSigner();
-  const { createWallet } = useCreateWallet();
+
 
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -193,27 +192,12 @@ function AuthStateManager({ children }: { children: ReactNode }) {
     };
   };
 
-  // Farcaster signer state derived from Privy user
-  const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
-  const hasActiveSigner = !!(farcasterAccount?.signerPublicKey && authenticated);
+  // hasActiveSigner is now managed by useFarcasterWrites hook
+  const hasActiveSigner = false;
 
   const requestSigner = async () => {
-    // Ensure an embedded wallet exists first (required by Privy for Farcaster signers)
-    // Check both 'privy' (v1) and 'privy-v2' embedded wallet types.
-    const embeddedWallet = user?.linkedAccounts?.find(
-      (a: any) => a.type === 'wallet' &&
-        (a.walletClientType === 'privy' || a.walletClientType === 'privy-v2')
-    );
-    if (!embeddedWallet) {
-      try {
-        await createWallet();
-      } catch (e: any) {
-        const code = e?.privyErrorCode ?? e?.code ?? '';
-        const msg = e?.message?.toLowerCase() ?? '';
-        if (code !== 'embedded_wallet_already_exists' && !msg.includes('already')) throw e;
-      }
-    }
-    await requestFarcasterSignerFromWarpcast();
+    // Signer flow handled by useFarcasterWrites hook directly
+    throw new Error('Use useFarcasterWrites().requestSigner() instead');
   };
 
   const contextValue: AuthContextType = {
