@@ -8,165 +8,90 @@ import NotificationBadge from "./NotificationBadge";
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const [showCompose, setShowCompose] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useNeynarContext();
 
-  // Wait for client-side mount
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const isActive = (path: string) => {
-    return pathname === path;
-  };
+  const isActive = (path: string) => pathname === path;
 
-  // Don't render until mounted
-  if (!mounted) {
-    return null;
-  }
-
-  // Only show bottom nav if authenticated
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!mounted) return null;
+  if (!isAuthenticated) return null;
 
   return (
-    <>
-      <nav className="fixed bottom-0 left-0 right-0 bg-black border-t border-zinc-800 z-50 pb-safe">
-        <div className="max-w-screen-xl mx-auto px-2 sm:px-6 py-3">
-          <div className="flex items-center justify-around gap-1">
-            {/* Home */}
-            <Link
-              href="/"
-              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[56px] ${
-                isActive("/")
-                  ? "text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              <svg
-                className="w-6 h-6"
-                fill={isActive("/") ? "currentColor" : "none"}
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                />
-              </svg>
-            </Link>
+    <nav className="fixed bottom-0 left-0 right-0 bg-black border-t border-zinc-800 z-50 pb-safe">
+      <div className="max-w-screen-xl mx-auto px-6 py-3">
+        <div className="flex items-center justify-around">
 
-            {/* Compose - Center Button (Prominent) */}
-            <Link
-              href="/compose"
-              className="flex items-center justify-center w-11 h-11 bg-red-600 hover:bg-red-700 rounded-full transition-colors -mt-1"
-            >
-              <svg
-                className="w-6 h-6 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                />
-              </svg>
-            </Link>
+          {/* Cast */}
+          <Link
+            href="/compose"
+            className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-colors ${
+              isActive("/compose") ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+            aria-label="New cast"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+              />
+            </svg>
+          </Link>
 
-            {/* Notifications */}
-            <div className="relative">
-              <Link
-                href="/notifications"
-                className={`flex flex-col items-center gap-1 transition-colors ${
-                  isActive("/notifications")
-                    ? "text-white"
-                    : "text-zinc-500 hover:text-zinc-300"
-                }`}
-              >
-                <NotificationBadge className="w-6 h-6" />
-              </Link>
-            </div>
+          {/* Notifications */}
+          <Link
+            href="/notifications"
+            className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-colors ${
+              isActive("/notifications") ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+            aria-label="Notifications"
+          >
+            <NotificationBadge className="w-6 h-6" />
+          </Link>
 
-            {/* Knowledge Base */}
-            <Link
-              href="/kb"
-              className={`flex flex-col items-center gap-1 transition-colors p-2 rounded-lg min-w-[56px] ${
-                isActive("/kb")
-                  ? "text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-              title="Knowledge Base"
-            >
-              <svg
-                className="w-6 h-6"
-                fill={isActive("/kb") ? "currentColor" : "none"}
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                />
-              </svg>
-            </Link>
+          {/* Ask Homie */}
+          <Link
+            href="/ask-homie"
+            className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-colors ${
+              isActive("/ask-homie") ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+            aria-label="Ask Homie"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </Link>
 
-            {/* Scheduled Casts */}
-            <button
-              onClick={() => {
-                window.dispatchEvent(new Event('openScheduledCasts'));
-              }}
-              className="flex flex-col items-center gap-1 transition-colors text-zinc-500 hover:text-zinc-300 p-2 rounded-lg min-w-[56px]"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-            </button>
+          {/* Wallet */}
+          <Link
+            href="/profile"
+            className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-colors ${
+              isActive("/profile") ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+            aria-label="Wallet"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+              />
+            </svg>
+          </Link>
 
-            {/* Profile */}
-            <Link
-              href="/profile"
-              className={`flex flex-col items-center gap-1 transition-colors ${
-                isActive("/profile")
-                  ? "text-white"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-            </Link>
-          </div>
         </div>
-      </nav>
-    </>
+      </div>
+    </nav>
   );
 }
