@@ -3,7 +3,6 @@ import { publishReaction, deleteReaction } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
-import { verifySignerAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-like');
@@ -11,38 +10,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { castHash, signerUuid } = body;
+    const { castHash, fid, targetCastFid } = body;
 
     // Validate input
     const validatedCastHash = validateHash(castHash, 'castHash');
-
-    // Authenticate: verify signer and get FID
-    if (!signerUuid) {
-      return NextResponse.json(
-        { error: 'signerUuid is required' },
-        { status: 401 }
-      );
-    }
-    const verifiedFid = await verifySignerAuth(signerUuid);
+    const castFid = fid ? Number(fid) : 0;
 
     logger.info('Publishing like', {
       castHash: validatedCastHash.substring(0, 10) + '...',
-      fid: verifiedFid,
+      fid: castFid,
     });
 
-    // Publish like using farcaster-writes
+    // Publish like using app-managed signer (farcaster-writes)
     await publishReaction({
       reactionType: 'like',
       targetCastHash: validatedCastHash,
-      targetCastFid: 0, // unknown without lookup; hub will resolve
-      fid: verifiedFid || 0,
+      targetCastFid: targetCastFid ? Number(targetCastFid) : 0,
+      fid: castFid,
     });
-    const data = { success: true };
 
     logger.success('Like published');
     logger.end();
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data: { success: true } });
   } catch (error: any) {
     logger.error('Failed to like cast', error);
     return handleApiError(error, 'POST /privy-like');
@@ -56,41 +46,33 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const castHashParam = searchParams.get("castHash");
-    const signerUuid = searchParams.get("signerUuid");
+    const fidParam = searchParams.get("fid");
+    const targetCastFidParam = searchParams.get("targetCastFid");
 
     // Validate input
     if (!castHashParam) {
       return NextResponse.json({ error: 'castHash is required' }, { status: 400 });
     }
     const validatedCastHash = validateHash(castHashParam, 'castHash');
-
-    // Authenticate
-    if (!signerUuid) {
-      return NextResponse.json(
-        { error: 'signerUuid is required' },
-        { status: 401 }
-      );
-    }
-    const verifiedFid = await verifySignerAuth(signerUuid);
+    const castFid = fidParam ? Number(fidParam) : 0;
 
     logger.info('Removing like', {
       castHash: validatedCastHash.substring(0, 10) + '...',
-      fid: verifiedFid,
+      fid: castFid,
     });
 
-    // Remove like using farcaster-writes
+    // Remove like using app-managed signer (farcaster-writes)
     await deleteReaction({
       reactionType: 'like',
       targetCastHash: validatedCastHash,
-      targetCastFid: 0, // unknown without lookup; hub will resolve
-      fid: verifiedFid || 0,
+      targetCastFid: targetCastFidParam ? Number(targetCastFidParam) : 0,
+      fid: castFid,
     });
-    const data = { success: true };
 
     logger.success('Like removed');
     logger.end();
 
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data: { success: true } });
   } catch (error: any) {
     logger.error('Failed to unlike cast', error);
     return handleApiError(error, 'DELETE /privy-like');

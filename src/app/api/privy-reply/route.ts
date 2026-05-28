@@ -3,7 +3,6 @@ import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash } from '@/lib/validation';
-import { verifySignerAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-reply');
@@ -11,31 +10,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { text, parentHash, signerUuid } = body;
+    const { text, parentHash, parentCastHash, fid, parentCastFid } = body;
+
+    // Support both parentHash and parentCastHash field names
+    const resolvedParentHash = parentCastHash || parentHash;
 
     // Validate inputs
     const validatedText = validateCastText(text);
-    const validatedParentHash = validateHash(parentHash, 'parentHash');
+    const validatedParentHash = validateHash(resolvedParentHash, 'parentHash');
 
-    // Authenticate
-    if (!signerUuid) {
-      return NextResponse.json(
-        { error: 'signerUuid is required' },
-        { status: 401 }
-      );
-    }
-    const verifiedFid = await verifySignerAuth(signerUuid);
+    const castFid = fid ? Number(fid) : 0;
 
     logger.info('Publishing reply', {
       textLength: validatedText.length,
       parentHash: validatedParentHash.substring(0, 10) + '...',
-      fid: verifiedFid,
+      fid: castFid,
     });
 
-    // Publish reply using farcaster-writes
+    // Publish reply using app-managed signer (farcaster-writes)
     const result = await publishCast({
       text: validatedText,
-      fid: verifiedFid || 0,
+      fid: castFid,
       parentCastHash: validatedParentHash,
     });
 

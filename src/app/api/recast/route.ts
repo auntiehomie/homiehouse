@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publishReaction, deleteReaction, neynarFetch } from '@/lib/neynar';
+import { publishReaction, deleteReaction } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
@@ -17,35 +17,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { castHash, signerUuid } = body;
+    const { castHash, fid, targetCastFid } = body;
 
     const validatedCastHash = validateHash(castHash, 'castHash');
+    const castFid = fid ? Number(fid) : 0;
 
-    if (!signerUuid) {
-      return NextResponse.json({ error: 'signerUuid is required' }, { status: 400 });
-    }
+    logger.info('Publishing recast', { castHash: validatedCastHash.substring(0, 10) + '...', fid: castFid });
 
-    // Verify signer exists and is valid via Neynar
-    try {
-      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) {
-        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      }
-    } catch {
-      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
-    }
-
-    logger.info('Publishing recast', { castHash: validatedCastHash.substring(0, 10) + '...' });
-
-    const data = await publishReaction({
-      signer_uuid: signerUuid,
-      reaction_type: 'recast',
-      target: validatedCastHash,
+    await publishReaction({
+      reactionType: 'recast',
+      targetCastHash: validatedCastHash,
+      targetCastFid: targetCastFid ? Number(targetCastFid) : 0,
+      fid: castFid,
     });
 
     logger.success('Recast published');
     logger.end();
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data: { success: true } });
   } catch (error: any) {
     logger.error('Failed to recast', error);
     return handleApiError(error, 'POST /recast');
@@ -59,35 +47,24 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const castHashParam = searchParams.get("castHash");
-    const signerUuid = searchParams.get("signerUuid");
+    const fidParam = searchParams.get("fid");
+    const targetCastFidParam = searchParams.get("targetCastFid");
 
     const validatedCastHash = validateHash(castHashParam!, 'castHash');
+    const castFid = fidParam ? Number(fidParam) : 0;
 
-    if (!signerUuid) {
-      return NextResponse.json({ error: 'signerUuid is required' }, { status: 400 });
-    }
+    logger.info('Removing recast', { castHash: validatedCastHash.substring(0, 10) + '...', fid: castFid });
 
-    // Verify signer
-    try {
-      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) {
-        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      }
-    } catch {
-      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
-    }
-
-    logger.info('Removing recast', { castHash: validatedCastHash.substring(0, 10) + '...' });
-
-    const data = await deleteReaction({
-      signer_uuid: signerUuid,
-      reaction_type: 'recast',
-      target: validatedCastHash,
+    await deleteReaction({
+      reactionType: 'recast',
+      targetCastHash: validatedCastHash,
+      targetCastFid: targetCastFidParam ? Number(targetCastFidParam) : 0,
+      fid: castFid,
     });
 
     logger.success('Recast removed');
     logger.end();
-    return NextResponse.json({ ok: true, data });
+    return NextResponse.json({ ok: true, data: { success: true } });
   } catch (error: any) {
     logger.error('Failed to remove recast', error);
     return handleApiError(error, 'DELETE /recast');

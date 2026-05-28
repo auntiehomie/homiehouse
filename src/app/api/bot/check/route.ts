@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-// CONNECTOR: Pinata — migrated from @neynar/nodejs-sdk (was a "Known Gap" in PINATA_MIGRATION.md)
-// fetchNotifications and fetchCast now call pinataFetch directly; publishCast uses pinata.ts.
-// NEYNAR_API_KEY is no longer required for this route.
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { getDb } from '@/lib/db';
-import { fetchNotifications, fetchCast, publishCast, pinataFetch } from '@/lib/pinata';
+import { fetchNotifications, fetchCast } from '@/lib/hypersnap';
+import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
@@ -17,8 +15,7 @@ function getBotAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
-const BOT_FID = parseInt(process.env.APP_FID || '1349780');
-const SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID!;
+const BOT_FID = parseInt(process.env.APP_FID || '1349780');;
 
 // ⚠️ WARNING: In-memory storage only works within same serverless instance
 // For production with database, replace with database calls
@@ -459,11 +456,11 @@ export async function GET(request: NextRequest) {
           reply = await generateReply(cast, []);
         }
 
-        // Post reply via Pinata publishCast
+        // Post reply via farcaster-writes (app-managed signer)
         await publishCast({
-          signer_uuid: SIGNER_UUID,
           text: reply,
-          parent: castHash
+          fid: BOT_FID,
+          parentCastHash: castHash,
         });
 
         logger.success(`Posted reply to ${castHash}`, { reply });

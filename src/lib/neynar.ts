@@ -1,19 +1,15 @@
-// CONNECTOR: Hypersnap (migrated from Neynar → Pinata → Hypersnap)
 /**
- * Neynar compatibility shim — all exports delegate to src/lib/pinata.ts,
- * which in turn delegates Farcaster reads/writes to src/lib/hypersnap.ts.
+ * Neynar compatibility shim — all exports delegate to src/lib/hypersnap.ts.
  *
- * This file exists so that existing imports of '@/lib/neynar' continue to
- * work without changes.
+ * This file exists so that any remaining imports of '@/lib/neynar' continue to
+ * work without changes. No direct Neynar API calls are made from this file.
  *
- * See docs/HYPERSNAP_MIGRATION.md for full migration details.
+ * All Farcaster reads are served by Hypersnap.
+ * All Farcaster writes use the app-managed signer in src/lib/farcaster-writes.ts.
  */
 
 export {
-  neynarFetch,
-  publishCast,
-  publishReaction,
-  deleteReaction,
+  hypersnapFetch as neynarFetch,
   fetchFeed,
   fetchTrendingFeed,
   fetchUserByUsername,
@@ -25,6 +21,4 @@ export {
   searchUsers,
   searchCasts,
   getCastsByUsername,
-} from './pinata';
-
-export type { PinataFetchOptions as NeynarFetchOptions } from './pinata';
+} from './hypersnap';

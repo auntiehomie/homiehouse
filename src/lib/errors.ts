@@ -33,7 +33,7 @@ export class NeynarError extends FarcasterAPIError {
   constructor(
     details: string,
     status: number = 500,
-    code: string = 'NEYNAR_ERROR'
+    code: string = 'FARCASTER_API_ERROR'
   ) {
     super(details, status, code);
     this.name = 'NeynarError';

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
-import { verifySignerAuth } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const logger = createApiLogger('/curation');
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { fid, preference_type, preference_value, action, priority, signerUuid } = body;
+    const { fid, preference_type, preference_value, action, priority } = body;
 
     if (!preference_type || !preference_value || !action) {
       return NextResponse.json(
@@ -54,13 +53,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // SECURITY: Require signer authentication
-    if (!signerUuid) {
-      return NextResponse.json({ ok: false, error: 'signerUuid is required' }, { status: 401 });
+    if (!fid) {
+      return NextResponse.json({ ok: false, error: 'fid is required' }, { status: 400 });
     }
-    const verifiedFid = await verifySignerAuth(signerUuid);
 
-    const validatedFid = verifiedFid;
+    const validatedFid = Number(fid);
+    if (!validatedFid || isNaN(validatedFid)) {
+      return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
+    }
+
     logger.info('Adding curation preference', { fid: validatedFid, preference_type, action });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
@@ -92,7 +93,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { id, signerUuid, ...updates } = body;
+    const { id, fid, ...updates } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -101,13 +102,11 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // SECURITY: Require signer authentication
-    if (!signerUuid) {
-      return NextResponse.json({ ok: false, error: 'signerUuid is required' }, { status: 401 });
+    if (!fid) {
+      return NextResponse.json({ ok: false, error: 'fid is required' }, { status: 400 });
     }
-    await verifySignerAuth(signerUuid);
 
-    logger.info('Updating curation preference', { id });
+    logger.info('Updating curation preference', { id, fid });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
     const res = await fetch(`${serverUrl}/api/curation`, {
@@ -133,7 +132,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-    const signerUuid = searchParams.get("signerUuid");
+    const fidParam = searchParams.get("fid");
 
     if (!id) {
       return NextResponse.json(
@@ -142,13 +141,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // SECURITY: Require signer authentication
-    if (!signerUuid) {
-      return NextResponse.json({ ok: false, error: 'signerUuid is required' }, { status: 401 });
+    if (!fidParam) {
+      return NextResponse.json({ ok: false, error: 'fid is required' }, { status: 400 });
     }
-    await verifySignerAuth(signerUuid);
 
-    logger.info('Deleting curation preference', { id });
+    logger.info('Deleting curation preference', { id, fid: fidParam });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
     const res = await fetch(`${serverUrl}/api/curation?id=${id}`, {

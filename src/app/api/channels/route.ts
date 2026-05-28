@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchUserChannels, fetchChannelList } from '@/lib/neynar';
+import { fetchUserChannels, fetchChannelList } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateLimit } from '@/lib/validation';

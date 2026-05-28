@@ -1,31 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { verifySignerAuth } from '@/lib/auth';
-
-async function publishCast(signerUuid: string, text: string, embeds: any[] = [], channelId?: string) {
-  const jwt = process.env.PINATA_JWT;
-  if (!jwt) throw new Error('PINATA_JWT must be set');
-
-  const body: any = { signerId: signerUuid, text };
-  if (embeds?.length) body.embeds = embeds;
-  if (channelId) body.channelId = channelId;
-
-  const response = await fetch('https://api.pinata.cloud/v3/farcaster/casts', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${jwt}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Farcaster API error: ${response.status} - ${errorText}`);
-  }
-
-  return await response.json();
-}
+import { publishCast } from '@/lib/farcaster-writes';
 
 async function handlePublishScheduledCasts(req: NextRequest) {
   try {
@@ -65,18 +40,25 @@ async function handlePublishScheduledCasts(req: NextRequest) {
         console.log(`📤 Publishing cast ${cast.id} for user ${cast.user_fid}...`);
 
         const embeds = Array.isArray(cast.embeds) ? cast.embeds : JSON.parse(cast.embeds || '[]');
-        const publishResult = await publishCast(cast.signer_uuid, cast.text, embeds, cast.channel_id);
 
-        console.log(`✅ Published! Hash: ${publishResult.cast?.hash}`);
+        // Use app-managed signer via farcaster-writes
+        const publishResult = await publishCast({
+          text: cast.text,
+          fid: cast.user_fid,
+          embeds: embeds.length ? embeds : undefined,
+          channelKey: cast.channel_id || undefined,
+        });
+
+        console.log(`✅ Published! Hash: ${publishResult.castHash}`);
 
         await db.query(
           `UPDATE scheduled_casts
            SET status = 'published', published_at = $1, cast_hash = $2, updated_at = NOW()
            WHERE id = $3`,
-          [now.toISOString(), publishResult.cast?.hash || null, cast.id]
+          [now.toISOString(), publishResult.castHash || null, cast.id]
         );
 
-        results.push({ id: cast.id, success: true, cast_hash: publishResult.cast?.hash });
+        results.push({ id: cast.id, success: true, cast_hash: publishResult.castHash });
       } catch (error: any) {
         console.error(`❌ Error publishing cast ${cast.id}:`, error.message);
 
@@ -120,19 +102,22 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id, signerUuid } = body;
+    const { id, fid } = body;
 
-    if (!id || !signerUuid) {
-      return NextResponse.json({ ok: false, error: 'Missing id or signerUuid' }, { status: 400 });
+    if (!id || !fid) {
+      return NextResponse.json({ ok: false, error: 'Missing id or fid' }, { status: 400 });
     }
 
-    const verifiedFid = await verifySignerAuth(signerUuid);
-    const db = getDb();
+    const userFid = Number(fid);
+    if (!userFid || isNaN(userFid)) {
+      return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
+    }
 
+    const db = getDb();
     const { rows } = await db.query(
       `SELECT * FROM scheduled_casts
        WHERE id = $1 AND user_fid = $2 AND status = 'pending'`,
-      [id, verifiedFid]
+      [id, userFid]
     );
 
     if (!rows.length) {
@@ -145,18 +130,23 @@ export async function PUT(req: NextRequest) {
     const cast = rows[0];
     try {
       const embeds = Array.isArray(cast.embeds) ? cast.embeds : JSON.parse(cast.embeds || '[]');
-      const publishResult = await publishCast(cast.signer_uuid, cast.text, embeds);
+      const publishResult = await publishCast({
+        text: cast.text,
+        fid: cast.user_fid,
+        embeds: embeds.length ? embeds : undefined,
+        channelKey: cast.channel_id || undefined,
+      });
 
       await db.query(
         `UPDATE scheduled_casts
          SET status = 'published', published_at = NOW(), cast_hash = $1, updated_at = NOW()
          WHERE id = $2`,
-        [publishResult.cast?.hash || null, id]
+        [publishResult.castHash || null, id]
       );
 
       return NextResponse.json({
         ok: true,
-        cast_hash: publishResult.cast?.hash,
+        cast_hash: publishResult.castHash,
         message: 'Cast published successfully',
       });
     } catch (error: any) {

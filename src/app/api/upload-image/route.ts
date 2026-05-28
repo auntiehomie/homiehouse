@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateImageFile } from '@/lib/validation';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
-import { verifySignerAuth } from '@/lib/auth';
 import { rateLimit } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
@@ -20,13 +19,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
-    // SECURITY: Require signer authentication
-    const signerUuid = formData.get('signerUuid') as string;
-    if (!signerUuid) {
-      return NextResponse.json({ error: 'signerUuid is required' }, { status: 401 });
-    }
-    const verifiedFid = await verifySignerAuth(signerUuid);
-    logger.info('Upload authenticated', { fid: verifiedFid });
+    // Log fid if provided (from Privy user object)
+    const fid = formData.get('fid');
+    logger.info('Upload request', { fid: fid ? Number(fid) : 'unknown' });
     
     if (!file) {
       return NextResponse.json(

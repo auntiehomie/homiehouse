@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { neynarFetch } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
@@ -11,22 +10,18 @@ export async function POST(request: NextRequest) {
   try {
     const db = getDb();
     const body = await request.json();
-    const { signerUuid, listName, castHash, castData, notes } = body;
+    const { fid, listName, castHash, castData, notes } = body;
 
-    if (!signerUuid || !listName || !castHash) {
+    if (!fid || !listName || !castHash) {
       return NextResponse.json(
-        { error: 'signerUuid, listName, and castHash are required' },
+        { error: 'fid, listName, and castHash are required' },
         { status: 400 }
       );
     }
 
-    let validatedFid: number;
-    try {
-      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      validatedFid = signerData.fid;
-    } catch {
-      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    const validatedFid = Number(fid);
+    if (!validatedFid || isNaN(validatedFid)) {
+      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
     }
 
     logger.info('Curating cast', { fid: validatedFid, listName, castHash });

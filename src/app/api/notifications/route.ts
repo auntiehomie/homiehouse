@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchNotifications } from '@/lib/neynar';
+import { fetchNotifications } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
-import { verifySignerAuth } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/notifications');
@@ -12,40 +11,22 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const fidParam = searchParams.get('fid');
-    const signerUuid = searchParams.get('signerUuid');
     const cursor = searchParams.get('cursor');
 
     if (!fidParam) {
       return NextResponse.json({ error: 'FID is required' }, { status: 400 });
     }
 
-    // SECURITY: Require signer authentication for private notification data
-    if (!signerUuid) {
-      return NextResponse.json({ error: 'signerUuid is required' }, { status: 401 });
-    }
-
-    const verifiedFid = await verifySignerAuth(signerUuid);
-    // validateFid returns a number; use it directly for Pinata (expects number)
     const fid = validateFid(fidParam);
-
-    // Ensure user can only access their own notifications
-    if (verifiedFid.toString() !== fid.toString()) {
-      return NextResponse.json(
-        { error: 'Cannot access notifications for another user' },
-        { status: 403 }
-      );
-    }
 
     logger.info('Fetching notifications', { fid, cursor });
 
-    // fetchNotifications → pinata.ts → Pinata Farcaster /notifications?fid=
-    // Pinata response shape: { data: { notifications: [...], next_page_token: "..." } }
     const raw = await fetchNotifications({
       fid,
       cursor: cursor || undefined,
     });
 
-    // Unwrap Pinata data envelope
+    // Unwrap data envelope
     const notificationsRaw: any[] = raw?.data?.notifications ?? raw?.notifications ?? [];
     const nextToken: string | undefined = raw?.data?.next_page_token ?? raw?.next?.cursor;
 

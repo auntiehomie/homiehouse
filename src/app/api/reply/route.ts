@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { publishCast, neynarFetch } from '@/lib/neynar';
+import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash } from '@/lib/validation';
@@ -17,39 +17,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { text, parentHash, signerUuid } = body;
+    const { text, parentHash, fid, parentCastFid } = body;
 
     const validatedText = validateCastText(text);
     const validatedParentHash = validateHash(parentHash, 'parentHash');
-
-    if (!signerUuid) {
-      return NextResponse.json({ error: 'signerUuid is required' }, { status: 400 });
-    }
-
-    // Verify signer exists and is valid via Neynar
-    try {
-      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) {
-        return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      }
-    } catch {
-      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
-    }
+    const castFid = fid ? Number(fid) : 0;
 
     logger.info('Publishing reply', {
       textLength: validatedText.length,
-      parentHash: validatedParentHash.substring(0, 10) + '...'
+      parentHash: validatedParentHash.substring(0, 10) + '...',
+      fid: castFid,
     });
 
+    // Publish reply using app-managed signer (farcaster-writes)
     const result = await publishCast({
-      signer_uuid: signerUuid,
       text: validatedText,
-      parent: validatedParentHash,
+      fid: castFid,
+      parentCastHash: validatedParentHash,
     });
 
-    logger.success('Reply published', { hash: result?.cast?.hash });
+    logger.success('Reply published', { hash: result.castHash });
     logger.end();
-    return NextResponse.json({ ok: true, cast: result.cast });
+    return NextResponse.json({ ok: true, cast: { hash: result.castHash } });
   } catch (error: any) {
     logger.error('Failed to publish reply', error);
     return handleApiError(error, 'POST /reply');

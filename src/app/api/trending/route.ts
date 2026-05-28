@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchTrendingFeed } from '@/lib/neynar';
+import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateLimit, validateFid } from '@/lib/validation';

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { neynarFetch } from '@/lib/neynar';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
@@ -11,19 +10,15 @@ export async function GET(request: NextRequest) {
   try {
     const db = getDb();
     const { searchParams } = new URL(request.url);
-    const signerUuid = searchParams.get('signerUuid');
+    const fidParam = searchParams.get('fid');
 
-    if (!signerUuid) {
-      return NextResponse.json({ error: 'signerUuid is required' }, { status: 400 });
+    if (!fidParam) {
+      return NextResponse.json({ error: 'fid is required' }, { status: 400 });
     }
 
-    let fid: number;
-    try {
-      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      fid = signerData.fid;
-    } catch {
-      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    const fid = Number(fidParam);
+    if (!fid || isNaN(fid)) {
+      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
     }
 
     logger.info('Fetching curated lists', { fid });
@@ -49,19 +44,15 @@ export async function POST(request: NextRequest) {
   try {
     const db = getDb();
     const body = await request.json();
-    const { signerUuid, listName, description, isPublic } = body;
+    const { fid, listName, description, isPublic } = body;
 
-    if (!signerUuid || !listName) {
-      return NextResponse.json({ error: 'signerUuid and listName are required' }, { status: 400 });
+    if (!fid || !listName) {
+      return NextResponse.json({ error: 'fid and listName are required' }, { status: 400 });
     }
 
-    let validatedFid: number;
-    try {
-      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      validatedFid = signerData.fid;
-    } catch {
-      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    const validatedFid = Number(fid);
+    if (!validatedFid || isNaN(validatedFid)) {
+      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
     }
 
     logger.info('Creating list', { fid: validatedFid, listName });
@@ -97,19 +88,15 @@ export async function DELETE(request: NextRequest) {
     const db = getDb();
     const { searchParams } = new URL(request.url);
     const listId = searchParams.get('id');
-    const signerUuid = searchParams.get('signerUuid');
+    const fidParam = searchParams.get('fid');
 
-    if (!listId || !signerUuid) {
-      return NextResponse.json({ error: 'List ID and signerUuid are required' }, { status: 400 });
+    if (!listId || !fidParam) {
+      return NextResponse.json({ error: 'List ID and fid are required' }, { status: 400 });
     }
 
-    let fid: number;
-    try {
-      const signerData = await neynarFetch(`/signer?signer_uuid=${encodeURIComponent(signerUuid)}`);
-      if (!signerData?.fid) return NextResponse.json({ error: 'Invalid signer' }, { status: 401 });
-      fid = signerData.fid;
-    } catch {
-      return NextResponse.json({ error: 'Unable to verify signer' }, { status: 401 });
+    const fid = Number(fidParam);
+    if (!fid || isNaN(fid)) {
+      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
     }
 
     const parsedListId = parseInt(listId);

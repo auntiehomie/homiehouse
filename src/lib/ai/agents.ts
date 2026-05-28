@@ -3,7 +3,7 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-import { searchCasts, getCastsByUsername } from '../neynar';
+import { searchCasts, getCastsByUsername } from '../hypersnap';
 import { getTokenData, searchTokens, formatTokenDisplay } from '../token-data';
 
 // User profile schema

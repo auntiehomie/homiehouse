@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchUserByUsername, neynarFetch } from '@/lib/neynar';
+import { fetchUserByUsername, hypersnapFetch } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateUsername } from '@/lib/validation';
@@ -25,19 +25,18 @@ export async function GET(request: NextRequest) {
 
     let user;
     let userFid: number | undefined;
-    
+
     if (usernameParam) {
       // Validate and fetch by username
       const username = validateUsername(usernameParam);
       const data = await fetchUserByUsername(username);
       user = data.user;
-      // Extract FID from response (might be in different places)
       userFid = user?.fid || data?.result?.user?.fid || user?.id;
-      logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid, userKeys: Object.keys(user || {}).slice(0, 5) });
+      logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid });
     } else if (fidParam) {
       // Validate and fetch by FID
       userFid = validateFid(fidParam);
-      const data = await neynarFetch(`/user/bulk?fids=${userFid}`);
+      const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
       user = data.users?.[0];
       logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
     }
@@ -49,12 +48,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Debug: log what we received from Neynar
-    logger.info('User data from Neynar', {
+    logger.info('User data from Hypersnap', {
       extractedFid: userFid,
       userFidField: user?.fid,
       hasFid: userFid !== undefined,
-      userKeys: Object.keys(user || {}).slice(0, 10)
     });
 
     // Optionally fetch user's casts
@@ -62,7 +59,7 @@ export async function GET(request: NextRequest) {
     if (includeCasts && userFid) {
       try {
         logger.info('Fetching user casts', { fid: userFid });
-        const data = await neynarFetch(`/feed?feed_type=filter&filter_type=fids&fids=${userFid}&limit=25`);
+        const data = await hypersnapFetch(`/v2/farcaster/feed?feed_type=filter&filter_type=fids&fids=${userFid}&limit=25`);
         casts = data.casts || [];
         logger.info('Casts fetched', { count: casts.length });
       } catch (error) {
@@ -74,7 +71,7 @@ export async function GET(request: NextRequest) {
     logger.success('Profile fetched', { fid: userFid });
     logger.end();
 
-    // Normalize and ensure required fields are always present (do NOT spread user after setting defaults, it overwrites with undefined)
+    // Normalize and ensure required fields are always present
     const normalizedUser = {
       fid: userFid || 0,
       username: user?.username || `user_${userFid}`,

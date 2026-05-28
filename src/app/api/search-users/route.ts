@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchUsers } from '@/lib/neynar';
+import { searchUsers, hypersnapFetch } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
@@ -29,8 +29,7 @@ export async function GET(request: NextRequest) {
     // If searching for auntiehomie, fetch it directly first
     if (includeHomie) {
       try {
-        const { neynarFetch } = await import('@/lib/neynar');
-        const homieData = await neynarFetch(`/user/bulk?fids=${HOMIEHOUSE_FID}`);
+        const homieData = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${HOMIEHOUSE_FID}`);
         if (homieData.users && homieData.users.length > 0) {
           users.push(homieData.users[0]);
         }
