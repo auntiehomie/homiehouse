@@ -69,9 +69,22 @@ export async function POST(req: NextRequest) {
     // Step 2: Sign the key registration payload with the app's EIP-712 key
     const deadline = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24h
     const appFid = parseInt(APP_FID);
-    const account = mnemonicToAccount(APP_MNEMONIC);
 
-    const signature = await account.signTypedData({
+    // Trim whitespace/quotes that can sneak in via Vercel env var copy-paste
+    const cleanMnemonic = APP_MNEMONIC.trim().replace(/^"|"$/g, '').replace(/^'|'$/g, '') as `${string}`;
+
+    let account: ReturnType<typeof mnemonicToAccount>;
+    try {
+      account = mnemonicToAccount(cleanMnemonic);
+    } catch (mnemonicErr: any) {
+      logger.error('Invalid APP_MNEMONIC', { message: mnemonicErr.message });
+      return NextResponse.json(
+        { ok: false, error: 'Server mnemonic configuration is invalid. Check APP_MNEMONIC env var.' },
+        { status: 500 }
+      );
+    }
+
+    const signature = await account!.signTypedData({
       domain: SIGNED_KEY_REQUEST_VALIDATOR_EIP_712_DOMAIN,
       types: { SignedKeyRequest: SIGNED_KEY_REQUEST_TYPE },
       primaryType: "SignedKeyRequest",
@@ -103,7 +116,7 @@ export async function POST(req: NextRequest) {
       const errText = await registerRes.text();
       logger.error('Warpcast signer registration failed', { status: registerRes.status, errText });
       return NextResponse.json(
-        { ok: false, error: 'Failed to register signer with Warpcast' },
+        { ok: false, error: `Failed to register signer with Warpcast (${registerRes.status}): ${errText.slice(0, 200)}` },
         { status: 502 }
       );
     }
