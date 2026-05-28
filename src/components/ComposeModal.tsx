@@ -6,7 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 
 export default function ComposeModal() {
   const { user } = usePrivy();
-  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
@@ -31,15 +31,8 @@ export default function ComposeModal() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
 
-  // Get signerUuid from localStorage for server-side API calls (legacy compat)
-  const getStoredSignerUuid = (): string | undefined => {
-    if (!userFid) return undefined;
-    try {
-      const stored = localStorage.getItem(`signer_${userFid}`);
-      if (stored) return JSON.parse(stored)?.signer_uuid;
-    } catch { /* ignore */ }
-    return undefined;
-  };
+  // Legacy stub — no longer needed, writes go direct via useFarcasterWrites
+  const getStoredSignerUuid = (): string | undefined => undefined;
 
   // Listen for custom event to open compose with pre-filled text
   useEffect(() => {
@@ -255,19 +248,6 @@ export default function ComposeModal() {
     setUploadedImage(null);
   };
 
-  async function handleEnablePosting() {
-    setLoading(true);
-    setStatus("Opening Warpcast approval...");
-    try {
-      await requestSigner();
-      setStatus(null);
-    } catch (e: any) {
-      setStatus(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handlePost() {
     setStatus(null);
     setLoading(true);
@@ -278,22 +258,16 @@ export default function ComposeModal() {
         return;
       }
 
-      // Check if signer is approved
       if (!hasActiveSigner) {
-        setStatus("Please enable posting first.");
+        setStatus("Sign in with Farcaster to post.");
         setLoading(false);
         return;
       }
 
-      const signerUuid = getStoredSignerUuid();
       console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
 
-      // Prepare cast data
-      const body: any = { 
-        text, 
-        signerUuid: signerUuid || undefined,
-        fid: userFid 
-      };
+      // Prepare cast data (for scheduled path)
+      const body: any = { text, fid: userFid };
 
       // Build embeds array
       const embeds: any[] = [];
@@ -386,46 +360,23 @@ export default function ComposeModal() {
         }
             } else {
         // Post immediately
-        console.log('[ComposeModal] Sending POST to /api/privy-compose with body:', JSON.stringify(body, null, 2));
-        const res = await fetch("/api/privy-compose", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+        // Submit directly via Privy signer → Hypersnap (no server round-trip)
+        await submitCast({
+          text: body.text,
+          embeds: body.embeds,
+          channelKey: body.channelKey,
+          parentUrl: body.parentUrl,
         });
-
-        console.log(`[ComposeModal] Response status: ${res.status} ${res.statusText}`);
-        
-        let data;
-        try {
-          data = await res.json();
-          console.log('[ComposeModal] Response body:', data);
-        } catch (parseErr) {
-          console.error('[ComposeModal] Failed to parse response as JSON:', parseErr);
-          const text = await res.text();
-          console.error('[ComposeModal] Raw response:', text);
-          setStatus(`Server error (${res.status}): Could not parse response. Check console for details.`);
-          setLoading(false);
-          return;
-        }
-        
-        if (data.ok) {
-          setStatus("✓ Posted successfully!");
-          setText("");
-          setImageUrl("");
-          setUploadedImage(null);
-          setUrlPreview(null);
-          setDetectedUrl(null);
-          setTimeout(() => {
-            setOpen(false);
-            setStatus(null);
-          }, 800);
-        } else {
-          const errorMsg = data.error || data.message || "unknown error";
-          const errorCode = data.code || '';
-          const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
-          console.error('[ComposeModal] API returned error:', { status: res.status, error: errorMsg, code: errorCode });
-          setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
-        }
+        setStatus("✓ Posted successfully!");
+        setText("");
+        setImageUrl("");
+        setUploadedImage(null);
+        setUrlPreview(null);
+        setDetectedUrl(null);
+        setTimeout(() => {
+          setOpen(false);
+          setStatus(null);
+        }, 800);
       }
     } catch (err: any) {
       setStatus(String(err?.message || err));
@@ -459,34 +410,7 @@ export default function ComposeModal() {
               </div>
             </div>
 
-            {/* Show approval screen if signer not approved */}
-            {userFid && !hasActiveSigner ? (
-              <div style={{ marginTop: 24 }}>
-                <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>🔐</div>
-                  <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
-                    Enable Posting
-                  </h3>
-                  <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
-                    To post casts from HomieHouse, you need to approve posting permissions in Warpcast.
-                    This only needs to be done once.
-                  </p>
-                  <button 
-                    className="btn primary" 
-                    onClick={handleEnablePosting} 
-                    disabled={loading}
-                    style={{ width: '100%', padding: '12px', fontSize: 16 }}
-                  >
-                    {loading ? "Opening Warpcast..." : "Enable Posting"}
-                  </button>
-                  {status && (
-                    <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: 'var(--surface)', fontSize: 14 }}>
-                      {status}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
+            {
               /* Normal compose interface */
               <>
                 <div style={{ marginTop: 16, position: 'relative' }}>
@@ -897,7 +821,7 @@ export default function ComposeModal() {
                 </div>
                 {status && <div style={{ marginTop: 8 }}>{status}</div>}
               </>
-            )}
+            }
           </div>
         </div>
       )}

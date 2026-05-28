@@ -39,6 +39,7 @@ export default function FeedList({
   const [replyText, setReplyText] = useState("");
   const [replyLoading, setReplyLoading] = useState(false);
   const [showRecastModal, setShowRecastModal] = useState<string | null>(null);
+  const [showRecastAuthorFid, setShowRecastAuthorFid] = useState<number>(0);
   const [showQuoteModal, setShowQuoteModal] = useState<string | null>(null);
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -50,7 +51,7 @@ export default function FeedList({
   const [kbSaving, setKbSaving] = useState<string | null>(null);
   const [kbSaved, setKbSaved] = useState<Set<string>>(new Set());
 
-  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
 
   // Get profile from localStorage
   const getProfile = () => {
@@ -63,173 +64,56 @@ export default function FeedList({
     }
   };
 
-  // Get user's signer UUID from localStorage for server-side API calls
-  const getSignerUuid = () => {
-    const storedProfile = localStorage.getItem("hh_profile");
-    if (!storedProfile) return null;
-    try {
-      const profile = JSON.parse(storedProfile);
-      const fid = profile?.fid;
-      if (!fid) return null;
-      const stored = localStorage.getItem(`signer_${fid}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.status === 'approved' && parsed.signer_uuid) return parsed.signer_uuid;
-      }
-    } catch { /* ignore */ }
-    return null;
-  };
-
-  const handleLike = async (castHash: string) => {
-    if (!hasActiveSigner) {
-      await requestSigner();
-      return;
-    }
-    const signerUuid = getSignerUuid();
-
+  const handleLike = async (castHash: string, authorFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
     setActionLoading(`like-${castHash}`);
     try {
-      const isLiked = likedCasts.has(castHash);
-      
-      if (isLiked) {
-        // Unlike
-        const res = await fetch(`/api/like?castHash=${castHash}&signerUuid=${signerUuid}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          if (res.status === 403) {
-            alert("Signer not approved. Please approve in Warpcast and try again.");
-          } else {
-            alert(`Failed to unlike: ${data.error || 'Unknown error'}`);
-          }
-          return;
-        }
-        setLikedCasts(prev => {
-          const next = new Set(prev);
-          next.delete(castHash);
-          return next;
-        });
+      if (likedCasts.has(castHash)) {
+        await unlikeCast({ targetCastHash: castHash, targetCastFid: authorFid });
+        setLikedCasts(prev => { const next = new Set(prev); next.delete(castHash); return next; });
       } else {
-        // Like
-        const res = await fetch("/api/like", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ castHash, signerUuid }),
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          if (res.status === 403) {
-            alert("Signer not approved. Please approve in Warpcast and try again.");
-          } else {
-            alert(`Failed to like: ${data.error || 'Unknown error'}`);
-          }
-          return;
-        }
+        await likeCast({ targetCastHash: castHash, targetCastFid: authorFid });
         setLikedCasts(prev => new Set([...prev, castHash]));
       }
-    } catch (error) {
-      console.error("Like error:", error);
-      alert("Failed to like cast");
+    } catch (error: any) {
+      console.error('Like error:', error);
+      alert(`Failed to like: ${error?.message ?? error}`);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleRecast = async (castHash: string) => {
-    if (!hasActiveSigner) {
-      await requestSigner();
-      return;
-    }
-    const signerUuid = getSignerUuid();
-
+  const handleRecast = async (castHash: string, authorFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
     setActionLoading(`recast-${castHash}`);
     try {
-      const isRecasted = recastedCasts.has(castHash);
-      
-      if (isRecasted) {
-        // Remove recast
-        const res = await fetch(`/api/recast?castHash=${castHash}&signerUuid=${signerUuid}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          if (res.status === 403) {
-            alert("Signer not approved. Please approve in Warpcast and try again.");
-          } else {
-            alert(`Failed to remove recast: ${data.error || 'Unknown error'}`);
-          }
-          return;
-        }
-        setRecastedCasts(prev => {
-          const next = new Set(prev);
-          next.delete(castHash);
-          return next;
-        });
+      if (recastedCasts.has(castHash)) {
+        await removeRecast({ targetCastHash: castHash, targetCastFid: authorFid });
+        setRecastedCasts(prev => { const next = new Set(prev); next.delete(castHash); return next; });
       } else {
-        // Recast
-        const res = await fetch("/api/recast", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ castHash, signerUuid }),
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          if (res.status === 403) {
-            alert("Signer not approved. Please approve in Warpcast and try again.");
-          } else {
-            alert(`Failed to recast: ${data.error || 'Unknown error'}`);
-          }
-          return;
-        }
+        await recastFn({ targetCastHash: castHash, targetCastFid: authorFid });
         setRecastedCasts(prev => new Set([...prev, castHash]));
       }
-    } catch (error) {
-      console.error("Recast error:", error);
-      alert("Failed to recast");
+    } catch (error: any) {
+      console.error('Recast error:', error);
+      alert(`Failed to recast: ${error?.message ?? error}`);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleReply = async (castHash: string) => {
-    if (!hasActiveSigner) {
-      await requestSigner();
-      return;
-    }
-    const signerUuid = getSignerUuid();
-
-    if (!replyText.trim()) {
-      return;
-    }
-
+  const handleReply = async (castHash: string, authorFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    if (!replyText.trim()) return;
     setReplyLoading(true);
     try {
-      const res = await fetch("/api/reply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          text: replyText, 
-          signerUuid, 
-          parentHash: castHash 
-        }),
-      });
-
-      if (res.ok) {
-        setReplyText("");
-        setReplyingTo(null);
-        alert("Reply posted successfully!");
-      } else {
-        const data = await res.json();
-        if (res.status === 403) {
-          alert("Signer not approved. Please approve in Warpcast and try again.");
-        } else {
-          alert(`Failed to reply: ${data.error || 'Unknown error'}`);
-        }
-      }
-    } catch (error) {
-      console.error("Reply error:", error);
-      alert("Failed to post reply");
+      await replyFn({ text: replyText, parentCastHash: castHash, parentCastFid: authorFid });
+      setReplyText('');
+      setReplyingTo(null);
+      alert('Reply posted!');
+    } catch (error: any) {
+      console.error('Reply error:', error);
+      alert(`Failed to reply: ${error?.message ?? error}`);
     } finally {
       setReplyLoading(false);
     }
@@ -316,87 +200,19 @@ export default function FeedList({
   };
 
   const handleQuoteCast = async (castHash: string) => {
-    if (!hasActiveSigner) {
-      await requestSigner();
-      return;
-    }
-    const signerUuid = getSignerUuid();
-
-    if (!quoteText.trim()) {
-      alert("Please add some text to your quote cast");
-      return;
-    }
-
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    if (!quoteText.trim()) { alert('Please add some text to your quote cast'); return; }
     setQuoteLoading(true);
     try {
-      // Get FID for the compose API
-      let fid: number | undefined = undefined;
-      try {
-        const storedProfile = localStorage.getItem("hh_profile");
-        if (storedProfile) {
-          const parsed = JSON.parse(storedProfile);
-          fid = parsed?.fid;
-        }
-      } catch (e) {
-        console.error('Error getting FID:', e);
-      }
-
-      if (!fid) {
-        alert("Please sign in first");
-        setQuoteLoading(false);
-        return;
-      }
-
-      // Build the cast URL embed for proper Farcaster quote cast.
-      // The Farcaster protocol represents quote casts as a cast whose
-      // embeds array contains the URL of the quoted cast. We use the
-      // canonical warpcast.com conversation URL so clients that render
-      // embeds (Warpcast, Supercast, etc.) display the quoted cast inline.
       const quotedCastUrl = `https://warpcast.com/~/conversations/${castHash}`;
-
-      const res = await fetch("/api/compose-cast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          text: quoteText, 
-          signerUuid,
-          fid,
-          embeds: [{ url: quotedCastUrl }],
-          // Also send parentCastHash so the server can set parent_cast_id
-          // if the underlying API supports the proper cast-reference embed.
-          parentCastHash: castHash,
-          isQuoteCast: true,
-        }),
-      });
-
-      if (res.ok) {
-        setQuoteText("");
-        setShowQuoteModal(null);
-        // Add to quoted casts
-        setQuotedCasts(prev => new Set([...prev, castHash]));
-        alert("Quote cast posted successfully!");
-      } else {
-        const data = await res.json();
-        if (res.status === 403) {
-          // Clear the bad signer and prompt to recreate
-          const storedProfile = localStorage.getItem("hh_profile");
-          if (storedProfile) {
-            const profile = JSON.parse(storedProfile);
-            const fid = profile?.fid;
-            if (fid) {
-              localStorage.removeItem(`signer_${fid}`);
-            }
-          }
-          setShowQuoteModal(null);
-          alert("Signer not approved. Please approve in Warpcast.");
-          await requestSigner();
-        } else {
-          alert(`Failed to post quote cast: ${data.error || 'Unknown error'}`);
-        }
-      }
-    } catch (error) {
-      console.error("Quote cast error:", error);
-      alert("Failed to post quote cast");
+      await submitCast({ text: quoteText, embeds: [{ url: quotedCastUrl }] });
+      setQuoteText('');
+      setShowQuoteModal(null);
+      setQuotedCasts(prev => new Set([...prev, castHash]));
+      alert('Quote cast posted!');
+    } catch (error: any) {
+      console.error('Quote cast error:', error);
+      alert(`Failed to post quote cast: ${error?.message ?? error}`);
     } finally {
       setQuoteLoading(false);
     }
@@ -853,7 +669,7 @@ export default function FeedList({
               borderTop: '1px solid var(--border)' 
             }}>
               <button
-                onClick={() => handleLike(key)}
+                onClick={() => handleLike(key, authorObj?.fid ?? 0)}
                 disabled={actionLoading === `like-${key}`}
                 style={{
                   display: 'flex',
@@ -886,7 +702,7 @@ export default function FeedList({
               </button>
               
               <button
-                onClick={() => setShowRecastModal(key)}
+                onClick={() => { setShowRecastModal(key); setShowRecastAuthorFid(authorObj?.fid ?? 0); }}
                 disabled={actionLoading === `recast-${key}`}
                 style={{
                   display: 'flex',
@@ -1081,7 +897,7 @@ export default function FeedList({
                   </button>
                   <button 
                     className="btn primary" 
-                    onClick={() => handleReply(key)}
+                    onClick={() => handleReply(key, authorObj?.fid ?? 0)}
                     disabled={replyLoading || !replyText.trim()}
                   >
                     {replyLoading ? "Posting..." : "Post Reply"}
@@ -1210,7 +1026,7 @@ export default function FeedList({
               {recastedCasts.has(showRecastModal) ? (
                 <button
                   onClick={async () => {
-                    await handleRecast(showRecastModal);
+                    await handleRecast(showRecastModal, showRecastAuthorFid);
                     setShowRecastModal(null);
                   }}
                   className="btn"
@@ -1231,7 +1047,7 @@ export default function FeedList({
               ) : (
                 <button
                   onClick={async () => {
-                    await handleRecast(showRecastModal);
+                    await handleRecast(showRecastModal, showRecastAuthorFid);
                     setShowRecastModal(null);
                   }}
                   className="btn primary"

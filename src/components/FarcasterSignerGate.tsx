@@ -12,16 +12,12 @@ interface FarcasterSignerGateProps {
 
 /**
  * FarcasterSignerGate — renders children only when the user has an active
- * Farcaster signer. Otherwise shows a prompt to authorize one via Warpcast.
- *
- * Usage:
- *   <FarcasterSignerGate>
- *     <ComposeBox />
- *   </FarcasterSignerGate>
+ * Farcaster account linked via Privy. Privy manages the Ed25519 signer;
+ * no Warpcast approval URL flow needed.
  */
 export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateProps) {
   const { authenticated, login } = usePrivy();
-  const { hasActiveSigner, requestSigner, signerApprovalUrl, checkSignerStatus } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner } = useFarcasterWrites();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,49 +44,25 @@ export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateP
       <div className="farcaster-signer-gate">
         {fallback ?? (
           <div style={{ padding: '16px', textAlign: 'center' }}>
-            <p>Authorize Homiehouse to post on your behalf</p>
-            <p style={{ fontSize: '0.875rem', color: '#888', marginTop: '4px' }}>
-              This opens Warpcast to approve a signer. You stay in control.
-            </p>
+            <p>Connect your Farcaster account to post</p>
             {error && <p style={{ color: 'red', marginTop: '8px' }}>{error}</p>}
-            {!signerApprovalUrl ? (
-              <button
-                onClick={async () => {
-                  setLoading(true);
-                  setError(null);
-                  try {
-                    await requestSigner();
-                  } catch (e: any) {
-                    setError(e?.message ?? 'Failed to request signer');
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                disabled={loading}
-                style={{ marginTop: '8px', padding: '8px 16px', cursor: loading ? 'wait' : 'pointer' }}
-              >
-                {loading ? 'Creating…' : 'Authorize Signer'}
-              </button>
-            ) : (
-              <div style={{ marginTop: '8px' }}>
-                <a
-                  href={signerApprovalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ display: 'inline-block', padding: '8px 16px', background: '#ea580c', color: 'white', borderRadius: '6px', textDecoration: 'none', marginBottom: '8px' }}
-                >
-                  Approve in Warpcast →
-                </a>
-                <br />
-                <button
-                  onClick={async () => { setLoading(true); try { await checkSignerStatus(); } finally { setLoading(false); } }}
-                  disabled={loading}
-                  style={{ padding: '6px 12px', fontSize: '0.8rem', cursor: loading ? 'wait' : 'pointer' }}
-                >
-                  {loading ? 'Checking…' : 'Check Status'}
-                </button>
-              </div>
-            )}
+            <button
+              onClick={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  await requestSigner();
+                } catch (e: any) {
+                  setError(e?.message ?? 'Failed to connect Farcaster account');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              style={{ marginTop: '8px', padding: '8px 16px', cursor: loading ? 'wait' : 'pointer' }}
+            >
+              {loading ? 'Connecting…' : 'Connect Farcaster'}
+            </button>
           </div>
         )}
       </div>
