@@ -109,8 +109,14 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     try {
       publicKeyBytes = await getFarcasterSignerPublicKey();
     } catch (err: any) {
-      // Signer not yet approved — prompt Warpcast flow
-      if (/not.*approved|no.*signer|request.*signer/i.test(err?.message ?? '')) {
+      const msg: string = err?.message ?? '';
+      if (/TEE execution|on-device execution/i.test(msg)) {
+        throw new Error(
+          'Farcaster posting requires your Privy app to use On-Device wallet mode. ' +
+          'Enable it in the Privy dashboard under Embedded Wallets → Execution Environment.',
+        );
+      }
+      if (/not.*approved|no.*signer|request.*signer|must have a farcaster signer/i.test(msg)) {
         await requestFarcasterSignerFromWarpcast();
         publicKeyBytes = await getFarcasterSignerPublicKey();
       } else {
