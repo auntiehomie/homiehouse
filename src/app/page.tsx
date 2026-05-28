@@ -131,10 +131,10 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0">
             <h1 className="text-base sm:text-xl font-bold">HomieHouse</h1>
-            <p className="text-xs text-zinc-500 hidden sm:block">Your Social Hub</p>
+            <p className="text-xs text-zinc-500 hidden lg:block">Your Social Hub</p>
           </div>
-          {/* Search — hidden on small mobile, visible sm+ */}
-          <div className="hidden sm:block flex-1 max-w-xs">
+          {/* Search — only on large screens where there's room */}
+          <div className="hidden lg:block flex-1 max-w-xs">
             <input
               id="header-search-input"
               placeholder="Search people..."
@@ -153,19 +153,17 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24 md:pb-8">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 items-start">
-          {/* Left Sidebar - Channels (hidden on mobile) */}
-          <aside className="hidden md:flex md:col-span-2 flex-col gap-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24">
+        <div className="flex gap-6 items-start">
+          {/* Left Sidebar - only on large desktop screens */}
+          <aside className="hidden lg:block w-48 shrink-0">
             <ChannelsList />
           </aside>
 
           {/* Main Content */}
-          <div className="md:col-span-10">
-            <section>
-              <h3 className="text-lg font-semibold mb-3">Explore</h3>
-              <FeedTrendingTabs />
-            </section>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-semibold mb-3">Explore</h3>
+            <FeedTrendingTabs />
           </div>
         </div>
       </main>
