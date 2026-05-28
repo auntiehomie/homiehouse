@@ -3,15 +3,15 @@
 
 /* Friendly palette and typography adapted from the Vite mini app */
 :root {
-  /* Friendly palette (accent = #E87722) */
-  --accent: #E87722;
-  --accent-hover: #D76A1A;
-  --accent-soft: #FFB77A;
-  --bg-dark: #181818;
-  --surface: #222222;
+  /* Monochrome palette */
+  --accent: #FFFFFF;
+  --accent-hover: #D4D4D4;
+  --accent-soft: #A1A1AA;
+  --bg-dark: #111111;
+  --surface: #1C1C1C;
   --text-on-dark: #FFFFFF;
-  --muted-on-dark: rgba(255,255,255,0.72);
-  --border: rgba(255,255,255,0.06);
+  --muted-on-dark: rgba(255,255,255,0.60);
+  --border: rgba(255,255,255,0.08);
 
   --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   --heading-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
@@ -219,7 +219,7 @@ main { margin-top: 1rem; }
 .connect-info { display: flex; gap: 0.5rem; align-items: center; }
 
 /* Links */
-nav a { color: var(--accent-soft); text-decoration: underline; }
+nav a { color: var(--muted-on-dark); text-decoration: underline; }
 nav a:hover { color: var(--accent); }
 
 /* Modal animations and styling */
@@ -287,8 +287,8 @@ nav a:hover { color: var(--accent); }
 
 .compose-textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(232, 119, 34, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
   background: var(--surface);
 }
 
@@ -313,10 +313,10 @@ nav a:hover { color: var(--accent); }
 }
 
 .balance-card {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
   padding: 1rem;
   border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(232, 119, 34, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .balance-label {
@@ -364,8 +364,8 @@ nav a:hover { color: var(--accent); }
 
 .wallet-input:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(232, 119, 34, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
 }
 
 .wallet-input::placeholder {
@@ -399,7 +399,7 @@ nav a:hover { color: var(--accent); }
 
 .channel-link:hover {
   background: var(--bg-dark);
-  color: var(--accent);
+  color: var(--text-on-dark);
 }
 
 /* Bottom Navigation Styling */

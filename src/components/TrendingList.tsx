@@ -72,7 +72,7 @@ export default function TrendingList({ limit = 10 }: TrendingListProps) {
           <Link 
             key={castHash || it?.id || JSON.stringify(it)}
             href={`/cast/${castHash}`}
-            className="block surface hover:border-orange-500 dark:hover:border-orange-600 transition-colors cursor-pointer"
+            className="block surface hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors cursor-pointer"
           >
             {/* Author info with avatar */}
             <div className="flex items-center gap-3 mb-3">

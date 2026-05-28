@@ -170,11 +170,11 @@ export default function NotificationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
         <header className="max-w-4xl mx-auto px-6 py-6 border-b dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Notifications</h1>
-            <Link href="/" className="text-sm text-blue-500 hover:underline">
+            <Link href="/" className="text-sm text-zinc-400 hover:text-white hover:underline">
               ← Back
             </Link>
           </div>
@@ -190,18 +190,18 @@ export default function NotificationsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
         <header className="max-w-4xl mx-auto px-6 py-6 border-b dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">Notifications</h1>
-            <Link href="/" className="text-sm text-blue-500 hover:underline">
+            <Link href="/" className="text-sm text-zinc-400 hover:text-white hover:underline">
               ← Back
             </Link>
           </div>
         </header>
         <main className="max-w-4xl mx-auto px-6 py-6">
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <div className="text-red-500">{error}</div>
+            <div className="text-zinc-400">{error}</div>
             <button 
               onClick={() => loadNotifications()}
               className="btn primary"
@@ -215,19 +215,19 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 pb-20">
+    <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100 pb-20">
       <header className="max-w-4xl mx-auto px-6 py-6 border-b dark:border-zinc-800 sticky top-0 bg-white dark:bg-black z-10">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">Notifications</h1>
           <div className="flex items-center gap-3">
             <button 
               onClick={() => loadNotifications()}
-              className="text-sm text-blue-500 hover:underline"
+              className="text-sm text-zinc-400 hover:text-white hover:underline"
               title="Refresh notifications"
             >
               🔄 Refresh
             </button>
-            <Link href="/" className="text-sm text-blue-500 hover:underline">
+            <Link href="/" className="text-sm text-zinc-400 hover:text-white hover:underline">
               ← Back
             </Link>
           </div>
@@ -241,7 +241,7 @@ export default function NotificationsPage() {
               onClick={() => setFilter(filterType)}
               className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                 filter === filterType
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-white text-black'
                   : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
               }`}
             >
@@ -261,7 +261,7 @@ export default function NotificationsPage() {
             {filter !== 'all' && (
               <button
                 onClick={() => setFilter('all')}
-                className="text-sm text-blue-500 hover:underline"
+                className="text-sm text-zinc-400 hover:text-white hover:underline"
               >
                 View all notifications
               </button>
@@ -305,7 +305,7 @@ export default function NotificationsPage() {
                       >
                         {actor?.display_name || actor?.username || 'Someone'}
                         {actor?.power_badge && (
-                          <span className="text-purple-500" title="Power user">⚡</span>
+                          <span className="text-zinc-400" title="Power user">⚡</span>
                         )}
                       </Link>
                       {notification.actorCount && notification.actorCount > 1 && (
@@ -358,7 +358,7 @@ export default function NotificationsPage() {
                     {actor?.username && (
                       <Link
                         href={`/profile/${actor.username}`}
-                        className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                        className="text-xs text-zinc-400 hover:text-white hover:underline whitespace-nowrap"
                       >
                         View Profile
                       </Link>
@@ -366,7 +366,7 @@ export default function NotificationsPage() {
                     {notification.cast?.hash && (
                       <Link
                         href={`/cast/${notification.cast.hash}`}
-                        className="text-xs text-blue-500 hover:underline whitespace-nowrap"
+                        className="text-xs text-zinc-400 hover:text-white hover:underline whitespace-nowrap"
                       >
                         View Cast
                       </Link>

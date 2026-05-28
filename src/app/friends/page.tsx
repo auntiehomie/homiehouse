@@ -114,7 +114,7 @@ export default function FriendsPage() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-zinc-400"></div>
       </div>
     );
   }
@@ -143,8 +143,8 @@ export default function FriendsPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Status Banner */}
         {sendStatus && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-            <p className="text-sm text-blue-800">{sendStatus}</p>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 mb-6">
+            <p className="text-sm text-zinc-300">{sendStatus}</p>
           </div>
         )}
 
@@ -178,15 +178,15 @@ export default function FriendsPage() {
               </div>
 
               {selectedFriend.verifiedAddresses && selectedFriend.verifiedAddresses.length > 0 ? (
-                <div className="bg-green-50 rounded-lg p-3 mb-4 text-sm">
-                  <p className="text-green-800">✅ Verified address available</p>
-                  <code className="text-xs text-green-600">
+                <div className="bg-zinc-900 rounded-lg p-3 mb-4 text-sm">
+                  <p className="text-zinc-300">✅ Verified address available</p>
+                  <code className="text-xs text-zinc-400">
                     {selectedFriend.verifiedAddresses[0].slice(0, 6)}...{selectedFriend.verifiedAddresses[0].slice(-4)}
                   </code>
                 </div>
               ) : (
-                <div className="bg-yellow-50 rounded-lg p-3 mb-4 text-sm">
-                  <p className="text-yellow-800">⚠️ No verified address. Will use custody address or FID transfer.</p>
+                <div className="bg-zinc-900 rounded-lg p-3 mb-4 text-sm">
+                  <p className="text-zinc-300">⚠️ No verified address. Will use custody address or FID transfer.</p>
                 </div>
               )}
 
@@ -197,14 +197,14 @@ export default function FriendsPage() {
                   value={sendAmount}
                   onChange={(e) => setSendAmount(e.target.value)}
                   placeholder="0.0"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-zinc-400"
                 />
               </div>
 
               <button
                 onClick={() => handleSendToFID(selectedFriend)}
                 disabled={isSending || !sendAmount}
-                className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-bold py-3 rounded-xl transition-colors disabled:cursor-not-allowed"
+                className="w-full bg-white hover:bg-zinc-200 disabled:bg-zinc-700 text-black font-bold py-3 rounded-xl transition-colors disabled:cursor-not-allowed"
               >
                 {isSending ? 'Sending...' : `Send ${sendAmount || '0.0'} ETH`}
               </button>
@@ -223,7 +223,7 @@ export default function FriendsPage() {
 
           {isLoading ? (
             <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-zinc-400 mx-auto"></div>
             </div>
           ) : friends.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
@@ -252,7 +252,7 @@ export default function FriendsPage() {
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-xs text-gray-400">FID: {friend.fid}</span>
                           {friend.verifiedAddresses && friend.verifiedAddresses.length > 0 && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                            <span className="text-xs bg-zinc-200 text-zinc-800 px-2 py-0.5 rounded-full">
                               ✓ Verified
                             </span>
                           )}
@@ -261,7 +261,7 @@ export default function FriendsPage() {
                     </div>
                     <button
                       onClick={() => setSelectedFriend(friend)}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                      className="bg-white hover:bg-zinc-200 text-black px-4 py-2 rounded-lg font-medium transition-colors"
                     >
                       Send
                     </button>
@@ -273,7 +273,7 @@ export default function FriendsPage() {
         </div>
 
         {/* Info Section */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-6">
+        <div className="mt-6 bg-zinc-900 border border-zinc-700 rounded-xl p-6">
           <h3 className="font-bold mb-2">💡 How it works</h3>
           <ul className="space-y-2 text-sm text-gray-700">
             <li>• Friends with verified addresses: Direct transfer to their ETH address</li>

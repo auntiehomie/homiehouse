@@ -71,7 +71,7 @@ export default function KnowledgeBasePage() {
       <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center">
         <div className="text-center text-zinc-500">
           <p className="text-lg">Sign in to view your Knowledge Base</p>
-          <Link href="/" className="mt-4 inline-block text-blue-500 hover:underline">
+          <Link href="/" className="mt-4 inline-block text-zinc-400 hover:text-white hover:underline">
             Go Home
           </Link>
         </div>
@@ -80,7 +80,7 @@ export default function KnowledgeBasePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+    <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
       <header className="max-w-3xl mx-auto px-4 sm:px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-zinc-500 hover:text-zinc-300 transition-colors">
@@ -110,7 +110,7 @@ export default function KnowledgeBasePage() {
         )}
 
         {error && (
-          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-red-600 dark:text-red-400">
+          <div className="rounded-xl border border-zinc-700 bg-zinc-900 p-4 text-zinc-400">
             {error}
           </div>
         )}
@@ -162,7 +162,7 @@ export default function KnowledgeBasePage() {
                   </span>
                   <Link
                     href={`/cast/${item.cast_hash}`}
-                    className="text-xs text-blue-500 hover:underline"
+                    className="text-xs text-zinc-400 hover:text-white hover:underline"
                   >
                     View cast →
                   </Link>

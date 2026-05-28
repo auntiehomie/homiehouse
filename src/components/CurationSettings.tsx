@@ -278,8 +278,8 @@ export default function CurationSettings({ onClose }: CurationSettingsProps) {
                     <div className="flex items-center gap-3 mb-1">
                       <span className={`px-2 py-1 rounded text-xs font-semibold ${
                         pref.action === 'include' 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                          ? 'bg-zinc-200 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100'
+                          : 'bg-zinc-400 text-zinc-900 dark:bg-zinc-600 dark:text-zinc-100'
                       }`}>
                         {pref.action === 'include' ? 'INCLUDE' : 'EXCLUDE'}
                       </span>
@@ -301,7 +301,7 @@ export default function CurationSettings({ onClose }: CurationSettingsProps) {
                   
                   <button
                     onClick={() => handleDelete(pref.id!)}
-                    className="text-red-500 hover:text-red-700 px-3 py-1 text-sm"
+                    className="text-zinc-500 hover:text-zinc-300 px-3 py-1 text-sm"
                   >
                     Delete
                   </button>

@@ -98,7 +98,7 @@ export default function CuratedListsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
         <header className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center gap-4">
             <button onClick={() => router.back()} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
@@ -117,7 +117,7 @@ export default function CuratedListsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+    <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
       <header className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-4">
           <button onClick={() => router.back()} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
@@ -160,7 +160,7 @@ export default function CuratedListsPage() {
                     onClick={() => handleListClick(list)}
                     className={`w-full text-left p-4 rounded-lg border transition-colors ${
                       selectedList?.id === list.id
-                        ? "border-[#E87722] bg-orange-50 dark:bg-orange-950"
+                        ? "border-[#E87722] bg-zinc-900 dark:bg-zinc-950"
                         : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                     }`}
                   >

@@ -69,24 +69,24 @@ export default function TokenPriceWidget({
 
   if (loading) {
     return (
-      <div className="animate-pulse bg-gray-100 rounded-lg p-4">
-        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-        <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+      <div className="animate-pulse bg-zinc-100 rounded-lg p-4">
+        <div className="h-4 bg-zinc-200 rounded w-3/4 mb-2"></div>
+        <div className="h-8 bg-zinc-200 rounded w-1/2"></div>
       </div>
     );
   }
 
   if (error || !tokenData) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-600 text-sm">⚠️ {error || 'Token not found'}</p>
+      <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
+        <p className="text-zinc-500 text-sm">⚠️ {error || 'Token not found'}</p>
       </div>
     );
   }
 
   if (compact) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow">
+      <div className="bg-white rounded-lg border border-zinc-800 p-3 hover:shadow-md transition-shadow">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {tokenData.image && (
@@ -94,7 +94,7 @@ export default function TokenPriceWidget({
             )}
             <div>
               <div className="font-semibold text-sm">{tokenData.symbol}</div>
-              <div className="text-xs text-gray-500">{tokenData.name}</div>
+              <div className="text-xs text-zinc-500">{tokenData.name}</div>
             </div>
           </div>
           <div className="text-right">
@@ -102,7 +102,7 @@ export default function TokenPriceWidget({
               ${tokenData.currentPrice ? formatPrice(tokenData.currentPrice) : 'N/A'}
             </div>
             {tokenData.priceChangePercentage24h !== undefined && (
-              <div className={`text-xs ${tokenData.priceChangePercentage24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className={`text-xs ${tokenData.priceChangePercentage24h >= 0 ? 'text-zinc-300' : 'text-zinc-500'}`}>
                 {tokenData.priceChangePercentage24h >= 0 ? '↗' : '↘'} {Math.abs(tokenData.priceChangePercentage24h).toFixed(2)}%
               </div>
             )}
@@ -113,7 +113,7 @@ export default function TokenPriceWidget({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+    <div className="bg-white rounded-xl shadow-lg border border-zinc-800 p-6">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           {tokenData.image && (
@@ -121,7 +121,7 @@ export default function TokenPriceWidget({
           )}
           <div>
             <h3 className="text-xl font-bold">{tokenData.name}</h3>
-            <p className="text-gray-500">{tokenData.symbol}</p>
+            <p className="text-zinc-500">{tokenData.symbol}</p>
           </div>
         </div>
         {tokenData.links?.homepage?.[0] && (
@@ -129,7 +129,7 @@ export default function TokenPriceWidget({
             href={tokenData.links.homepage[0]} 
             target="_blank" 
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-700 text-sm"
+            className="text-zinc-400 hover:text-zinc-200 text-sm"
           >
             🌐 Website
           </a>
@@ -143,7 +143,7 @@ export default function TokenPriceWidget({
           </div>
           {tokenData.priceChangePercentage24h !== undefined && (
             <div className={`text-lg font-semibold flex items-center gap-1 ${
-              tokenData.priceChangePercentage24h >= 0 ? 'text-green-600' : 'text-red-600'
+              tokenData.priceChangePercentage24h >= 0 ? 'text-zinc-300' : 'text-zinc-500'
             }`}>
               {tokenData.priceChangePercentage24h >= 0 ? '📈' : '📉'}
               {tokenData.priceChangePercentage24h >= 0 ? '+' : ''}
@@ -152,50 +152,50 @@ export default function TokenPriceWidget({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-800">
           {tokenData.marketCap && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">Market Cap</div>
+              <div className="text-xs text-zinc-500 mb-1">Market Cap</div>
               <div className="font-semibold">${formatLargeNumber(tokenData.marketCap)}</div>
             </div>
           )}
           {tokenData.totalVolume && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">24h Volume</div>
+              <div className="text-xs text-zinc-500 mb-1">24h Volume</div>
               <div className="font-semibold">${formatLargeNumber(tokenData.totalVolume)}</div>
             </div>
           )}
           {tokenData.liquidity?.usd && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">Liquidity</div>
+              <div className="text-xs text-zinc-500 mb-1">Liquidity</div>
               <div className="font-semibold">${formatLargeNumber(tokenData.liquidity.usd)}</div>
             </div>
           )}
           {tokenData.circulatingSupply && (
             <div>
-              <div className="text-xs text-gray-500 mb-1">Circulating Supply</div>
+              <div className="text-xs text-zinc-500 mb-1">Circulating Supply</div>
               <div className="font-semibold">{formatLargeNumber(tokenData.circulatingSupply)} {tokenData.symbol}</div>
             </div>
           )}
         </div>
 
         {tokenData.address && (
-          <div className="pt-3 border-t border-gray-100">
-            <div className="text-xs text-gray-500 mb-1">Contract Address</div>
-            <div className="font-mono text-xs bg-gray-50 p-2 rounded break-all">
+          <div className="pt-3 border-t border-zinc-800">
+            <div className="text-xs text-zinc-500 mb-1">Contract Address</div>
+            <div className="font-mono text-xs bg-zinc-900 p-2 rounded break-all">
               {tokenData.address}
             </div>
           </div>
         )}
 
         {(tokenData.links?.twitter || tokenData.links?.telegram) && (
-          <div className="flex gap-3 pt-3 border-t border-gray-100">
+          <div className="flex gap-3 pt-3 border-t border-zinc-800">
             {tokenData.links.twitter && (
               <a
                 href={`https://twitter.com/${tokenData.links.twitter}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-600 text-sm"
+                className="text-zinc-400 hover:text-zinc-200 text-sm"
               >
                 🐦 Twitter
               </a>
@@ -205,7 +205,7 @@ export default function TokenPriceWidget({
                 href={`https://t.me/${tokenData.links.telegram}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-600 text-sm"
+                className="text-zinc-400 hover:text-zinc-200 text-sm"
               >
                 ✈️ Telegram
               </a>
@@ -214,7 +214,7 @@ export default function TokenPriceWidget({
         )}
       </div>
 
-      <div className="mt-4 text-xs text-gray-400">
+      <div className="mt-4 text-xs text-zinc-500">
         Last updated: {new Date().toLocaleTimeString()}
       </div>
     </div>

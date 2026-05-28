@@ -37,13 +37,13 @@ export default function SearchPage() {
             className="w-full p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-white"
           />
           <div className="flex gap-2 mt-2">
-            <button onClick={() => doSearch(query)} className="px-4 py-2 bg-orange-600 text-white rounded">Search</button>
+            <button onClick={() => doSearch(query)} className="px-4 py-2 bg-white text-black rounded">Search</button>
             <button onClick={() => { setQuery(''); setResults(null); }} className="px-4 py-2 border rounded">Clear</button>
           </div>
         </div>
 
         {loading && <div className="text-gray-600 dark:text-gray-400">Searching…</div>}
-        {error && <div className="text-red-600">{error}</div>}
+        {error && <div className="text-zinc-400">{error}</div>}
 
         {results && (
           <div className="space-y-3">

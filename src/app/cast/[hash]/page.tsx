@@ -52,7 +52,7 @@ export default function CastDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100 flex items-center justify-center">
         <div className="text-center">
           <div className="text-4xl mb-4">⏳</div>
           <div className="text-gray-400 dark:text-gray-500">Loading cast...</div>
@@ -63,12 +63,12 @@ export default function CastDetailPage() {
 
   if (error || !cast) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100 flex items-center justify-center">
         <div className="text-center max-w-md p-6">
           <div className="text-4xl mb-4">😔</div>
           <div className="text-xl font-bold mb-2">Cast Not Found</div>
           <div className="text-gray-400 dark:text-gray-500 mb-6">{error || 'Unable to load this cast'}</div>
-          <Link href="/" className="text-orange-600 hover:text-orange-700 dark:text-orange-500 dark:hover:text-orange-400">
+          <Link href="/" className="text-zinc-400 hover:text-white">
             ← Back to Home
           </Link>
         </div>
@@ -97,7 +97,7 @@ export default function CastDetailPage() {
   const replies = cast.replies?.casts || cast.direct_replies || [];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+    <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
       <div className="max-w-2xl mx-auto px-6 py-8">
         {/* Back Button */}
         <Link 
@@ -121,7 +121,7 @@ export default function CastDetailPage() {
             <div className="flex-1">
               <Link 
                 href={`/profile?user=${authorUsername}`}
-                className="font-bold text-lg hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                className="font-bold text-lg hover:text-white transition-colors"
               >
                 {authorName}
               </Link>
@@ -161,7 +161,7 @@ export default function CastDetailPage() {
                       href={embed.url} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="block p-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg hover:border-orange-500 transition-colors"
+                      className="block p-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg hover:border-zinc-400 transition-colors"
                     >
                       <div className="text-sm text-gray-600 dark:text-gray-400 truncate">{embed.url}</div>
                     </a>
@@ -225,7 +225,7 @@ export default function CastDetailPage() {
                         <div className="flex items-center gap-2 mb-1">
                           <Link 
                             href={`/profile?user=${replyAuthorUsername}`}
-                            className="font-bold hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                            className="font-bold hover:text-white transition-colors"
                           >
                             {replyAuthorName}
                           </Link>

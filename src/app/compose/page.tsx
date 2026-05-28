@@ -444,7 +444,7 @@ export default function ComposePage() {
             </p>
             {!signerApprovalUrl ? (
               <button
-                className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+                className="bg-white hover:bg-zinc-200 text-black px-8 py-3 rounded-lg font-medium transition-colors"
                 onClick={handleEnablePosting}
                 disabled={loading}
               >
@@ -456,7 +456,7 @@ export default function ComposePage() {
                   href={signerApprovalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-block bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-medium transition-colors"
+                  className="inline-block bg-white hover:bg-zinc-200 text-black px-8 py-3 rounded-lg font-medium transition-colors"
                 >
                   Approve in Warpcast →
                 </a>
@@ -555,7 +555,7 @@ export default function ComposePage() {
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
                     uploadingImage 
                       ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
-                      : 'bg-orange-600 hover:bg-orange-700 text-white'
+                      : 'bg-white hover:bg-zinc-200 text-black'
                   }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -637,7 +637,7 @@ export default function ComposePage() {
                   </div>
                 )}
                 {urlPreview.isArticle && urlPreview.articleText && (
-                  <div className="text-xs text-orange-500 font-medium mt-2">
+                  <div className="text-xs text-zinc-400 font-medium mt-2">
                     📰 Article preview will be added to your cast
                   </div>
                 )}
@@ -752,7 +752,7 @@ export default function ComposePage() {
                   Cancel
                 </button>
                 <button
-                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
                   onClick={handlePost}
                 >

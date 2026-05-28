@@ -423,7 +423,7 @@ export default function FeedList({
                       color: 'inherit',
                       display: 'block'
                     }}
-                    className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                    className="hover:text-white dark:hover:text-zinc-200 transition-colors"
                   >
                     {authorName}
                   </Link>
@@ -595,7 +595,7 @@ export default function FeedList({
                         fontSize: 'inherit',
                         padding: '0',
                       }}
-                      className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                      className="hover:text-white dark:hover:text-zinc-200 transition-colors"
                     >
                       ... <span style={{ textDecoration: 'underline' }}>more</span>
                     </button>
@@ -653,7 +653,7 @@ export default function FeedList({
                     fontSize: '12px',
                     padding: '0'
                   }}
-                  className="hover:text-orange-600 dark:hover:text-orange-500 transition-colors"
+                  className="hover:text-white dark:hover:text-zinc-200 transition-colors"
                 >
                   Show less
                 </button>

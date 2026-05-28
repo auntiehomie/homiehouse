@@ -53,7 +53,7 @@ function parseTextWithMentions(text: string): ReactNode[] {
         <Link
           key={match.index}
           href={`/profile?user=${username}`}
-          className="text-blue-500 hover:text-blue-600 hover:underline font-medium"
+          className="text-zinc-400 hover:text-white hover:underline font-medium"
         >
           @{username}
         </Link>
@@ -67,7 +67,7 @@ function parseTextWithMentions(text: string): ReactNode[] {
           href={`https://warpcast.com/~/profiles/${fid}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-500 hover:text-blue-600 hover:underline font-medium"
+          className="text-zinc-400 hover:text-white hover:underline font-medium"
         >
           FID: {fid}
         </Link>
@@ -285,7 +285,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   setMessages([]);
                   localStorage.removeItem('hh_chat_history');
                 }}
-                className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-300 dark:hover:text-zinc-200"
                 title="Clear conversation history"
               >
                 🗑️ Clear
@@ -308,7 +308,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               onClick={() => setMode(m)}
               className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
                 mode === m
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-white text-black'
                   : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
               }`}
               title={modeDescriptions[m]}
@@ -431,7 +431,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             <div
               className={`max-w-[80%] rounded-lg p-3 ${
                 msg.role === 'user'
-                  ? 'bg-blue-500 text-white'
+                  ? 'bg-white text-black'
                   : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
               }`}
             >
@@ -446,7 +446,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   remarkPlugins={[remarkGfm]}
                   components={{
                     a: ({ node, ...props }) => (
-                      <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline" />
+                      <a {...props} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white hover:underline" />
                     ),
                     code: ({ node, className, children, ...props }) => {
                       const match = /language-(\w+)/.exec(className || '');
@@ -503,7 +503,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                         }));
                       }
                     }}
-                    className="text-xs px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors flex items-center gap-1"
+                    className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors flex items-center gap-1"
                     title="Share as cast"
                   >
                     <span>📤</span>
@@ -536,7 +536,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                         {onCastSelect && (
                           <button
                             onClick={() => onCastSelect(suggestion)}
-                            className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            className="text-xs px-2 py-1 bg-white text-black rounded hover:bg-zinc-200"
                           >
                             Use this
                           </button>
@@ -598,7 +598,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               value={input}
               onChange={setInput}
               placeholder={`${modeDescriptions[mode]}...`}
-              className="w-full px-4 py-3 text-base rounded-lg border-2 border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+              className="w-full px-4 py-3 text-base rounded-lg border-2 border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-400 disabled:opacity-50"
               onUserSelect={(user) => {
                 console.log('User mentioned:', user);
               }}
@@ -607,7 +607,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="px-8 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors whitespace-nowrap"
+            className="px-8 py-3 bg-white text-black rounded-lg hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors whitespace-nowrap"
           >
             Send
           </button>

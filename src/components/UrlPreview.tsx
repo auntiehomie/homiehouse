@@ -88,7 +88,7 @@ export default function UrlPreview({ url }: { url: string }) {
         href={url} 
         target="_blank" 
         rel="noopener noreferrer" 
-        className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-orange-600 dark:text-orange-500 hover:bg-gray-50 dark:hover:bg-zinc-800"
+        className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
       >
         🔗 {url.length > 80 ? url.substring(0, 80) + '…' : url}
       </a>
@@ -104,7 +104,7 @@ export default function UrlPreview({ url }: { url: string }) {
         href={m.url || url} 
         target="_blank" 
         rel="noopener noreferrer" 
-        className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-orange-600 dark:text-orange-500 hover:bg-gray-50 dark:hover:bg-zinc-800"
+        className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
       >
         🔗 {(m.url || url).length > 80 ? (m.url || url).substring(0, 80) + '…' : (m.url || url)}
       </a>
