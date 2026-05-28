@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useNeynarContext } from "@/hooks/useNeynarCompat";
-import Link from "next/link";
 import ComposeModal from "../components/ComposeModal";
 import ScheduledCastsModal from "../components/ScheduledCastsModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
@@ -54,7 +53,7 @@ export default function Home() {
   // Landing page for unauthenticated users
   if (showLanding) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100 flex flex-col">
+      <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col">
         <header className="px-4 sm:px-6 py-6 sm:py-8 flex justify-end">
           <NeynarSignIn />
         </header>
@@ -126,51 +125,29 @@ export default function Home() {
 
   // Authenticated user experience
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-zinc-100">
+    <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100">
       <WelcomeModal />
       <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <div className="flex-shrink-0">
             <h1 className="text-base sm:text-xl font-bold">HomieHouse</h1>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 hidden sm:block">Your Social Hub</p>
+            <p className="text-xs text-zinc-500 hidden sm:block">Your Social Hub</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ minWidth: 260 }}>
-              {/* Header search box */}
-              <form onSubmit={(e) => { e.preventDefault(); /* handled by input */ }}>
-                <input
-                  id="header-search-input"
-                  placeholder="Search people..."
-                  className="w-full p-2 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-gray-900 dark:text-white"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const v = (e.target as HTMLInputElement).value.trim();
-                      if (v) window.location.href = `/search?q=${encodeURIComponent(v)}`;
-                    }
-                  }}
-                />
-              </form>
-            </div>
-
-            <Link
-              href="/wallet"
-              className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-              title="Wallet"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                />
-              </svg>
-            </Link>
+          {/* Search — hidden on small mobile, visible sm+ */}
+          <div className="hidden sm:block flex-1 max-w-xs">
+            <input
+              id="header-search-input"
+              placeholder="Search people..."
+              className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent text-inherit text-sm"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const v = (e.target as HTMLInputElement).value.trim();
+                  if (v) window.location.href = `/search?q=${encodeURIComponent(v)}`;
+                }
+              }}
+            />
+          </div>
+          <div className="ml-auto">
             <NeynarSignIn />
           </div>
         </div>

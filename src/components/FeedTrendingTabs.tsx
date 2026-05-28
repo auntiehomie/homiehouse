@@ -50,48 +50,16 @@ export default function FeedTrendingTabs() {
             >
               Global
             </button>
-            <div className="hidden sm:block w-px bg-zinc-200 dark:bg-zinc-800 h-6 mx-1" />
-            <a
-              href="/lists"
-              className="btn text-xs sm:text-sm"
-              style={{ padding: '6px 12px', minWidth: 'auto' }}
-            >
-              📝 Lists
-            </a>
-            <a
-              href="/ask-homie"
-              className="btn text-xs sm:text-sm"
-              style={{ padding: '6px 12px', minWidth: 'auto' }}
-            >
-              💬 Ask Homie
-            </a>
           </>
         )}
       </div>
 
       {selectedChannel && (
-        <div style={{ 
-          padding: '8px 12px', 
-          background: 'var(--accent)', 
-          color: 'white',
-          borderRadius: '8px', 
-          marginBottom: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <span style={{ fontSize: '14px', fontWeight: 600 }}>Viewing: {selectedChannel}</span>
-          <button 
+        <div className="flex items-center justify-between px-3 py-2 mb-4 rounded-lg bg-zinc-800 text-zinc-100">
+          <span className="text-sm font-semibold">Viewing: {selectedChannel}</span>
+          <button
             onClick={() => setSelectedChannel(null)}
-            style={{ 
-              background: 'rgba(255,255,255,0.2)', 
-              border: 'none',
-              color: 'white',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
+            className="text-xs px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 transition-colors"
           >
             Clear
           </button>
