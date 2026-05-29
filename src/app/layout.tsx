@@ -3,6 +3,7 @@ import "./globals.css";
 import SdkDevMock from "../components/SdkDevMock";
 import PrivyAuthProvider from "../components/PrivyAuthProvider";
 import PrivyAuthSync from "../components/PrivyAuthSync";
+import SignerInit from "../components/SignerInit";
 import BottomNav from "../components/BottomNav";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.xyz';
@@ -99,6 +100,7 @@ export default function RootLayout({
       <body className={`antialiased`}>
         <PrivyAuthProvider>
           <PrivyAuthSync />
+          <SignerInit />
           <SdkDevMock />
           <div className="pb-20 md:pb-8">
             {children}

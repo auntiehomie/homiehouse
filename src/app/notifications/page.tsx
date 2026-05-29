@@ -77,25 +77,7 @@ export default function NotificationsPage() {
         return;
       }
 
-      // Get signerUuid for authenticated request
-      let signerUuid = '';
-      const signerData = localStorage.getItem(`signer_${fid}`);
-      if (signerData) {
-        try {
-          const parsed = JSON.parse(signerData);
-          signerUuid = parsed.signer_uuid || '';
-        } catch {
-          // ignore
-        }
-      }
-
-      if (!signerUuid) {
-        setError('Please sign in and approve a signer to view notifications');
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`/api/notifications?fid=${fid}&signerUuid=${encodeURIComponent(signerUuid)}`);
+      const response = await fetch(`/api/notifications?fid=${fid}`);
       if (!response.ok) {
         throw new Error('Failed to fetch notifications');
       }

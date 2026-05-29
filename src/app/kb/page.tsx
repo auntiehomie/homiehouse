@@ -29,16 +29,16 @@ export default function KnowledgeBasePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user?.signer_uuid) return;
+    if (!user?.fid) return;
     fetchKB();
-  }, [user?.signer_uuid]);
+  }, [user?.fid]);
 
   async function fetchKB() {
     setLoading(true);
     setError(null);
     try {
-      const signerUuid = user?.signer_uuid ?? '';
-      const res = await fetch(`/api/curated-lists?signerUuid=${encodeURIComponent(signerUuid)}`);
+      const fid = user?.fid ?? 0;
+      const res = await fetch(`/api/curated-lists?fid=${fid}`);
       if (!res.ok) throw new Error("Failed to load knowledge base");
       const data = await res.json();
       const allLists: CuratedList[] = data.lists || [];
@@ -52,7 +52,7 @@ export default function KnowledgeBasePage() {
       if (kbList) {
         // Fetch items for the KB list
         const itemsRes = await fetch(
-          `/api/curated-lists/${kbList.id}/items?signerUuid=${encodeURIComponent(user?.signer_uuid ?? '')}`
+          `/api/curated-lists/${kbList.id}/items?fid=${fid}`
         );
         if (itemsRes.ok) {
           const itemsData = await itemsRes.json();

@@ -1,88 +1,57 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 
 interface NotificationBadgeProps {
   className?: string;
+  onView?: () => void;
 }
 
-export default function NotificationBadge({ className = '' }: NotificationBadgeProps) {
+export default function NotificationBadge({ className = '', onView }: NotificationBadgeProps) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadUnreadCount();
-
-    // Poll for updates every 60 seconds
-    const interval = setInterval(() => {
-      loadUnreadCount();
-    }, 60000);
-
+    const interval = setInterval(loadUnreadCount, 60000);
     return () => clearInterval(interval);
   }, []);
 
   const loadUnreadCount = async () => {
     try {
       const storedProfile = localStorage.getItem('hh_profile');
-      if (!storedProfile) {
-        setLoading(false);
-        return;
-      }
+      if (!storedProfile) return;
+      const { fid } = JSON.parse(storedProfile);
+      if (!fid) return;
 
-      const profile = JSON.parse(storedProfile);
-      const fid = profile?.fid;
-
-      if (!fid) {
-        setLoading(false);
-        return;
-      }
-
-      // Get last viewed timestamp from localStorage
       const lastViewed = localStorage.getItem('hh_last_notif_view');
       const lastViewedTime = lastViewed ? new Date(lastViewed) : new Date(0);
 
-      const response = await fetch(`/api/notifications?fid=${fid}`);
-      if (!response.ok) {
-        setLoading(false);
-        return;
-      }
+      const res = await fetch(`/api/notifications?fid=${fid}`);
+      if (!res.ok) return;
 
-      const data = await response.json();
-      const notifications = data.notifications || [];
-
-      // Count notifications newer than last viewed
-      const unread = notifications.filter((notif: any) => {
-        const notifTime = new Date(notif.timestamp || notif.most_recent_timestamp || 0);
-        return notifTime > lastViewedTime;
+      const data = await res.json();
+      const unread = (data.notifications || []).filter((n: any) => {
+        const t = new Date(n.timestamp || n.most_recent_timestamp || 0);
+        return t > lastViewedTime;
       }).length;
 
       setUnreadCount(unread);
-    } catch (error) {
-      console.error('Error loading unread count:', error);
-    } finally {
-      setLoading(false);
+    } catch {
+      // silently fail
     }
   };
 
-  // Mark notifications as viewed when clicking the badge
-  const handleClick = () => {
-    localStorage.setItem('hh_last_notif_view', new Date().toISOString());
-    setUnreadCount(0);
-  };
-
   return (
-    <Link
-      href="/notifications"
-      onClick={handleClick}
-      className={`relative ${className}`}
-    >
-      🔔
-      {!loading && unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+    <span className={`relative inline-flex ${className}`}>
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-full h-full">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+      {unreadCount > 0 && (
+        <span className="absolute -top-1 -right-1 bg-white text-black text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center leading-none">
           {unreadCount > 9 ? '9+' : unreadCount}
         </span>
       )}
-    </Link>
+    </span>
   );
 }

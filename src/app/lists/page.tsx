@@ -125,7 +125,7 @@ export default function CuratedListsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold">My Curated Lists</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">My Lists</h1>
         </div>
       </header>
 
@@ -160,7 +160,7 @@ export default function CuratedListsPage() {
                     onClick={() => handleListClick(list)}
                     className={`w-full text-left p-4 rounded-lg border transition-colors ${
                       selectedList?.id === list.id
-                        ? "border-[#E87722] bg-zinc-900 dark:bg-zinc-950"
+                        ? "border-white bg-zinc-900 dark:bg-zinc-950"
                         : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                     }`}
                   >
@@ -212,7 +212,7 @@ export default function CuratedListsPage() {
                                 <Link
                                   href={`https://warpcast.com/~/conversations/${item.cast_hash}`}
                                   target="_blank"
-                                  className="text-[#E87722] hover:underline"
+                                  className="text-[#a1a1aa] hover:underline"
                                 >
                                   View on Warpcast →
                                 </Link>
