@@ -494,222 +494,185 @@ export default function ComposePage() {
               </div>
             )}
             
-            {/* Image upload section */}
-            <div className="mt-4 border-t border-zinc-800 pt-4">
-              <div className="flex gap-3 items-center mb-3">
-                <label 
-                  htmlFor="image-upload-compose"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-                    uploadingImage 
-                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
-                      : 'bg-white hover:bg-zinc-200 text-black'
-                  }`}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {uploadingImage ? 'Uploading...' : 'Add Image'}
-                </label>
-                <input
-                  id="image-upload-compose"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={uploadingImage}
-                  className="hidden"
+            {/* Image preview */}
+            {imageUrl && (
+              <div className="relative mt-3">
+                <img
+                  src={imageUrl}
+                  alt="Preview"
+                  className="max-w-full max-h-48 rounded-xl border border-zinc-800"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
-                <span className="text-xs text-zinc-500">or paste URL</span>
+                <button
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-black/80 text-white rounded-full text-sm"
+                >
+                  ✕
+                </button>
               </div>
-              
-              <input
-                type="text"
-                value={imageUrl}
-                onChange={(e) => {
-                  setImageUrl(e.target.value);
-                  setUploadedImage(null);
-                }}
-                placeholder="Or paste image URL here"
-                disabled={uploadingImage}
-                className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
-              />
-              
-              {imageUrl && (
-                <div className="mt-3 relative">
-                  <img
-                    src={imageUrl}
-                    alt="Preview"
-                    className="max-w-full max-h-64 rounded-lg border border-zinc-800"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                  <button
-                    onClick={removeImage}
-                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center bg-black/70 hover:bg-black text-white rounded-full transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* URL Preview */}
             {loadingPreview && (
-              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
-                <div className="text-sm text-zinc-500">
-                  Loading preview...
-                </div>
+              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-500">
+                Loading preview…
               </div>
             )}
             {urlPreview && urlPreview.metadata && (
-              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-lg">
+              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
                 {urlPreview.metadata.image && (
-                  <img 
+                  <img
                     src={urlPreview.metadata.image}
                     alt={urlPreview.metadata.title}
-                    className="w-full h-auto max-h-48 object-cover rounded-md mb-2"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
+                    className="w-full h-auto max-h-40 object-cover rounded-lg mb-2"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                   />
                 )}
                 {urlPreview.metadata.title && (
-                  <div className="text-sm font-semibold mb-1 text-white">
-                    {urlPreview.metadata.title}
-                  </div>
+                  <div className="text-sm font-semibold mb-1 text-white">{urlPreview.metadata.title}</div>
                 )}
                 {urlPreview.metadata.description && (
-                  <div className="text-xs text-zinc-400 mb-1 line-clamp-2">
-                    {urlPreview.metadata.description}
-                  </div>
+                  <div className="text-xs text-zinc-400 line-clamp-2">{urlPreview.metadata.description}</div>
                 )}
-                {urlPreview.isArticle && urlPreview.articleText && (
-                  <div className="text-xs text-zinc-400 font-medium mt-2">
-                    📰 Article preview will be added to your cast
-                  </div>
-                )}
-                <div className="text-xs text-zinc-500 mt-2">
+                <div className="text-xs text-zinc-500 mt-1">
                   {urlPreview.metadata.siteName || new URL(detectedUrl!).hostname}
                 </div>
               </div>
             )}
-            
-            {/* Channel Selection */}
-            <div className="mt-4 border-t border-zinc-800 pt-4">
-              <label className="text-sm font-medium mb-2 block">
-                📺 Post to channel (optional)
-              </label>
-              <div className="relative">
+
+            {/* Schedule datetime picker - shown when calendar icon is toggled */}
+            {isScheduled && (
+              <div className="mt-3">
                 <input
-                  type="text"
-                  value={channelSearch}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setChannelSearch(value);
-                    setShowChannelSuggestions(true);
-                    // If user types just the channel name (without /), set it as selected
-                    const cleanValue = value.replace(/^\//, '').split(' - ')[0].trim();
-                    if (cleanValue) {
-                      setSelectedChannel(cleanValue);
-                    } else {
-                      setSelectedChannel('');
-                    }
-                  }}
-                  onFocus={() => setShowChannelSuggestions(true)}
-                  placeholder="Type channel name (e.g., replyguys, base)"
-                  className="w-full px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                  type="datetime-local"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-white text-sm focus:outline-none focus:border-zinc-500"
                 />
-                {showChannelSuggestions && channelSearch && (
-                  <div className="absolute top-full left-0 right-0 max-h-48 overflow-y-auto bg-zinc-900 border border-zinc-800 rounded-lg mt-1 z-50 shadow-lg">
-                    {channels
-                      .filter(ch => 
-                        ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) ||
-                        ch.name?.toLowerCase().includes(channelSearch.toLowerCase())
-                      )
-                      .slice(0, 10)
-                      .map((channel) => (
-                        <button
-                          key={channel.id}
-                          onClick={() => {
-                            setSelectedChannel(channel.id);
-                            setChannelSearch(`/${channel.id}${channel.name ? ` - ${channel.name}` : ''}`);
-                            setShowChannelSuggestions(false);
-                          }}
-                          className="w-full px-4 py-2 text-left text-white hover:bg-zinc-800 transition-colors"
-                        >
-                          /{channel.id} {channel.name && `- ${channel.name}`}
-                        </button>
-                      ))
-                    }
-                  </div>
-                )}
               </div>
-              {selectedChannel && (
-                <div className="text-xs text-zinc-500 mt-1">
-                  ✓ Posting to /{selectedChannel}
+            )}
+
+            {/* Compact action toolbar */}
+            <div className="relative">
+              {/* Channel picker — floats above toolbar */}
+              {showChannelSuggestions && (
+                <div className="absolute bottom-full left-0 right-0 mb-1 max-h-52 overflow-y-auto bg-zinc-950 border border-zinc-700 rounded-xl shadow-2xl z-50">
+                  <div className="p-2 border-b border-zinc-800">
+                    <input
+                      type="text"
+                      value={channelSearch}
+                      onChange={(e) => setChannelSearch(e.target.value)}
+                      placeholder="Search channels…"
+                      className="w-full px-3 py-2 bg-zinc-800 rounded-lg text-white text-sm placeholder-zinc-500 outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  {channels
+                    .filter(ch =>
+                      !channelSearch ||
+                      ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) ||
+                      ch.name?.toLowerCase().includes(channelSearch.toLowerCase())
+                    )
+                    .slice(0, 8)
+                    .map((ch) => (
+                      <button
+                        key={ch.id}
+                        onClick={() => {
+                          setSelectedChannel(ch.id);
+                          setChannelSearch('');
+                          setShowChannelSuggestions(false);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-zinc-800 transition-colors"
+                      >
+                        <span className="text-zinc-400">/</span>{ch.id}
+                        {ch.name && <span className="text-zinc-500 ml-2 text-xs">{ch.name}</span>}
+                      </button>
+                    ))
+                  }
                 </div>
               )}
-            </div>
-            
-            {/* Schedule Section */}
-            <div className="mt-4 border-t border-zinc-800 pt-4">
-              <div className="flex items-center gap-3 mb-3">
-                <input
-                  type="checkbox"
-                  id="schedule-toggle"
-                  checked={isScheduled}
-                  onChange={(e) => setIsScheduled(e.target.checked)}
-                  className="w-4 h-4 cursor-pointer"
-                />
-                <label htmlFor="schedule-toggle" className="text-sm cursor-pointer flex items-center gap-2 font-medium">
-                  📅 Schedule for later
-                </label>
-              </div>
-              
-              {isScheduled && (
-                <div className="relative">
+
+              <div className="flex items-center gap-1 mt-3 pt-3 border-t border-zinc-800">
+                {/* Photo upload icon */}
+                <label
+                  htmlFor="image-upload-compose"
+                  className={`p-2.5 rounded-full cursor-pointer transition-colors ${uploadingImage ? 'text-zinc-600 cursor-not-allowed' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                  title="Add photo"
+                >
+                  {uploadingImage ? (
+                    <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  )}
                   <input
-                    type="datetime-local"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    min={new Date().toISOString().slice(0, 16)}
-                    className="w-full px-4 py-2.5 pr-12 bg-zinc-900 border-2 border-zinc-800 rounded-lg text-white focus:outline-none focus:border-zinc-600 cursor-pointer text-[15px]"
+                    id="image-upload-compose"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                    className="hidden"
                   />
-                  <svg 
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 pointer-events-none"
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
+                </label>
+
+                {/* Channel button */}
+                <button
+                  onClick={() => setShowChannelSuggestions(!showChannelSuggestions)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${selectedChannel ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                  title="Post to channel"
+                >
+                  <span className="font-bold text-xs">#</span>
+                  <span>{selectedChannel || 'Channel'}</span>
+                  {selectedChannel && (
+                    <span
+                      role="button"
+                      onClick={(e) => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }}
+                      className="ml-0.5 leading-none text-zinc-400 hover:text-white"
+                    >
+                      ×
+                    </span>
+                  )}
+                </button>
+
+                {/* Schedule icon */}
+                <button
+                  onClick={() => setIsScheduled(!isScheduled)}
+                  className={`p-2.5 rounded-full transition-colors ${isScheduled ? 'text-white bg-zinc-700' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                  title="Schedule"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-between items-center mt-4">
-              <div className="text-sm text-zinc-500">
-                {text.length > 0 && `${text.length} characters`}
-              </div>
-              <div className="flex gap-3">
-                <button 
-                  className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors"
-                  onClick={() => router.back()}
-                >
-                  Cancel
                 </button>
+
+                <div className="flex-1" />
+
+                {text.length > 0 && (
+                  <span className={`text-xs mr-2 ${text.length > 280 ? 'text-red-400' : 'text-zinc-500'}`}>
+                    {text.length}
+                  </span>
+                )}
+
                 <button
-                  className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
                   disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
                   onClick={handlePost}
                 >
-                  {loading ? (isScheduled ? "Scheduling..." : "Posting...") : (isScheduled ? "Schedule Cast" : "Post Cast")}
+                  {loading
+                    ? (isScheduled ? 'Scheduling…' : 'Posting…')
+                    : (isScheduled ? 'Schedule' : 'Post')
+                  }
                 </button>
               </div>
             </div>
-            
+
             {status && (
-              <div className="mt-4 p-3 bg-zinc-900 rounded-lg text-sm">
+              <div className="mt-3 p-3 bg-zinc-900 rounded-lg text-sm text-zinc-300">
                 {status}
               </div>
             )}
