@@ -1,18 +1,18 @@
 'use client';
 
 /**
- * useFarcasterWrites
+ * useFarcasterWrites — app-mnemonic signer approach.
  *
- * Farcaster write operations using Privy's embedded Farcaster signer —
- * the Quorum messenger approach (QuilibriumNetwork/quorum-shared).
- *
- * No app FID, no APP_MNEMONIC. Privy manages the Ed25519 key; we build +
- * sign protobuf messages locally, then proxy through /api/submit-cast to
- * avoid browser CORS restrictions on the Farcaster hub.
+ * The app registers an Ed25519 keypair on behalf of each user via
+ * POST /api/signer (which uses APP_FID + APP_MNEMONIC to sign the Warpcast
+ * key-registration request).  SignerInit stores the resulting private_key in
+ * localStorage under `signer_<fid>`.  Once the user approves in Warpcast,
+ * all write operations sign directly with that key — no Privy TEE dependency.
  */
 
-import { useCallback } from 'react';
-import { usePrivy, useFarcasterSigner } from '@privy-io/react-auth';
+import { useCallback, useEffect, useState } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
+import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
   hexToBytes,
@@ -22,16 +22,10 @@ import {
   type CastEmbed,
 } from '@/lib/fc-message-builder';
 
-/** Convert a Farcaster channel key to the hub parentUrl format. */
 function channelKeyToParentUrl(channelKey: string): string {
   return `https://warpcast.com/~/channel/${channelKey}`;
 }
 
-/**
- * Submit a signed protobuf message via the Next.js proxy route.
- * Proxy avoids direct browser→hub CORS restrictions while keeping
- * signing 100% client-side (no private key leaves the browser).
- */
 async function submitMessage(message: Uint8Array): Promise<unknown> {
   const res = await fetch('/api/submit-cast', {
     method: 'POST',
@@ -49,9 +43,7 @@ async function submitMessage(message: Uint8Array): Promise<unknown> {
 export interface SubmitCastParams {
   text: string;
   embeds?: { url: string }[];
-  /** Farcaster channel key, e.g. "base" or "replyguys" */
   channelKey?: string;
-  /** Full parentUrl (overrides channelKey if both supplied) */
   parentUrl?: string;
 }
 
@@ -69,7 +61,6 @@ export interface ReplyParams {
 
 export interface UseFarcasterWritesReturn {
   hasActiveSigner: boolean;
-  /** Request Privy to provision a Farcaster signer (opens Warpcast approval) */
   requestSigner: () => Promise<void>;
   submitCast: (params: SubmitCastParams) => Promise<{ castHash: string }>;
   likeCast: (params: ReactionParams) => Promise<void>;
@@ -77,105 +68,96 @@ export interface UseFarcasterWritesReturn {
   recast: (params: ReactionParams) => Promise<void>;
   removeRecast: (params: ReactionParams) => Promise<void>;
   reply: (params: ReplyParams) => Promise<{ castHash: string }>;
-  /** @deprecated No longer used */
   signerApprovalUrl: null;
-  /** @deprecated No longer needed */
   checkSignerStatus: () => Promise<void>;
 }
 
 export function useFarcasterWrites(): UseFarcasterWritesReturn {
   const { user, authenticated } = usePrivy();
-  const {
-    getFarcasterSignerPublicKey,
-    signFarcasterMessage,
-    requestFarcasterSignerFromWarpcast,
-  } = useFarcasterSigner();
+  const [hasActiveSigner, setHasActiveSigner] = useState(false);
 
   const farcasterAccount = user?.linkedAccounts?.find(
     (a: any) => a.type === 'farcaster'
   ) as any | undefined;
   const fid: number = farcasterAccount?.fid ?? 0;
 
-  const hasActiveSigner = !!(authenticated && fid);
+  const refreshSignerState = useCallback(() => {
+    if (!fid) { setHasActiveSigner(false); return; }
+    try {
+      const raw = localStorage.getItem(`signer_${fid}`);
+      if (raw) {
+        const data = JSON.parse(raw);
+        setHasActiveSigner(data.status === 'approved' && !!data.private_key);
+      } else {
+        setHasActiveSigner(false);
+      }
+    } catch { setHasActiveSigner(false); }
+  }, [fid]);
+
+  useEffect(() => {
+    refreshSignerState();
+    window.addEventListener('hh:signer:approved', refreshSignerState);
+    return () => window.removeEventListener('hh:signer:approved', refreshSignerState);
+  }, [refreshSignerState]);
 
   const getSigner = useCallback(async (): Promise<FarcasterSigner> => {
-    if (!authenticated) {
-      throw new Error('Sign in to post.');
+    if (!authenticated) throw new Error('Sign in to post.');
+    if (!fid) throw new Error('Connect your Farcaster account first.');
+
+    const raw = localStorage.getItem(`signer_${fid}`);
+    if (!raw) {
+      window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));
+      throw new Error('Setting up your signer — please approve in Warpcast when prompted.');
     }
-    if (!fid) {
-      throw new Error('Connect your Farcaster account first.');
-    }
-    let publicKeyBytes: Uint8Array;
-    try {
-      publicKeyBytes = await getFarcasterSignerPublicKey();
-    } catch (err: any) {
-      const msg: string = err?.message ?? '';
-      if (/TEE execution|on-device execution/i.test(msg)) {
-        throw new Error(
-          'Farcaster posting requires your Privy app to use On-Device wallet mode. ' +
-          'Enable it in the Privy dashboard under Embedded Wallets → Execution Environment.',
-        );
+
+    const data = JSON.parse(raw);
+    if (data.status !== 'approved') {
+      if (data.signer_approval_url) {
+        window.dispatchEvent(new CustomEvent('showWelcomeModal', {
+          detail: { approvalUrl: data.signer_approval_url },
+        }));
       }
-      if (/not.*approved|no.*signer|request.*signer|must have a farcaster signer/i.test(msg)) {
-        await requestFarcasterSignerFromWarpcast();
-        publicKeyBytes = await getFarcasterSignerPublicKey();
-      } else {
-        throw err;
-      }
+      throw new Error('Please approve your signer in Warpcast to post.');
     }
+
+    if (!data.private_key) throw new Error('Signer key missing. Please sign out and sign in again.');
+
+    const privateKeyBytes = hexToBytes(data.private_key);
+    const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
+
     return {
       publicKey: publicKeyBytes,
-      sign: (hash) => signFarcasterMessage(hash),
+      sign: async (hash: Uint8Array) => ed25519.sign(hash, privateKeyBytes),
     };
-  }, [authenticated, fid, getFarcasterSignerPublicKey, signFarcasterMessage, requestFarcasterSignerFromWarpcast]);
+  }, [authenticated, fid]);
 
   const requestSigner = useCallback(async () => {
-    await requestFarcasterSignerFromWarpcast();
-  }, [requestFarcasterSignerFromWarpcast]);
+    window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));
+  }, [fid]);
 
   const submitCast = useCallback(async (params: SubmitCastParams): Promise<{ castHash: string }> => {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
-
-    // channelKey → parentUrl (Farcaster channel posts use parentUrl)
-    const resolvedParentUrl =
-      params.parentUrl || (params.channelKey ? channelKeyToParentUrl(params.channelKey) : undefined);
-
+    const resolvedParentUrl = params.parentUrl || (params.channelKey ? channelKeyToParentUrl(params.channelKey) : undefined);
     const message = await buildSignedMessage(
-      {
-        type: MessageType.CAST_ADD,
-        fid,
-        body: {
-          castAddBody: {
-            text: params.text,
-            embeds: embeds.length ? embeds : undefined,
-            parent: resolvedParentUrl ? { url: resolvedParentUrl } : undefined,
-          },
-        },
-      },
+      { type: MessageType.CAST_ADD, fid, body: { castAddBody: {
+        text: params.text,
+        embeds: embeds.length ? embeds : undefined,
+        parent: resolvedParentUrl ? { url: resolvedParentUrl } : undefined,
+      } } },
       signer,
     );
-
     const result: any = await submitMessage(message);
-    const castHash: string =
-      result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '';
-    return { castHash };
+    return { castHash: result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '' };
   }, [getSigner, fid]);
 
   const likeCast = useCallback(async (params: ReactionParams): Promise<void> => {
     const signer = await getSigner();
-    const targetHashBytes = hexToBytes(params.targetCastHash);
     const message = await buildSignedMessage(
-      {
-        type: MessageType.REACTION_ADD,
-        fid,
-        body: {
-          reactionBody: {
-            type: ReactionType.LIKE,
-            target: { castId: { fid: params.targetCastFid, hash: targetHashBytes } },
-          },
-        },
-      },
+      { type: MessageType.REACTION_ADD, fid, body: { reactionBody: {
+        type: ReactionType.LIKE,
+        target: { castId: { fid: params.targetCastFid, hash: hexToBytes(params.targetCastHash) } },
+      } } },
       signer,
     );
     await submitMessage(message);
@@ -183,18 +165,11 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
 
   const unlikeCast = useCallback(async (params: ReactionParams): Promise<void> => {
     const signer = await getSigner();
-    const targetHashBytes = hexToBytes(params.targetCastHash);
     const message = await buildSignedMessage(
-      {
-        type: MessageType.REACTION_REMOVE,
-        fid,
-        body: {
-          reactionBody: {
-            type: ReactionType.LIKE,
-            target: { castId: { fid: params.targetCastFid, hash: targetHashBytes } },
-          },
-        },
-      },
+      { type: MessageType.REACTION_REMOVE, fid, body: { reactionBody: {
+        type: ReactionType.LIKE,
+        target: { castId: { fid: params.targetCastFid, hash: hexToBytes(params.targetCastHash) } },
+      } } },
       signer,
     );
     await submitMessage(message);
@@ -202,18 +177,11 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
 
   const recast = useCallback(async (params: ReactionParams): Promise<void> => {
     const signer = await getSigner();
-    const targetHashBytes = hexToBytes(params.targetCastHash);
     const message = await buildSignedMessage(
-      {
-        type: MessageType.REACTION_ADD,
-        fid,
-        body: {
-          reactionBody: {
-            type: ReactionType.RECAST,
-            target: { castId: { fid: params.targetCastFid, hash: targetHashBytes } },
-          },
-        },
-      },
+      { type: MessageType.REACTION_ADD, fid, body: { reactionBody: {
+        type: ReactionType.RECAST,
+        target: { castId: { fid: params.targetCastFid, hash: hexToBytes(params.targetCastHash) } },
+      } } },
       signer,
     );
     await submitMessage(message);
@@ -221,18 +189,11 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
 
   const removeRecast = useCallback(async (params: ReactionParams): Promise<void> => {
     const signer = await getSigner();
-    const targetHashBytes = hexToBytes(params.targetCastHash);
     const message = await buildSignedMessage(
-      {
-        type: MessageType.REACTION_REMOVE,
-        fid,
-        body: {
-          reactionBody: {
-            type: ReactionType.RECAST,
-            target: { castId: { fid: params.targetCastFid, hash: targetHashBytes } },
-          },
-        },
-      },
+      { type: MessageType.REACTION_REMOVE, fid, body: { reactionBody: {
+        type: ReactionType.RECAST,
+        target: { castId: { fid: params.targetCastFid, hash: hexToBytes(params.targetCastHash) } },
+      } } },
       signer,
     );
     await submitMessage(message);
@@ -240,28 +201,17 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
 
   const reply = useCallback(async (params: ReplyParams): Promise<{ castHash: string }> => {
     const signer = await getSigner();
-    const parentHashBytes = hexToBytes(params.parentCastHash);
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
-
     const message = await buildSignedMessage(
-      {
-        type: MessageType.CAST_ADD,
-        fid,
-        body: {
-          castAddBody: {
-            text: params.text,
-            embeds: embeds.length ? embeds : undefined,
-            parent: { castId: { fid: params.parentCastFid, hash: parentHashBytes } },
-          },
-        },
-      },
+      { type: MessageType.CAST_ADD, fid, body: { castAddBody: {
+        text: params.text,
+        embeds: embeds.length ? embeds : undefined,
+        parent: { castId: { fid: params.parentCastFid, hash: hexToBytes(params.parentCastHash) } },
+      } } },
       signer,
     );
-
     const result: any = await submitMessage(message);
-    const castHash: string =
-      result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '';
-    return { castHash };
+    return { castHash: result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '' };
   }, [getSigner, fid]);
 
   return {
