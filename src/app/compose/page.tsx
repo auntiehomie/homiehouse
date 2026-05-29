@@ -39,12 +39,15 @@ export default function ComposePage() {
 
   async function fetchChannels(fid: number) {
     try {
-      // Fetch all available channels (not user-specific)
-      const response = await fetch('/api/channels?limit=50');
+      const response = await fetch(`/api/channels?fid=${fid}&limit=100`);
       const data = await response.json();
-      
+
       if (data.ok && data.channels) {
-        setChannels(data.channels);
+        // Filter to human-readable channel IDs only (exclude token-gated URI channels)
+        const clean = data.channels.filter((ch: any) =>
+          ch.id && !ch.id.includes(':') && !ch.id.includes('/')
+        );
+        setChannels(clean.length ? clean : data.channels.slice(0, 20));
       } else {
         // Fallback to popular channels
         setChannels([
