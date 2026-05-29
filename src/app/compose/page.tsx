@@ -226,7 +226,7 @@ export default function ComposePage() {
     setStatus(null);
     try {
       await requestSigner();
-      setStatus("Approve in the Warpcast tab that just opened, then click Check Status.");
+      setStatus("A popup should appear — scan the QR code or tap the link to approve in Farcaster.");
     } catch (e: any) {
       setStatus(`Error: ${e.message}`);
     } finally {
@@ -399,7 +399,7 @@ export default function ComposePage() {
             <div className="text-6xl mb-6">🔐</div>
             <h2 className="text-2xl font-bold mb-4">Enable Posting</h2>
             <p className="text-zinc-400 mb-8 max-w-md mx-auto">
-              To post casts from HomieHouse, approve posting permissions via Warpcast.
+              To post casts from HomieHouse, approve posting permissions via Farcaster.
               This only needs to be done once.
             </p>
             <button

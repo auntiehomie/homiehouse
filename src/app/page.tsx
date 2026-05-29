@@ -7,7 +7,6 @@ import ScheduledCastsModal from "../components/ScheduledCastsModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import NeynarSignIn from "../components/NeynarSignIn";
 import ChannelsList from "../components/ChannelsList";
-import WelcomeModal from "../components/WelcomeModal";
 
 const MESSAGES = [
   "HomieHouse - Your Social Hub",
@@ -126,7 +125,6 @@ export default function Home() {
   // Authenticated user experience
   return (
     <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100">
-      <WelcomeModal />
       <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0">

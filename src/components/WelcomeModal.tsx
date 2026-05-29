@@ -50,7 +50,7 @@ export default function WelcomeModal() {
           window.location.reload();
         }, 300);
       } else {
-        alert("Not approved yet. Please approve in Warpcast first.");
+        alert("Not approved yet. Please approve in Farcaster first.");
       }
     } catch (error) {
       console.error("Error checking approval:", error);
@@ -75,7 +75,7 @@ export default function WelcomeModal() {
             Welcome to HomieHouse!
           </h3>
           <p style={{ color: 'var(--muted-on-dark)', marginBottom: 24, lineHeight: 1.6 }}>
-            To like, recast, and post content, you need to approve posting permissions in Warpcast. 
+            To like, recast, and post content, you need to approve posting permissions in Farcaster. 
             <strong> This is a one-time setup that takes 5 seconds.</strong>
           </p>
           
@@ -94,7 +94,7 @@ export default function WelcomeModal() {
                 className="btn primary" 
                 style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: '12px', width: '100%' }}
               >
-                Approve in Warpcast →
+                Approve in Farcaster →
               </a>
             </>
           )}
