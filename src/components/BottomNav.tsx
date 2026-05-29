@@ -39,7 +39,12 @@ export default function BottomNav() {
           </Link>
 
           {/* Notifications */}
-          <Link href="/notifications" className={cls("/notifications")} aria-label="Notifications">
+          <Link
+            href="/notifications"
+            className={cls("/notifications")}
+            aria-label="Notifications"
+            onClick={() => localStorage.setItem('hh_last_notif_view', new Date().toISOString())}
+          >
             <NotificationBadge className="w-5 h-5" />
             <span>Alerts</span>
           </Link>
