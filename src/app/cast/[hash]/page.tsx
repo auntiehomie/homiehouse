@@ -21,24 +21,15 @@ export default function CastDetailPage() {
 
     const fetchCastDetail = async () => {
       try {
-        // Fetch cast via our own API route which uses Pinata under the hood
-        const response = await fetch(`/api/miniapp/analyze-cast?hash=${encodeURIComponent(hash)}`, {
-          headers: {
-            'accept': 'application/json',
-          },
-        });
+        const response = await fetch(`/api/cast?hash=${encodeURIComponent(hash)}`);
 
         if (!response.ok) {
-          throw new Error('Failed to fetch cast');
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to fetch cast');
         }
 
         const data = await response.json();
-        // /api/miniapp/analyze-cast returns { cast, author, engagement, reputation }
-        // Reconstruct a cast-shaped object for the page
-        const castData = data.cast
-          ? { ...data.cast, author: data.author, reactions: { likes_count: data.engagement?.likes, recasts_count: data.engagement?.recasts }, replies: { count: data.engagement?.replies } }
-          : data;
-        setCast(castData);
+        setCast(data.cast);
       } catch (err: any) {
         console.error('Error fetching cast:', err);
         setError(err.message || 'Failed to load cast');
