@@ -56,6 +56,14 @@ export default function WelcomeModal() {
       const data = await res.json();
 
       if (data.ok && data.status === "approved") {
+        if (!parsed.private_key) {
+          // Key was lost (old version of app stored without private_key) — clear and restart
+          localStorage.removeItem(key);
+          setError("Approval confirmed, but the signing key was lost. Creating a new signer — please wait…");
+          const newFid = getFid();
+          if (newFid) window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: newFid } }));
+          return;
+        }
         parsed.status = "approved";
         localStorage.setItem(key, JSON.stringify(parsed));
         window.dispatchEvent(new Event('hh:signer:approved'));
@@ -78,20 +86,33 @@ export default function WelcomeModal() {
       const fid = getFid();
       if (!fid) throw new Error('Could not find your Farcaster ID. Please sign in again.');
 
-      const { publicKeyHex, privateKeyHex } = await provisionSignerWithMnemonic(fid, phrase);
-
-      localStorage.setItem(`signer_${fid}`, JSON.stringify({
-        signer_uuid: null,
-        public_key: `0x${publicKeyHex}`,
-        private_key: privateKeyHex,
-        status: 'approved',
-        signer_approval_url: null,
-      }));
-
-      window.dispatchEvent(new Event('hh:signer:approved'));
+      const result = await provisionSignerWithMnemonic(fid, phrase);
       setPhrase('');
-      setShow(false);
-      setTimeout(() => window.location.reload(), 300);
+
+      if (result.status === 'approved') {
+        localStorage.setItem(`signer_${fid}`, JSON.stringify({
+          signer_uuid: result.signer_uuid ?? null,
+          public_key: `0x${result.publicKeyHex}`,
+          private_key: result.privateKeyHex,
+          status: 'approved',
+          signer_approval_url: null,
+        }));
+        window.dispatchEvent(new Event('hh:signer:approved'));
+        setShow(false);
+        setTimeout(() => window.location.reload(), 300);
+      } else {
+        // Warpcast still requires in-app approval — store the key and switch to QR tab
+        localStorage.setItem(`signer_${fid}`, JSON.stringify({
+          signer_uuid: result.signer_uuid ?? null,
+          public_key: `0x${result.publicKeyHex}`,
+          private_key: result.privateKeyHex,
+          status: 'pending_approval',
+          signer_approval_url: result.signer_approval_url ?? null,
+        }));
+        setApprovalUrl(result.signer_approval_url ?? null);
+        setMethod('farcaster');
+        setError('One more step — tap the link or scan the QR code in your Farcaster app to approve.');
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to set up signer');
     } finally {

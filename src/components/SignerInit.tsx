@@ -43,7 +43,11 @@ async function initSigner(fid: number) {
       const stored = JSON.parse(raw);
       if (stored.status === 'approved' && stored.private_key) return; // already good
 
-      if (stored.signer_uuid) {
+      // Approved but private key was lost (old version of app) — must recreate
+      if (stored.status === 'approved' && !stored.private_key) {
+        localStorage.removeItem(key);
+        // fall through to create a new signer below
+      } else if (stored.signer_uuid) {
         // Check if it was approved externally since last visit
         const res = await fetch(`/api/signer?signer_uuid=${stored.signer_uuid}`);
         const data = await res.json();

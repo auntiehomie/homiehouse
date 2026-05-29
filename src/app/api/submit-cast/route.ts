@@ -26,11 +26,14 @@ export async function POST(request: NextRequest) {
       body: messageBytes,
     });
 
-    const data = await hubRes.json().catch(() => ({}));
+    const rawText = await hubRes.text();
+    let data: any = {};
+    try { data = JSON.parse(rawText); } catch { /* non-JSON body */ }
 
     if (!hubRes.ok) {
+      const errMsg = data?.message || data?.errMsg || data?.error || rawText.slice(0, 300) || `Hub error ${hubRes.status}`;
       return NextResponse.json(
-        { ok: false, error: data?.message || data?.errMsg || `Hub error ${hubRes.status}`, hub: data },
+        { ok: false, error: errMsg, hub: data },
         { status: hubRes.status }
       );
     }
