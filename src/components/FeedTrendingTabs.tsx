@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import FeedList from "./FeedList";
 import TrendingList from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
+import ChannelStrip from "./ChannelStrip";
 
 export type FeedType = 'following' | 'global';
 
@@ -65,6 +66,8 @@ export default function FeedTrendingTabs() {
           </button>
         </div>
       )}
+
+      {tab === 'feed' && <ChannelStrip />}
 
       <div>
         {tab === 'feed' ? (
