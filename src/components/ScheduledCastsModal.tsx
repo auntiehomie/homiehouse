@@ -16,28 +16,14 @@ export default function ScheduledCastsModal() {
   const [loading, setLoading] = useState(false);
   const [scheduledCasts, setScheduledCasts] = useState<ScheduledCast[]>([]);
   const [userFid, setUserFid] = useState<number | null>(null);
-  const [signerUuid, setSignerUuid] = useState<string | null>(null);
 
-  // Load user profile and signer
+  // Load user fid from stored profile
   useEffect(() => {
     const storedProfile = localStorage.getItem("hh_profile");
     if (storedProfile) {
       try {
         const profile = JSON.parse(storedProfile);
-        const fid = profile?.fid;
-        setUserFid(fid);
-
-        if (fid) {
-          const signerData = localStorage.getItem(`signer_${fid}`);
-          if (signerData) {
-            try {
-              const parsed = JSON.parse(signerData);
-              setSignerUuid(parsed.signer_uuid || null);
-            } catch {
-              // ignore
-            }
-          }
-        }
+        setUserFid(profile?.fid ?? null);
       } catch {
         // ignore
       }
@@ -65,13 +51,13 @@ export default function ScheduledCastsModal() {
   }, []);
 
   async function fetchScheduledCasts() {
-    if (!userFid || !signerUuid) return;
+    if (!userFid) return;
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/schedule-cast?signerUuid=${encodeURIComponent(signerUuid)}`);
+      const res = await fetch(`/api/schedule-cast?fid=${userFid}`);
       const data = await res.json();
-      
+
       if (data.ok) {
         setScheduledCasts(data.scheduled_casts || []);
       }
@@ -83,45 +69,20 @@ export default function ScheduledCastsModal() {
   }
 
   async function cancelCast(id: string) {
-    if (!userFid || !signerUuid) return;
+    if (!userFid) return;
 
     try {
-      const res = await fetch(`/api/schedule-cast?id=${id}&signerUuid=${encodeURIComponent(signerUuid)}`, {
+      const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
         method: 'DELETE'
       });
-      
+
       const data = await res.json();
-      
+
       if (data.ok) {
-        // Remove from list
         setScheduledCasts(casts => casts.filter(c => c.id !== id));
       }
     } catch (error) {
       console.error('Error cancelling cast:', error);
-    }
-  }
-
-  async function publishNow(id: string) {
-    if (!userFid || !signerUuid) return;
-
-    try {
-      const res = await fetch('/api/publish-scheduled-casts', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, signerUuid })
-      });
-      
-      const data = await res.json();
-      
-      if (data.ok) {
-        // Refresh the list
-        await fetchScheduledCasts();
-      } else {
-        alert(`Failed to publish: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error publishing cast:', error);
-      alert('Error publishing cast');
     }
   }
 
@@ -230,22 +191,6 @@ export default function ScheduledCastsModal() {
                   </div>
                   
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {cast.status === 'pending' && (
-                      <button
-                        onClick={() => publishNow(cast.id)}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--surface)',
-                          color: 'var(--foreground)',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
-                        Publish Now
-                      </button>
-                    )}
                     <button
                       onClick={() => cancelCast(cast.id)}
                       style={{

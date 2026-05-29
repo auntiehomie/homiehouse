@@ -8,7 +8,7 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 export default function ComposePage() {
   const router = useRouter();
   const { user } = usePrivy();
-  const { hasActiveSigner, requestSigner, signerApprovalUrl, checkSignerStatus } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
@@ -234,17 +234,6 @@ export default function ComposePage() {
     }
   }
 
-  async function handleCheckStatus() {
-    setLoading(true);
-    try {
-      await checkSignerStatus();
-    } catch (e: any) {
-      setStatus(`Error: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handlePost() {
     setStatus(null);
     setLoading(true);
@@ -261,11 +250,7 @@ export default function ComposePage() {
         return;
       }
 
-      const body: any = { 
-        text, 
-        signerUuid: farcasterAccount?.signerPublicKey || undefined,
-        fid: userFid 
-      };
+      const body: any = { text, fid: userFid };
 
       // Build embeds array
       const embeds: any[] = [];
@@ -356,46 +341,21 @@ export default function ComposePage() {
           setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
             } else {
-        // Post immediately
-        console.log('[ComposePage] Sending POST to /api/privy-compose with body:', JSON.stringify(body, null, 2));
-        const res = await fetch("/api/privy-compose", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+        // Post immediately via local signer
+        await submitCast({
+          text: body.text,
+          embeds: body.embeds,
+          channelKey: body.channelKey,
         });
-
-        console.log(`[ComposePage] Response status: ${res.status} ${res.statusText}`);
-        
-        let data;
-        try {
-          data = await res.json();
-          console.log('[ComposePage] Response body:', data);
-        } catch (parseErr) {
-          console.error('[ComposePage] Failed to parse response as JSON:', parseErr);
-          const text = await res.text();
-          console.error('[ComposePage] Raw response:', text);
-          setStatus(`Server error (${res.status}): Could not parse response. Check console for details.`);
-          setLoading(false);
-          return;
-        }
-        
-        if (data.ok) {
-          setStatus("✓ Posted successfully!");
-          setText("");
-          setImageUrl("");
-          setUploadedImage(null);
-          setUrlPreview(null);
-          setDetectedUrl(null);
-          setTimeout(() => {
-            router.push('/');
-          }, 800);
-        } else {
-          const errorMsg = data.error || data.message || "unknown error";
-          const errorCode = data.code || '';
-          const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
-          console.error('[ComposePage] API returned error:', { status: res.status, error: errorMsg, code: errorCode });
-          setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
-        }
+        setStatus("✓ Posted successfully!");
+        setText("");
+        setImageUrl("");
+        setUploadedImage(null);
+        setUrlPreview(null);
+        setDetectedUrl(null);
+        setTimeout(() => {
+          router.push('/');
+        }, 800);
       }
     } catch (err: any) {
       setStatus(String(err?.message || err));
@@ -442,35 +402,13 @@ export default function ComposePage() {
               To post casts from HomieHouse, approve posting permissions via Warpcast.
               This only needs to be done once.
             </p>
-            {!signerApprovalUrl ? (
-              <button
-                className="bg-white hover:bg-zinc-200 text-black px-8 py-3 rounded-lg font-medium transition-colors"
-                onClick={handleEnablePosting}
-                disabled={loading}
-              >
-                {loading ? "Creating..." : "Enable Posting"}
-              </button>
-            ) : (
-              <div className="space-y-4">
-                <a
-                  href={signerApprovalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block bg-white hover:bg-zinc-200 text-black px-8 py-3 rounded-lg font-medium transition-colors"
-                >
-                  Approve in Warpcast →
-                </a>
-                <div>
-                  <button
-                    className="bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-2 rounded-lg transition-colors text-sm"
-                    onClick={handleCheckStatus}
-                    disabled={loading}
-                  >
-                    {loading ? "Checking..." : "Check Status"}
-                  </button>
-                </div>
-              </div>
-            )}
+            <button
+              className="bg-white hover:bg-zinc-200 text-black px-8 py-3 rounded-lg font-medium transition-colors"
+              onClick={handleEnablePosting}
+              disabled={loading}
+            >
+              {loading ? "Creating..." : "Enable Posting"}
+            </button>
             {status && (
               <div className="mt-6 p-4 bg-zinc-900 rounded-lg text-sm">
                 {status}
