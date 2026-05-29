@@ -22,6 +22,8 @@ export enum MessageType {
   REACTION_REMOVE = 4,
   LINK_ADD = 5,
   LINK_REMOVE = 6,
+  KEY_ADD = 11,
+  KEY_REMOVE = 12,
 }
 
 export enum HashScheme {
@@ -195,6 +197,33 @@ export function encodeLinkBody(input: LinkInput): Uint8Array {
   return w.bytes();
 }
 
+export interface KeyAddInput {
+  signerPublicKey: Uint8Array;  // 32-byte Ed25519 public key
+  custodySignature: Uint8Array; // 65-byte secp256k1 EIP-712 signature
+  deadline: number;
+  nonce: number;
+  metadata: Uint8Array;         // ABI-encoded SignedKeyRequestMetadata
+  scopes: number[];             // MessageType values allowed for this signer
+  ttl: number;                  // seconds
+}
+
+const ED25519_KEY_TYPE = 1;
+const METADATA_TYPE = 1;
+
+export function encodeKeyAddBody(input: KeyAddInput): Uint8Array {
+  const w = new ProtoWriter();
+  w.writeBytesField(1, input.signerPublicKey);
+  w.writeVarintField(2, ED25519_KEY_TYPE);
+  w.writeBytesField(3, input.custodySignature);
+  w.writeVarintField(4, input.deadline);
+  w.writeVarintField(5, input.nonce);
+  w.writeBytesField(6, input.metadata);
+  w.writeVarintField(7, METADATA_TYPE);
+  w.writePackedVarint(9, input.scopes.map(BigInt));
+  w.writeVarintField(10, input.ttl);
+  return w.bytes();
+}
+
 // ---------------------------------------------------------------------------
 // MessageData + envelope
 // ---------------------------------------------------------------------------
@@ -208,7 +237,8 @@ export interface MessageDataInput {
     | { castAddBody: CastAddInput }
     | { castRemoveBody: { targetHash: Uint8Array } }
     | { reactionBody: ReactionInput }
-    | { linkBody: LinkInput };
+    | { linkBody: LinkInput }
+    | { keyAddBody: KeyAddInput };
 }
 
 export function encodeMessageData(input: MessageDataInput): Uint8Array {
@@ -227,6 +257,8 @@ export function encodeMessageData(input: MessageDataInput): Uint8Array {
     w.writeSubMessage(7, encodeReactionBody(input.body.reactionBody));
   } else if ('linkBody' in input.body) {
     w.writeSubMessage(14, encodeLinkBody(input.body.linkBody));
+  } else if ('keyAddBody' in input.body) {
+    w.writeSubMessage(19, encodeKeyAddBody(input.body.keyAddBody));
   }
   return w.bytes();
 }
