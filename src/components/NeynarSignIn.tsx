@@ -56,8 +56,8 @@ export default function NeynarSignIn() {
       style={{
         padding: '8px 18px',
         borderRadius: '8px',
-        background: '#E87722',
-        color: '#fff',
+        background: '#ffffff',
+        color: '#000000',
         border: 'none',
         cursor: 'pointer',
         fontWeight: 600,
