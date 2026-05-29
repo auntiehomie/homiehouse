@@ -223,12 +223,21 @@ export default function ComposePage() {
 
   async function handleEnablePosting() {
     setLoading(true);
-    setStatus(null);
     try {
-      await requestSigner();
-      setStatus("A popup should appear — scan the QR code or tap the link to approve in Farcaster.");
-    } catch (e: any) {
-      setStatus(`Error: ${e.message}`);
+      // Read any existing approval URL from localStorage
+      let approvalUrl: string | null = null;
+      try {
+        const raw = localStorage.getItem(`signer_${userFid}`);
+        if (raw) approvalUrl = JSON.parse(raw)?.signer_approval_url ?? null;
+      } catch {}
+
+      // Show the modal immediately — no waiting on async API
+      window.dispatchEvent(new CustomEvent('showWelcomeModal', {
+        detail: { approvalUrl },
+      }));
+
+      // Also kick off signer creation so SignerInit can update the modal with a real URL
+      window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: userFid } }));
     } finally {
       setLoading(false);
     }

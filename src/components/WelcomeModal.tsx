@@ -17,9 +17,10 @@ export default function WelcomeModal() {
 
   useEffect(() => {
     const handleShowModal = (event: any) => {
-      setApprovalUrl(event.detail.approvalUrl);
+      const url = event.detail.approvalUrl ?? null;
+      setApprovalUrl(url);
       setShow(true);
-      setMethod('farcaster');
+      setMethod(url ? 'farcaster' : 'phrase');
       setPhrase('');
       setError(null);
     };
