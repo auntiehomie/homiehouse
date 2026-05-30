@@ -6,6 +6,7 @@ import { UserProfileStorage } from '@/lib/ai/storage';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
+import { buildRagContext } from '@/lib/ai/rag';
 
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
@@ -20,89 +21,87 @@ function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
+/** Ollama — self-hosted open-source LLM (OpenAI-compatible API) */
+function getOllama(): OpenAI | null {
+  const url = process.env.OLLAMA_URL;
+  if (!url) return null;
+  return new OpenAI({ baseURL: `${url}/v1`, apiKey: 'ollama' });
+}
 
-const SYSTEM_PROMPT = `You are Homie, a helpful AI assistant for HomieHouse - a Farcaster-based social platform. 
+/** Groq — free-tier API serving open-source models (Llama 3.1 70B, Mixtral) */
+function getGroq(): OpenAI | null {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey });
+}
 
-Key Facts about Farcaster:
-- Farcaster was created by Dan Romero and Varun Srinivasan
-- It's a sufficiently decentralized social network protocol
-- Built on Ethereum/Optimism blockchain
-- Users own their social graph and data
-- Accounts are identified by FIDs (Farcaster IDs)
+function getLocalModel(): string {
+  return process.env.OLLAMA_MODEL || 'llama3.2';
+}
 
-Key Facts about HomieHouse:
-- A social hub built on Farcaster protocol
-- Users can view feeds, compose casts, and interact with the Farcaster network
-- Integrates with Farcaster AuthKit for authentication
+function getGroqModel(): string {
+  return process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
+}
 
-Your Capabilities:
-- Analyze casts that users are viewing (cast context will be provided in the conversation)
-- Search for Farcaster casts by keyword or topic using available tools
-- Get recent casts from specific Farcaster users
-- Get real-time cryptocurrency token information (price, market cap, volume, liquidity)
-- Search for tokens by name, symbol, or contract address
-- Provide comprehensive token analysis with risk assessment
-- Explain tokens, crypto concepts, and blockchain technology
-- Provide context about users and trends
-- Analyze sentiment and engagement metrics
-- Explain technical terms and abbreviations
-- Identify potential scams or risky content
-- Help users understand what they're seeing in their feed
 
-IMPORTANT - Token Information:
-- When users ask about token prices, use the get_token_info tool
-- For token searches, use the search_tokens tool
-- You have access to real-time data from CoinGecko and DexScreener
-- Always warn about risks (low liquidity, volatility, scam indicators)
-- Provide market metrics: price, market cap, volume, 24h change
-- Include contract addresses and links when available
-- Never provide financial advice - only factual information
+const SYSTEM_PROMPT = `You are Homie, the AI assistant for HomieHouse — a Farcaster-based social client.
 
-IMPORTANT - Cast Context & Search:
-- When cast context is provided, it will be clearly marked at the start of the conversation
-- The cast details include: author, content, timestamp, and engagement metrics
-- When users ask questions like "what do you think?", "analyze this", "is this legit?", or ask about finding similar casts, they are referring to the provided cast context
-- You HAVE search tools available to find similar casts or casts from specific users when asked
-- Use the search_farcaster_casts tool to find casts by topic or keyword
-- Use the get_user_casts tool to get recent posts from a specific user and their engagement metrics
-- When asked for "most engaged cast" from a user, use get_user_casts which returns casts sorted by engagement
+Your primary purpose is to help users understand and navigate the crypto/Web3 ecosystem, especially:
+- **Farcaster** (protocol, clients, channels, signers, frames, mini apps)
+- **Ethereum & L2s** (Optimism, Base, Arbitrum, gas, smart contracts, DeFi)
+- **Decentralization** (Web3 philosophy, DAOs, public goods, data sovereignty)
+- **Privacy** (ZK proofs, self-custody, encryption, seed phrases)
+- **AI in Web3** (open-source models, Ollama, Groq, Bittensor, AI agents)
+- **Crypto culture** (NFTs, memes, degen, gm/wagmi, Farcaster-specific slang)
 
-Error Handling:
-- If a username is not found, help the user by suggesting they verify the spelling
+HomieHouse facts:
+- A Farcaster social hub — browse feeds, compose casts, explore channels
+- Uses Hypersnap (haatz.quilibrium.com) as its Farcaster hub
+- When context from Relevant Context sections is provided below, use it to ground your answers in real community data
+
+Your capabilities:
+- Teach and explain crypto/Web3 concepts clearly at any level (beginner to expert)
+- Analyze casts users are viewing (cast context will be marked in the conversation)
+- Search Farcaster for casts on topics the user is curious about
+- Provide token info (price, market cap, risk) — use get_token_info and search_tokens tools
+- Analyze user profiles and engagement patterns
+- Identify red flags: scams, suspicious tokens, low-effort shills
+
+Guidelines:
+- Be educational first — when someone asks about a concept, explain it well before jumping to opinions
+- Cite real community casts when provided in the context block
+- Always recommend self-custody and verify sources
+- Never give financial advice — only factual information
+- For token questions: always flag risks (low liquidity, no audit, anonymous team, honeypot signals)
+- If cast context is provided, the user is asking about THAT specific cast
 - Farcaster usernames are case-sensitive
-- If there's an API error, acknowledge it gracefully and offer alternatives
+- Be concise but complete. Bullet points > paragraphs for technical explanations
+- Use the search_farcaster_casts tool when users want to explore a topic deeper
+- When in doubt, say so — don't hallucinate facts about specific projects or prices`;
 
-When analyzing a cast:
-- Look at the content, author details, and engagement metrics provided
-- Identify the main topic or purpose (e.g., token launch, announcement, question, meme)
-- Note any red flags (suspicious addresses, low engagement accounts, scam indicators)
-- Provide clear, actionable insights
-- When asked to find similar casts, use the search tool to discover examples
+type Provider = 'ollama' | 'groq' | 'claude' | 'openai';
 
-Be friendly, concise, and accurate. If you're not certain about something, say so rather than guessing.`;
+// Provider selection: Ollama → Groq → Claude → OpenAI
+function selectBestProvider(question: string): Provider {
+  // Local model takes highest priority when configured
+  if (process.env.OLLAMA_URL) return 'ollama';
+  if (process.env.GROQ_API_KEY) return 'groq';
 
-// Provider selection: Claude for general/analysis/writing, OpenAI for code/math
-function selectBestProvider(question: string): 'claude' | 'openai' {
   const lowerQuestion = question.toLowerCase();
-
-  // Keywords that suggest OpenAI (code, math, structured output)
   const openaiKeywords = [
     'code', 'function', 'debug', 'error', 'api', 'typescript',
     'javascript', 'python', 'sql', 'algorithm', 'data structure',
     'calculate', 'math', 'number', 'formula', 'json',
-    'parse', 'regex', 'syntax', 'compile', 'implement'
+    'parse', 'regex', 'syntax', 'compile', 'implement',
   ];
-
   let openaiScore = 0;
   for (const keyword of openaiKeywords) {
     if (lowerQuestion.includes(keyword)) openaiScore++;
   }
-
   if (lowerQuestion.includes('```') || lowerQuestion.includes('function') || lowerQuestion.includes('const')) {
     openaiScore += 2;
   }
-
-  return openaiScore >= 2 ? 'openai' : 'claude'; // Claude is the default primary
+  return openaiScore >= 2 ? 'openai' : 'claude';
 }
 
 // Detect if user is asking for a profile and extract username
@@ -579,27 +578,58 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       conversationMessages = [profileContext, ...conversationMessages];
     }
 
-    // Smart provider selection: use requested provider, or auto-select based on content
-    // Claude is primary for general/analysis/writing; OpenAI for code/math
-    const selectedProvider = (requestedProvider === 'gemini' || requestedProvider === 'perplexity' || requestedProvider === 'kimi')
-      ? 'claude' // Redirect removed providers to Claude
-      : (requestedProvider as 'claude' | 'openai' | undefined) || selectBestProvider(question);
+    // Smart provider selection: Ollama → Groq → Claude → OpenAI
+    const selectedProvider: Provider =
+      requestedProvider === 'ollama' ? 'ollama' :
+      requestedProvider === 'groq'   ? 'groq'   :
+      (requestedProvider === 'gemini' || requestedProvider === 'perplexity' || requestedProvider === 'kimi')
+        ? 'claude'
+        : (requestedProvider as Provider | undefined) || selectBestProvider(question);
 
-    // Initialize clients fresh for this request (picks up rotated keys)
+    // Build RAG context (knowledge base + live Hypersnap casts for this topic)
+    const ragCtx = await buildRagContext(question).catch(() => ({
+      topics: [], knowledge: '', liveCasts: '', combined: '',
+    }));
+    const systemWithRag = ragCtx.combined
+      ? SYSTEM_PROMPT + ragCtx.combined
+      : SYSTEM_PROMPT;
+
+    // Initialize clients fresh for this request
     const openai = getOpenAI();
     const anthropic = getAnthropic();
+    const ollamaClient = getOllama();
+    const groqClient = getGroq();
 
     let response: string;
     let usedProvider = selectedProvider;
 
+    async function callOpenAICompat(
+      client: OpenAI,
+      model: string,
+      msgs: any[],
+    ): Promise<string> {
+      const completion = await client.chat.completions.create({
+        model,
+        messages: [{ role: 'system', content: systemWithRag }, ...msgs],
+        temperature: 0.7,
+        max_tokens: 1024,
+      });
+      return completion.choices[0].message.content || '';
+    }
+
     try {
-      if (selectedProvider === 'claude') {
-        // Claude is the primary provider for general questions, analysis, and writing
-        console.log('Using Claude as primary provider');
+      if (selectedProvider === 'ollama' && ollamaClient) {
+        console.log(`Using Ollama (${getLocalModel()})`);
+        response = await callOpenAICompat(ollamaClient, getLocalModel(), conversationMessages);
+      } else if (selectedProvider === 'groq' && groqClient) {
+        console.log(`Using Groq (${getGroqModel()})`);
+        response = await callOpenAICompat(groqClient, getGroqModel(), conversationMessages);
+      } else if (selectedProvider === 'claude') {
+        console.log('Using Claude');
         const completion = await anthropic.messages.create({
           model: 'claude-sonnet-4-5-20250929',
           max_tokens: 1024,
-          system: SYSTEM_PROMPT,
+          system: systemWithRag,
           messages: conversationMessages.map((msg: any) => ({
             role: msg.role === 'system' ? 'user' : msg.role,
             content: msg.content,
@@ -607,53 +637,32 @@ Profile URL: https://warpcast.com/${profileData.username}]`
         });
         response = completion.content[0].type === 'text' ? completion.content[0].text : '';
       } else {
-        // OpenAI for code/math/structured output
-        console.log('Using OpenAI for code/math response');
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...conversationMessages
-          ],
-          temperature: 0.7,
-          max_tokens: 1024,
-        });
-        response = completion.choices[0].message.content || '';
+        console.log('Using OpenAI');
+        response = await callOpenAICompat(openai, 'gpt-4o', conversationMessages);
       }
     } catch (primaryError) {
-      // Fallback chain: Claude → OpenAI (or OpenAI → Claude)
-      console.warn(`${selectedProvider} failed, trying fallback:`, primaryError);
-      const fallback = selectedProvider === 'claude' ? 'openai' : 'claude';
-      usedProvider = fallback;
-
-      if (fallback === 'openai') {
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...messages
-          ],
-          temperature: 0.7,
-          max_tokens: 1024,
-        });
-        response = completion.choices[0].message.content || '';
-      } else {
+      console.warn(`${selectedProvider} failed, falling back to Claude:`, primaryError);
+      usedProvider = 'claude';
+      try {
         const completion = await anthropic.messages.create({
           model: 'claude-sonnet-4-5-20250929',
           max_tokens: 1024,
-          system: SYSTEM_PROMPT,
+          system: systemWithRag,
           messages: messages.map((msg: any) => ({
             role: msg.role === 'system' ? 'user' : msg.role,
             content: msg.content,
           })),
         });
         response = completion.content[0].type === 'text' ? completion.content[0].text : '';
+      } catch {
+        usedProvider = 'openai';
+        response = await callOpenAICompat(openai, 'gpt-4o', messages);
       }
     }
 
-    logger.success('AI response generated', { provider: usedProvider, mode: 'legacy' });
+    logger.success('AI response generated', { provider: usedProvider, topics: ragCtx.topics, mode: 'legacy' });
     logger.end();
-    return NextResponse.json({ response, provider: usedProvider, mode: 'legacy' });
+    return NextResponse.json({ response, provider: usedProvider, topics: ragCtx.topics, mode: 'legacy' });
   } catch (error: any) {
     logger.error('AI request failed', error);
     return handleApiError(error, 'POST /ask-homie');

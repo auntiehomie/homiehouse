@@ -30,6 +30,7 @@ interface AgentChatProps {
     text: string;
   };
   onCastSelect?: (cast: string) => void;
+  initialMessage?: string;
 }
 
 // Helper function to parse text and make @mentions and FIDs clickable
@@ -102,9 +103,9 @@ function getSignerUuid(): string | null {
   }
 }
 
-export default function AgentChat({ userId, userContext, castContext, onCastSelect }: AgentChatProps) {
+export default function AgentChat({ userId, userContext, castContext, onCastSelect, initialMessage }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<AgentMode>('auto');
   const [userStats, setUserStats] = useState<any>(null);
@@ -129,6 +130,11 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       console.error('Failed to load chat history:', error);
     }
   }, []);
+
+  // Update input when a starter question chip is clicked
+  useEffect(() => {
+    if (initialMessage) setInput(initialMessage);
+  }, [initialMessage]);
 
   // Save conversation history to localStorage whenever messages change
   useEffect(() => {

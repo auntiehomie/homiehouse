@@ -5,11 +5,13 @@ import Link from "next/link";
 import { useSearchParams } from 'next/navigation';
 import AgentChat from '@/components/AgentChat';
 import FeedCurationChat from '@/components/FeedCurationChat';
+import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
 
 function AskHomieContent() {
   const [castContext, setCastContext] = useState<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [showCurationModal, setShowCurationModal] = useState(false);
+  const [starterQuestion, setStarterQuestion] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   // Load user ID from profile if available
@@ -68,7 +70,7 @@ function AskHomieContent() {
               HomieHouse
             </Link>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              AI-powered Farcaster assistant
+              Learn Farcaster, Ethereum, privacy &amp; Web3
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -135,11 +137,30 @@ function AskHomieContent() {
           </div>
         )}
 
+        {/* Topic starter chips — only shown when there's no cast context loaded */}
+        {!castContext && (
+          <div className="mx-4 mt-2 mb-0">
+            <p className="text-xs text-zinc-500 dark:text-zinc-500 mb-2">Ask about:</p>
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTED_QUESTIONS.map(q => (
+                <button
+                  key={q.label}
+                  onClick={() => setStarterQuestion(q.label)}
+                  className="px-3 py-1.5 text-xs rounded-full border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 m-4 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-white dark:bg-zinc-900 shadow-lg">
           <AgentChat
             userId={userId || undefined}
             castContext={castContext}
             onCastSelect={handleCastSelect}
+            initialMessage={starterQuestion || undefined}
           />
         </div>
       </main>
