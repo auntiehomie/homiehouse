@@ -44,6 +44,12 @@ export const metadata: Metadata = {
     shortcut: '/favicon-32.png',
   },
   manifest: '/manifest.json',
+  applicationName: 'HomieHouse',
+  appleWebApp: {
+    capable: true,
+    title: 'HomieHouse',
+    statusBarStyle: 'black-translucent',
+  },
   description: 'HomieHouse — Your Farcaster social hub. Browse feeds, compose casts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.',
   keywords: [
     'Farcaster', 'social client', 'decentralized social', 'casts', 'web3 social',
@@ -57,7 +63,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse — Farcaster Social Client',
+    title: 'HomieHouse',
     description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
     url: BASE_URL,
     images: [
@@ -65,13 +71,13 @@ export const metadata: Metadata = {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'HomieHouse — Farcaster Social Client',
+        alt: 'HomieHouse',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse — Farcaster Social Client',
+    title: 'HomieHouse',
     description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
     images: ['/og-image.png'],
   },
