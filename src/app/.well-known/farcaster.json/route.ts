@@ -21,13 +21,13 @@ export async function GET() {
     },
     frame: {
       version: "1",
-      name: "Ask Homie",
-      iconUrl: "https://1481393129444737075.xyz/icon-512.png",
-      homeUrl: "https://1481393129444737075.xyz/mini/ask-homie",
-      imageUrl: "https://1481393129444737075.xyz/og-ask-homie.png",
-      buttonTitle: "Ask Homie",
-      splashImageUrl: "https://1481393129444737075.xyz/og-ask-homie.png",
-      splashBackgroundColor: "#8B5CF6"
+      name: "HomieHouse",
+      iconUrl: "https://homiehouse.lol/icon-512.png",
+      homeUrl: "https://homiehouse.lol/mini/ask-homie",
+      imageUrl: "https://homiehouse.lol/og-image.png",
+      buttonTitle: "Open HomieHouse",
+      splashImageUrl: "https://homiehouse.lol/og-image.png",
+      splashBackgroundColor: "#1a1a1c"
     }
   };
 
