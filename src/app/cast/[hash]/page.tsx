@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -17,6 +17,24 @@ export default function CastDetailPage() {
   const [replying, setReplying] = useState(false);
   const { reply } = useFarcasterWrites();
 
+  const fetchCastDetail = useCallback(async () => {
+    if (!hash) return;
+    try {
+      const response = await fetch(`/api/cast?hash=${encodeURIComponent(hash)}`);
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to fetch cast');
+      }
+
+      const data = await response.json();
+      setCast(data.cast);
+    } catch (err: any) {
+      console.error('Error fetching cast:', err);
+      setError(err.message || 'Failed to load cast');
+    }
+  }, [hash]);
+
   useEffect(() => {
     if (!hash) {
       setError("No cast hash provided");
@@ -24,27 +42,8 @@ export default function CastDetailPage() {
       return;
     }
 
-    const fetchCastDetail = async () => {
-      try {
-        const response = await fetch(`/api/cast?hash=${encodeURIComponent(hash)}`);
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to fetch cast');
-        }
-
-        const data = await response.json();
-        setCast(data.cast);
-      } catch (err: any) {
-        console.error('Error fetching cast:', err);
-        setError(err.message || 'Failed to load cast');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCastDetail();
-  }, [hash]);
+    fetchCastDetail().finally(() => setLoading(false));
+  }, [hash, fetchCastDetail]);
 
   if (loading) {
     return (
@@ -104,6 +103,7 @@ export default function CastDetailPage() {
       await reply({ text: replyText.trim(), parentCastHash: replyingTo.hash, parentCastFid: replyingTo.fid });
       setReplyingTo(null);
       setReplyText('');
+      await fetchCastDetail();
     } catch (e) {
       console.error('Reply failed:', e);
     } finally {
