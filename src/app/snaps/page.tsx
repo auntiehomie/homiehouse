@@ -435,7 +435,7 @@ export default function AppsPage() {
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.85)",
-            zIndex: 50,
+            zIndex: 200,
             display: "flex",
             flexDirection: "column",
             justifyContent: "flex-end",
@@ -446,9 +446,9 @@ export default function AppsPage() {
             style={{
               background: "#111",
               borderRadius: "20px 20px 0 0",
-              maxHeight: "85vh",
+              maxHeight: "90vh",
               overflow: "auto",
-              padding: "0 0 48px",
+              paddingBottom: "calc(32px + env(safe-area-inset-bottom))",
             }}
           >
             {/* Drag handle */}
@@ -556,7 +556,7 @@ export default function AppsPage() {
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.85)",
-            zIndex: 50,
+            zIndex: 200,
             display: "flex",
             flexDirection: "column",
             justifyContent: "flex-end",
@@ -567,7 +567,7 @@ export default function AppsPage() {
             style={{
               background: "#111",
               borderRadius: "20px 20px 0 0",
-              padding: "24px 16px 48px",
+              padding: `24px 16px calc(32px + env(safe-area-inset-bottom))`,
             }}
           >
             <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 16 }}>Add App</div>
