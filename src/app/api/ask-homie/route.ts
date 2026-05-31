@@ -627,7 +627,7 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       } else if (selectedProvider === 'claude') {
         console.log('Using Claude');
         const completion = await anthropic.messages.create({
-          model: 'claude-sonnet-4-5-20250929',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1024,
           system: systemWithRag,
           messages: conversationMessages.map((msg: any) => ({
@@ -645,7 +645,7 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       usedProvider = 'claude';
       try {
         const completion = await anthropic.messages.create({
-          model: 'claude-sonnet-4-5-20250929',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1024,
           system: systemWithRag,
           messages: messages.map((msg: any) => ({
