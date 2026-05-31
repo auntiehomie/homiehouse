@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import UrlPreview from './UrlPreview';
 import EmbedRenderer from './EmbedRenderer';
 import { fetchFeed } from "../lib/farcaster";
@@ -30,6 +30,10 @@ export default function FeedList({
   onHideCast
 }: FeedListProps) {
   const [items, setItems] = useState<any[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const [showActions, setShowActions] = useState<string | null>(null);
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
   const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
@@ -233,8 +237,13 @@ export default function FeedList({
 
   useEffect(() => {
     let mounted = true;
+    // Reset pagination state when feed changes
+    setCursor(null);
+    setHasMore(true);
+    setItems(null);
     (async () => {
       let res;
+      let nextCursor: string | null = null;
       try {
         // Get FID from localStorage since auth-kit profile doesn't include it
         let fid: number | undefined = undefined;
@@ -247,24 +256,25 @@ export default function FeedList({
         } catch (e) {
           console.error('[FeedList] Error reading FID from localStorage:', e);
         }
-        
+
         const profile = getProfile();
         console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, hasProfile: !!profile });
-        
+
         // Build query params based on feed type and channel
         let url = `/api/feed?feed_type=${feedType}`;
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
-        
+
         console.log('[FeedList] API URL:', url);
-        
+
         const feedRes = await fetch(url);
         console.log('[FeedList] API response status:', feedRes.status);
-        
+
         if (feedRes.ok) {
-          res = await feedRes.json();
-          console.log('[FeedList] API response data:', res);
-          if (res?.data) res = res.data;
+          const json = await feedRes.json();
+          console.log('[FeedList] API response data:', json);
+          res = json?.data ?? json;
+          nextCursor = json?.cursor || null;
         } else {
           // fallback to host SDK if server can't provide feed
           console.log('[FeedList] API failed, using fallback fetchFeed');
@@ -285,12 +295,69 @@ export default function FeedList({
           firstEmbedKeys: res[0]?.embeds?.[0] ? Object.keys(res[0].embeds[0]) : 'no embeds'
         }, null, 2));
       }
-      if (mounted) setItems(res);
+      if (mounted) {
+        setItems(res);
+        setCursor(nextCursor);
+        setHasMore(!!nextCursor);
+      }
     })();
     return () => {
       mounted = false;
     };
   }, [feedType, selectedChannel]);
+
+  // loadMore: fetch next page and append
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || !cursor) return;
+    setLoadingMore(true);
+    try {
+      let fid: number | undefined = undefined;
+      try {
+        const storedProfile = localStorage.getItem("hh_profile");
+        if (storedProfile) {
+          const parsed = JSON.parse(storedProfile);
+          fid = parsed?.fid;
+        }
+      } catch (e) {}
+
+      let url = `/api/feed?feed_type=${feedType}&cursor=${encodeURIComponent(cursor)}`;
+      if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
+      if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
+
+      const feedRes = await fetch(url);
+      if (feedRes.ok) {
+        const json = await feedRes.json();
+        const newItems = json?.data ?? json;
+        const nextCursor = json?.cursor || null;
+        if (Array.isArray(newItems)) {
+          setItems(prev => [...(prev ?? []), ...newItems]);
+        }
+        setCursor(nextCursor);
+        setHasMore(!!nextCursor);
+      } else {
+        setHasMore(false);
+      }
+    } catch (e) {
+      console.error('[FeedList] loadMore error:', e);
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // IntersectionObserver for infinite scroll sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore && !loadingMore) {
+        loadMore();
+      }
+    }, { threshold: 0.1 });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loadingMore, cursor]);
 
   if (items === null)
     return (
@@ -1268,6 +1335,12 @@ export default function FeedList({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Infinite scroll sentinel */}
+      <div ref={sentinelRef} className="h-4" />
+      {loadingMore && (
+        <p className="text-center text-sm text-zinc-500 py-2">Loading…</p>
       )}
     </div>
   );

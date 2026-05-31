@@ -15,7 +15,10 @@ export default function BottomNav() {
     setMounted(true);
   }, []);
 
-  const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
+  const isActive = (path: string) => {
+    if (path === '/') return pathname === '/';
+    return pathname === path || pathname.startsWith(path + '/');
+  };
   const cls = (path: string) =>
     `flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-colors text-[9px] font-medium ${
       isActive(path) ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-400"
@@ -53,6 +56,16 @@ export default function BottomNav() {
             <div className={dot("/notifications")} />
           </Link>
 
+          {/* Feed */}
+          <Link href="/" className={cls("/")} aria-label="Feed">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6m-6-4h2" />
+            </svg>
+            <span>Feed</span>
+            <div className={dot("/")} />
+          </Link>
+
           {/* Ask Homie */}
           <Link href="/ask-homie" className={cls("/ask-homie")} aria-label="Ask Homie">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,24 +76,11 @@ export default function BottomNav() {
             <div className={dot("/ask-homie")} />
           </Link>
 
-          {/* Lists */}
-          <Link href="/lists" className={cls("/lists")} aria-label="Lists & Channels">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-            </svg>
-            <span>Lists</span>
-            <div className={dot("/lists")} />
-          </Link>
-
-          {/* Profile */}
-          <Link href="/profile" className={cls("/profile")} aria-label="Profile">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <span>Profile</span>
-            <div className={dot("/profile")} />
+          {/* Snaps */}
+          <Link href="/snaps" className={cls("/snaps")} aria-label="Snaps">
+            <span className="text-lg leading-none" style={{ filter: 'grayscale(1)' }}>🫰</span>
+            <span>Snaps</span>
+            <div className={dot("/snaps")} />
           </Link>
 
         </div>

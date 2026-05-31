@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SnapRenderer, { type SnapData, type SnapAction } from './SnapRenderer';
 import FrameEmbed from './FrameEmbed';
 import UrlPreview from './UrlPreview';
@@ -22,6 +22,7 @@ interface Props {
 export default function SmartEmbed({ url, castHash }: Props) {
   const [result, setResult] = useState<Result>('url');
   const [snap, setSnap] = useState<SnapData | null>(null);
+  const wonRef = useRef(false);
   const [snapUrl, setSnapUrl] = useState(url);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export default function SmartEmbed({ url, castHash }: Props) {
     setResult('url');
     setSnap(null);
     setError(null);
+    wonRef.current = false;
 
     let alive = true;
     const TIMEOUT = 5000;
@@ -49,14 +51,18 @@ export default function SmartEmbed({ url, castHash }: Props) {
 
     // Frame wins if found — check first
     probeFrame.then(data => {
-      if (!alive) return;
-      if (data.isFrame) setResult('frame');
+      if (!alive || wonRef.current) return;
+      if (data.isFrame) {
+        wonRef.current = true;
+        setResult('frame');
+      }
     });
 
     // Snap wins only if no frame
     probeSnap.then(data => {
-      if (!alive || result === 'frame') return;
+      if (!alive || wonRef.current) return;
       if (data.isSnap && data.snap) {
+        wonRef.current = true;
         setSnap(data.snap);
         setResult('snap');
       }

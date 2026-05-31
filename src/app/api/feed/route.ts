@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const fidParam = searchParams.get("fid");
     const channel = searchParams.get("channel");
     const limitParam = searchParams.get("limit");
+    const cursor = searchParams.get("cursor");
 
     // Validate inputs
     const limit = validateLimit(limitParam, 100);
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
 
     // Build fetch parameters
     const fetchParams: any = { limit };
+    if (cursor) fetchParams.cursor = cursor;
 
     if (channel) {
       // Channel feed
@@ -49,7 +51,7 @@ export async function GET(req: NextRequest) {
     logger.success(`Feed fetched successfully`, { count: casts.length });
     logger.end();
 
-    return NextResponse.json({ data: casts });
+    return NextResponse.json({ data: casts, cursor: data?.next?.cursor || null });
   } catch (error: any) {
     logger.error('Failed to fetch feed', error);
     return handleApiError(error, 'GET /feed');

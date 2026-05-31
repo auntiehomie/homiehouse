@@ -2,19 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import SnapEmbed from "@/components/SnapEmbed";
+import SmartEmbed from "@/components/SmartEmbed";
 
 interface SnapItem {
   url: string;
   name: string;
   addedAt: string;
 }
-
-const FEATURED_SNAPS: SnapItem[] = [
-  { url: "https://wordle.farcaster.xyz", name: "Wordle", addedAt: "" },
-  { url: "https://price.farcaster.xyz", name: "Price", addedAt: "" },
-  { url: "https://poll.farcaster.xyz", name: "Poll", addedAt: "" },
-];
 
 const STORAGE_KEY = "hh_snaps";
 
@@ -123,27 +117,19 @@ export default function SnapsPage() {
                   >
                     ×
                   </button>
-                  <SnapEmbed url={item.url} />
+                  <SmartEmbed url={item.url} />
                 </div>
               ))}
             </div>
           )}
         </section>
 
-        {/* Featured Snaps */}
-        <section>
-          <h2 className="text-base font-semibold text-zinc-300 mb-3">
-            Featured Snaps
-          </h2>
-          <div className="flex flex-col gap-4">
-            {FEATURED_SNAPS.map((item) => (
-              <div key={item.url}>
-                <p className="text-xs text-zinc-500 mb-1">{item.name}</p>
-                <SnapEmbed url={item.url} />
-              </div>
-            ))}
-          </div>
-        </section>
+        <div className="mt-8 p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+          <p className="text-sm text-zinc-400">
+            Paste any Farcaster snap or frame URL above to add it to your collection.
+            Find snaps by tapping embeds in casts.
+          </p>
+        </div>
       </div>
     </div>
   );
