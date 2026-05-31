@@ -40,7 +40,7 @@ function getLocalModel(): string {
 }
 
 function getGroqModel(): string {
-  return process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
+  return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 }
 
 
@@ -494,8 +494,8 @@ ANALYZE THE CAST ABOVE. When the user asks about "this cast", "annaramirez", or 
           mode: 'agent',
           userStats: UserProfileStorage.getStats(userIdentifier)
         });
-      } catch (agentError) {
-        console.error('Agent mode error, falling back to legacy:', agentError);
+      } catch (agentError: any) {
+        console.error('[ask-homie] Agent mode error, falling back to legacy:', agentError?.message || agentError);
         // Fall through to legacy mode
       }
     }
@@ -640,8 +640,8 @@ Profile URL: https://warpcast.com/${profileData.username}]`
         console.log('Using OpenAI');
         response = await callOpenAICompat(openai, 'gpt-4o', conversationMessages);
       }
-    } catch (primaryError) {
-      console.warn(`${selectedProvider} failed, falling back to Claude:`, primaryError);
+    } catch (primaryError: any) {
+      console.error(`[ask-homie] ${selectedProvider} failed:`, primaryError?.message || primaryError);
       usedProvider = 'claude';
       try {
         const completion = await anthropic.messages.create({
