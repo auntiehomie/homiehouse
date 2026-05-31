@@ -396,7 +396,7 @@ export default function FeedList({
 
         return (
           <article key={key} className="surface" style={{ position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'start', flex: 1 }}>
                 <Link href={`/profile?user=${authorUsername}`}>
                   <img
@@ -415,30 +415,33 @@ export default function FeedList({
                   />
                 </Link>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <Link 
-                    href={`/profile?user=${authorUsername}`}
-                    style={{ 
-                      fontWeight: 700,
-                      textDecoration: 'none',
-                      color: 'inherit',
-                      display: 'block'
-                    }}
-                    className="hover:text-white dark:hover:text-zinc-200 transition-colors"
-                  >
-                    {authorName}
-                  </Link>
-                  {authorUsername && (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', flexWrap: 'wrap', minWidth: 0 }}>
                     <Link
                       href={`/profile?user=${authorUsername}`}
                       style={{
-                        fontSize: '13px',
-                        color: 'var(--muted-on-dark)',
-                        textDecoration: 'none'
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        color: 'inherit',
+                        whiteSpace: 'nowrap'
                       }}
+                      className="hover:text-white dark:hover:text-zinc-200 transition-colors"
                     >
-                      @{authorUsername}
+                      {authorName}
                     </Link>
-                  )}
+                    {authorUsername && (
+                      <Link
+                        href={`/profile?user=${authorUsername}`}
+                        style={{
+                          fontSize: '13px',
+                          color: 'var(--muted-on-dark)',
+                          textDecoration: 'none',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        @{authorUsername}
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
               <button
@@ -541,9 +544,9 @@ export default function FeedList({
                 )}
               </div>
             )}
-            <div style={{ 
-              marginTop: 6, 
-              wordBreak: 'break-word', 
+            <div style={{
+              marginTop: 2,
+              wordBreak: 'break-word',
               overflowWrap: 'break-word'
             }}>
               {(() => {

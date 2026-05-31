@@ -84,13 +84,14 @@ export default function UrlPreview({ url }: { url: string }) {
   if (!preview?.ok) {
     console.log('[UrlPreview] Preview not ok, showing fallback:', { url, preview });
     return (
-      <a 
-        href={url} 
-        target="_blank" 
-        rel="noopener noreferrer" 
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
         className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+        style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
       >
-        🔗 {url.length > 80 ? url.substring(0, 80) + '…' : url}
+        🔗 <span className="break-all">{url.length > 80 ? url.substring(0, 80) + '…' : url}</span>
       </a>
     );
   }
@@ -100,24 +101,26 @@ export default function UrlPreview({ url }: { url: string }) {
     // No useful metadata — show fallback
     console.log('[UrlPreview] No useful metadata, showing fallback:', { url });
     return (
-      <a 
-        href={m.url || url} 
-        target="_blank" 
-        rel="noopener noreferrer" 
+      <a
+        href={m.url || url}
+        target="_blank"
+        rel="noopener noreferrer"
         className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+        style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
       >
-        🔗 {(m.url || url).length > 80 ? (m.url || url).substring(0, 80) + '…' : (m.url || url)}
+        🔗 <span className="break-all">{(m.url || url).length > 80 ? (m.url || url).substring(0, 80) + '…' : (m.url || url)}</span>
       </a>
     );
   }
 
   console.log('[UrlPreview] Rendering rich preview:', { url, title: m.title, hasImage: !!m.image });
   return (
-    <a 
-      href={m.url || url} 
-      target="_blank" 
-      rel="noopener noreferrer" 
+    <a
+      href={m.url || url}
+      target="_blank"
+      rel="noopener noreferrer"
       className="block rounded-lg border border-gray-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900 hover:shadow-md transition-shadow"
+      style={{ maxWidth: '100%', overflow: 'hidden' }}
     >
       {m.image && (
         <div className="max-h-48 overflow-hidden bg-gray-100 dark:bg-zinc-800">
@@ -133,11 +136,11 @@ export default function UrlPreview({ url }: { url: string }) {
         </div>
       )}
       <div className="p-3">
-        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+        <div className="text-sm font-semibold text-gray-900 dark:text-white" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {m.title || m.siteName || 'Link'}
         </div>
         {m.description && (
-          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
             {m.description}
           </div>
         )}
