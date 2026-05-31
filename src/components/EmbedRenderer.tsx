@@ -2,34 +2,22 @@
 
 import React from 'react';
 import SnapEmbed from './SnapEmbed';
+import FarcasterCastEmbed from './FarcasterCastEmbed';
 
-/**
- * Render different types of embeds: images, URLs, mini apps, frames
- */
+// Extracts cast hash from farcaster.xyz/~/c/[network:]0xhash URLs
+function parseFarcasterCastUrl(url: string): string | null {
+  const m = url.match(/(?:www\.)?farcaster\.xyz\/~\/c\/(?:[a-z]+:)?(0x[a-fA-F0-9]+)/i);
+  return m ? m[1] : null;
+}
+
 export default function EmbedRenderer({ embed, index }: { embed: any; index: number }) {
-  if (!embed) {
-    console.log('[EmbedRenderer] Skipping null/undefined embed');
-    return null;
-  }
+  if (!embed) return null;
 
-  console.log('[EmbedRenderer] Processing embed:', { index, type: typeof embed, embed: JSON.stringify(embed).substring(0, 200) });
+  const embedUrl: string = typeof embed === 'string' ? embed : embed.url;
+  if (!embedUrl || typeof embedUrl !== 'string') return null;
 
-  const embedUrl = embed.url || embed;
-  
-  if (!embedUrl) {
-    console.log('[EmbedRenderer] No embedUrl extracted, skipping');
-    return null;
-  }
-
-  if (typeof embedUrl !== 'string') {
-    console.log('[EmbedRenderer] embedUrl is not a string:', typeof embedUrl);
-    return null;
-  }
-
-  console.log('[EmbedRenderer] embedUrl:', embedUrl);
-
-  // Image embed
-  const isImage = embedUrl.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) ||
+  // Image
+  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(embedUrl) ||
     embedUrl.includes('imagedelivery.net') ||
     embedUrl.includes('imgur.com') ||
     embedUrl.includes('imgbb.com') ||
@@ -40,50 +28,43 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
 
   if (isImage) {
     return (
-      <a
-        key={index}
-        href={embedUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block"
-      >
+      <a href={embedUrl} target="_blank" rel="noopener noreferrer" className="block">
         <img
           src={embedUrl}
           alt="Cast embed"
-          className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-zinc-800"
+          className="max-w-full h-auto rounded-lg border border-zinc-800"
           loading="lazy"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
       </a>
     );
   }
 
-  // Video embed
-  const isVideo = embedUrl.match(/\.(mp4|webm|mov)$/i);
+  // Video — mp4/webm/mov + HLS (.m3u8) + Farcaster stream CDN
+  const isVideo = /\.(mp4|webm|mov|m3u8)(\?|$)/i.test(embedUrl) ||
+    embedUrl.includes('stream.farcaster.xyz') ||
+    embedUrl.includes('video.farcaster.xyz');
+
   if (isVideo) {
     return (
       <video
-        key={index}
-        className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-zinc-800"
+        className="max-w-full w-full rounded-lg border border-zinc-800 bg-black"
         controls
+        playsInline
       >
-        <source src={embedUrl} />
-        Your browser does not support the video tag.
+        <source src={embedUrl} type={embedUrl.includes('.m3u8') ? 'application/x-mpegURL' : undefined} />
       </video>
     );
   }
 
-  // URL embed — SnapEmbed probes for snap content and falls back to UrlPreview
-  if (embedUrl.startsWith('http')) {
-    return (
-      <div key={index}>
-        <SnapEmbed url={embedUrl} />
-      </div>
-    );
+  if (!embedUrl.startsWith('http')) return null;
+
+  // Farcaster cast link → inline quote-cast card
+  const castHash = parseFarcasterCastUrl(embedUrl);
+  if (castHash) {
+    return <FarcasterCastEmbed hash={castHash} originalUrl={embedUrl} />;
   }
 
-  // Unknown embed type
-  return null;
+  // Everything else → SnapEmbed (probes for snap, falls back to UrlPreview)
+  return <SnapEmbed url={embedUrl} />;
 }

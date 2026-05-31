@@ -15,24 +15,30 @@ interface SnapEmbedProps {
 export default function SnapEmbed({ url, castHash }: SnapEmbedProps) {
   const [snap, setSnap] = useState<SnapData | null>(null);
   const [snapUrl, setSnapUrl] = useState(url);
-  const [probing, setProbing] = useState(true);
+  const [probing, setProbing] = useState(true); // true until probe resolves
   const [isSnap, setIsSnap] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Probe timeout — show UrlPreview sooner rather than waiting the full 8 s
+  const PROBE_TIMEOUT_MS = 4000;
   const { user } = usePrivy();
   const router = useRouter();
 
   const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
   const fid: number = farcasterAccount?.fid ?? 0;
 
-  // Probe the URL for snap content
+  // Probe URL for snap content. Show UrlPreview immediately; swap if snap is found.
   useEffect(() => {
     setProbing(true);
     setIsSnap(false);
     setSnap(null);
     setError(null);
 
-    fetch(`/api/snap?url=${encodeURIComponent(url)}`)
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+
+    fetch(`/api/snap?url=${encodeURIComponent(url)}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (data.isSnap && data.snap) {
@@ -40,8 +46,13 @@ export default function SnapEmbed({ url, castHash }: SnapEmbedProps) {
           setIsSnap(true);
         }
       })
-      .catch(() => {/* fall through to UrlPreview */})
-      .finally(() => setProbing(false));
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        setProbing(false);
+      });
+
+    return () => { controller.abort(); clearTimeout(timer); };
   }, [url]);
 
   const handleAction = useCallback(async (action: SnapAction, inputs: Record<string, unknown>) => {
@@ -137,22 +148,16 @@ export default function SnapEmbed({ url, castHash }: SnapEmbedProps) {
     }
   }, [fid, snapUrl, castHash, router]);
 
-  // Still probing — show a minimal skeleton
-  if (probing) {
-    return <div className="h-24 rounded-xl bg-zinc-900 border border-zinc-800 animate-pulse" />;
+  // Snap confirmed — render the snap (replaces UrlPreview)
+  if (!probing && isSnap && snap) {
+    return (
+      <div>
+        <SnapRenderer snap={snap} onAction={handleAction} submitting={submitting} />
+        {error && <p className="text-xs text-red-400 mt-1 px-1">{error}</p>}
+      </div>
+    );
   }
 
-  // Not a snap — fall through to regular URL preview
-  if (!isSnap || !snap) {
-    return <UrlPreview url={url} />;
-  }
-
-  return (
-    <div>
-      <SnapRenderer snap={snap} onAction={handleAction} submitting={submitting} />
-      {error && (
-        <p className="text-xs text-red-400 mt-1 px-1">{error}</p>
-      )}
-    </div>
-  );
+  // While probing or not a snap — show UrlPreview immediately (no skeleton flash)
+  return <UrlPreview url={url} />;
 }
