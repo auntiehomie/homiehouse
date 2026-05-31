@@ -26,8 +26,11 @@ interface AgentChatProps {
     displayName?: string;
   };
   castContext?: {
-    author: string;
+    author: { username?: string; display_name?: string; fid?: number } | string;
     text: string;
+    hash?: string;
+    reactions?: { likes_count?: number; recasts_count?: number };
+    replies?: { count?: number };
   };
   onCastSelect?: (cast: string) => void;
   initialMessage?: string;
@@ -112,8 +115,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const [showSettings, setShowSettings] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Load conversation history from localStorage on mount
+  // Load conversation history from localStorage on mount (skip if cast context is in URL)
   useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('cast')) return;
     try {
       const savedMessages = localStorage.getItem('hh_chat_history');
       if (savedMessages) {
@@ -130,6 +134,19 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       console.error('Failed to load chat history:', error);
     }
   }, []);
+
+  // When castContext is set, show a greeting and clear old history
+  useEffect(() => {
+    if (!castContext) return;
+    const authorName = typeof castContext.author === 'string'
+      ? castContext.author
+      : (castContext.author?.username || 'someone');
+    const text = castContext.text || '';
+    const preview = text.length > 140 ? text.slice(0, 140) + '…' : text;
+    const greeting = `I see you have a cast from @${authorName}:\n\n"${preview}"\n\nWhat would you like to know about it?`;
+    setMessages([{ role: 'assistant', content: greeting }]);
+    localStorage.removeItem('hh_chat_history');
+  }, [castContext]);
 
   // Update input when a starter question chip is clicked
   useEffect(() => {
