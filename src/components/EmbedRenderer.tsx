@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import UrlPreview from './UrlPreview';
+import SnapEmbed from './SnapEmbed';
 
 /**
  * Render different types of embeds: images, URLs, mini apps, frames
@@ -75,11 +75,11 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
     );
   }
 
-  // URL preview embed (for HTTP/HTTPS links)
+  // URL embed — SnapEmbed probes for snap content and falls back to UrlPreview
   if (embedUrl.startsWith('http')) {
     return (
       <div key={index}>
-        <UrlPreview url={embedUrl} />
+        <SnapEmbed url={embedUrl} />
       </div>
     );
   }

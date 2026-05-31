@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+import SnapEmbed from "@/components/SnapEmbed";
 
 export default function CastDetailPage() {
   const params = useParams();
@@ -153,36 +154,20 @@ export default function CastDetailPage() {
           {embeds.length > 0 && (
             <div className="space-y-3">
               {embeds.map((embed: any, idx: number) => {
-                if (embed.url) {
-                  // Check if it's an image
-                  const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(embed.url) || 
-                                /imagedelivery\.net|imgur\.com/i.test(embed.url);
-                  
-                  if (isImage) {
-                    return (
-                      <img 
-                        key={idx}
-                        src={embed.url} 
-                        alt="Cast embed"
-                        className="w-full rounded-lg border border-gray-200 dark:border-zinc-700"
-                      />
-                    );
-                  }
-                  
-                  // Otherwise, show as a link
+                if (!embed.url) return null;
+                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(embed.url) ||
+                  /imagedelivery\.net|imgur\.com/i.test(embed.url);
+                if (isImage) {
                   return (
-                    <a 
+                    <img
                       key={idx}
-                      href={embed.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="block p-3 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg hover:border-zinc-400 transition-colors"
-                    >
-                      <div className="text-sm text-gray-600 dark:text-gray-400 truncate">{embed.url}</div>
-                    </a>
+                      src={embed.url}
+                      alt="Cast embed"
+                      className="w-full rounded-lg border border-gray-200 dark:border-zinc-700"
+                    />
                   );
                 }
-                return null;
+                return <SnapEmbed key={idx} url={embed.url} castHash={cast.hash} />;
               })}
             </div>
           )}
