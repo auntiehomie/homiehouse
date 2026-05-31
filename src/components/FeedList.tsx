@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import UrlPreview from './UrlPreview';
 import EmbedRenderer from './EmbedRenderer';
+import ParentCastBadge from './ParentCastBadge';
 import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
@@ -610,6 +611,9 @@ export default function FeedList({
                   </button>
                 )}
               </div>
+            )}
+            {it.parent_hash && (
+              <ParentCastBadge parentHash={it.parent_hash} />
             )}
             <div style={{
               marginTop: 2,
