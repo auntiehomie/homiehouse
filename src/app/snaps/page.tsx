@@ -15,6 +15,8 @@ interface AppEntry {
   likes?: number;
   comments?: number;
   featuredBg?: string;
+  /** true = snap/frame URL — use SmartEmbed; false = regular website — show info sheet */
+  isEmbed?: boolean;
 }
 
 interface SavedApp {
@@ -198,7 +200,7 @@ export default function AppsPage() {
   }
 
   function savedToEntry(s: SavedApp): AppEntry {
-    return { id: s.url, name: s.name, description: s.url, icon: "🔗", tags: [], author: "", url: s.url };
+    return { id: s.url, name: s.name, description: s.url, icon: "🔗", tags: [], author: "", url: s.url, isEmbed: true };
   }
 
   const allApps = [...FEATURED, ...NEW_APPS, ...TRENDING_APPS];
@@ -446,44 +448,101 @@ export default function AppsPage() {
               borderRadius: "20px 20px 0 0",
               maxHeight: "85vh",
               overflow: "auto",
-              padding: "0 0 40px",
+              padding: "0 0 48px",
             }}
           >
+            {/* Drag handle */}
+            <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "#333" }} />
+            </div>
+
             {/* Sheet header */}
             <div style={{
               display: "flex",
               alignItems: "center",
-              gap: 12,
-              padding: "16px 16px 12px",
-              borderBottom: "1px solid #222",
+              gap: 14,
+              padding: "12px 16px 16px",
             }}>
               <div style={{
-                width: 44,
-                height: 44,
-                borderRadius: 10,
-                background: "#222",
+                width: 56,
+                height: 56,
+                borderRadius: 14,
+                background: "#1c1c1e",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 22,
+                fontSize: 28,
                 flexShrink: 0,
               }}>
                 {openApp.icon}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>{openApp.name}</div>
-                <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{openApp.description}</div>
+                <div style={{ fontWeight: 700, fontSize: 18 }}>{openApp.name}</div>
+                <div style={{ fontSize: 13, color: "#888", marginTop: 3, lineHeight: 1.4 }}>{openApp.description}</div>
+                {openApp.tags.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    {openApp.tags.map(t => (
+                      <span key={t} style={{ background: "#1c1c1e", border: "1px solid #333", borderRadius: 20, padding: "2px 8px", fontSize: 11, color: "#aaa" }}>{t}</span>
+                    ))}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setOpenApp(null)}
-                style={{ background: "#222", border: "none", borderRadius: "50%", width: 30, height: 30, color: "#aaa", cursor: "pointer", fontSize: 16 }}
+                style={{ background: "#222", border: "none", borderRadius: "50%", width: 32, height: 32, color: "#aaa", cursor: "pointer", fontSize: 18, flexShrink: 0 }}
               >
                 ×
               </button>
             </div>
-            {/* Embed */}
-            <div style={{ padding: 16 }}>
-              <SmartEmbed url={openApp.url} />
+
+            <div style={{ padding: "0 16px" }}>
+              {openApp.isEmbed ? (
+                /* User-saved snap/frame URL — try to embed it */
+                <SmartEmbed url={openApp.url} />
+              ) : (
+                /* Curated app — show open button + stats */
+                <>
+                  {(openApp.likes !== undefined || openApp.comments !== undefined) && (
+                    <div style={{ display: "flex", gap: 16, marginBottom: 20, color: "#666", fontSize: 14 }}>
+                      {openApp.likes !== undefined && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                          {openApp.likes} likes
+                        </span>
+                      )}
+                      {openApp.comments !== undefined && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                          {openApp.comments} comments
+                        </span>
+                      )}
+                      {openApp.author && <span style={{ color: "#555" }}>by @{openApp.author}</span>}
+                    </div>
+                  )}
+                  <a
+                    href={openApp.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      width: "100%",
+                      padding: "15px",
+                      background: "#fff",
+                      color: "#000",
+                      borderRadius: 14,
+                      fontSize: 16,
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Open App
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>
