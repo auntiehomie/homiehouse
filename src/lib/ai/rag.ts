@@ -63,7 +63,7 @@ export async function buildRagContext(question: string): Promise<RagContext> {
       primaryTopic?.keywords[0] ||
       question.slice(0, 40);
 
-    const casts = await searchHypersnapCasts(searchTerm, 5);
+    const casts = await searchHypersnapCasts(searchTerm, 12);
 
     if (casts.length > 0) {
       liveCasts =
