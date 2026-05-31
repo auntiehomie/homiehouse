@@ -71,14 +71,36 @@ export async function GET(request: NextRequest) {
     logger.success('Profile fetched', { fid: userFid });
     logger.end();
 
+    // Fetch Warpcast-filtered follower/following counts (excludes bots)
+    let warpcastFollowerCount: number | null = null;
+    let warpcastFollowingCount: number | null = null;
+    const warpcastUsername = user?.username;
+    if (warpcastUsername) {
+      try {
+        const warpRes = await fetch(
+          `https://client.warpcast.com/v2/user-by-username?username=${encodeURIComponent(warpcastUsername)}`,
+          { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(5000) }
+        );
+        if (warpRes.ok) {
+          const warpData = await warpRes.json();
+          const wu = warpData?.result?.user;
+          if (typeof wu?.followerCount === 'number') warpcastFollowerCount = wu.followerCount;
+          if (typeof wu?.followingCount === 'number') warpcastFollowingCount = wu.followingCount;
+          logger.info('Warpcast follower counts', { follower: warpcastFollowerCount, following: warpcastFollowingCount });
+        }
+      } catch (e) {
+        logger.warn('Warpcast follower fetch failed, falling back to hub counts', { error: String(e) });
+      }
+    }
+
     // Normalize and ensure required fields are always present
     const normalizedUser = {
       fid: userFid || 0,
       username: user?.username || `user_${userFid}`,
       display_name: user?.display_name || user?.username || 'Unknown User',
       pfp_url: user?.pfp_url || '',
-      follower_count: typeof user?.follower_count === 'number' ? user.follower_count : 0,
-      following_count: typeof user?.following_count === 'number' ? user.following_count : 0,
+      follower_count: warpcastFollowerCount ?? (typeof user?.follower_count === 'number' ? user.follower_count : 0),
+      following_count: warpcastFollowingCount ?? (typeof user?.following_count === 'number' ? user.following_count : 0),
       verified_addresses: user?.verified_addresses || { eth_addresses: [] },
       power_badge: user?.power_badge || false,
       profile: user?.profile || { bio: { text: '' } },
