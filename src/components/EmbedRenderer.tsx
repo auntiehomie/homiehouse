@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import SnapEmbed from './SnapEmbed';
+import SmartEmbed from './SmartEmbed';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 
 // Extracts cast hash from farcaster.xyz/~/c/[network:]0xhash URLs
@@ -65,6 +65,6 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
     return <FarcasterCastEmbed hash={castHash} originalUrl={embedUrl} />;
   }
 
-  // Everything else → SnapEmbed (probes for snap, falls back to UrlPreview)
-  return <SnapEmbed url={embedUrl} />;
+  // SmartEmbed: probes for Frame + Snap in parallel, falls back to UrlPreview
+  return <SmartEmbed url={embedUrl} />;
 }

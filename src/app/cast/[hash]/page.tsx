@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
-import SnapEmbed from "@/components/SnapEmbed";
+import SmartEmbed from "@/components/SmartEmbed";
 
 export default function CastDetailPage() {
   const params = useParams();
@@ -167,7 +167,7 @@ export default function CastDetailPage() {
                     />
                   );
                 }
-                return <SnapEmbed key={idx} url={embed.url} castHash={cast.hash} />;
+                return <SmartEmbed key={idx} url={embed.url} castHash={cast.hash} />;
               })}
             </div>
           )}

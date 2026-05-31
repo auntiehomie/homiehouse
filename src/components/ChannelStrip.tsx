@@ -9,6 +9,30 @@ interface Channel {
   image_url?: string;
 }
 
+function channelDisplayName(ch: any): string {
+  // Prefer name if it's not a raw URL
+  const name = ch.name;
+  if (name && !name.startsWith('http') && !name.startsWith('chain://')) return name;
+
+  // Fall back to id if it's not a raw URL
+  const id = ch.id;
+  if (id && !id.startsWith('http') && !id.startsWith('chain://')) return id;
+
+  // Both are URL-like — extract something readable
+  const url = name || id || '';
+  try {
+    if (url.startsWith('chain://')) {
+      // e.g. chain://eip155:1/erc721:0xabc → "erc721:0xabc" → last 8 chars
+      const part = url.split('/').pop() || '';
+      return part.split(':')[0] || 'channel';
+    }
+    const u = new URL(url);
+    return (u.pathname.split('/').filter(Boolean).pop() || u.hostname.replace('www.', '')).slice(0, 12);
+  } catch {
+    return url.slice(0, 10) || 'channel';
+  }
+}
+
 export default function ChannelStrip() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -23,8 +47,8 @@ export default function ChannelStrip() {
       .then(r => r.json())
       .then(data => {
         const list: Channel[] = (data.channels || []).map((ch: any) => ({
-          id: ch.id,
-          name: ch.name || ch.id,
+          id: ch.id || ch.name,
+          name: channelDisplayName(ch),
           image_url: ch.image_url || null,
         }));
         setChannels(list);
