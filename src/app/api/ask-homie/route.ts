@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
 import { createApiLogger } from '@/lib/logger';
@@ -10,16 +9,6 @@ import { buildRagContext } from '@/lib/ai/rag';
 
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
-
-// Lazy client getters - re-read API keys from env on each request
-// so rotated keys are picked up without redeployment
-function getOpenAI() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-}
-
-function getAnthropic() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-}
 
 /** Ollama — self-hosted open-source LLM (OpenAI-compatible API) */
 function getOllama(): OpenAI | null {
@@ -79,30 +68,9 @@ Guidelines:
 - Use the search_farcaster_casts tool when users want to explore a topic deeper
 - When in doubt, say so — don't hallucinate facts about specific projects or prices`;
 
-type Provider = 'ollama' | 'groq' | 'claude' | 'openai';
+type Provider = 'ollama' | 'groq';
 
 // Provider selection: Ollama → Groq → Claude → OpenAI
-function selectBestProvider(question: string): Provider {
-  // Local model takes highest priority when configured
-  if (process.env.OLLAMA_URL) return 'ollama';
-  if (process.env.GROQ_API_KEY) return 'groq';
-
-  const lowerQuestion = question.toLowerCase();
-  const openaiKeywords = [
-    'code', 'function', 'debug', 'error', 'api', 'typescript',
-    'javascript', 'python', 'sql', 'algorithm', 'data structure',
-    'calculate', 'math', 'number', 'formula', 'json',
-    'parse', 'regex', 'syntax', 'compile', 'implement',
-  ];
-  let openaiScore = 0;
-  for (const keyword of openaiKeywords) {
-    if (lowerQuestion.includes(keyword)) openaiScore++;
-  }
-  if (lowerQuestion.includes('```') || lowerQuestion.includes('function') || lowerQuestion.includes('const')) {
-    openaiScore += 2;
-  }
-  return openaiScore >= 2 ? 'openai' : 'claude';
-}
 
 // Detect if user is asking for a profile and extract username
 function detectProfileRequest(question: string): string | null {
@@ -578,14 +546,6 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       conversationMessages = [profileContext, ...conversationMessages];
     }
 
-    // Smart provider selection: Ollama → Groq → Claude → OpenAI
-    const selectedProvider: Provider =
-      requestedProvider === 'ollama' ? 'ollama' :
-      requestedProvider === 'groq'   ? 'groq'   :
-      (requestedProvider === 'gemini' || requestedProvider === 'perplexity' || requestedProvider === 'kimi')
-        ? 'claude'
-        : (requestedProvider as Provider | undefined) || selectBestProvider(question);
-
     // Build RAG context (knowledge base + live Hypersnap casts for this topic)
     const ragCtx = await buildRagContext(question).catch(() => ({
       topics: [], knowledge: '', liveCasts: '', combined: '',
@@ -594,14 +554,9 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       ? SYSTEM_PROMPT + ragCtx.combined
       : SYSTEM_PROMPT;
 
-    // Initialize clients fresh for this request
-    const openai = getOpenAI();
-    const anthropic = getAnthropic();
+    // Provider chain: Ollama (self-hosted) → Groq (free cloud) — no paid APIs
     const ollamaClient = getOllama();
     const groqClient = getGroq();
-
-    let response: string;
-    let usedProvider = selectedProvider;
 
     async function callOpenAICompat(
       client: OpenAI,
@@ -617,47 +572,23 @@ Profile URL: https://warpcast.com/${profileData.username}]`
       return completion.choices[0].message.content || '';
     }
 
-    try {
-      if (selectedProvider === 'ollama' && ollamaClient) {
-        console.log(`Using Ollama (${getLocalModel()})`);
-        response = await callOpenAICompat(ollamaClient, getLocalModel(), conversationMessages);
-      } else if (selectedProvider === 'groq' && groqClient) {
-        console.log(`Using Groq (${getGroqModel()})`);
-        response = await callOpenAICompat(groqClient, getGroqModel(), conversationMessages);
-      } else if (selectedProvider === 'claude') {
-        console.log('Using Claude');
-        const completion = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
-          system: systemWithRag,
-          messages: conversationMessages.map((msg: any) => ({
-            role: msg.role === 'system' ? 'user' : msg.role,
-            content: msg.content,
-          })),
-        });
-        response = completion.content[0].type === 'text' ? completion.content[0].text : '';
-      } else {
-        console.log('Using OpenAI');
-        response = await callOpenAICompat(openai, 'gpt-4o', conversationMessages);
-      }
-    } catch (primaryError: any) {
-      console.error(`[ask-homie] ${selectedProvider} failed:`, primaryError?.message || primaryError);
-      usedProvider = 'claude';
-      try {
-        const completion = await anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
-          system: systemWithRag,
-          messages: messages.map((msg: any) => ({
-            role: msg.role === 'system' ? 'user' : msg.role,
-            content: msg.content,
-          })),
-        });
-        response = completion.content[0].type === 'text' ? completion.content[0].text : '';
-      } catch {
-        usedProvider = 'openai';
-        response = await callOpenAICompat(openai, 'gpt-4o', messages);
-      }
+    let response: string;
+    let usedProvider: string;
+
+    if (ollamaClient) {
+      console.log(`[ask-homie] Using Ollama (${getLocalModel()})`);
+      usedProvider = 'ollama';
+      response = await callOpenAICompat(ollamaClient, getLocalModel(), conversationMessages);
+    } else if (groqClient) {
+      console.log(`[ask-homie] Using Groq (${getGroqModel()})`);
+      usedProvider = 'groq';
+      response = await callOpenAICompat(groqClient, getGroqModel(), conversationMessages);
+    } else {
+      console.error('[ask-homie] No AI provider configured. Set GROQ_API_KEY or OLLAMA_URL.');
+      return NextResponse.json(
+        { error: 'AI service not configured. Please set GROQ_API_KEY in Vercel environment variables.' },
+        { status: 503 },
+      );
     }
 
     logger.success('AI response generated', { provider: usedProvider, topics: ragCtx.topics, mode: 'legacy' });
