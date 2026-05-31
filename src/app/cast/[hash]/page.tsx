@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 
 export default function CastDetailPage() {
   const params = useParams();
@@ -11,6 +12,10 @@ export default function CastDetailPage() {
   const [cast, setCast] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<{ hash: string; fid: number; name: string } | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replying, setReplying] = useState(false);
+  const { reply } = useFarcasterWrites();
 
   useEffect(() => {
     if (!hash) {
@@ -86,6 +91,25 @@ export default function CastDetailPage() {
 
   const embeds = cast.embeds || [];
   const replies = cast.replies?.casts || cast.direct_replies || [];
+
+  const handleReply = (parentHash: string, parentFid: number, parentName: string) => {
+    setReplyingTo({ hash: parentHash, fid: parentFid, name: parentName });
+    setReplyText('');
+  };
+
+  const submitReply = async () => {
+    if (!replyText.trim() || !replyingTo) return;
+    setReplying(true);
+    try {
+      await reply({ text: replyText.trim(), parentCastHash: replyingTo.hash, parentCastFid: replyingTo.fid });
+      setReplyingTo(null);
+      setReplyText('');
+    } catch (e) {
+      console.error('Reply failed:', e);
+    } finally {
+      setReplying(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
@@ -168,13 +192,48 @@ export default function CastDetailPage() {
             {timeLabel}
           </div>
 
-          {/* Reactions */}
-          <div className="flex gap-6 mt-4 text-sm text-gray-600 dark:text-gray-400">
+          {/* Reactions + Reply */}
+          <div className="flex items-center gap-6 mt-4 text-sm text-gray-600 dark:text-gray-400">
             <div>❤️ {cast.reactions?.likes_count || 0} likes</div>
             <div>🔁 {cast.reactions?.recasts_count || 0} recasts</div>
             <div>💬 {cast.replies?.count || 0} replies</div>
+            <button
+              onClick={() => handleReply(cast.hash, cast.author?.fid, authorName)}
+              className="ml-auto text-zinc-500 hover:text-zinc-200 transition-colors text-xs"
+            >
+              Reply
+            </button>
           </div>
         </div>
+
+        {/* Inline reply composer */}
+        {replyingTo && (
+          <div className="mb-6 p-4 bg-zinc-900 border border-zinc-700 rounded-xl">
+            <div className="text-xs text-zinc-500 mb-2">Replying to {replyingTo.name}</div>
+            <textarea
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              placeholder="Write your reply..."
+              rows={3}
+              className="w-full bg-zinc-800 text-zinc-100 text-sm rounded-lg p-3 resize-none border border-zinc-700 focus:outline-none focus:border-zinc-500"
+            />
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={() => setReplyingTo(null)}
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReply}
+                disabled={replying || !replyText.trim()}
+                className="px-4 py-1.5 text-xs bg-zinc-100 text-black rounded-full font-medium disabled:opacity-40 hover:bg-white transition-colors"
+              >
+                {replying ? 'Posting…' : 'Post'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Replies Section */}
         {replies.length > 0 && (
@@ -227,8 +286,14 @@ export default function CastDetailPage() {
                         <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                           {replyText}
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                          {replyTimeLabel}
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{replyTimeLabel}</span>
+                          <button
+                            onClick={() => handleReply(reply.hash, replyAuthor?.fid, replyAuthorName)}
+                            className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors"
+                          >
+                            Reply
+                          </button>
                         </div>
                       </div>
                     </div>
