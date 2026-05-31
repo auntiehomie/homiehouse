@@ -283,7 +283,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       {/* Header with mode selector */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Ask Homie AI</h2>
+          <h2 className="text-lg font-semibold">Ask Homie</h2>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
               <button
