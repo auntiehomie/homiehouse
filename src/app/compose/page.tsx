@@ -145,13 +145,14 @@ function ComposePageInner() {
     setTriggerResults([]);
   }
 
-  // Detect URLs in text and fetch preview
+  // Detect URLs in text and fetch preview (handles https:// and bare domains)
   useEffect(() => {
-    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    const urlRegex = /(?:https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|run|fun|us|uk|ca|au|de|fr|jp)[^\s]*)/gi;
     const matches = text.match(urlRegex);
-    
+
     if (matches && matches.length > 0) {
-      const url = matches[0];
+      const rawUrl = matches[0];
+      const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
       if (url !== detectedUrl) {
         setDetectedUrl(url);
         fetchUrlPreview(url);
@@ -451,7 +452,9 @@ function ComposePageInner() {
             )}
           </div>
         ) : (
-          <div style={{ position: 'relative' }}>
+          <div>
+            {/* Textarea with floating autocomplete */}
+            <div style={{ position: 'relative' }}>
             <textarea
               className="w-full bg-transparent text-white text-lg p-4 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 resize-none min-h-[120px]"
               value={text}
@@ -459,18 +462,22 @@ function ComposePageInner() {
               placeholder="What's on your mind?"
               autoFocus
             />
-            
-            {/* Unified inline autocomplete: @user, /channel, $token */}
+
+            {/* Autocomplete: floats below textarea, overlays toolbar */}
             {activeTrigger && triggerResults.length > 0 && (
               <div style={{
-                marginTop: 6,
-                maxHeight: 260,
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                marginTop: 4,
+                maxHeight: 240,
                 overflowY: 'auto',
                 background: '#111',
                 border: '1px solid #3f3f46',
                 borderRadius: 10,
-                zIndex: 50,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+                zIndex: 100,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
               }}>
                 {triggerResults.map((result, i) => (
                   <button
@@ -552,7 +559,8 @@ function ComposePageInner() {
                 ))}
               </div>
             )}
-            
+            </div>{/* end textarea wrapper */}
+
             {/* Image preview */}
             {imageUrl && (
               <div className="relative mt-3">
