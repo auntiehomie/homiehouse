@@ -43,13 +43,13 @@ export default function ChannelStrip() {
     const { fid } = JSON.parse(stored);
     if (!fid) { setLoaded(true); return; }
 
-    fetch(`/api/channels?fid=${fid}&limit=30`)
+    fetch(`/api/channels?fid=${fid}&limit=100`)
       .then(r => r.json())
       .then(data => {
         const list: Channel[] = (data.channels || []).map((ch: any) => ({
           id: ch.id || ch.name,
           name: channelDisplayName(ch),
-          image_url: ch.image_url || null,
+          image_url: ch.image_url || ch.imageUrl || ch.image || null,
         }));
         setChannels(list);
       })

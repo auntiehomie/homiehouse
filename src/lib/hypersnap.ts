@@ -137,6 +137,20 @@ export async function fetchCast(hash: string): Promise<any> {
 }
 
 /**
+ * Fetch direct replies to a cast.
+ * GET /v2/farcaster/feed?feed_type=filter&filter_type=parent_hash&parent_hash=:hash
+ */
+export async function fetchCastReplies(hash: string, limit = 50): Promise<any> {
+  const qs = new URLSearchParams({
+    feed_type: 'filter',
+    filter_type: 'parent_hash',
+    parent_hash: hash,
+    limit: String(limit),
+  });
+  return hypersnapFetch(`/v2/farcaster/feed?${qs.toString()}`);
+}
+
+/**
  * Fetch notifications for a FID.
  * GET /v2/farcaster/notifications?fid=:fid&limit=:limit[&cursor=:cursor]
  */

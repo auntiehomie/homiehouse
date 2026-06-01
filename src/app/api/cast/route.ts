@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchCast } from '@/lib/hypersnap';
+import { fetchCast, fetchCastReplies } from '@/lib/hypersnap';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -10,11 +10,26 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const data = await fetchCast(hash);
-    const cast = data?.cast ?? data;
+    const [castData, repliesData] = await Promise.all([
+      fetchCast(hash),
+      fetchCastReplies(hash, 50),
+    ]);
+
+    const cast = castData?.cast ?? castData;
     if (!cast) {
       return NextResponse.json({ ok: false, error: 'Cast not found' }, { status: 404 });
     }
+
+    const replyCasts: any[] = repliesData?.casts ?? [];
+    // Merge live reply list into cast so page can show accurate count + thread
+    cast.direct_replies = replyCasts;
+    if (cast.replies) {
+      cast.replies.count = Math.max(cast.replies.count ?? 0, replyCasts.length);
+      cast.replies.casts = replyCasts;
+    } else {
+      cast.replies = { count: replyCasts.length, casts: replyCasts };
+    }
+
     return NextResponse.json({ ok: true, cast });
   } catch (error: any) {
     console.error('[api/cast] error:', error);

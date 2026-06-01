@@ -46,7 +46,7 @@ export default function ChannelsList() {
   async function fetchChannels(fid: number) {
     try {
       console.log('[ChannelsList] Fetching channels for FID:', fid);
-      const response = await fetch(`/api/channels?fid=${fid}`);
+      const response = await fetch(`/api/channels?fid=${fid}&limit=200`);
       const data = await response.json();
       
       console.log('[ChannelsList] API response:', data);
@@ -55,7 +55,7 @@ export default function ChannelsList() {
         // Map channels to our format
         const userChannels = [
           { name: "Home", url: "/", id: "home" },
-          ...data.channels.slice(0, 10).map((ch: any) => ({
+          ...data.channels.map((ch: any) => ({
             name: ch.name || ch.id,
             url: `/channel/${ch.id}`,
             id: ch.id
