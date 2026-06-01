@@ -74,7 +74,7 @@ function ComposePageInner() {
 
   // Unified trigger search: @user, /channel, $token
   useEffect(() => {
-    if (!activeTrigger || activeTrigger.query.length < 1) {
+    if (!activeTrigger || activeTrigger.query.length < 2) {
       setTriggerResults([]);
       return;
     }
@@ -455,28 +455,24 @@ function ComposePageInner() {
         ) : (
           <div style={{ position: 'relative' }}>
             <textarea
-              className="w-full bg-transparent text-white text-lg p-4 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 resize-none min-h-[200px]"
+              className="w-full bg-transparent text-white text-lg p-4 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 resize-none min-h-[120px]"
               value={text}
               onChange={handleTextChange}
               placeholder="What's on your mind?"
               autoFocus
             />
             
-            {/* Unified inline autocomplete: @user, /channel, $token — rendered ABOVE textarea so it's visible when keyboard is open on mobile */}
+            {/* Unified inline autocomplete: @user, /channel, $token */}
             {activeTrigger && triggerResults.length > 0 && (
               <div style={{
-                position: 'absolute',
-                bottom: '100%',
-                left: 0,
-                right: 0,
+                marginTop: 6,
                 maxHeight: 260,
                 overflowY: 'auto',
                 background: '#111',
                 border: '1px solid #3f3f46',
                 borderRadius: 10,
-                marginBottom: 4,
-                zIndex: 1000,
-                boxShadow: '0 -8px 24px rgba(0,0,0,0.6)',
+                zIndex: 50,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
               }}>
                 {triggerResults.map((result, i) => (
                   <button
