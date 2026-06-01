@@ -227,9 +227,6 @@ export default function ComposeModal() {
         setUploadedImage(data.url);
         setImageUrl(data.url);
         setImageProvider(data.provider === 'ipfs' ? 'ipfs' : 'imgbb');
-        const via = data.provider === 'ipfs' ? '✓ Pinned to IPFS!' : '✓ Image uploaded!';
-        setStatus(via);
-        setTimeout(() => setStatus(null), 3000);
       } else {
         setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
       }
@@ -540,12 +537,6 @@ export default function ComposeModal() {
                   {/* Image preview */}
                   {imageUrl && (
                     <div style={{ marginTop: 8, position: 'relative' }}>
-                      {imageProvider === 'ipfs' && (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--muted-on-dark)', marginBottom: 6, background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: 20, border: '1px solid var(--border)' }}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                          Stored on IPFS
-                        </div>
-                      )}
                       <img
                         src={imageUrl}
                         alt="Preview"
