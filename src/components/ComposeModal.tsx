@@ -21,6 +21,7 @@ export default function ComposeModal() {
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [imageProvider, setImageProvider] = useState<'ipfs' | 'imgbb' | null>(null);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
@@ -212,13 +213,7 @@ export default function ComposeModal() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      // SECURITY: Include signerUuid for authenticated upload
-      const uploadSignerUuid = getStoredSignerUuid();
-      if (uploadSignerUuid) {
-        formData.append('signerUuid', uploadSignerUuid);
-      }
-      if (false) {
-      }
+      if (userFid) formData.append('fid', String(userFid));
 
       const response = await fetch('/api/upload-image', {
         method: 'POST',
@@ -231,8 +226,10 @@ export default function ComposeModal() {
       if (data.ok && data.url) {
         setUploadedImage(data.url);
         setImageUrl(data.url);
-        setStatus("✓ Image uploaded!");
-        setTimeout(() => setStatus(null), 2000);
+        setImageProvider(data.provider === 'ipfs' ? 'ipfs' : 'imgbb');
+        const via = data.provider === 'ipfs' ? '✓ Pinned to IPFS!' : '✓ Image uploaded!';
+        setStatus(via);
+        setTimeout(() => setStatus(null), 3000);
       } else {
         setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
       }
@@ -246,6 +243,7 @@ export default function ComposeModal() {
   const removeImage = () => {
     setImageUrl('');
     setUploadedImage(null);
+    setImageProvider(null);
   };
 
   async function handlePost() {
@@ -485,24 +483,25 @@ export default function ComposeModal() {
                 {/* Image upload/URL section */}
                 <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                    <label 
+                    <label
                       htmlFor="image-upload"
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '6px',
-                        padding: '8px 12px',
-                        background: uploadingImage ? 'var(--surface)' : 'var(--accent)',
-                        color: 'white',
-                        borderRadius: '6px',
+                        padding: '7px 14px',
+                        background: 'linear-gradient(180deg, #334155 0%, #1e293b 100%)',
+                        color: '#e2e8f0',
+                        borderRadius: '8px',
                         cursor: uploadingImage ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 500,
-                        border: 'none',
-                        opacity: uploadingImage ? 0.6 : 1
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        border: '1px solid #475569',
+                        opacity: uploadingImage ? 0.6 : 1,
                       }}
                     >
-                      📷 {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      {uploadingImage ? 'Uploading…' : 'Add Image'}
                     </label>
                     <input
                       id="image-upload"
@@ -541,6 +540,12 @@ export default function ComposeModal() {
                   {/* Image preview */}
                   {imageUrl && (
                     <div style={{ marginTop: 8, position: 'relative' }}>
+                      {imageProvider === 'ipfs' && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--muted-on-dark)', marginBottom: 6, background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: 20, border: '1px solid var(--border)' }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                          Stored on IPFS
+                        </div>
+                      )}
                       <img
                         src={imageUrl}
                         alt="Preview"
