@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { text, fid, embeds = [], scheduled_time, channelKey } = body;
+    const { text, fid, embeds = [], scheduled_time, channelKey, private_key } = body;
 
     if (!text || !fid || !scheduled_time) {
       return NextResponse.json(
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
        RETURNING *`,
       [
         userFid,
-        'app-managed',
+        private_key || 'app-managed',
         text,
         JSON.stringify(embeds),
         channelKey || null,

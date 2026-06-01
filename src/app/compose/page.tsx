@@ -315,7 +315,7 @@ function ComposePageInner() {
       if (isScheduled && scheduleTime) {
         const scheduledDate = new Date(scheduleTime);
         const now = new Date();
-        
+
         if (scheduledDate <= now) {
           setStatus("Scheduled time must be in the future.");
           setLoading(false);
@@ -323,7 +323,18 @@ function ComposePageInner() {
         }
 
         body.scheduled_time = scheduledDate.toISOString();
-        
+
+        // Pass the user's signer private key so the server can sign the cast at publish time
+        try {
+          const signerRaw = localStorage.getItem(`signer_${userFid}`);
+          if (signerRaw) {
+            const signerData = JSON.parse(signerRaw);
+            if (signerData.status === 'approved' && signerData.private_key) {
+              body.private_key = signerData.private_key;
+            }
+          }
+        } catch {}
+
         console.log('[ComposePage] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
         const res = await fetch("/api/schedule-cast", {
           method: "POST",
@@ -645,7 +656,7 @@ function ComposePageInner() {
                 </div>
               )}
 
-              <div className="flex items-center gap-1 mt-3 pt-3 border-t border-zinc-800">
+              <div className="flex items-center gap-1 mt-3 pt-3 border-t border-zinc-800 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' as any, scrollbarWidth: 'none' }}>
                 {/* Photo upload icon */}
                 <label
                   htmlFor="image-upload-compose"
@@ -705,9 +716,9 @@ function ComposePageInner() {
                 {/* View scheduled queue */}
                 <button
                   onClick={() => router.push('/scheduled')}
-                  className="text-zinc-400 hover:text-white transition-colors text-sm px-1"
+                  className="text-zinc-400 hover:text-white transition-colors text-sm px-1 whitespace-nowrap flex-shrink-0"
                 >
-                  Scheduled casts
+                  Scheduled
                 </button>
 
                 <div className="flex-1" />
@@ -719,7 +730,7 @@ function ComposePageInner() {
                 )}
 
                 <button
-                  className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
+                  className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors flex-shrink-0"
                   disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
                   onClick={handlePost}
                 >

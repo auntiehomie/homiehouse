@@ -49,6 +49,13 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(8000),
     });
 
+    if (!res.ok) {
+      return NextResponse.json(
+        { isFrame: false, error: `Error ${res.status}`, httpStatus: res.status },
+        { status: 422 },
+      );
+    }
+
     const contentType = res.headers.get('content-type') || '';
     const html = await res.text();
 

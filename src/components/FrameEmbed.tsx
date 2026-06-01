@@ -13,6 +13,7 @@ export default function FrameEmbed({ url, castHash }: Props) {
   const [probing, setProbing] = useState(true);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [interactError, setInteractError] = useState<string | null>(null);
 
   useEffect(() => {
     setProbing(true);
@@ -36,20 +37,24 @@ export default function FrameEmbed({ url, castHash }: Props) {
       return;
     }
     if (btn.action === 'post_redirect' || btn.action === 'post') {
-      // For signed POST interactions — show loading, then re-fetch via proxy
       const postUrl = btn.target || frame?.postUrl || url;
       setLoading(true);
+      setInteractError(null);
       try {
         const res = await fetch('/api/frame/interact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, postUrl, buttonIndex: btn.index, inputText: inputValue, castHash }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.isFrame && data.frame) setFrame(data.frame);
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setInteractError(data.error || `Error ${res.status}`);
+        } else if (data.isFrame && data.frame) {
+          setFrame(data.frame);
         }
-      } catch {}
+      } catch (e: any) {
+        setInteractError(e.message || 'Action failed');
+      }
       setLoading(false);
     }
   };
@@ -110,6 +115,21 @@ export default function FrameEmbed({ url, castHash }: Props) {
               )}
             </button>
           ))}
+        </div>
+      )}
+
+      {interactError && (
+        <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-red-400">{interactError}</span>
+          <span className="text-xs text-zinc-600">—</span>
+          <a
+            href={`https://warpcast.com`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-zinc-400 hover:text-white underline"
+          >
+            Open in Warpcast to interact
+          </a>
         </div>
       )}
     </div>

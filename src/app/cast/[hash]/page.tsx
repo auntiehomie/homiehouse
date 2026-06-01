@@ -104,6 +104,7 @@ export default function CastDetailPage() {
 
   const embeds = cast.embeds || [];
   const replies = cast.replies?.casts || cast.direct_replies || [];
+  const parentChain: any[] = cast.parent_chain || [];
 
   const handleReply = (parentHash: string, parentFid: number, parentName: string) => {
     setReplyingTo({ hash: parentHash, fid: parentFid, name: parentName });
@@ -135,6 +136,44 @@ export default function CastDetailPage() {
         >
           ← Back
         </Link>
+
+        {/* Parent chain (thread context) */}
+        {parentChain.length > 0 && (
+          <div className="mb-4 space-y-0">
+            {parentChain.map((pc: any, idx: number) => {
+              const pcAuthor = pc.author;
+              const pcName = pcAuthor?.display_name || pcAuthor?.username || 'Unknown';
+              const pcUsername = pcAuthor?.username || '';
+              const pcPfp = pcAuthor?.pfp_url;
+              return (
+                <div key={pc.hash || idx} className="relative">
+                  <div className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      {pcPfp
+                        ? <img src={pcPfp} alt={pcName} className="w-9 h-9 rounded-full border border-gray-300 dark:border-zinc-700 flex-shrink-0" />
+                        : <div className="w-9 h-9 rounded-full bg-zinc-800 flex-shrink-0" />
+                      }
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Link href={`/profile?user=${pcUsername}`} className="font-semibold text-sm hover:text-white transition-colors">
+                            {pcName}
+                          </Link>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">@{pcUsername}</span>
+                        </div>
+                        <div className="text-sm leading-relaxed text-gray-800 dark:text-zinc-200 whitespace-pre-wrap break-words">
+                          {renderCastText(pc.text || '')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Thread connector line */}
+                  <div className="absolute left-[28px] bottom-[-16px] w-0.5 h-4 bg-zinc-700" />
+                </div>
+              );
+            })}
+            <div className="h-4" />
+          </div>
+        )}
 
         {/* Main Cast */}
         <div className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-6 mb-6">

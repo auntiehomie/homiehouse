@@ -29,6 +29,22 @@ export async function GET(request: NextRequest) {
       cast.replies = { count: replyCasts.length, casts: replyCasts };
     }
 
+    // Walk up parent chain to show full thread context
+    const parentChain: any[] = [];
+    let current = cast;
+    for (let i = 0; i < 10 && current?.parent_hash; i++) {
+      try {
+        const parentData = await fetchCast(current.parent_hash);
+        const parent = parentData?.cast ?? parentData;
+        if (!parent) break;
+        parentChain.unshift(parent);
+        current = parent;
+      } catch {
+        break;
+      }
+    }
+    cast.parent_chain = parentChain;
+
     return NextResponse.json({ ok: true, cast });
   } catch (error: any) {
     console.error('[api/cast] error:', error);
