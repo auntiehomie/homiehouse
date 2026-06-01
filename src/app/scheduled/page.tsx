@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 
 interface ScheduledCast {
   id: string;
@@ -32,12 +33,15 @@ function formatRelative(iso: string) {
 export default function ScheduledPage() {
   const router = useRouter();
   const { user } = usePrivy();
+  const { submitCast } = useFarcasterWrites();
   const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
   const [casts, setCasts] = useState<ScheduledCast[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const [retryError, setRetryError] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!userFid) return;
@@ -59,6 +63,36 @@ export default function ScheduledPage() {
       if (data.ok) setCasts(prev => prev.filter(c => c.id !== id));
     } finally {
       setCancelling(null);
+    }
+  }
+
+  async function handleRetry(cast: ScheduledCast) {
+    if (!userFid) return;
+    setRetrying(cast.id);
+    setRetryError(prev => ({ ...prev, [cast.id]: '' }));
+    try {
+      const embeds = Array.isArray(cast.embeds)
+        ? cast.embeds
+        : JSON.parse(cast.embeds || '[]');
+
+      const result = await submitCast({
+        text: cast.text,
+        embeds: embeds.length ? embeds : undefined,
+        channelKey: cast.channel_id || undefined,
+      });
+
+      // Mark as published in DB
+      await fetch('/api/schedule-cast', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: cast.id, fid: userFid, cast_hash: result.castHash }),
+      });
+
+      setCasts(prev => prev.filter(c => c.id !== cast.id));
+    } catch (err: any) {
+      setRetryError(prev => ({ ...prev, [cast.id]: err.message || 'Failed to post' }));
+    } finally {
+      setRetrying(null);
     }
   }
 
@@ -130,10 +164,16 @@ export default function ScheduledPage() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: 13 }}>
+                {retryError[cast.id] && (
+                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f87171' }}>{retryError[cast.id]}</p>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 13, flex: 1, minWidth: 0 }}>
                     {cast.status === 'failed' ? (
-                      <span style={{ color: '#f87171' }}>Failed{cast.error_message ? `: ${cast.error_message}` : ''}</span>
+                      <span style={{ color: '#f87171' }}>
+                        Failed{cast.error_message ? `: ${cast.error_message}` : ''}
+                      </span>
                     ) : (
                       <span style={{ color: 'var(--muted-on-dark)' }}>
                         {new Date(cast.scheduled_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -142,23 +182,45 @@ export default function ScheduledPage() {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => handleCancel(cast.id)}
-                    disabled={cancelling === cast.id}
-                    style={{
-                      padding: '5px 14px',
-                      borderRadius: 8,
-                      border: '1px solid rgba(239,68,68,0.4)',
-                      background: 'transparent',
-                      color: '#f87171',
-                      cursor: cancelling === cast.id ? 'not-allowed' : 'pointer',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      opacity: cancelling === cast.id ? 0.5 : 1,
-                    }}
-                  >
-                    {cancelling === cast.id ? '…' : cast.status === 'failed' ? 'Delete' : 'Cancel'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    {cast.status === 'failed' && (
+                      <button
+                        onClick={() => handleRetry(cast)}
+                        disabled={retrying === cast.id}
+                        style={{
+                          padding: '5px 14px',
+                          borderRadius: 8,
+                          border: '1px solid rgba(99,102,241,0.5)',
+                          background: 'transparent',
+                          color: '#a5b4fc',
+                          cursor: retrying === cast.id ? 'not-allowed' : 'pointer',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          opacity: retrying === cast.id ? 0.5 : 1,
+                        }}
+                      >
+                        {retrying === cast.id ? 'Posting…' : 'Post now'}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleCancel(cast.id)}
+                      disabled={cancelling === cast.id}
+                      style={{
+                        padding: '5px 14px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(239,68,68,0.4)',
+                        background: 'transparent',
+                        color: '#f87171',
+                        cursor: cancelling === cast.id ? 'not-allowed' : 'pointer',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        opacity: cancelling === cast.id ? 0.5 : 1,
+                      }}
+                    >
+                      {cancelling === cast.id ? '…' : cast.status === 'failed' ? 'Delete' : 'Cancel'}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
