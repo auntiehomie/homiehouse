@@ -7,7 +7,6 @@ import ComposeModal from "../components/ComposeModal";
 import ScheduledCastsModal from "../components/ScheduledCastsModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import NeynarSignIn from "../components/NeynarSignIn";
-import ChannelsList from "../components/ChannelsList";
 
 const MESSAGES = [
   "HomieHouse - Your Social Hub",
@@ -164,11 +163,6 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24">
         <div className="flex gap-6 items-start">
-          {/* Left Sidebar - only on large desktop screens */}
-          <aside className="hidden lg:block w-48 shrink-0">
-            <ChannelsList />
-          </aside>
-
           {/* Main Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-3">
