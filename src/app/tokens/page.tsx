@@ -118,7 +118,6 @@ export default function TokensPage() {
                   alignItems: 'center',
                   gap: 12,
                   padding: '14px 0',
-                  borderBottom: '1px solid var(--border)',
                   background: 'none',
                   border: 'none',
                   borderBottom: '1px solid var(--border)',

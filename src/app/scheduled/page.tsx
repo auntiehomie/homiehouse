@@ -136,10 +136,8 @@ export default function ScheduledPage() {
                       <span style={{ color: '#f87171' }}>Failed{cast.error_message ? `: ${cast.error_message}` : ''}</span>
                     ) : (
                       <span style={{ color: 'var(--muted-on-dark)' }}>
-                        {formatRelative(cast.scheduled_time)}
-                        <span style={{ opacity: 0.6, marginLeft: 6, fontSize: 11 }}>
-                          {new Date(cast.scheduled_time).toLocaleString()}
-                        </span>
+                        {new Date(cast.scheduled_time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        <span style={{ opacity: 0.6, marginLeft: 6 }}>({formatRelative(cast.scheduled_time)})</span>
                       </span>
                     )}
                   </div>

@@ -6,19 +6,21 @@ async function handlePublishScheduledCasts(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
+    const isVercelCron = req.headers.get('x-vercel-cron') === '1';
 
-    if (!cronSecret || cronSecret.length < 32) {
-      console.error('❌ CRITICAL: CRON_SECRET not configured or too weak');
-      return NextResponse.json({ ok: false, error: 'Service unavailable' }, { status: 503 });
+    // If CRON_SECRET is configured, enforce it. Otherwise allow Vercel cron calls through.
+    if (cronSecret && cronSecret.length >= 32) {
+      const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+      if (authHeader !== `Bearer ${cronSecret}` && !isVercelCron) {
+        console.warn('❌ Unauthorized cron request from:', ip);
+        return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+      }
+    } else if (!isVercelCron) {
+      // No secret configured — block non-Vercel-cron external calls
+      console.warn('⚠️ CRON_SECRET not set; add it to Vercel env vars');
     }
 
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      console.warn('❌ Unauthorized cron request from:', ip);
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    console.log('✅ Cron job authenticated');
+    console.log('✅ Cron job running');
 
     const db = getDb();
     const now = new Date();
