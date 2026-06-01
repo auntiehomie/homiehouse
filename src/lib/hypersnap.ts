@@ -152,17 +152,14 @@ export async function fetchChannelFeed(channelId: string, params: {
     if (data?.casts?.length) return data;
   } catch (_) {}
 
-  // Fallback 1: multi-channel feed endpoint
+  // Fallback: multi-channel feed endpoint
+  const qs2 = new URLSearchParams(base);
+  qs2.set('channel_ids', channelId);
   try {
-    const qs2 = new URLSearchParams(base);
-    qs2.set('channel_ids', channelId);
-    const data2 = await hypersnapFetch(`/v2/farcaster/feed/channels?${qs2.toString()}`);
-    if (data2?.casts?.length) return data2;
-  } catch (_) {}
-
-  // Fallback 2: cast search for the channel name (self-hosted nodes often lack channel filtering)
-  const searchData = await searchCasts(channelId, limit);
-  return { casts: searchData?.casts || [], next: null };
+    return await hypersnapFetch(`/v2/farcaster/feed/channels?${qs2.toString()}`);
+  } catch (_) {
+    return { casts: [], next: null };
+  }
 }
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {

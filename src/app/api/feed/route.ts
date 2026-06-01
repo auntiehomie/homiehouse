@@ -53,7 +53,12 @@ export async function GET(req: NextRequest) {
     logger.success(`Feed fetched successfully`, { count: casts.length });
     logger.end();
 
-    return NextResponse.json({ data: casts, cursor: data?.next?.cursor || null });
+    // The Snapchain node returns hex([null,null]) as a sentinel meaning no more results.
+    // Treat it as null so the client stops paginating.
+    const rawCursor = data?.next?.cursor || null;
+    const cursor_out = rawCursor === '5b6e756c6c2c6e756c6c5d' ? null : rawCursor;
+
+    return NextResponse.json({ data: casts, cursor: cursor_out });
   } catch (error: any) {
     logger.error('Failed to fetch feed', error);
     return handleApiError(error, 'GET /feed');
