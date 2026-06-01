@@ -92,7 +92,6 @@ export default function FeedList({
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
-  const [expandedCasts, setExpandedCasts] = useState<Set<string>>(new Set());
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
   const [curateLoading, setCurateLoading] = useState(false);
@@ -638,18 +637,13 @@ export default function FeedList({
               }}
             >
               {(() => {
-                const words = text.split(' ');
-                const isLongCast = words.length > 15;
-                const isExpanded = expandedCasts.has(key);
-                
-                if (!isLongCast || isExpanded) {
                   return (
-                    <ReactMarkdown 
+                    <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
-                        code: ({ node, inline, ...props }: any) => 
-                          inline ? 
+                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
+                        code: ({ node, inline, ...props }: any) =>
+                          inline ?
                             <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
                             <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
                       }}
@@ -657,41 +651,7 @@ export default function FeedList({
                       {text}
                     </ReactMarkdown>
                   );
-                }
-                
-                // Show first 15 words
-                const preview = words.slice(0, 15).join(' ');
-                return (
-                  <>
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
-                        code: ({ node, inline, ...props }: any) => 
-                          inline ? 
-                            <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
-                            <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
-                      }}
-                    >
-                      {preview}
-                    </ReactMarkdown>
-                    <button
-                      onClick={() => setExpandedCasts(prev => new Set([...prev, key]))}
-                      style={{
-                        marginLeft: '4px',
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--muted-on-dark)',
-                        cursor: 'pointer',
-                        fontSize: 'inherit',
-                        padding: '0',
-                      }}
-                      className="hover:text-white dark:hover:text-zinc-200 transition-colors"
-                    >
-                      ... <span style={{ textDecoration: 'underline' }}>more</span>
-                    </button>
-                  </>
-                );              })()}            </div>
+              })()}            </div>
             
             {/* Display embeds (images, videos, links, etc.) */}
             {Array.isArray(it.embeds) && it.embeds.length > 0 && (
@@ -735,26 +695,6 @@ export default function FeedList({
                   </Link>
                 )}
               </span>
-              {expandedCasts.has(key) && (
-                <button
-                  onClick={() => setExpandedCasts(prev => {
-                    const newSet = new Set(prev);
-                    newSet.delete(key);
-                    return newSet;
-                  })}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--muted-on-dark)',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    padding: '0'
-                  }}
-                  className="hover:text-white dark:hover:text-zinc-200 transition-colors"
-                >
-                  Show less
-                </button>
-              )}
             </div>
             
             {/* Action buttons */}

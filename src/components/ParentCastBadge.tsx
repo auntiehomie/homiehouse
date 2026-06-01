@@ -6,10 +6,9 @@ import Link from 'next/link';
 interface ParentMeta {
   hash: string;
   authorUsername: string;
-  textPreview: string;
+  text: string;
 }
 
-// Module-level cache so repeated parent_hashes don't re-fetch
 const cache = new Map<string, ParentMeta | null>();
 const inFlight = new Map<string, Promise<ParentMeta | null>>();
 
@@ -25,7 +24,7 @@ async function fetchParent(hash: string): Promise<ParentMeta | null> {
       const meta: ParentMeta = {
         hash,
         authorUsername: cast.author?.username || cast.author?.fid || '?',
-        textPreview: (cast.text || '').slice(0, 80),
+        text: (cast.text || '').slice(0, 200),
       };
       cache.set(hash, meta);
       return meta;
@@ -47,13 +46,13 @@ export default function ParentCastBadge({ parentHash }: { parentHash: string }) 
     fetchParent(parentHash).then(setMeta);
   }, [parentHash]);
 
-  if (meta === undefined) return null; // loading — show nothing until resolved
+  if (meta === undefined) return null;
+
   if (meta === null) {
-    // Parent not found, just show a link to the hash
     return (
       <Link
         href={`/cast/${parentHash}`}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#666', marginBottom: 6, textDecoration: 'none' }}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 8, textDecoration: 'none' }}
         onClick={e => e.stopPropagation()}
       >
         ↩ Replying to a cast
@@ -64,27 +63,31 @@ export default function ParentCastBadge({ parentHash }: { parentHash: string }) 
   return (
     <Link
       href={`/cast/${meta.hash}`}
-      style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8, textDecoration: 'none' }}
+      style={{
+        display: 'block',
+        marginBottom: 10,
+        textDecoration: 'none',
+        borderLeft: '3px solid rgba(255,255,255,0.15)',
+        paddingLeft: 10,
+        paddingTop: 4,
+        paddingBottom: 4,
+      }}
       onClick={e => e.stopPropagation()}
     >
-      <span style={{ color: '#555', fontSize: 12, marginTop: 1, flexShrink: 0 }}>↩</span>
-      <span style={{
-        fontSize: 12,
-        color: '#666',
-        borderLeft: '2px solid #333',
-        paddingLeft: 8,
-        lineHeight: 1.4,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        display: '-webkit-box',
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: 'vertical',
-      } as React.CSSProperties}>
-        <span style={{ color: '#888', fontWeight: 600 }}>@{meta.authorUsername}</span>
-        {meta.textPreview && (
-          <span style={{ color: '#555' }}>{' '}{meta.textPreview}{meta.textPreview.length >= 80 ? '…' : ''}</span>
-        )}
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted-on-dark)' }}>
+        @{meta.authorUsername}
       </span>
+      {meta.text && (
+        <p style={{
+          margin: '2px 0 0',
+          fontSize: 13,
+          color: 'var(--muted-on-dark)',
+          lineHeight: 1.45,
+          opacity: 0.85,
+        }}>
+          {meta.text}{meta.text.length >= 200 ? '…' : ''}
+        </p>
+      )}
     </Link>
   );
 }
