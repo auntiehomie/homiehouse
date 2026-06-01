@@ -7,7 +7,7 @@ import SignerInit from "../components/SignerInit";
 import BottomNav from "../components/BottomNav";
 import WelcomeModal from "../components/WelcomeModal";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.xyz';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
 // JSON-LD structured data for SEO
 const jsonLd = {
