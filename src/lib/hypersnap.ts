@@ -110,9 +110,21 @@ export async function fetchUserByUsername(username: string): Promise<any> {
 }
 
 /**
- * Fetch the channels a user belongs to.
- * GET /v2/farcaster/user/channels?fid=:fid&limit=:limit
+ * Fetch the Neynar mini apps / frame catalog.
+ * GET /v2/farcaster/frame/catalog
  */
+export async function fetchMiniAppCatalog(params: {
+  limit?: number;
+  cursor?: string;
+  timeWindow?: '1h' | '6h' | '12h' | '24h' | '7d';
+  categories?: string[];
+}): Promise<any> {
+  const { limit = 50, cursor, timeWindow = '7d', categories } = params;
+  const qs = new URLSearchParams({ limit: String(limit), time_window: timeWindow });
+  if (cursor) qs.set('cursor', cursor);
+  if (categories?.length) categories.forEach(c => qs.append('categories', c));
+  return hypersnapFetch(`/v2/farcaster/frame/catalog?${qs.toString()}`);
+}
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
   return hypersnapFetch(`/v2/farcaster/user/channels?${qs.toString()}`);
