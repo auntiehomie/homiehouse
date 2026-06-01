@@ -104,7 +104,8 @@ function ComposePageInner() {
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
-    const cursorPos = e.target.selectionStart;
+    // selectionStart can be null on iOS Safari during IME/autocorrect — fall back to end of text
+    const cursorPos = e.target.selectionStart ?? newText.length;
     setText(newText);
 
     const before = newText.substring(0, cursorPos);
@@ -461,26 +462,27 @@ function ComposePageInner() {
               autoFocus
             />
             
-            {/* Unified inline autocomplete: @user, /channel, $token */}
+            {/* Unified inline autocomplete: @user, /channel, $token — rendered ABOVE textarea so it's visible when keyboard is open on mobile */}
             {activeTrigger && triggerResults.length > 0 && (
               <div style={{
                 position: 'absolute',
-                top: '100%',
+                bottom: '100%',
                 left: 0,
                 right: 0,
-                maxHeight: 240,
+                maxHeight: 260,
                 overflowY: 'auto',
                 background: '#111',
                 border: '1px solid #3f3f46',
                 borderRadius: 10,
-                marginTop: 4,
+                marginBottom: 4,
                 zIndex: 1000,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                boxShadow: '0 -8px 24px rgba(0,0,0,0.6)',
               }}>
                 {triggerResults.map((result, i) => (
                   <button
                     key={result.fid ?? result.id ?? result.symbol ?? i}
                     onMouseDown={(e) => { e.preventDefault(); insertTriggerResult(result); }}
+                    onTouchStart={(e) => { e.preventDefault(); insertTriggerResult(result); }}
                     style={{
                       width: '100%',
                       padding: '10px 14px',
