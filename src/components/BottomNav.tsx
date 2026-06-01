@@ -76,6 +76,13 @@ export default function BottomNav() {
             <div className={dot("/ask-homie")} />
           </Link>
 
+          {/* Tokens */}
+          <Link href="/tokens" className={cls("/tokens")} aria-label="Tokens">
+            <span style={{ fontSize: 16, fontWeight: 800, lineHeight: 1, fontFamily: 'inherit' }}>$</span>
+            <span>Tokens</span>
+            <div className={dot("/tokens")} />
+          </Link>
+
           {/* Snaps */}
           <Link href="/snaps" className={cls("/snaps")} aria-label="Snaps">
             <span className="text-lg leading-none" style={{ filter: 'grayscale(1)' }}>🫰</span>
