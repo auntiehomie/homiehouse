@@ -1,18 +1,19 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
 import { usePrivy } from '@privy-io/react-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
-export default function ComposePage() {
+function ComposePageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = usePrivy();
   const { hasActiveSigner, requestSigner, submitCast } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
-  const [text, setText] = useState("");
+  const [text, setText] = useState(searchParams.get('text') || "");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState('');
@@ -739,5 +740,13 @@ export default function ComposePage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function ComposePage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }} />}>
+      <ComposePageInner />
+    </Suspense>
   );
 }
