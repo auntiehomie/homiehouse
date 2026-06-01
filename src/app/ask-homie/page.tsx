@@ -3,26 +3,22 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from "next/link";
 import { useSearchParams } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
 import AgentChat from '@/components/AgentChat';
 import FeedCurationChat from '@/components/FeedCurationChat';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
 
 function AskHomieContent() {
   const [castContext, setCastContext] = useState<any>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [showCurationModal, setShowCurationModal] = useState(false);
   const [starterQuestion, setStarterQuestion] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
-  useEffect(() => {
-    try {
-      const profile = localStorage.getItem('hh_profile');
-      if (profile) {
-        const parsed = JSON.parse(profile);
-        if (parsed.fid) setUserId(`fid_${parsed.fid}`);
-      }
-    } catch {}
-  }, []);
+  // Get FID directly from Privy — same pattern as SmartEmbed / SnapEmbed
+  const { user } = usePrivy();
+  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
+  const fid: number = farcasterAccount?.fid ?? 0;
+  const userId = fid ? `fid_${fid}` : undefined;
 
   useEffect(() => {
     const castData = searchParams.get('cast');
