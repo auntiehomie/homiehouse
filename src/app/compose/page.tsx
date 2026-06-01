@@ -579,32 +579,44 @@ function ComposePageInner() {
               </div>
             )}
 
-            {/* URL Preview */}
-            {loadingPreview && (
-              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-500">
-                Loading preview…
-              </div>
-            )}
-            {urlPreview && urlPreview.metadata && (
-              <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
-                {urlPreview.metadata.image && (
-                  <img
-                    src={urlPreview.metadata.image}
-                    alt={urlPreview.metadata.title}
-                    className="w-full h-auto max-h-40 object-cover rounded-lg mb-2"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                )}
-                {urlPreview.metadata.title && (
-                  <div className="text-sm font-semibold mb-1 text-white">{urlPreview.metadata.title}</div>
-                )}
-                {urlPreview.metadata.description && (
-                  <div className="text-xs text-zinc-400 line-clamp-2">{urlPreview.metadata.description}</div>
-                )}
-                <div className="text-xs text-zinc-500 mt-1">
-                  {urlPreview.metadata.siteName || new URL(detectedUrl!).hostname}
+            {/* URL Preview — shows whenever a URL is detected, clickable link card */}
+            {detectedUrl && (
+              loadingPreview ? (
+                <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-500">
+                  Loading preview…
                 </div>
-              </div>
+              ) : (
+                <a
+                  href={detectedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block mt-3 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden no-underline hover:border-zinc-600 transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {urlPreview?.metadata?.image && (
+                    <img
+                      src={urlPreview.metadata.image}
+                      alt={urlPreview.metadata.title}
+                      className="w-full h-auto max-h-40 object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  )}
+                  <div className="p-3">
+                    {urlPreview?.metadata?.title && (
+                      <div className="text-sm font-semibold mb-1 text-white leading-tight">{urlPreview.metadata.title}</div>
+                    )}
+                    {urlPreview?.metadata?.description && (
+                      <div className="text-xs text-zinc-400 line-clamp-2 mb-1">{urlPreview.metadata.description}</div>
+                    )}
+                    <div className="text-xs text-zinc-500 flex items-center gap-1">
+                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      {urlPreview?.metadata?.siteName || (() => { try { return new URL(detectedUrl).hostname; } catch { return detectedUrl; } })()}
+                    </div>
+                  </div>
+                </a>
+              )
             )}
 
             {/* Schedule datetime picker - shown when calendar icon is toggled */}
