@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchFeed } from '@/lib/hypersnap';
+import { fetchFeed, fetchChannelFeed } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateLimit } from '@/lib/validation';
@@ -22,30 +22,32 @@ export async function GET(req: NextRequest) {
 
     logger.info('Request params', { feedType, fid, channel, limit });
 
-    // Build fetch parameters
-    const fetchParams: any = { limit };
-    if (cursor) fetchParams.cursor = cursor;
+    let data: any;
 
     if (channel) {
-      // Channel feed
-      fetchParams.feed_type = 'filter';
-      fetchParams.filter_type = 'channel_id';
-      fetchParams.channel_id = channel;
-      if (fid) fetchParams.viewer_fid = fid;
-    } else if (feedType === "following" && fid) {
-      // Following feed
-      fetchParams.feed_type = 'following';
-      fetchParams.fid = fid;
-      fetchParams.viewer_fid = fid;
+      // Use dedicated channel feed function with fallback logic
+      data = await fetchChannelFeed(channel, {
+        limit,
+        cursor: cursor || undefined,
+        viewerFid: fid ? Number(fid) : undefined,
+      });
     } else {
-      // Default to global trending
-      fetchParams.feed_type = 'filter';
-      fetchParams.filter_type = 'global_trending';
-      if (fid) fetchParams.viewer_fid = fid;
-    }
+      // Build fetch parameters for following / trending
+      const fetchParams: any = { limit };
+      if (cursor) fetchParams.cursor = cursor;
 
-    // Fetch feed using shared utility
-    const data = await fetchFeed(fetchParams);
+      if (feedType === "following" && fid) {
+        fetchParams.feed_type = 'following';
+        fetchParams.fid = fid;
+        fetchParams.viewer_fid = fid;
+      } else {
+        fetchParams.feed_type = 'filter';
+        fetchParams.filter_type = 'global_trending';
+        if (fid) fetchParams.viewer_fid = fid;
+      }
+
+      data = await fetchFeed(fetchParams);
+    }
 
     const casts = data?.casts || [];
     logger.success(`Feed fetched successfully`, { count: casts.length });

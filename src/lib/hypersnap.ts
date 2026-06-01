@@ -127,6 +127,37 @@ export async function fetchMiniAppCatalog(params: {
   if (categories?.length) categories.forEach(c => qs.append('categories', c));
   return hypersnapFetch(`/v2/farcaster/frame/catalog?${qs.toString()}`);
 }
+/**
+ * Fetch a channel feed.
+ * Tries /v2/farcaster/feed?feed_type=filter&filter_type=channel_id first,
+ * then falls back to /v2/farcaster/feed/channels?channel_ids=:id.
+ */
+export async function fetchChannelFeed(channelId: string, params: {
+  limit?: number;
+  cursor?: string;
+  viewerFid?: number;
+} = {}): Promise<any> {
+  const { limit = 25, cursor, viewerFid } = params;
+  const base = new URLSearchParams({ limit: String(limit) });
+  if (cursor) base.set('cursor', cursor);
+  if (viewerFid) base.set('viewer_fid', String(viewerFid));
+
+  // Primary: standard Neynar filter feed for a channel
+  try {
+    const qs = new URLSearchParams(base);
+    qs.set('feed_type', 'filter');
+    qs.set('filter_type', 'channel_id');
+    qs.set('channel_id', channelId);
+    const data = await hypersnapFetch(`/v2/farcaster/feed?${qs.toString()}`);
+    if (data?.casts?.length) return data;
+  } catch (_) {}
+
+  // Fallback: multi-channel feed endpoint
+  const qs2 = new URLSearchParams(base);
+  qs2.set('channel_ids', channelId);
+  return hypersnapFetch(`/v2/farcaster/feed/channels?${qs2.toString()}`);
+}
+
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
   return hypersnapFetch(`/v2/farcaster/user/channels?${qs.toString()}`);
