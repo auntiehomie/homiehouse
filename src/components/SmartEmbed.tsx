@@ -125,5 +125,5 @@ export default function SmartEmbed({ url, castHash }: Props) {
   );
 
   // Default: UrlPreview (shows immediately, stays if neither frame nor snap)
-  return <UrlPreview url={url} />;
+  return <UrlPreview url={url} label="Open" />;
 }

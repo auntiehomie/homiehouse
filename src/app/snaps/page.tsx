@@ -19,6 +19,7 @@ interface AppEntry {
 }
 
 const STORAGE_KEY = "hh_saved_apps";
+const STORAGE_APPS_KEY = "hh_saved_apps_data";
 
 type Tab = "trending" | "new" | "yours";
 
@@ -38,6 +39,7 @@ export default function AppsPage() {
   const [trendingApps, setTrendingApps] = useState<AppEntry[]>([]);
   const [newApps, setNewApps] = useState<AppEntry[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [savedApps, setSavedApps] = useState<AppEntry[]>([]);
   const [openApp, setOpenApp] = useState<AppEntry | null>(null);
   const [loadingTrending, setLoadingTrending] = useState(true);
   const [loadingNew, setLoadingNew] = useState(true);
@@ -47,14 +49,23 @@ export default function AppsPage() {
   const [newCursor, setNewCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Load saved app IDs
+  // Load saved app data (full objects)
   useEffect(() => {
     try {
+      // Try new format first (full objects keyed by id)
+      const storedData = localStorage.getItem(STORAGE_APPS_KEY);
+      if (storedData) {
+        const parsed: Record<string, AppEntry> = JSON.parse(storedData);
+        const apps = Object.values(parsed);
+        setSavedApps(apps);
+        setSavedIds(new Set(apps.map(a => a.id)));
+        return;
+      }
+      // Migrate old format (IDs only) — we keep the IDs; full data loads later from allApps
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          // Support old SavedApp[] format
           const ids = parsed.map((x: any) => typeof x === "string" ? x : (x.id || x.url));
           setSavedIds(new Set(ids));
         }
@@ -62,10 +73,29 @@ export default function AppsPage() {
     } catch {}
   }, []);
 
-  function persistIds(ids: Set<string>) {
-    setSavedIds(ids);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids])); } catch {}
+  function persistApps(apps: AppEntry[]) {
+    const map: Record<string, AppEntry> = {};
+    apps.forEach(a => { map[a.id] = a; });
+    setSavedApps(apps);
+    setSavedIds(new Set(apps.map(a => a.id)));
+    try {
+      localStorage.setItem(STORAGE_APPS_KEY, JSON.stringify(map));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(apps.map(a => a.id)));
+    } catch {}
   }
+
+  // Once allApps loads, backfill any legacy saved IDs that have no full data yet
+  const allApps = [...trendingApps, ...newApps.filter(a => !trendingApps.some(t => t.id === a.id))];
+  useEffect(() => {
+    if (allApps.length === 0) return;
+    const storedData = localStorage.getItem(STORAGE_APPS_KEY);
+    if (storedData) return; // already migrated
+    // Migrate: find full objects for any legacy IDs
+    if (savedIds.size === 0) return;
+    const migrated = allApps.filter(a => savedIds.has(a.id));
+    if (migrated.length > 0) persistApps(migrated);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allApps.length]);
 
   const isSaved = (app: AppEntry) => savedIds.has(app.id);
 
@@ -117,8 +147,6 @@ export default function AppsPage() {
     setLoadingMore(false);
   }, [newCursor, loadingMore]);
 
-  const allApps = [...trendingApps, ...newApps.filter(a => !trendingApps.some(t => t.id === a.id))];
-
   const searchResults = searchQuery.trim().length > 1
     ? allApps.filter(a =>
         a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -127,7 +155,7 @@ export default function AppsPage() {
       )
     : null;
 
-  const myApps = allApps.filter(a => savedIds.has(a.id));
+  const myApps = savedApps;
 
   // Featured = top 4 from trending with an imageUrl
   const featured = trendingApps.slice(0, 6);
@@ -301,7 +329,7 @@ export default function AppsPage() {
               {/* Add / Remove Mini App */}
               {isSaved(openApp) ? (
                 <button
-                  onClick={() => { const n = new Set(savedIds); n.delete(openApp.id); persistIds(n); }}
+                  onClick={() => persistApps(savedApps.filter(a => a.id !== openApp.id))}
                   style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "14px", background: "transparent", border: "1px solid #333", borderRadius: 14, fontSize: 15, color: "#ef4444", fontWeight: 500, cursor: "pointer" }}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
@@ -309,7 +337,7 @@ export default function AppsPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => { const n = new Set(savedIds); n.add(openApp.id); persistIds(n); }}
+                  onClick={() => persistApps([...savedApps, openApp])}
                   style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "14px", background: "transparent", border: "1px solid #444", borderRadius: 14, fontSize: 15, color: "#aaa", fontWeight: 500, cursor: "pointer" }}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>

@@ -11,143 +11,133 @@ interface PreviewData {
     url?: string;
     siteName?: string;
   };
-  articleText?: string | null;
 }
 
-export default function UrlPreview({ url }: { url: string }) {
+export default function UrlPreview({ url, label }: { url: string; label?: string }) {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!url) return;
-
     const key = `urlPreview:${url}`;
     const cached = sessionStorage.getItem(key);
     if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setPreview(parsed);
-        return;
-      } catch (e) {
-        console.warn('[UrlPreview] Failed to parse cached preview:', e);
-      }
+      try { setPreview(JSON.parse(cached)); return; } catch {}
     }
 
     let mounted = true;
     setLoading(true);
-    setError(null);
 
     (async () => {
       try {
         const res = await fetch('/api/url-preview', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url }),
         });
-
-        if (!res.ok) {
-          console.warn(`[UrlPreview] API returned ${res.status}`);
-          setError(`HTTP ${res.status}`);
-          setLoading(false);
-          return;
-        }
-
+        if (!res.ok) return;
         const data = await res.json();
         if (!mounted) return;
-        
-        console.log('[UrlPreview] Received preview:', { url, ok: data.ok, hasImage: !!data.metadata?.image });
         setPreview(data);
         try { sessionStorage.setItem(key, JSON.stringify(data)); } catch {}
-      } catch (err) {
-        if (!mounted) return;
-        console.error('[UrlPreview] Fetch error:', err);
-        setError(String(err));
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
+      } catch {}
+      finally { if (mounted) setLoading(false); }
     })();
 
     return () => { mounted = false; };
   }, [url]);
 
+  const m = preview?.metadata || {};
+  const hasRich = preview?.ok && (m.title || m.image);
+  const displayUrl = m.url || url;
+  let hostname = '';
+  try { hostname = new URL(displayUrl).hostname; } catch {}
+  const btnLabel = label || 'Open';
+
   if (loading) {
     return (
-      <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-gray-200 dark:border-zinc-800 text-sm text-gray-600 dark:text-gray-400">
+      <div style={{
+        borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)',
+        background: '#111', overflow: 'hidden', fontSize: 13, color: '#555',
+        padding: '12px 14px',
+      }}>
         Loading preview…
       </div>
     );
   }
 
-  // If preview fetch failed or wasn't ok, show fallback
-  if (!preview?.ok) {
-    console.log('[UrlPreview] Preview not ok, showing fallback:', { url, preview });
+  if (!hasRich) {
+    // Plain link fallback with Open button
     return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-        style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
-      >
-        🔗 <span className="break-all">{url.length > 80 ? url.substring(0, 80) + '…' : url}</span>
-      </a>
+      <div style={{
+        borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)',
+        background: '#111', overflow: 'hidden', display: 'flex',
+        alignItems: 'center', gap: 10, padding: '10px 12px',
+      }}>
+        <span style={{ flex: 1, fontSize: 13, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {hostname || displayUrl}
+        </span>
+        <a
+          href={displayUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          style={{
+            flexShrink: 0, padding: '6px 14px', borderRadius: 20,
+            background: '#1e293b', color: '#e2e8f0', fontSize: 13,
+            fontWeight: 600, textDecoration: 'none', border: '1px solid #334155',
+          }}
+        >
+          {btnLabel}
+        </a>
+      </div>
     );
   }
 
-  const m = preview.metadata || {};
-  if (!m.title && !m.image && !m.description) {
-    // No useful metadata — show fallback
-    console.log('[UrlPreview] No useful metadata, showing fallback:', { url });
-    return (
-      <a
-        href={m.url || url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block p-3 rounded-lg border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-400 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-        style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
-      >
-        🔗 <span className="break-all">{(m.url || url).length > 80 ? (m.url || url).substring(0, 80) + '…' : (m.url || url)}</span>
-      </a>
-    );
-  }
-
-  console.log('[UrlPreview] Rendering rich preview:', { url, title: m.title, hasImage: !!m.image });
   return (
-    <a
-      href={m.url || url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block rounded-lg border border-gray-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900 hover:shadow-md transition-shadow"
-      style={{ maxWidth: '100%', overflow: 'hidden' }}
-    >
+    <div style={{
+      borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)',
+      background: '#111', overflow: 'hidden',
+    }}>
       {m.image && (
-        <div className="max-h-48 overflow-hidden bg-gray-100 dark:bg-zinc-800">
-          <img 
-            src={m.image} 
-            alt={m.title || m.siteName || url} 
-            className="w-full h-auto object-cover"
-            onError={(e) => {
-              console.warn('[UrlPreview] Image failed to load:', m.image);
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+        <div style={{ width: '100%', maxHeight: 200, overflow: 'hidden', background: '#1a1a1a' }}>
+          <img
+            src={m.image}
+            alt={m.title || hostname}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
           />
         </div>
       )}
-      <div className="p-3">
-        <div className="text-sm font-semibold text-gray-900 dark:text-white" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {m.title || m.siteName || 'Link'}
+      <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {m.title && (
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+              {m.title}
+            </div>
+          )}
+          {m.description && (
+            <div style={{ fontSize: 12, color: '#888', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden', marginBottom: 4 }}>
+              {m.description}
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: '#555' }}>{m.siteName || hostname}</div>
         </div>
-        {m.description && (
-          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-            {m.description}
-          </div>
-        )}
-        <div className="text-xs text-gray-500 dark:text-gray-500 mt-2 truncate">
-          {m.siteName || new URL(m.url || url).hostname}
-        </div>
+        <a
+          href={displayUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          style={{
+            flexShrink: 0, padding: '7px 14px', borderRadius: 20,
+            background: '#1e293b', color: '#e2e8f0', fontSize: 13,
+            fontWeight: 600, textDecoration: 'none', border: '1px solid #334155',
+            alignSelf: 'center',
+          }}
+        >
+          {btnLabel}
+        </a>
       </div>
-    </a>
+    </div>
   );
 }
