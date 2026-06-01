@@ -13,6 +13,48 @@ import Link from "next/link";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+function ActionBtn({
+  onClick, icon, label, active = false, disabled = false,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+        border: 'none',
+        color: active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
+        cursor: disabled ? 'default' : 'pointer',
+        fontSize: 13, fontWeight: active ? 600 : 400,
+        padding: '5px 9px', borderRadius: 8,
+        transition: 'background 0.15s, color 0.15s',
+        flexShrink: 0, whiteSpace: 'nowrap',
+        opacity: disabled ? 0.5 : 1,
+      }}
+      onMouseEnter={e => {
+        if (!disabled) {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
+          e.currentTarget.style.color = 'var(--text-on-dark)';
+        }
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = active ? 'rgba(255,255,255,0.08)' : 'transparent';
+        e.currentTarget.style.color = active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)';
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
 interface FeedListProps {
   feedType: FeedType;
   selectedChannel: string | null;
@@ -53,8 +95,6 @@ export default function FeedList({
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
   const [curateLoading, setCurateLoading] = useState(false);
-  const [kbSaving, setKbSaving] = useState<string | null>(null);
-  const [kbSaved, setKbSaved] = useState<Set<string>>(new Set());
 
   const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
 
@@ -166,41 +206,6 @@ export default function FeedList({
       alert("Failed to curate cast");
     } finally {
       setCurateLoading(false);
-    }
-  };
-
-  const handleSaveToKB = async (castHash: string, castData: any) => {
-    const profile = getProfile();
-    if (!profile?.fid) {
-      alert("Please sign in to save to Knowledge Base");
-      return;
-    }
-    setKbSaving(castHash);
-    try {
-      const res = await fetch("/api/curate-cast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fid: profile.fid,
-          listName: "knowledge-base",
-          castHash,
-          castData: {
-            authorFid: castData.authorFid,
-            text: castData.text,
-            timestamp: castData.timestamp
-          }
-        })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setKbSaved((prev) => new Set([...prev, castHash]));
-      } else {
-        alert(`Failed to save: ${data.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error("KB save error:", error);
-    } finally {
-      setKbSaving(null);
     }
   };
 
@@ -740,217 +745,78 @@ export default function FeedList({
               )}
             </div>
             
-            {/* Like and Recast buttons */}
-            <div style={{ 
-              display: 'flex', 
-              gap: '16px', 
-              marginTop: '12px', 
-              paddingTop: '12px', 
-              borderTop: '1px solid var(--border)' 
+            {/* Action buttons */}
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+              marginTop: '12px',
+              paddingTop: '12px',
+              borderTop: '1px solid var(--border)',
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+              scrollbarWidth: 'none',
             }}>
-              <button
-                onClick={() => handleLike(key, authorObj?.fid ?? 0)}
+              {/* Like */}
+              <ActionBtn
+                active={likedCasts.has(key)}
                 disabled={actionLoading === `like-${key}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: likedCasts.has(key) ? 'var(--accent)' : 'var(--muted-on-dark)',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (!likedCasts.has(key)) {
-                    e.currentTarget.style.background = 'rgba(232, 119, 34, 0.1)';
-                    e.currentTarget.style.color = 'var(--accent)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!likedCasts.has(key)) {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--muted-on-dark)';
-                  }
-                }}
-              >
-                {likedCasts.has(key) ? '❤️' : '🤍'} 
-                {actionLoading === `like-${key}` ? 'Loading...' : 'Like'}
-              </button>
-              
-              <button
-                onClick={() => { setShowRecastModal(key); setShowRecastAuthorFid(authorObj?.fid ?? 0); }}
+                onClick={() => handleLike(key, authorObj?.fid ?? 0)}
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill={likedCasts.has(key) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+                }
+                label={actionLoading === `like-${key}` ? '…' : 'Like'}
+              />
+
+              {/* Recast */}
+              <ActionBtn
+                active={recastedCasts.has(key)}
                 disabled={actionLoading === `recast-${key}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: recastedCasts.has(key) ? '#10b981' : 'var(--muted-on-dark)',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (!recastedCasts.has(key)) {
-                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)';
-                    e.currentTarget.style.color = '#10b981';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!recastedCasts.has(key)) {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--muted-on-dark)';
-                  }
-                }}
-              >
-                🔁 {actionLoading === `recast-${key}` ? 'Loading...' : (recastedCasts.has(key) ? 'Recasted' : 'Recast')}
-              </button>
-              
-              <button
+                onClick={() => { setShowRecastModal(key); setShowRecastAuthorFid(authorObj?.fid ?? 0); }}
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
+                }
+                label={actionLoading === `recast-${key}` ? '…' : recastedCasts.has(key) ? 'Recasted' : 'Recast'}
+              />
+
+              {/* Reply */}
+              <ActionBtn
+                active={replyingTo === key}
                 onClick={() => setReplyingTo(replyingTo === key ? null : key)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: replyingTo === key ? '#3b82f6' : 'var(--muted-on-dark)',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (replyingTo !== key) {
-                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
-                    e.currentTarget.style.color = '#3b82f6';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (replyingTo !== key) {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--muted-on-dark)';
-                  }
-                }}
-              >
-                💬 Reply
-              </button>
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                }
+                label="Reply"
+              />
 
-              <button
+              {/* Curate */}
+              <ActionBtn
+                active={curatingCast === key}
                 onClick={() => setCuratingCast(curatingCast === key ? null : key)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: curatingCast === key ? '#8b5cf6' : 'var(--muted-on-dark)',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  if (curatingCast !== key) {
-                    e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
-                    e.currentTarget.style.color = '#8b5cf6';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (curatingCast !== key) {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = 'var(--muted-on-dark)';
-                  }
-                }}
-              >
-                📌 Curate
-              </button>
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill={curatingCast === key ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+                }
+                label="Curate"
+              />
 
-              {/* Save to Knowledge Base */}
-              <button
-                onClick={() => {
-                  const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
-                  handleSaveToKB(key, {
-                    authorFid: authorObj?.fid,
-                    text: castText,
-                    timestamp: rawTs
-                  });
-                }}
-                disabled={kbSaving === key || kbSaved.has(key)}
-                title={kbSaved.has(key) ? 'Saved to Knowledge Base' : 'Save to Knowledge Base'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: kbSaved.has(key) ? '#f59e0b' : 'var(--muted-on-dark)',
-                  cursor: kbSaving === key || kbSaved.has(key) ? 'default' : 'pointer',
-                  fontSize: '14px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease',
-                  opacity: kbSaving === key ? 0.6 : 1
-                }}
-              >
-                {kbSaved.has(key) ? '🔖' : '🔖'} {kbSaved.has(key) ? 'Saved' : 'Save'}
-              </button>
-
-              <button
+              {/* Ask Homie */}
+              <ActionBtn
                 onClick={() => {
                   const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
                   const castData = encodeURIComponent(JSON.stringify({
-                    author: {
-                      username: authorUsername,
-                      display_name: authorName,
-                      pfp_url: authorObj?.pfp_url
-                    },
+                    author: { username: authorUsername, display_name: authorName, pfp_url: authorObj?.pfp_url },
                     text: castText,
                     hash: key,
                     timestamp: rawTs,
-                    reactions: {
-                      likes_count: it.reactions?.likes_count || 0,
-                      recasts_count: it.reactions?.recasts_count || 0
-                    },
-                    replies: {
-                      count: it.replies?.count || 0
-                    }
+                    reactions: { likes_count: it.reactions?.likes_count || 0, recasts_count: it.reactions?.recasts_count || 0 },
+                    replies: { count: it.replies?.count || 0 }
                   }));
                   window.location.href = `/ask-homie?cast=${castData}`;
                 }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--muted-on-dark)',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)';
-                  e.currentTarget.style.color = '#a855f7';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = 'var(--muted-on-dark)';
-                }}
-              >
-                🤖 Ask Homie
-              </button>
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                }
+                label="Ask Homie"
+              />
             </div>
             
             {/* Reply input */}
