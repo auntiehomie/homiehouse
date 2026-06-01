@@ -199,7 +199,12 @@ export async function fetchCastReplies(hash: string, limit = 50): Promise<any> {
     parent_hash: hash,
     limit: String(limit),
   });
-  return hypersnapFetch(`/v2/farcaster/feed?${qs.toString()}`);
+  try {
+    return await hypersnapFetch(`/v2/farcaster/feed?${qs.toString()}`);
+  } catch {
+    // Self-hosted nodes often don't support parent_hash filtering
+    return { casts: [] };
+  }
 }
 
 /**

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     const [castData, repliesData] = await Promise.all([
       fetchCast(hash),
-      fetchCastReplies(hash, 50),
+      fetchCastReplies(hash, 50).catch(() => null),
     ]);
 
     const cast = castData?.cast ?? castData;
@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
     }
 
     const replyCasts: any[] = repliesData?.casts ?? [];
-    // Merge live reply list into cast so page can show accurate count + thread
     cast.direct_replies = replyCasts;
     if (cast.replies) {
       cast.replies.count = Math.max(cast.replies.count ?? 0, replyCasts.length);
