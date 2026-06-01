@@ -14,139 +14,149 @@ function AskHomieContent() {
   const [starterQuestion, setStarterQuestion] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
-  // Load user ID from profile if available
   useEffect(() => {
     try {
       const profile = localStorage.getItem('hh_profile');
       if (profile) {
         const parsed = JSON.parse(profile);
-        if (parsed.fid) {
-          setUserId(`fid_${parsed.fid}`);
-        }
+        if (parsed.fid) setUserId(`fid_${parsed.fid}`);
       }
-    } catch (e) {
-      console.error('Failed to load user profile', e);
-    }
+    } catch {}
   }, []);
 
-  // Load cast context from URL or localStorage
   useEffect(() => {
     const castData = searchParams.get('cast');
     if (castData) {
       try {
-        const decoded = JSON.parse(decodeURIComponent(castData));
-        setCastContext(decoded);
+        setCastContext(JSON.parse(decodeURIComponent(castData)));
         localStorage.setItem('hh_ask_context', castData);
-      } catch (e) {
-        console.error('Failed to parse cast data', e);
-      }
+      } catch {}
     } else {
       const stored = localStorage.getItem('hh_ask_context');
       if (stored) {
-        try {
-          setCastContext(JSON.parse(decodeURIComponent(stored)));
-        } catch (e) {}
+        try { setCastContext(JSON.parse(decodeURIComponent(stored))); } catch {}
       }
     }
   }, [searchParams]);
-
-  const handleCastSelect = (cast: string) => {
-    // Copy to clipboard
-    navigator.clipboard.writeText(cast);
-    alert('Cast copied to clipboard! You can now paste it in the compose view.');
-  };
 
   const clearContext = () => {
     setCastContext(null);
     localStorage.removeItem('hh_ask_context');
   };
 
+  const handleCastSelect = (cast: string) => {
+    navigator.clipboard.writeText(cast);
+    alert('Cast copied to clipboard! Paste it in the compose view.');
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-black text-black dark:text-white">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 p-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div>
-            <Link href="/" className="text-2xl font-semibold hover:opacity-80">
-              HomieHouse
-            </Link>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-              Learn Farcaster, Ethereum, privacy &amp; Web3
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowCurationModal(true)}
-              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              ⚙️ Curate Feed
-            </button>
-            <Link
-              href="/"
-              className="text-sm text-blue-500 hover:underline"
-            >
-              ← Back to Home
-            </Link>
-          </div>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingBottom: 80 }}>
+      {/* Header */}
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <Link href="/" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-on-dark)', textDecoration: 'none' }}>
+            HomieHouse
+          </Link>
+          <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 2 }}>
+            Ask Homie — AI assistant
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setShowCurationModal(true)}
+            style={{
+              padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: 'linear-gradient(180deg, #334155 0%, #1e293b 100%)',
+              color: '#e2e8f0', border: '1px solid #475569', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            Curate Feed
+          </button>
+          <Link
+            href="/"
+            style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}
+          >
+            ← Back
+          </Link>
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto flex flex-col">{castContext && (
-          <div className="m-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <div className="flex justify-between items-start mb-2">
-              <div className="font-medium text-sm text-blue-900 dark:text-blue-100">
-                📌 Analyzing this cast:
-              </div>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 600, width: '100%', margin: '0 auto' }}>
+        {/* Cast context card */}
+        {castContext && (
+          <div style={{
+            margin: '12px 16px 0',
+            padding: '12px 14px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted-on-dark)' }}>
+                Analyzing this cast
+              </span>
               <button
                 onClick={clearContext}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                style={{ fontSize: 12, color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
-                Clear context
+                Clear
               </button>
             </div>
-            <div className="text-sm text-zinc-700 dark:text-zinc-300">
-              <div className="font-medium mb-1">
+            <div style={{ fontSize: 13 }}>
+              <span style={{ fontWeight: 600 }}>
                 <Link
                   href={`/profile?user=${castContext.author?.username || castContext.author}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                  style={{ color: 'var(--text-on-dark)', textDecoration: 'none' }}
                 >
                   @{castContext.author?.username || castContext.author}
                 </Link>
-                {castContext.author?.display_name && (
-                  <span className="text-zinc-500 dark:text-zinc-400 ml-2">
-                    ({castContext.author.display_name})
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 p-2 bg-white dark:bg-zinc-800 rounded border border-blue-100 dark:border-blue-900">
-                {castContext.text}
-              </div>
-              {(castContext.reactions || castContext.replies) && (
-                <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400 flex gap-3">
-                  {castContext.reactions?.likes_count !== undefined && (
-                    <span>❤️ {castContext.reactions.likes_count} likes</span>
-                  )}
-                  {castContext.reactions?.recasts_count !== undefined && (
-                    <span>🔁 {castContext.reactions.recasts_count} recasts</span>
-                  )}
-                  {castContext.replies?.count !== undefined && (
-                    <span>💬 {castContext.replies.count} replies</span>
-                  )}
-                </div>
+              </span>
+              {castContext.author?.display_name && (
+                <span style={{ color: 'var(--muted-on-dark)', marginLeft: 6 }}>
+                  ({castContext.author.display_name})
+                </span>
               )}
             </div>
+            <div style={{
+              marginTop: 8, padding: '8px 10px',
+              background: 'var(--bg-dark)', borderRadius: 8,
+              border: '1px solid var(--border)', fontSize: 13,
+              color: 'var(--text-on-dark)', lineHeight: 1.5,
+            }}>
+              {castContext.text}
+            </div>
+            {(castContext.reactions || castContext.replies) && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 14, fontSize: 12, color: 'var(--muted-on-dark)' }}>
+                {castContext.reactions?.likes_count !== undefined && (
+                  <span>❤️ {castContext.reactions.likes_count} likes</span>
+                )}
+                {castContext.reactions?.recasts_count !== undefined && (
+                  <span>🔁 {castContext.reactions.recasts_count} recasts</span>
+                )}
+                {castContext.replies?.count !== undefined && (
+                  <span>💬 {castContext.replies.count} replies</span>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Topic starter chips — only shown when there's no cast context loaded */}
+        {/* Starter question chips */}
         {!castContext && (
-          <div className="mx-4 mt-2 mb-0">
-            <p className="text-xs text-zinc-500 dark:text-zinc-500 mb-2">Ask about:</p>
-            <div className="flex flex-wrap gap-2">
+          <div style={{ margin: '12px 16px 0' }}>
+            <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 8 }}>Ask about:</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {SUGGESTED_QUESTIONS.map(q => (
                 <button
                   key={q.label}
                   onClick={() => setStarterQuestion(q.label)}
-                  className="px-3 py-1.5 text-xs rounded-full border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  style={{
+                    padding: '5px 12px', borderRadius: 20, fontSize: 13,
+                    background: 'transparent', border: '1px solid var(--border)',
+                    color: 'var(--muted-on-dark)', cursor: 'pointer',
+                  }}
                 >
                   {q.label}
                 </button>
@@ -155,7 +165,12 @@ function AskHomieContent() {
           </div>
         )}
 
-        <div className="flex-1 m-4 border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-white dark:bg-zinc-900 shadow-lg">
+        {/* Chat */}
+        <div style={{
+          flex: 1, margin: '12px 16px 0',
+          border: '1px solid var(--border)', borderRadius: 12,
+          overflow: 'hidden', background: 'var(--surface)',
+        }}>
           <AgentChat
             userId={userId || undefined}
             castContext={castContext}
@@ -165,7 +180,6 @@ function AskHomieContent() {
         </div>
       </main>
 
-      {/* Curation Modal */}
       {showCurationModal && (
         <FeedCurationChat onClose={() => setShowCurationModal(false)} />
       )}
@@ -175,7 +189,7 @@ function AskHomieContent() {
 
 export default function AskHomiePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)', color: 'var(--muted-on-dark)' }}>Loading…</div>}>
       <AskHomieContent />
     </Suspense>
   );

@@ -331,8 +331,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               onClick={() => setMode(m)}
               className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
                 mode === m
-                  ? 'bg-white text-black'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                  ? 'bg-zinc-600 text-white'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
               }`}
               title={modeDescriptions[m]}
             >
@@ -454,8 +454,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             <div
               className={`max-w-[80%] rounded-lg p-3 ${
                 msg.role === 'user'
-                  ? 'bg-white text-black'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+                  ? 'bg-zinc-700 text-white'
+                  : 'bg-zinc-800 text-zinc-100'
               }`}
             >
               {msg.role === 'assistant' && msg.agentRole && (
@@ -602,7 +602,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-zinc-100 dark:bg-zinc-800 rounded-lg p-3">
+            <div className="bg-zinc-800 rounded-lg p-3">
               <div className="flex gap-2">
                 <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -621,7 +621,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               value={input}
               onChange={setInput}
               placeholder={`${modeDescriptions[mode]}...`}
-              className="w-full px-4 py-3 text-base rounded-lg border-2 border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:border-zinc-400 disabled:opacity-50"
+              className="w-full px-4 py-3 text-base rounded-lg border border-zinc-700 bg-zinc-900 text-white focus:outline-none focus:border-zinc-500 disabled:opacity-50"
               onUserSelect={(user) => {
                 console.log('User mentioned:', user);
               }}
@@ -630,7 +630,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           <button
             onClick={handleSend}
             disabled={isLoading || !input.trim()}
-            className="px-8 py-3 bg-white text-black rounded-lg hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors whitespace-nowrap"
+            className="px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(180deg, #334155 0%, #1e293b 100%)', color: '#e2e8f0', border: '1px solid #475569' }}
           >
             Send
           </button>
