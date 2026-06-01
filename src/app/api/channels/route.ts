@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
       ? await fetchUserChannels(fid, limit)
       : await fetchChannelList(limit);
 
-    const channels = data?.channels || [];
+    const raw = data?.channels || [];
+    // Normalise image field — Neynar/Hypersnap returns image_url, imageUrl, or image
+    const channels = raw.map((ch: any) => ({
+      ...ch,
+      image_url: ch.image_url || ch.imageUrl || ch.image || ch.icon_url || null,
+    }));
     logger.success('Channels fetched', { count: channels.length });
     logger.end();
 

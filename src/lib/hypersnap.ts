@@ -73,6 +73,8 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
 
   const endpoint = isTrending
     ? `/v2/farcaster/feed/trending?${qs.toString()}`
+    : feedType === 'filter'
+    ? `/v2/farcaster/feed?${qs.toString()}`
     : `/v2/farcaster/feed/following?${qs.toString()}`;
 
   return hypersnapFetch(endpoint);
