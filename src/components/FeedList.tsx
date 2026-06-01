@@ -421,9 +421,10 @@ export default function FeedList({
   // Then sort by interest score if user has interests
   let filteredItems = items.filter((it, index) => {
     const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
-    const authorUsername = authorObj?.username || it.author || it.handle;
+    const rawUser = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
+    const authorUsername = rawUser && /^fid:\d+$/i.test(rawUser) ? null : rawUser;
     const castHash = it.hash || it.id;
-    
+
     if (authorUsername && mutedUsers.has(authorUsername)) return false;
     if (castHash && hiddenCasts.has(castHash)) return false;
     
@@ -450,8 +451,10 @@ export default function FeedList({
       {filteredItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
         const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
-        const authorName = authorObj?.display_name || authorObj?.username || it.author || it.handle || 'Unknown';
-        const authorUsername = authorObj?.username || it.author || it.handle;
+        const rawUsername = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
+        // Don't show raw FID strings like "fid:234616" as a username
+        const authorUsername = rawUsername && /^fid:\d+$/i.test(rawUsername) ? null : rawUsername;
+        const authorName = authorObj?.display_name || authorUsername || 'Unknown';
         const text = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : null)) ?? JSON.stringify(it);
         const key = it.hash || it.id || JSON.stringify({ h: it.hash, t: rawTs, a: authorName }).slice(0, 64);
         let timeLabel = "";

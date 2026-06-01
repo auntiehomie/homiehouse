@@ -4,10 +4,23 @@ import React from 'react';
 import SmartEmbed from './SmartEmbed';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 
-// Extracts cast hash from farcaster.xyz/~/c/[network:]0xhash URLs
+// Extracts cast hash from Farcaster/Warpcast cast URLs:
+//   farcaster.xyz/~/c/[network:]0xhash
+//   farcaster.xyz/username/0xhash
+//   warpcast.com/username/0xhash
+//   warpcast.com/~/conversations/0xhash
 function parseFarcasterCastUrl(url: string): string | null {
-  const m = url.match(/(?:www\.)?farcaster\.xyz\/~\/c\/(?:[a-z]+:)?(0x[a-fA-F0-9]+)/i);
-  return m ? m[1] : null;
+  const patterns = [
+    /(?:www\.)?farcaster\.xyz\/~\/c\/(?:[a-z]+:)?(0x[a-fA-F0-9]+)/i,
+    /(?:www\.)?farcaster\.xyz\/[^/]+\/(0x[a-fA-F0-9]+)/i,
+    /(?:www\.)?warpcast\.com\/[^/]+\/(0x[a-fA-F0-9]+)/i,
+    /(?:www\.)?warpcast\.com\/~\/conversations\/(0x[a-fA-F0-9]+)/i,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
 }
 
 export default function EmbedRenderer({ embed, index }: { embed: any; index: number }) {
