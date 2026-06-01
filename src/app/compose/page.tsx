@@ -652,89 +652,93 @@ function ComposePageInner() {
                 </div>
               )}
 
-              <div className="flex items-center gap-1 mt-3 pt-3 border-t border-zinc-800 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' as any, scrollbarWidth: 'none' }}>
-                {/* Photo upload icon */}
-                <label
-                  htmlFor="image-upload-compose"
-                  className={`p-2.5 rounded-full cursor-pointer transition-colors ${uploadingImage ? 'text-zinc-600 cursor-not-allowed' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                  title="Add photo"
-                >
-                  {uploadingImage ? (
-                    <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  )}
-                  <input
-                    id="image-upload-compose"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    disabled={uploadingImage}
-                    className="hidden"
-                  />
-                </label>
+              <div className="flex items-center mt-3 pt-3 border-t border-zinc-800">
+                {/* Scrollable left actions */}
+                <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0" style={{ WebkitOverflowScrolling: 'touch' as any, scrollbarWidth: 'none' }}>
+                  {/* Photo upload icon */}
+                  <label
+                    htmlFor="image-upload-compose"
+                    className={`p-2.5 rounded-full cursor-pointer transition-colors flex-shrink-0 ${uploadingImage ? 'text-zinc-600 cursor-not-allowed' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                    title="Add photo"
+                  >
+                    {uploadingImage ? (
+                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                    <input
+                      id="image-upload-compose"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                      className="hidden"
+                    />
+                  </label>
 
-                {/* Channel button */}
-                <button
-                  onClick={() => setShowChannelSuggestions(!showChannelSuggestions)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${selectedChannel ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                  title="Post to channel"
-                >
-                  <span className="font-bold text-xs">#</span>
-                  <span>{selectedChannel || 'Channel'}</span>
-                  {selectedChannel && (
-                    <span
-                      role="button"
-                      onClick={(e) => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }}
-                      className="ml-0.5 leading-none text-zinc-400 hover:text-white"
-                    >
-                      ×
+                  {/* Channel button */}
+                  <button
+                    onClick={() => setShowChannelSuggestions(!showChannelSuggestions)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors flex-shrink-0 ${selectedChannel ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                    title="Post to channel"
+                  >
+                    <span className="font-bold text-xs">#</span>
+                    <span>{selectedChannel || 'Channel'}</span>
+                    {selectedChannel && (
+                      <span
+                        role="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }}
+                        className="ml-0.5 leading-none text-zinc-400 hover:text-white"
+                      >
+                        ×
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Schedule icon */}
+                  <button
+                    onClick={() => setIsScheduled(!isScheduled)}
+                    className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${isScheduled ? 'text-white bg-zinc-700' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                    title="Schedule"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+
+                  {/* View scheduled queue */}
+                  <button
+                    onClick={() => router.push('/scheduled')}
+                    className="text-zinc-400 hover:text-white transition-colors text-sm px-1 whitespace-nowrap flex-shrink-0"
+                  >
+                    Scheduled
+                  </button>
+                </div>
+
+                {/* Fixed right side — always visible */}
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  {text.length > 0 && (
+                    <span className={`text-xs ${text.length > 280 ? 'text-red-400' : 'text-zinc-500'}`}>
+                      {text.length}
                     </span>
                   )}
-                </button>
 
-                {/* Schedule icon */}
-                <button
-                  onClick={() => setIsScheduled(!isScheduled)}
-                  className={`p-2.5 rounded-full transition-colors ${isScheduled ? 'text-white bg-zinc-700' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                  title="Schedule"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </button>
-
-                {/* View scheduled queue */}
-                <button
-                  onClick={() => router.push('/scheduled')}
-                  className="text-zinc-400 hover:text-white transition-colors text-sm px-1 whitespace-nowrap flex-shrink-0"
-                >
-                  Scheduled
-                </button>
-
-                <div className="flex-1" />
-
-                {text.length > 0 && (
-                  <span className={`text-xs mr-2 ${text.length > 280 ? 'text-red-400' : 'text-zinc-500'}`}>
-                    {text.length}
-                  </span>
-                )}
-
-                <button
-                  className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors flex-shrink-0"
-                  disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
-                  onClick={handlePost}
-                >
-                  {loading
-                    ? (isScheduled ? 'Scheduling…' : 'Posting…')
-                    : (isScheduled ? 'Schedule' : 'Post')
-                  }
-                </button>
+                  <button
+                    className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
+                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
+                    onClick={handlePost}
+                  >
+                    {loading
+                      ? (isScheduled ? 'Scheduling…' : 'Posting…')
+                      : (isScheduled ? 'Schedule' : 'Post')
+                    }
+                  </button>
+                </div>
               </div>
             </div>
 
