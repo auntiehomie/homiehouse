@@ -15,10 +15,6 @@ export default function ComposePage() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [mentionSearch, setMentionSearch] = useState('');
-  const [mentionResults, setMentionResults] = useState<any[]>([]);
-  const [showMentions, setShowMentions] = useState(false);
-  const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
   const [imageUrl, setImageUrl] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -26,11 +22,15 @@ export default function ComposePage() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [channels, setChannels] = useState<any[]>([]);
-  const [channelSearch, setChannelSearch] = useState<string>('');
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
+  const [channelSearch, setChannelSearch] = useState<string>('');
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+
+  // Unified inline trigger autocomplete (@mention, /channel, $token)
+  const [activeTrigger, setActiveTrigger] = useState<{ type: '@' | '/' | '$'; query: string; startPos: number } | null>(null);
+  const [triggerResults, setTriggerResults] = useState<any[]>([]);
 
   // Load channels on mount
   useEffect(() => {
@@ -71,53 +71,77 @@ export default function ComposePage() {
     }
   }
 
-  // Search for users when typing @mentions
+  // Unified trigger search: @user, /channel, $token
   useEffect(() => {
-    const searchMentions = async () => {
-      if (!mentionSearch || mentionSearch.length < 2) {
-        setMentionResults([]);
-        return;
-      }
-
+    if (!activeTrigger || activeTrigger.query.length < 1) {
+      setTriggerResults([]);
+      return;
+    }
+    const { type, query } = activeTrigger;
+    const delay = type === '/' ? 0 : 300;
+    const timer = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/search-users?q=${encodeURIComponent(mentionSearch)}`);
-        if (response.ok) {
-          const data = await response.json();
-          setMentionResults(data.users || []);
+        if (type === '@') {
+          const r = await fetch(`/api/search-users?q=${encodeURIComponent(query)}`);
+          const d = await r.json();
+          setTriggerResults(d.users?.slice(0, 6) || []);
+        } else if (type === '/') {
+          const filtered = channels.filter(ch =>
+            ch.id?.toLowerCase().includes(query.toLowerCase()) ||
+            ch.name?.toLowerCase().includes(query.toLowerCase())
+          );
+          setTriggerResults(filtered.slice(0, 8));
+        } else if (type === '$') {
+          const r = await fetch(`/api/tokens/search?q=${encodeURIComponent(query)}&limit=6`);
+          const d = await r.json();
+          setTriggerResults(d.tokens || []);
         }
-      } catch (error) {
-        console.error('Error searching users:', error);
-      }
-    };
-
-    const timeoutId = setTimeout(searchMentions, 300);
-    return () => clearTimeout(timeoutId);
-  }, [mentionSearch]);
+      } catch {}
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [activeTrigger, channels]);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value;
     const cursorPos = e.target.selectionStart;
-    
     setText(newText);
 
-    // Check for @ mention
-    const textBeforeCursor = newText.substring(0, cursorPos);
-    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
-    
-    if (lastAtSymbol !== -1) {
-      const textAfterAt = textBeforeCursor.substring(lastAtSymbol + 1);
-      // Check if there's a space after @ (which would end the mention)
-      if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
-        setMentionSearch(textAfterAt);
-        setMentionStartPos(lastAtSymbol);
-        setShowMentions(true);
+    const before = newText.substring(0, cursorPos);
+    // Find the last trigger character before the cursor
+    const candidates = (['@', '/', '$'] as const).map(t => ({ type: t, pos: before.lastIndexOf(t) })).filter(c => c.pos !== -1);
+    const best = candidates.sort((a, b) => b.pos - a.pos)[0];
+
+    if (best) {
+      const query = before.substring(best.pos + 1);
+      if (!query.includes(' ') && !query.includes('\n')) {
+        setActiveTrigger({ type: best.type, query, startPos: best.pos });
         return;
       }
     }
-    
-    setShowMentions(false);
-    setMentionSearch('');
+
+    setActiveTrigger(null);
+    setTriggerResults([]);
   };
+
+  function insertTriggerResult(result: any) {
+    if (!activeTrigger) return;
+    const { type, startPos, query } = activeTrigger;
+    const before = text.substring(0, startPos);
+    const after = text.substring(startPos + query.length + 1);
+
+    if (type === '@') {
+      setText(`${before}@${result.username} ${after}`);
+    } else if (type === '/') {
+      // Strip the /query from text; channel is tracked separately
+      setText((before + after).replace(/^\s+/, ''));
+      setSelectedChannel(result.id);
+    } else if (type === '$') {
+      setText(`${before}$${result.symbol} ${after}`);
+    }
+
+    setActiveTrigger(null);
+    setTriggerResults([]);
+  }
 
   // Detect URLs in text and fetch preview
   useEffect(() => {
@@ -158,18 +182,6 @@ export default function ComposePage() {
     }
   };
 
-  const insertMention = (user: any) => {
-    if (mentionStartPos === null) return;
-    
-    const beforeMention = text.substring(0, mentionStartPos);
-    const afterMention = text.substring(mentionStartPos + mentionSearch.length + 1);
-    const newText = `${beforeMention}@${user.username} ${afterMention}`;
-    
-    setText(newText);
-    setShowMentions(false);
-    setMentionSearch('');
-    setMentionStartPos(null);
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -437,61 +449,97 @@ export default function ComposePage() {
               autoFocus
             />
             
-            {/* Mention autocomplete dropdown */}
-            {showMentions && mentionResults.length > 0 && (
+            {/* Unified inline autocomplete: @user, /channel, $token */}
+            {activeTrigger && triggerResults.length > 0 && (
               <div style={{
                 position: 'absolute',
                 top: '100%',
                 left: 0,
                 right: 0,
-                maxHeight: '200px',
+                maxHeight: 240,
                 overflowY: 'auto',
-                background: '#1a1a1a',
+                background: '#111',
                 border: '1px solid #3f3f46',
-                borderRadius: '8px',
-                marginTop: '4px',
+                borderRadius: 10,
+                marginTop: 4,
                 zIndex: 1000,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
               }}>
-                {mentionResults.slice(0, 5).map((user) => (
+                {triggerResults.map((result, i) => (
                   <button
-                    key={user.fid}
-                    onClick={() => insertMention(user)}
+                    key={result.fid ?? result.id ?? result.symbol ?? i}
+                    onMouseDown={(e) => { e.preventDefault(); insertTriggerResult(result); }}
                     style={{
                       width: '100%',
-                      padding: '12px',
+                      padding: '10px 14px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '12px',
+                      gap: 10,
                       background: 'transparent',
                       border: 'none',
+                      borderBottom: i < triggerResults.length - 1 ? '1px solid #27272a' : 'none',
                       cursor: 'pointer',
                       textAlign: 'left',
-                      color: 'white'
+                      color: 'white',
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#27272a'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#1c1c1c')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
-                    {user.pfp_url && (
-                      <img 
-                        src={user.pfp_url} 
-                        alt={user.username}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          objectFit: 'cover'
-                        }}
-                      />
+                    {/* @ user */}
+                    {activeTrigger.type === '@' && (
+                      <>
+                        {result.pfp_url
+                          ? <img src={result.pfp_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          : <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#27272a', flexShrink: 0 }} />
+                        }
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{result.display_name}</div>
+                          <div style={{ fontSize: 12, color: '#71717a' }}>@{result.username}</div>
+                        </div>
+                      </>
                     )}
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: '14px' }}>
-                        {user.display_name}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#71717a' }}>
-                        @{user.username}
-                      </div>
-                    </div>
+
+                    {/* / channel */}
+                    {activeTrigger.type === '/' && (
+                      <>
+                        {result.imageUrl
+                          ? <img src={result.imageUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                          : <div style={{ width: 28, height: 28, borderRadius: 6, background: '#27272a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#71717a' }}>#</div>
+                        }
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>/{result.id}</div>
+                          {result.name && <div style={{ fontSize: 12, color: '#71717a' }}>{result.name}</div>}
+                        </div>
+                      </>
+                    )}
+
+                    {/* $ token */}
+                    {activeTrigger.type === '$' && (
+                      <>
+                        {result.image
+                          ? <img src={result.image} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          : <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#27272a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#71717a', fontWeight: 700 }}>$</div>
+                        }
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>${result.symbol}</div>
+                          <div style={{ fontSize: 12, color: '#71717a' }}>{result.name}</div>
+                        </div>
+                        {result.currentPrice != null && (
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>
+                              ${result.currentPrice < 0.01
+                                ? result.currentPrice.toFixed(6)
+                                : result.currentPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                            </div>
+                            {result.priceChangePercentage24h != null && (
+                              <div style={{ fontSize: 11, color: result.priceChangePercentage24h >= 0 ? '#4ade80' : '#f87171' }}>
+                                {result.priceChangePercentage24h >= 0 ? '+' : ''}{result.priceChangePercentage24h.toFixed(2)}%
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
