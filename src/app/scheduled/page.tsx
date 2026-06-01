@@ -21,13 +21,14 @@ function formatRelative(iso: string) {
   const diffMs = date.getTime() - now.getTime();
   const diffMins = Math.round(diffMs / 60000);
 
-  if (diffMins < 0) return date.toLocaleString();
+  if (diffMins < -1) return 'publishing soon…';
+  if (diffMins < 0) return 'any moment…';
   if (diffMins < 60) return `in ${diffMins} min${diffMins !== 1 ? 's' : ''}`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `in ${diffHours} hour${diffHours !== 1 ? 's' : ''}`;
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays < 7) return `in ${diffDays} day${diffDays !== 1 ? 's' : ''}`;
-  return date.toLocaleString();
+  return `in ${diffDays} days`;
 }
 
 export default function ScheduledPage() {
@@ -43,15 +44,22 @@ export default function ScheduledPage() {
   const [retrying, setRetrying] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<Record<string, string>>({});
 
+  async function loadCasts(showLoading = false) {
+    if (!userFid) return;
+    if (showLoading) setLoading(true);
+    try {
+      const res = await fetch(`/api/schedule-cast?fid=${userFid}`);
+      const data = await res.json();
+      if (data.ok) setCasts(data.scheduled_casts || []);
+    } catch {}
+    if (showLoading) setLoading(false);
+  }
+
   useEffect(() => {
     if (!userFid) return;
-    fetch(`/api/schedule-cast?fid=${userFid}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok) setCasts(data.scheduled_casts || []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    loadCasts(true);
+    const interval = setInterval(() => loadCasts(false), 30_000);
+    return () => clearInterval(interval);
   }, [userFid]);
 
   async function handleCancel(id: string) {
