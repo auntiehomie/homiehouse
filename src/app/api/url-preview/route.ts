@@ -82,6 +82,55 @@ async function resolveAndCheckHost(hostname: string): Promise<void> {
 }
 
 /**
+ * X.com / twitter.com blocks OG scraping. Use the fxtwitter public API instead.
+ * Returns null if this isn't a Twitter/X URL.
+ */
+async function fetchXPreview(url: string): Promise<{ ok: boolean; metadata: OpenGraphData } | null> {
+  let tweetId: string | null = null;
+  try {
+    const parsed = new URL(url);
+    const isX = parsed.hostname === 'x.com' || parsed.hostname === 'twitter.com'
+              || parsed.hostname === 'www.x.com' || parsed.hostname === 'www.twitter.com';
+    if (!isX) return null;
+    // URL shape: /USER/status/TWEET_ID  or  /USER/status/TWEET_ID?...
+    const match = parsed.pathname.match(/\/status\/(\d+)/);
+    if (!match) return null;
+    tweetId = match[1];
+  } catch {
+    return null;
+  }
+
+  try {
+    const res = await fetch(`https://api.fxtwitter.com/status/${tweetId}`, {
+      headers: { 'User-Agent': 'HomieHouseBot/1.0' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const tweet = data?.tweet;
+    if (!tweet) return null;
+
+    const authorName = tweet.author?.name || tweet.author?.screen_name || '';
+    const screenName = tweet.author?.screen_name || '';
+    const text: string = tweet.text || '';
+    const photo = tweet.media?.photos?.[0]?.url || tweet.media?.videos?.[0]?.thumbnail_url || '';
+
+    return {
+      ok: true,
+      metadata: {
+        title: authorName ? `${authorName} (@${screenName})` : `@${screenName}`,
+        description: text,
+        image: photo,
+        siteName: 'X (Twitter)',
+        url: tweet.url || url,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Extract Open Graph and meta tags from HTML
  */
 function extractMetadata(html: string, url: string): OpenGraphData {
@@ -204,6 +253,16 @@ export async function POST(request: NextRequest) {
       logger.info('Returning cached URL preview', { url });
       logger.end();
       return NextResponse.json(cached.data);
+    }
+
+    // X.com / Twitter — use fxtwitter API (they block OG scraping)
+    const xPreview = await fetchXPreview(url);
+    if (xPreview) {
+      const responsePayload = { ...xPreview, articleText: null, isArticle: false };
+      cache.set(url, { ts: Date.now(), data: responsePayload });
+      logger.success('X preview via fxtwitter', { tweetId: url });
+      logger.end();
+      return NextResponse.json(responsePayload);
     }
 
     // Fetch the URL
