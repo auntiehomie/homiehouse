@@ -14,6 +14,25 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+function renderCastText(text: string) {
+  // Split on $TOKEN patterns (1-10 uppercase letters/digits after $)
+  const parts = text.split(/(\$[A-Z][A-Z0-9]{0,9})/g);
+  return parts.map((part, i) =>
+    /^\$[A-Z][A-Z0-9]{0,9}$/.test(part) ? (
+      <Link
+        key={i}
+        href={`/tokens/${encodeURIComponent(part.slice(1))}`}
+        style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {part}
+      </Link>
+    ) : (
+      <React.Fragment key={i}>{part}</React.Fragment>
+    )
+  );
+}
+
 function ActionBtn({
   onClick, icon, label, active = false, disabled = false,
 }: {
@@ -1076,7 +1095,7 @@ export default function FeedList({
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word'
                     }}>
-                      {cast.text || '(No text)'}
+                      {renderCastText(cast.text || '(No text)')}
                     </p>
                     {cast.embeds && cast.embeds.length > 0 && cast.embeds[0]?.url && (
                       <div style={{ marginTop: '12px' }}>

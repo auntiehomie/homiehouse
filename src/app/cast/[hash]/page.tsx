@@ -1,11 +1,24 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import SmartEmbed from "@/components/SmartEmbed";
+
+function renderCastText(text: string) {
+  const parts = text.split(/(\$[A-Z][A-Z0-9]{0,9})/g);
+  return parts.map((part, i) =>
+    /^\$[A-Z][A-Z0-9]{0,9}$/.test(part) ? (
+      <Link key={i} href={`/tokens/${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }}>
+        {part}
+      </Link>
+    ) : (
+      <Fragment key={i}>{part}</Fragment>
+    )
+  );
+}
 
 export default function CastDetailPage() {
   const params = useParams();
@@ -147,7 +160,7 @@ export default function CastDetailPage() {
 
           {/* Cast Text */}
           <div className="text-base leading-relaxed mb-4 whitespace-pre-wrap break-words">
-            {text}
+            {renderCastText(text)}
           </div>
 
           {/* Embeds */}
