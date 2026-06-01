@@ -152,10 +152,17 @@ export async function fetchChannelFeed(channelId: string, params: {
     if (data?.casts?.length) return data;
   } catch (_) {}
 
-  // Fallback: multi-channel feed endpoint
-  const qs2 = new URLSearchParams(base);
-  qs2.set('channel_ids', channelId);
-  return hypersnapFetch(`/v2/farcaster/feed/channels?${qs2.toString()}`);
+  // Fallback 1: multi-channel feed endpoint
+  try {
+    const qs2 = new URLSearchParams(base);
+    qs2.set('channel_ids', channelId);
+    const data2 = await hypersnapFetch(`/v2/farcaster/feed/channels?${qs2.toString()}`);
+    if (data2?.casts?.length) return data2;
+  } catch (_) {}
+
+  // Fallback 2: cast search for the channel name (self-hosted nodes often lack channel filtering)
+  const searchData = await searchCasts(channelId, limit);
+  return { casts: searchData?.casts || [], next: null };
 }
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
@@ -233,9 +240,9 @@ export async function searchUsers(query: string, limit = 10): Promise<any> {
 export async function searchCasts(query: string, limit = 10): Promise<any> {
   const qs = new URLSearchParams({ q: query, limit: String(limit) });
   const data = await hypersnapFetch(`/v2/farcaster/cast/search?${qs.toString()}`);
-  // Normalise: { result: [...] } → { casts: [...] }
-  if (data?.result && !data?.casts) {
-    return { ...data, casts: data.result };
+  // Hypersnap returns { result: { casts: [...] } } — hoist to root
+  if (data?.result?.casts && !data?.casts) {
+    return { casts: data.result.casts, next: data.result.next };
   }
   return data;
 }

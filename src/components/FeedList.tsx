@@ -366,7 +366,13 @@ export default function FeedList({
         <FeedSkeleton count={3} />
       </div>
     );
-  if (!items.length) return <div className="surface">No casts to show. Follow people to populate your feed.</div>;
+  if (!items.length) return (
+    <div className="surface">
+      {selectedChannel
+        ? `No casts found in #${selectedChannel}.`
+        : 'No casts to show. Follow people to populate your feed.'}
+    </div>
+  );
 
   // Get user interests from localStorage
   const getUserInterests = (): string[] => {
