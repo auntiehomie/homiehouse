@@ -40,11 +40,12 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const { rows } = await db.query(
       `INSERT INTO scheduled_casts
-        (user_fid, text, embeds, channel_id, scheduled_time, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
+        (user_fid, signer_uuid, text, embeds, channel_id, scheduled_time, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
        RETURNING *`,
       [
         userFid,
+        'app-managed',
         text,
         JSON.stringify(embeds),
         channelKey || null,
