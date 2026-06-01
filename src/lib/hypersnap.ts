@@ -223,7 +223,7 @@ export async function fetchNotifications(params: {
  * Returns { users: [...] }.
  */
 export async function searchUsers(query: string, limit = 10): Promise<any> {
-  const qs = new URLSearchParams({ q: query, limit: String(limit) });
+  const qs = new URLSearchParams({ q: query.toLowerCase(), limit: String(limit) });
   const data = await hypersnapFetch(`/v2/farcaster/user/search?${qs.toString()}`);
   // Normalise: { result: [...] } → { users: [...] }
   if (data?.result && !data?.users) {
