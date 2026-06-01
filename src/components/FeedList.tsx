@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { FeedType } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -96,6 +97,7 @@ export default function FeedList({
   const [curateListName, setCurateListName] = useState("");
   const [curateLoading, setCurateLoading] = useState(false);
 
+  const router = useRouter();
   const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
 
   // Get profile from localStorage
@@ -626,11 +628,15 @@ export default function FeedList({
             {it.parent_hash && (
               <ParentCastBadge parentHash={it.parent_hash} />
             )}
-            <div style={{
-              marginTop: 2,
-              wordBreak: 'break-word',
-              overflowWrap: 'break-word'
-            }}>
+            <div
+              onClick={() => router.push(`/cast/${key}`)}
+              style={{
+                marginTop: 2,
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                cursor: 'pointer',
+              }}
+            >
               {(() => {
                 const words = text.split(' ');
                 const isLongCast = words.length > 15;
@@ -708,11 +714,17 @@ export default function FeedList({
               alignItems: 'center'
             }}>
               <span>
-                {timeLabel}
+                <Link
+                  href={`/cast/${key}`}
+                  style={{ color: 'var(--muted-on-dark)', textDecoration: 'none' }}
+                  className="hover:underline"
+                >
+                  {timeLabel}
+                </Link>
                 {it.channel?.id && (
-                  <Link 
+                  <Link
                     href={`/channel/${it.channel.id}`}
-                    style={{ 
+                    style={{
                       marginLeft: '8px',
                       color: 'var(--accent)',
                       textDecoration: 'none'
