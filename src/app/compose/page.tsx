@@ -9,7 +9,7 @@ function ComposePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = usePrivy();
-  const { hasActiveSigner, requestSigner, submitCast } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, getPrivateKeyHex } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
@@ -326,15 +326,13 @@ function ComposePageInner() {
         body.scheduled_time = scheduledDate.toISOString();
 
         // Pass the user's signer private key so the server can sign the cast at publish time
-        try {
-          const signerRaw = localStorage.getItem(`signer_${userFid}`);
-          if (signerRaw) {
-            const signerData = JSON.parse(signerRaw);
-            if (signerData.status === 'approved' && signerData.private_key) {
-              body.private_key = signerData.private_key;
-            }
-          }
-        } catch {}
+        const signerPrivateKey = getPrivateKeyHex();
+        if (!signerPrivateKey) {
+          setStatus("Posting permissions required to schedule. Tap 'Enable Posting', approve in Warpcast, then try again.");
+          setLoading(false);
+          return;
+        }
+        body.private_key = signerPrivateKey;
 
         console.log('[ComposePage] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
         const res = await fetch("/api/schedule-cast", {

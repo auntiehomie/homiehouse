@@ -70,6 +70,8 @@ export interface UseFarcasterWritesReturn {
   reply: (params: ReplyParams) => Promise<{ castHash: string }>;
   signerApprovalUrl: null;
   checkSignerStatus: () => Promise<void>;
+  /** Returns the approved private key hex for this FID, or null if not available */
+  getPrivateKeyHex: () => string | null;
 }
 
 export function useFarcasterWrites(): UseFarcasterWritesReturn {
@@ -214,6 +216,17 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     return { castHash: result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '' };
   }, [getSigner, fid]);
 
+  const getPrivateKeyHex = useCallback((): string | null => {
+    if (!fid) return null;
+    try {
+      const raw = localStorage.getItem(`signer_${fid}`);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (data.status === 'approved' && data.private_key) return data.private_key as string;
+    } catch {}
+    return null;
+  }, [fid]);
+
   return {
     hasActiveSigner,
     requestSigner,
@@ -225,5 +238,6 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     reply,
     signerApprovalUrl: null,
     checkSignerStatus: async () => {},
+    getPrivateKeyHex,
   };
 }
