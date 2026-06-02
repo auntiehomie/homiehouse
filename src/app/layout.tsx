@@ -115,7 +115,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{__html: `(function(){try{var t=localStorage.getItem('hh_theme');if(t&&t!=='default')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}} />
+        <script dangerouslySetInnerHTML={{__html: `(function(){try{var t=localStorage.getItem('hh_theme');if(!t||t==='default')return;if(t==='custom'){var c=JSON.parse(localStorage.getItem('hh_custom_theme')||'{}'),s=document.documentElement.style;[['bgDark','--bg-dark'],['surface','--surface'],['textOnDark','--text-on-dark'],['accent','--accent'],['navBg','--nav-bg'],['btnPrimaryBg','--btn-primary-bg'],['btnPrimaryColor','--btn-primary-color']].forEach(function(p){if(c[p[0]])s.setProperty(p[1],c[p[0]]);});}else{document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`}} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
