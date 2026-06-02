@@ -12,6 +12,8 @@
   --text-on-dark: #FFFFFF;
   --muted-on-dark: rgba(255,255,255,0.60);
   --border: rgba(255,255,255,0.08);
+  --nav-bg: #000000;
+  --nav-border: rgba(255,255,255,0.1);
 
   --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   --heading-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
@@ -19,6 +21,90 @@
   /* Light-mode overrides will set these to lighter variants */
   --background: var(--bg-dark);
   --foreground: var(--text-on-dark);
+}
+
+/* Theme overrides — applied via data-theme on <html> */
+
+[data-theme="michigan"] {
+  --bg-dark: #00274C;
+  --surface: #003875;
+  --text-on-dark: #FFCB05;
+  --muted-on-dark: rgba(255, 203, 5, 0.65);
+  --border: rgba(255, 203, 5, 0.18);
+  --accent: #FFCB05;
+  --accent-hover: rgba(255, 203, 5, 0.85);
+  --accent-soft: rgba(255, 203, 5, 0.4);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #001830;
+  --nav-border: rgba(255, 203, 5, 0.25);
+}
+
+[data-theme="msu"] {
+  --bg-dark: #18453B;
+  --surface: #1F5246;
+  --text-on-dark: #FFFFFF;
+  --muted-on-dark: rgba(255, 255, 255, 0.65);
+  --border: rgba(255, 255, 255, 0.12);
+  --accent: #FFFFFF;
+  --accent-hover: rgba(255, 255, 255, 0.85);
+  --accent-soft: rgba(255, 255, 255, 0.4);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0F2B22;
+  --nav-border: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="derby"] {
+  --bg-dark: #1A0A00;
+  --surface: #2D1600;
+  --text-on-dark: #F5E6C8;
+  --muted-on-dark: rgba(197, 165, 114, 0.75);
+  --border: rgba(197, 165, 114, 0.22);
+  --accent: #C53030;
+  --accent-hover: #E53E3E;
+  --accent-soft: rgba(197, 48, 48, 0.4);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0E0500;
+  --nav-border: rgba(197, 165, 114, 0.3);
+}
+
+[data-theme="munchers"] {
+  --bg-dark: #001100;
+  --surface: #002200;
+  --text-on-dark: #00FF41;
+  --muted-on-dark: rgba(0, 255, 65, 0.55);
+  --border: rgba(0, 255, 65, 0.22);
+  --accent: #00FF41;
+  --accent-hover: #33FF66;
+  --accent-soft: rgba(0, 255, 65, 0.3);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #000900;
+  --nav-border: rgba(0, 255, 65, 0.3);
+}
+
+[data-theme="munchers"] body,
+[data-theme="munchers"] input,
+[data-theme="munchers"] textarea,
+[data-theme="munchers"] button {
+  font-family: 'Courier New', Courier, monospace !important;
+}
+
+[data-theme="winamp"] {
+  --bg-dark: #1E1E1E;
+  --surface: #2D2D2D;
+  --text-on-dark: #FFFFFF;
+  --muted-on-dark: rgba(255, 255, 255, 0.5);
+  --border: rgba(0, 0, 0, 0.5);
+  --accent: #00FF00;
+  --accent-hover: #33FF33;
+  --accent-soft: rgba(0, 255, 0, 0.3);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #141414;
+  --nav-border: rgba(0, 0, 0, 0.7);
 }
 
 @media (prefers-color-scheme: light) {
@@ -426,4 +512,10 @@ nav a:hover { color: var(--accent); }
   .bottom-nav {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* Theme-aware bottom nav */
+.hh-bottom-nav {
+  background-color: var(--nav-bg, #000000);
+  border-color: var(--nav-border, rgba(255,255,255,0.1));
 }
