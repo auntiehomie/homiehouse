@@ -70,17 +70,106 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
+// Share icon (iOS install step 1)
+function ShareIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+    </svg>
+  );
+}
+
 type NotifState = "granted" | "denied" | "default" | "unsupported";
+
+function isIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (window.navigator as any).standalone === true ||
+    window.matchMedia("(display-mode: standalone)").matches;
+}
+
+// Instruction card for iOS users in browser
+function IOSInstallCard() {
+  return (
+    <div style={{
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: 14, overflow: "hidden",
+    }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-on-dark)", marginBottom: 4 }}>
+          Add HomieHouse to your Home Screen
+        </div>
+        <div style={{ fontSize: 13, color: "var(--muted-on-dark)", lineHeight: 1.5 }}>
+          iOS requires apps to be installed as Home Screen icons to receive push notifications.
+        </div>
+      </div>
+      {[
+        {
+          step: "1",
+          icon: <ShareIcon />,
+          text: <>Tap the <strong style={{ color: "var(--text-on-dark)" }}>Share</strong> button at the bottom of Safari</>,
+        },
+        {
+          step: "2",
+          icon: (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 4v16m8-8H4" />
+            </svg>
+          ),
+          text: <>Scroll down and tap <strong style={{ color: "var(--text-on-dark)" }}>Add to Home Screen</strong></>,
+        },
+        {
+          step: "3",
+          icon: (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          ),
+          text: <>Open HomieHouse from your Home Screen — notifications will be available in Settings</>,
+        },
+      ].map(({ step, icon, text }) => (
+        <div key={step} style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+            background: "var(--accent)", opacity: 0.85,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "var(--bg-dark)", fontSize: 12, fontWeight: 700,
+          }}>
+            {step}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+            <span style={{ color: "var(--muted-on-dark)", flexShrink: 0 }}>{icon}</span>
+            <span style={{ fontSize: 13, color: "var(--muted-on-dark)", lineHeight: 1.5 }}>{text}</span>
+          </div>
+        </div>
+      ))}
+      <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-on-dark)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+        </svg>
+        <span style={{ fontSize: 11, color: "var(--muted-on-dark)" }}>Requires iOS 16.4 or later</span>
+      </div>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const router = useRouter();
   const [activeTheme, setActiveTheme] = useState("default");
   const [notifState, setNotifState] = useState<NotifState>("unsupported");
   const [notifLoading, setNotifLoading] = useState(false);
+  const [ios, setIos] = useState(false);
+  const [standalone, setStandalone] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("hh_theme") || "default";
     setActiveTheme(saved);
+    setIos(isIOS());
+    setStandalone(isStandalone());
     if ("Notification" in window) {
       setNotifState(Notification.permission as NotifState);
     }
@@ -91,7 +180,6 @@ export default function SettingsPage() {
     setNotifLoading(true);
     try {
       if (notifState === "granted") {
-        // Unsubscribe
         if ("serviceWorker" in navigator) {
           const reg = await navigator.serviceWorker.getRegistration("/sw.js");
           const sub = await reg?.pushManager?.getSubscription();
@@ -109,7 +197,6 @@ export default function SettingsPage() {
         }
         setNotifState("default");
       } else {
-        // Subscribe
         const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
         if (!vapidKey) return;
         const fid = getFid();
@@ -131,7 +218,6 @@ export default function SettingsPage() {
           userVisibleOnly: true,
           applicationServerKey: arr.buffer as ArrayBuffer,
         });
-
         await fetch("/api/push/subscribe", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -154,22 +240,18 @@ export default function SettingsPage() {
     } catch { return null; }
   }
 
-  const themeName = {
-    default: "HomieHouse",
-    michigan: "Go Blue",
-    msu: "Go Green",
-    derby: "Run for the Roses",
-    munchers: "Number Munchers",
-    winamp: "Winamp",
-  }[activeTheme] ?? "HomieHouse";
+  const themeName = ({
+    default: "HomieHouse", michigan: "Go Blue", msu: "Go Green",
+    derby: "Run for the Roses", munchers: "Number Munchers", winamp: "Winamp",
+  } as Record<string, string>)[activeTheme] ?? "HomieHouse";
 
   const notifEnabled = notifState === "granted";
   const notifDenied = notifState === "denied";
-  const notifUnsupported = notifState === "unsupported";
+  // iOS in browser (not installed) — show install instructions instead of toggle
+  const showInstallPrompt = ios && !standalone;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-dark)", color: "var(--text-on-dark)", paddingBottom: 100 }}>
-      {/* Header */}
       <header style={{ borderBottom: "1px solid var(--border)", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, background: "var(--bg-dark)", zIndex: 10 }}>
         <button
           onClick={() => router.back()}
@@ -185,7 +267,7 @@ export default function SettingsPage() {
       <main style={{ maxWidth: 600, margin: "0 auto", padding: "20px 16px" }}>
 
         {/* Appearance */}
-        <div style={{ marginBottom: 8 }}>
+        <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-on-dark)", padding: "0 4px 8px" }}>
             Appearance
           </div>
@@ -204,44 +286,45 @@ export default function SettingsPage() {
         </div>
 
         {/* Notifications */}
-        <div style={{ marginBottom: 8, marginTop: 24 }}>
+        <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-on-dark)", padding: "0 4px 8px" }}>
             Notifications
           </div>
-          <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
-            <SettingRow
-              onClick={notifUnsupported || notifDenied ? undefined : toggleNotifications}
-              icon={
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-              }
-              label="Push Notifications"
-              sublabel={
-                notifUnsupported
-                  ? "Not supported on this browser"
-                  : notifDenied
-                  ? "Blocked — enable in browser settings"
-                  : notifEnabled
-                  ? "On — you'll get alerts for replies, likes & follows"
-                  : "Off — tap to enable"
-              }
-              right={
-                notifUnsupported || notifDenied
-                  ? undefined
-                  : <Toggle on={notifEnabled} onToggle={toggleNotifications} />
-              }
-            />
-          </div>
-          {notifDenied && (
-            <p style={{ fontSize: 12, color: "var(--muted-on-dark)", margin: "8px 4px 0" }}>
-              Notifications are blocked. Open your browser/OS settings to allow them for homiehouse.lol.
-            </p>
+
+          {showInstallPrompt ? (
+            <IOSInstallCard />
+          ) : (
+            <>
+              <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
+                <SettingRow
+                  onClick={notifDenied ? undefined : toggleNotifications}
+                  icon={
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                  }
+                  label="Push Notifications"
+                  sublabel={
+                    notifDenied
+                      ? "Blocked — enable in browser/OS settings"
+                      : notifEnabled
+                      ? "On — replies, likes & follows"
+                      : "Off — tap to enable"
+                  }
+                  right={notifDenied ? undefined : <Toggle on={notifEnabled} onToggle={toggleNotifications} />}
+                />
+              </div>
+              {notifDenied && (
+                <p style={{ fontSize: 12, color: "var(--muted-on-dark)", margin: "8px 4px 0" }}>
+                  Notifications are blocked. Open your browser or OS settings and allow notifications for this site.
+                </p>
+              )}
+            </>
           )}
         </div>
 
         {/* Wallet */}
-        <div style={{ marginBottom: 8, marginTop: 24 }}>
+        <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-on-dark)", padding: "0 4px 8px" }}>
             Wallet
           </div>
