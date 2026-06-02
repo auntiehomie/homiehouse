@@ -143,6 +143,14 @@
   color: #FF8C00;
 }
 
+/* Winamp: section headings in orange */
+[data-theme="winamp"] h1,
+[data-theme="winamp"] h2,
+[data-theme="winamp"] h3 {
+  color: #FF8C00;
+  text-shadow: 0 0 8px rgba(255, 140, 0, 0.4);
+}
+
 /* Winamp: green spectrum-style bottom nav active indicator */
 [data-theme="winamp"] .hh-bottom-nav {
   border-top: 2px solid #FF8C00;

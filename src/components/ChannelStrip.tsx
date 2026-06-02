@@ -76,7 +76,10 @@ export default function ChannelStrip() {
           className="flex flex-col items-center gap-1 shrink-0 group"
           style={{ minWidth: 52 }}
         >
-          <div className="w-12 h-12 rounded-full overflow-hidden border border-zinc-700 group-hover:border-zinc-400 transition-colors bg-zinc-800 flex items-center justify-center">
+          <div
+            className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center transition-colors"
+            style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}
+          >
             {ch.image_url ? (
               <img
                 src={ch.image_url}
@@ -84,12 +87,12 @@ export default function ChannelStrip() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-xs font-bold text-zinc-300 uppercase">
+              <span className="text-xs font-bold uppercase" style={{ color: 'var(--text-on-dark)' }}>
                 {ch.name.slice(0, 2)}
               </span>
             )}
           </div>
-          <span className="text-[9px] text-zinc-500 group-hover:text-zinc-300 transition-colors max-w-[52px] truncate text-center">
+          <span className="text-[9px] max-w-[52px] truncate text-center" style={{ color: 'var(--muted-on-dark)' }}>
             {ch.name}
           </span>
         </Link>
