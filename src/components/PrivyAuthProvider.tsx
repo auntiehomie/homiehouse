@@ -12,7 +12,7 @@ export default function PrivyAuthProvider({ children }: { children: ReactNode })
         appearance: {
           theme: 'dark',
           accentColor: '#E87722',
-          logo: 'https://homiehouse.vercel.app/logo.png',
+          logo: 'https://homiehouse.lol/hh-logo.svg',
         },
         embeddedWallets: {
           ethereum: {
