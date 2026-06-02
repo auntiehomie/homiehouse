@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  makeFrameAction,
+  NobleEd25519Signer,
+  FrameActionBody,
+  Message,
+  FarcasterNetwork,
+} from '@farcaster/hub-nodejs';
 
 function extractMeta(html: string, property: string): string | null {
   const re = new RegExp(
@@ -23,19 +30,53 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ isFrame: false, error: 'url and postUrl required' }, { status: 400 });
   }
 
-  const { postUrl, buttonIndex = 1, inputText = '', castHash = '' } = body;
+  const { postUrl, buttonIndex = 1, inputText = '', castHash = '', privateKeyHex, fid } = body;
 
-  const frameBody = {
+  const frameBody: any = {
     untrustedData: {
+      fid: fid || 0,
       url: body.url,
       buttonIndex,
       inputText,
-      castId: { fid: 0, hash: castHash || '0x0000000000000000000000000000000000000000' },
+      castId: { fid: fid || 0, hash: castHash || '0x0000000000000000000000000000000000000000' },
       timestamp: Math.floor(Date.now() / 1000),
       network: 1,
     },
     trustedData: { messageBytes: '' },
   };
+
+  // Sign the frame action if the user's private key and FID are available
+  if (privateKeyHex && fid) {
+    try {
+      const privateKeyBytes = Buffer.from(privateKeyHex.replace('0x', ''), 'hex');
+      const signer = new NobleEd25519Signer(privateKeyBytes);
+
+      const hashBytes = castHash
+        ? Buffer.from(castHash.replace('0x', ''), 'hex')
+        : Buffer.alloc(20);
+
+      const frameActionBody = FrameActionBody.create({
+        url: Buffer.from(body.url),
+        buttonIndex,
+        castId: { fid, hash: hashBytes },
+        inputText: Buffer.from(inputText),
+        state: Buffer.alloc(0),
+      });
+
+      const result = await makeFrameAction(
+        frameActionBody,
+        { fid, network: FarcasterNetwork.MAINNET },
+        signer,
+      );
+
+      if (result.isOk()) {
+        const messageBytes = Buffer.from(Message.encode(result.value).finish()).toString('hex');
+        frameBody.trustedData = { messageBytes };
+      }
+    } catch {
+      // Fall through with unsigned action
+    }
+  }
 
   try {
     const res = await fetch(postUrl, {

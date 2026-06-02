@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import type { FrameData } from '@/app/api/frame/route';
 
 interface Props {
@@ -14,6 +16,11 @@ export default function FrameEmbed({ url, castHash }: Props) {
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [interactError, setInteractError] = useState<string | null>(null);
+
+  const { user } = usePrivy();
+  const { getPrivateKeyHex } = useFarcasterWrites();
+  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
+  const userFid: number = farcasterAccount?.fid ?? 0;
 
   useEffect(() => {
     setProbing(true);
@@ -41,16 +48,26 @@ export default function FrameEmbed({ url, castHash }: Props) {
       setLoading(true);
       setInteractError(null);
       try {
+        const privateKeyHex = getPrivateKeyHex();
         const res = await fetch('/api/frame/interact', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, postUrl, buttonIndex: btn.index, inputText: inputValue, castHash }),
+          body: JSON.stringify({
+            url,
+            postUrl,
+            buttonIndex: btn.index,
+            inputText: inputValue,
+            castHash,
+            privateKeyHex: privateKeyHex || undefined,
+            fid: userFid || undefined,
+          }),
         });
         const data = await res.json();
         if (!res.ok || data.error) {
           setInteractError(data.error || `Error ${res.status}`);
         } else if (data.isFrame && data.frame) {
           setFrame(data.frame);
+          setInputValue('');
         }
       } catch (e: any) {
         setInteractError(e.message || 'Action failed');
