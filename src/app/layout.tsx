@@ -7,6 +7,7 @@ import SignerInit from "../components/SignerInit";
 import BottomNav from "../components/BottomNav";
 import WelcomeModal from "../components/WelcomeModal";
 import ThemeSync from "../components/ThemeSync";
+import PushNotificationSetup from "../components/PushNotificationSetup";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -130,6 +131,7 @@ export default function RootLayout({
           <BottomNav />
           <WelcomeModal />
           <ThemeSync />
+          <PushNotificationSetup />
         </PrivyAuthProvider>
       </body>
     </html>

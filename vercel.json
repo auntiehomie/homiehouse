@@ -7,6 +7,10 @@
     {
       "path": "/api/bot/check",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/push/check-notifications",
+      "schedule": "* * * * *"
     }
   ]
 }
