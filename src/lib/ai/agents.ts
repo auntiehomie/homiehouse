@@ -1,8 +1,43 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
+import { ChatGroq } from '@langchain/groq';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
+
+// ─── Provider selection ───────────────────────────────────────────────────────
+// Priority: Anthropic → Groq → OpenAI.
+// All three support tool calling. Groq is free-tier and fast.
+export type Provider = 'anthropic' | 'groq' | 'openai';
+
+export function detectProvider(): Provider {
+  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  if (process.env.GROQ_API_KEY) return 'groq';
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  return 'groq'; // default — will surface a clear error if key missing
+}
+
+function buildLLM(provider: Provider): ChatOpenAI | ChatAnthropic | ChatGroq {
+  if (provider === 'anthropic') {
+    return new ChatAnthropic({
+      modelName: 'claude-sonnet-4-6',
+      temperature: 0.7,
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    });
+  }
+  if (provider === 'groq') {
+    return new ChatGroq({
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      temperature: 0.7,
+      apiKey: process.env.GROQ_API_KEY,
+    });
+  }
+  return new ChatOpenAI({
+    modelName: 'gpt-4o',
+    temperature: 0.7,
+    openAIApiKey: process.env.OPENAI_API_KEY,
+  });
+}
 import { searchCasts, getCastsByUsername } from '../hypersnap';
 import { getTokenData, searchTokens, formatTokenDisplay } from '../token-data';
 
@@ -45,30 +80,18 @@ export interface AgentMessage {
 
 // Base Agent Class
 export class BaseAgent {
-  protected llm: ChatOpenAI | ChatAnthropic;
+  protected llm: ChatOpenAI | ChatAnthropic | ChatGroq;
   protected systemPrompt: string;
   protected conversationHistory: BaseMessage[] = [];
   protected tools: DynamicStructuredTool[] = [];
 
   constructor(
-    provider: 'openai' | 'anthropic' = 'openai',
+    provider: Provider | 'auto' = 'auto',
     systemPrompt: string,
     tools: DynamicStructuredTool[] = []
   ) {
-    if (provider === 'anthropic') {
-      this.llm = new ChatAnthropic({
-        modelName: 'claude-sonnet-4-6',
-        temperature: 0.7,
-        anthropicApiKey: process.env.ANTHROPIC_API_KEY
-      });
-    } else {
-      this.llm = new ChatOpenAI({
-        modelName: 'gpt-4o',
-        temperature: 0.7,
-        openAIApiKey: process.env.OPENAI_API_KEY
-      });
-    }
-
+    const resolved = provider === 'auto' ? detectProvider() : provider;
+    this.llm = buildLLM(resolved);
     this.systemPrompt = systemPrompt;
     this.tools = tools;
   }
@@ -462,7 +485,7 @@ When helping:
 - Explain WHY a change would improve the cast
 - Learn from user feedback to improve future suggestions`;
 
-    super('anthropic', systemPrompt);
+    super('auto', systemPrompt);
   }
 
   async composeCast(
@@ -557,7 +580,7 @@ When analyzing casts:
       createFetchUrlTool(),
     ];
 
-    super('openai', systemPrompt, tools);
+    super('auto', systemPrompt, tools);
   }
 
   async analyzeCast(castOrMessage: string, metrics?: { likes?: number; recasts?: number; replies?: number }): Promise<string> {
@@ -660,7 +683,7 @@ Be accurate, cite what you know, and admit when you're not certain.`;
       createFetchUrlTool(),
     ];
 
-    super('openai', systemPrompt, tools);
+    super('auto', systemPrompt, tools);
   }
 
   async research(query: string, context?: string): Promise<string> {
@@ -870,7 +893,7 @@ Be conversational and helpful. Explain how their interests will help prioritize 
 
 Based on what they've said, suggest 3-5 specific interests they might want to add to their feed. Format your response as a friendly explanation followed by a list of suggested interests.`;
 
-    const tempAgent = new BaseAgent('anthropic', systemPrompt);
+    const tempAgent = new BaseAgent('auto', systemPrompt);
     const response = await tempAgent.chat(contextMessage);
 
     // Extract suggested interests from response (look for common patterns)
