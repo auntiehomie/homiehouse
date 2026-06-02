@@ -8,6 +8,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import AgentChat from '@/components/AgentChat';
 import FeedCurationChat from '@/components/FeedCurationChat';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
+import { ChannelSidebar } from '@/components/ChannelStrip';
 
 function AskHomieContent() {
   const [castContext, setCastContext] = useState<any>(null);
@@ -47,9 +48,9 @@ function AskHomieContent() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingBottom: 80 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
       {/* Header */}
-      <header style={{ borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
         <div>
           <Link href="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
             <HHLogo size={36} />
@@ -80,7 +81,17 @@ function AskHomieContent() {
         </div>
       </header>
 
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 600, width: '100%', margin: '0 auto' }}>
+      {/* Body: sidebar + chat */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Desktop sidebar */}
+        <aside
+          className="hidden lg:block shrink-0"
+          style={{ width: 220, borderRight: '1px solid var(--border)', overflowY: 'auto', scrollbarWidth: 'none', padding: '16px 0' }}
+        >
+          <ChannelSidebar />
+        </aside>
+
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 80 }}>
         {/* Cast context card */}
         {castContext && (
           <div style={{
@@ -175,7 +186,8 @@ function AskHomieContent() {
             initialMessage={starterQuestion || undefined}
           />
         </div>
-      </main>
+        </main>
+      </div>
 
       {showCurationModal && (
         <FeedCurationChat onClose={() => setShowCurationModal(false)} />
