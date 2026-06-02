@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import Link from "next/link";
+import HHLogo from '@/components/HHLogo';
 import { useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import AgentChat from '@/components/AgentChat';
@@ -50,8 +51,8 @@ function AskHomieContent() {
       {/* Header */}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <Link href="/" style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-on-dark)', textDecoration: 'none' }}>
-            HomieHouse
+          <Link href="/" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+            <HHLogo size={36} />
           </Link>
           <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 2 }}>
             Ask Homie — AI assistant

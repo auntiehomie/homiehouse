@@ -7,6 +7,7 @@ import ComposeModal from "../components/ComposeModal";
 import ScheduledCastsModal from "../components/ScheduledCastsModal";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import NeynarSignIn from "../components/NeynarSignIn";
+import HHLogo from "../components/HHLogo";
 
 const MESSAGES = [
   "HomieHouse - Your Social Hub",
@@ -127,8 +128,8 @@ export default function Home() {
     <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100">
       <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3">
-          <div className="flex-shrink-0">
-            <h1 className="text-base sm:text-xl font-bold">HomieHouse</h1>
+          <div className="flex-shrink-0 flex items-center gap-2">
+            <HHLogo size={36} />
             <p className="text-xs text-zinc-500 hidden lg:block">Your Social Hub</p>
           </div>
           {/* Search — only on large screens where there's room */}
