@@ -400,373 +400,263 @@ function ComposePageInner() {
     }
   }
 
+  const muted = { color: 'var(--muted-on-dark)' } as React.CSSProperties;
+  const toolBtn: React.CSSProperties = {
+    padding: '8px 10px', borderRadius: 8, background: 'none', border: 'none',
+    color: 'var(--muted-on-dark)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center',
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white">
-      <header className="border-b border-zinc-800">
-        <div className="max-w-2xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => router.back()}
-              className="text-zinc-400 hover:text-white transition-colors"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-            <h1 className="text-lg font-bold">New Cast</h1>
-            <div className="w-6" />
-          </div>
-        </div>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingBottom: 80 }}>
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
+          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-on-dark)' }}>New Cast</h1>
+        <div style={{ width: 22 }} />
       </header>
 
-      <main className="max-w-2xl mx-auto px-6 py-6">
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px' }}>
         {userFid && !hasActiveSigner ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-6">🔐</div>
-            <h2 className="text-2xl font-bold mb-4">Enable Posting</h2>
-            <p className="text-zinc-400 mb-8 max-w-md mx-auto">
-              To post casts from HomieHouse, approve posting permissions via Farcaster.
-              This only needs to be done once.
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: 'var(--text-on-dark)' }}>Enable Posting</h2>
+            <p style={{ ...muted, marginBottom: 28, maxWidth: 340, margin: '0 auto 28px', lineHeight: 1.5 }}>
+              To post casts from HomieHouse, approve posting permissions via Farcaster. This only needs to be done once.
             </p>
             <button
-              className="bg-white hover:bg-zinc-200 text-black px-8 py-3 rounded-lg font-medium transition-colors"
               onClick={handleEnablePosting}
               disabled={loading}
+              style={{ padding: '10px 28px', borderRadius: 24, background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontWeight: 600, fontSize: 15, border: 'none', cursor: 'pointer', opacity: loading ? 0.5 : 1 }}
             >
-              {loading ? "Creating..." : "Enable Posting"}
+              {loading ? 'Creating…' : 'Enable Posting'}
             </button>
-            {status && (
-              <div className="mt-6 p-4 bg-zinc-900 rounded-lg text-sm">
-                {status}
-              </div>
-            )}
+            {status && <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--surface)', borderRadius: 10, fontSize: 13, ...muted }}>{status}</div>}
           </div>
         ) : (
           <div>
             {/* Textarea with floating autocomplete */}
             <div style={{ position: 'relative' }}>
-            <textarea
-              className="w-full bg-transparent text-white text-lg p-4 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 resize-none min-h-[120px]"
-              value={text}
-              onChange={handleTextChange}
-              placeholder="What's on your mind?"
-              autoFocus
-            />
+              <textarea
+                value={text}
+                onChange={handleTextChange}
+                placeholder="What's on your mind?"
+                autoFocus
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  background: 'var(--surface)', color: 'var(--text-on-dark)',
+                  fontSize: 16, padding: '14px', lineHeight: 1.6,
+                  border: '1px solid var(--border)', borderRadius: 12,
+                  outline: 'none', resize: 'none', minHeight: 130,
+                  fontFamily: 'inherit',
+                }}
+                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+              />
 
-            {/* Autocomplete: floats below textarea, overlays toolbar */}
-            {activeTrigger && triggerResults.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                marginTop: 4,
-                maxHeight: 240,
-                overflowY: 'auto',
-                background: '#111',
-                border: '1px solid #3f3f46',
-                borderRadius: 10,
-                zIndex: 100,
-                boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
-              }}>
-                {triggerResults.map((result, i) => (
-                  <button
-                    key={result.fid ?? result.id ?? result.symbol ?? i}
-                    onMouseDown={(e) => { e.preventDefault(); insertTriggerResult(result); }}
-                    onTouchStart={(e) => { e.preventDefault(); insertTriggerResult(result); }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: i < triggerResults.length - 1 ? '1px solid #27272a' : 'none',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      color: 'white',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#1c1c1c')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    {/* @ user */}
-                    {activeTrigger.type === '@' && (
-                      <>
-                        {result.pfp_url
-                          ? <img src={result.pfp_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                          : <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#27272a', flexShrink: 0 }} />
-                        }
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{result.display_name}</div>
-                          <div style={{ fontSize: 12, color: '#71717a' }}>@{result.username}</div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* / channel */}
-                    {activeTrigger.type === '/' && (
-                      <>
-                        {result.imageUrl
-                          ? <img src={result.imageUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                          : <div style={{ width: 28, height: 28, borderRadius: 6, background: '#27272a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#71717a' }}>#</div>
-                        }
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>/{result.id}</div>
-                          {result.name && <div style={{ fontSize: 12, color: '#71717a' }}>{result.name}</div>}
-                        </div>
-                      </>
-                    )}
-
-                    {/* $ token */}
-                    {activeTrigger.type === '$' && (
-                      <>
-                        {result.image
-                          ? <img src={result.image} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                          : <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#27272a', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#71717a', fontWeight: 700 }}>$</div>
-                        }
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>${result.symbol}</div>
-                          <div style={{ fontSize: 12, color: '#71717a' }}>{result.name}</div>
-                        </div>
-                        {result.currentPrice != null && (
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>
-                              ${result.currentPrice < 0.01
-                                ? result.currentPrice.toFixed(6)
-                                : result.currentPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                            </div>
-                            {result.priceChangePercentage24h != null && (
-                              <div style={{ fontSize: 11, color: result.priceChangePercentage24h >= 0 ? '#4ade80' : '#f87171' }}>
-                                {result.priceChangePercentage24h >= 0 ? '+' : ''}{result.priceChangePercentage24h.toFixed(2)}%
-                              </div>
-                            )}
+              {/* Autocomplete dropdown */}
+              {activeTrigger && triggerResults.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+                  maxHeight: 240, overflowY: 'auto',
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 10, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                }}>
+                  {triggerResults.map((result, i) => (
+                    <button
+                      key={result.fid ?? result.id ?? result.symbol ?? i}
+                      onMouseDown={e => { e.preventDefault(); insertTriggerResult(result); }}
+                      onTouchStart={e => { e.preventDefault(); insertTriggerResult(result); }}
+                      style={{
+                        width: '100%', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                        background: 'transparent', border: 'none',
+                        borderBottom: i < triggerResults.length - 1 ? '1px solid var(--border)' : 'none',
+                        cursor: 'pointer', textAlign: 'left', color: 'var(--text-on-dark)',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {activeTrigger.type === '@' && (
+                        <>
+                          {result.pfp_url
+                            ? <img src={result.pfp_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                            : <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+                          }
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{result.display_name}</div>
+                            <div style={{ fontSize: 12, ...muted }}>@{result.username}</div>
                           </div>
-                        )}
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-            </div>{/* end textarea wrapper */}
+                        </>
+                      )}
+                      {activeTrigger.type === '/' && (
+                        <>
+                          {result.imageUrl
+                            ? <img src={result.imageUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                            : <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, ...muted }}>#</div>
+                          }
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>/{result.id}</div>
+                            {result.name && <div style={{ fontSize: 12, ...muted }}>{result.name}</div>}
+                          </div>
+                        </>
+                      )}
+                      {activeTrigger.type === '$' && (
+                        <>
+                          {result.image
+                            ? <img src={result.image} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                            : <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, ...muted, fontWeight: 700 }}>$</div>
+                          }
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>${result.symbol}</div>
+                            <div style={{ fontSize: 12, ...muted }}>{result.name}</div>
+                          </div>
+                          {result.currentPrice != null && (
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                ${result.currentPrice < 0.01 ? result.currentPrice.toFixed(6) : result.currentPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                              </div>
+                              {result.priceChangePercentage24h != null && (
+                                <div style={{ fontSize: 11, color: result.priceChangePercentage24h >= 0 ? '#4ade80' : '#f87171' }}>
+                                  {result.priceChangePercentage24h >= 0 ? '+' : ''}{result.priceChangePercentage24h.toFixed(2)}%
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Image preview */}
             {imageUrl && (
-              <div className="relative mt-3">
-                <img
-                  src={imageUrl}
-                  alt="Preview"
-                  className="max-w-full max-h-48 rounded-xl border border-zinc-800"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-                <button
-                  onClick={removeImage}
-                  className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-black/80 text-white rounded-full text-sm"
-                >
-                  ✕
-                </button>
+              <div style={{ position: 'relative', marginTop: 10 }}>
+                <img src={imageUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: 192, borderRadius: 12, border: '1px solid var(--border)', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <button onClick={removeImage} style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>✕</button>
               </div>
             )}
 
-            {/* URL Preview — shows whenever a URL is detected, clickable link card */}
+            {/* URL preview */}
             {detectedUrl && (
               loadingPreview ? (
-                <div className="mt-3 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-sm text-zinc-500">
-                  Loading preview…
-                </div>
+                <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, ...muted }}>Loading preview…</div>
               ) : (
-                <a
-                  href={detectedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block mt-3 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden no-underline hover:border-zinc-600 transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <a href={detectedUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                  style={{ display: 'block', marginTop: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', textDecoration: 'none' }}>
                   {urlPreview?.metadata?.image && (
-                    <img
-                      src={urlPreview.metadata.image}
-                      alt={urlPreview.metadata.title}
-                      className="w-full h-auto max-h-40 object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
+                    <img src={urlPreview.metadata.image} alt={urlPreview.metadata.title} style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                   )}
-                  <div className="p-3">
-                    {urlPreview?.metadata?.title && (
-                      <div className="text-sm font-semibold mb-1 text-white leading-tight">{urlPreview.metadata.title}</div>
-                    )}
-                    {urlPreview?.metadata?.description && (
-                      <div className="text-xs text-zinc-400 line-clamp-2 mb-1">{urlPreview.metadata.description}</div>
-                    )}
-                    <div className="text-xs text-zinc-500 flex items-center gap-1">
-                      <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                      {urlPreview?.metadata?.siteName || (() => { try { return new URL(detectedUrl).hostname; } catch { return detectedUrl; } })()}
-                    </div>
+                  <div style={{ padding: '10px 12px' }}>
+                    {urlPreview?.metadata?.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)', marginBottom: 3 }}>{urlPreview.metadata.title}</div>}
+                    {urlPreview?.metadata?.description && <div style={{ fontSize: 12, ...muted, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{urlPreview.metadata.description}</div>}
+                    <div style={{ fontSize: 11, ...muted }}>{urlPreview?.metadata?.siteName || (() => { try { return new URL(detectedUrl).hostname; } catch { return detectedUrl; } })()}</div>
                   </div>
                 </a>
               )
             )}
 
-            {/* Schedule datetime picker - shown when calendar icon is toggled */}
+            {/* Schedule picker */}
             {isScheduled && (
-              <div className="mt-3">
+              <div style={{ marginTop: 10 }}>
                 <input
                   type="datetime-local"
                   value={scheduleTime}
-                  onChange={(e) => setScheduleTime(e.target.value)}
+                  onChange={e => setScheduleTime(e.target.value)}
                   min={new Date().toISOString().slice(0, 16)}
-                  className="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-700 rounded-xl text-white text-sm focus:outline-none focus:border-zinc-500"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-on-dark)', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
                 />
               </div>
             )}
 
-            {/* Compact action toolbar */}
-            <div className="relative">
-              {/* Channel picker — floats above toolbar */}
+            {/* Toolbar */}
+            <div style={{ position: 'relative', marginTop: 12 }}>
+              {/* Channel picker dropdown */}
               {showChannelSuggestions && (
-                <div className="absolute bottom-full left-0 right-0 mb-1 max-h-52 overflow-y-auto bg-zinc-950 border border-zinc-700 rounded-xl shadow-2xl z-50">
-                  <div className="p-2 border-b border-zinc-800">
+                <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 4, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+                  <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
                     <input
                       type="text"
                       value={channelSearch}
-                      onChange={(e) => setChannelSearch(e.target.value)}
+                      onChange={e => setChannelSearch(e.target.value)}
                       placeholder="Search channels…"
-                      className="w-full px-3 py-2 bg-zinc-800 rounded-lg text-white text-sm placeholder-zinc-500 outline-none"
                       autoFocus
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
                     />
                   </div>
-                  {channels
-                    .filter(ch =>
-                      !channelSearch ||
-                      ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) ||
-                      ch.name?.toLowerCase().includes(channelSearch.toLowerCase())
-                    )
-                    .slice(0, 8)
-                    .map((ch) => (
-                      <button
-                        key={ch.id}
-                        onClick={() => {
-                          setSelectedChannel(ch.id);
-                          setChannelSearch('');
-                          setShowChannelSuggestions(false);
-                        }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-white hover:bg-zinc-800 transition-colors"
-                      >
-                        <span className="text-zinc-400">/</span>{ch.id}
-                        {ch.name && <span className="text-zinc-500 ml-2 text-xs">{ch.name}</span>}
-                      </button>
-                    ))
-                  }
+                  {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
+                    <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }}
+                      style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <span style={muted}>/</span>{ch.id}
+                      {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
+                    </button>
+                  ))}
                 </div>
               )}
 
-              <div className="flex items-center mt-3 pt-3 border-t border-zinc-800">
-                {/* Scrollable left actions */}
-                <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0" style={{ WebkitOverflowScrolling: 'touch' as any, scrollbarWidth: 'none' }}>
-                  {/* Photo upload icon */}
-                  <label
-                    htmlFor="image-upload-compose"
-                    className={`p-2.5 rounded-full cursor-pointer transition-colors flex-shrink-0 ${uploadingImage ? 'text-zinc-600 cursor-not-allowed' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                    title="Add photo"
-                  >
-                    {uploadingImage ? (
-                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                    <input
-                      id="image-upload-compose"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      disabled={uploadingImage}
-                      className="hidden"
-                    />
+              <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                {/* Left scrollable actions */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
+                  {/* Image upload */}
+                  <label htmlFor="image-upload-compose" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
+                    {uploadingImage
+                      ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
+                      : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    }
+                    <input id="image-upload-compose" type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
                   </label>
 
-                  {/* Channel button */}
-                  <button
-                    onClick={() => setShowChannelSuggestions(!showChannelSuggestions)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors flex-shrink-0 ${selectedChannel ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                    title="Post to channel"
-                  >
-                    <span className="font-bold text-xs">#</span>
-                    <span>{selectedChannel || 'Channel'}</span>
+                  {/* Channel */}
+                  <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel"
+                    style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
+                    <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
                     {selectedChannel && (
-                      <span
-                        role="button"
-                        onClick={(e) => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }}
-                        className="ml-0.5 leading-none text-zinc-400 hover:text-white"
-                      >
-                        ×
-                      </span>
+                      <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
                     )}
                   </button>
 
-                  {/* Clock icon — toggle schedule time picker */}
-                  <button
-                    onClick={() => setIsScheduled(!isScheduled)}
-                    className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${isScheduled ? 'text-white bg-zinc-700' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
-                    title="Schedule this cast"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                  {/* Clock — schedule toggle */}
+                  <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast"
+                    style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
 
-                  {/* Calendar icon — view scheduled queue */}
-                  <button
-                    onClick={() => router.push('/scheduled')}
-                    className="p-2.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors flex-shrink-0"
-                    title="Scheduled casts"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
+                  {/* Calendar — view queue */}
+                  <button onClick={() => router.push('/scheduled')} title="Scheduled casts" style={toolBtn}>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   </button>
                 </div>
 
-                {/* Fixed right side — always visible */}
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                {/* Right: char count + Post button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
                   {text.length > 0 && (
-                    <span className={`text-xs ${text.length > 280 ? 'text-red-400' : 'text-zinc-500'}`}>
-                      {text.length}
-                    </span>
+                    <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)' }}>{text.length}</span>
                   )}
-
                   <button
-                    className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
-                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
                     onClick={handlePost}
+                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
+                    style={{
+                      padding: '8px 20px', borderRadius: 24, border: 'none', cursor: 'pointer',
+                      background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
+                      fontSize: 14, fontWeight: 700,
+                      opacity: (loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
+                    }}
                   >
-                    {loading
-                      ? (isScheduled ? 'Scheduling…' : 'Posting…')
-                      : (isScheduled ? 'Schedule' : 'Post')
-                    }
+                    {loading ? (isScheduled ? 'Scheduling…' : 'Posting…') : (isScheduled ? 'Schedule' : 'Post')}
                   </button>
                 </div>
               </div>
             </div>
 
             {status && (
-              <div className="mt-3 p-3 bg-zinc-900 rounded-lg text-sm text-zinc-300">
+              <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--muted-on-dark)' }}>
                 {status}
               </div>
             )}
