@@ -15,22 +15,26 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 function renderCastText(text: string) {
-  // Split on $TOKEN patterns (1-10 uppercase letters/digits after $)
-  const parts = text.split(/(\$[A-Z][A-Z0-9]{0,9})/g);
-  return parts.map((part, i) =>
-    /^\$[A-Z][A-Z0-9]{0,9}$/.test(part) ? (
-      <Link
-        key={i}
-        href={`/tokens/${encodeURIComponent(part.slice(1))}`}
-        style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }}
-        onClick={e => e.stopPropagation()}
-      >
-        {part}
-      </Link>
-    ) : (
-      <React.Fragment key={i}>{part}</React.Fragment>
-    )
-  );
+  const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
+  const parts = text.split(tokenOrUrl);
+  return parts.map((part, i) => {
+    if (/^\$[A-Z][A-Z0-9]{0,9}$/.test(part)) {
+      return (
+        <Link key={i} href={`/tokens/${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }} onClick={e => e.stopPropagation()}>
+          {part}
+        </Link>
+      );
+    }
+    if (/^https?:\/\//i.test(part) || /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/.test(part)) {
+      const href = part.startsWith('http') ? part : `https://${part}`;
+      return (
+        <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>
+          {part}
+        </a>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
 }
 
 function ActionBtn({

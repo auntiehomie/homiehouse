@@ -8,16 +8,27 @@ import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import SmartEmbed from "@/components/SmartEmbed";
 
 function renderCastText(text: string) {
-  const parts = text.split(/(\$[A-Z][A-Z0-9]{0,9})/g);
-  return parts.map((part, i) =>
-    /^\$[A-Z][A-Z0-9]{0,9}$/.test(part) ? (
-      <Link key={i} href={`/tokens/${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }}>
-        {part}
-      </Link>
-    ) : (
-      <Fragment key={i}>{part}</Fragment>
-    )
-  );
+  // Split on URLs (https:// or bare domains) and $TOKEN patterns
+  const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
+  const parts = text.split(tokenOrUrl);
+  return parts.map((part, i) => {
+    if (/^\$[A-Z][A-Z0-9]{0,9}$/.test(part)) {
+      return (
+        <Link key={i} href={`/tokens/${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }} onClick={e => e.stopPropagation()}>
+          {part}
+        </Link>
+      );
+    }
+    if (/^https?:\/\//i.test(part) || /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/.test(part)) {
+      const href = part.startsWith('http') ? part : `https://${part}`;
+      return (
+        <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>
+          {part}
+        </a>
+      );
+    }
+    return <Fragment key={i}>{part}</Fragment>;
+  });
 }
 
 function ActionBtn({ onClick, icon, label, active = false, disabled = false }: {
