@@ -1,19 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import dynamic from "next/dynamic";
 import "./globals.css";
 import PrivyAuthProvider from "../components/PrivyAuthProvider";
 import PrivyAuthSync from "../components/PrivyAuthSync";
 import BottomNav from "../components/BottomNav";
 import ThemeSync from "../components/ThemeSync";
-
-// Lazy-load everything that isn't needed for the initial paint.
-// ssr:false → excluded from server HTML and the main JS chunk; loaded after hydration.
-const SdkDevMock = dynamic(() => import("../components/SdkDevMock"), { ssr: false });
-const SignerInit = dynamic(() => import("../components/SignerInit"), { ssr: false });
-const WelcomeModal = dynamic(() => import("../components/WelcomeModal"), { ssr: false });
-const PushNotificationSetup = dynamic(() => import("../components/PushNotificationSetup"), { ssr: false });
-const MiniAppViewer = dynamic(() => import("../components/MiniAppViewer"), { ssr: false });
-const UpdateBanner = dynamic(() => import("../components/UpdateBanner"), { ssr: false });
+import LazyClientComponents from "../components/LazyClientComponents";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -131,17 +122,12 @@ export default function RootLayout({
       <body className={`antialiased`}>
         <PrivyAuthProvider>
           <PrivyAuthSync />
-          <SignerInit />
-          <SdkDevMock />
           <div className="pb-20 md:pb-8">
             {children}
           </div>
           <BottomNav />
-          <WelcomeModal />
           <ThemeSync />
-          <PushNotificationSetup />
-          <MiniAppViewer />
-          <UpdateBanner />
+          <LazyClientComponents />
         </PrivyAuthProvider>
       </body>
     </html>
