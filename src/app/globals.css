@@ -18,6 +18,10 @@
   --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   --heading-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 
+  /* Button theming */
+  --btn-primary-bg: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  --btn-primary-color: #e2e8f0;
+
   /* Light-mode overrides will set these to lighter variants */
   --background: var(--bg-dark);
   --foreground: var(--text-on-dark);
@@ -38,6 +42,8 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #001830;
   --nav-border: rgba(255, 203, 5, 0.25);
+  --btn-primary-bg: #FFCB05;
+  --btn-primary-color: #00274C;
 }
 
 [data-theme="msu"] {
@@ -53,6 +59,8 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0F2B22;
   --nav-border: rgba(255, 255, 255, 0.15);
+  --btn-primary-bg: linear-gradient(180deg, #2d7a5e 0%, #1F5246 100%);
+  --btn-primary-color: #FFFFFF;
 }
 
 [data-theme="derby"] {
@@ -68,6 +76,8 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0E0500;
   --nav-border: rgba(197, 165, 114, 0.3);
+  --btn-primary-bg: linear-gradient(180deg, #C53030 0%, #9B2C2C 100%);
+  --btn-primary-color: #F5E6C8;
 }
 
 [data-theme="munchers"] {
@@ -83,6 +93,8 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #000900;
   --nav-border: rgba(0, 255, 65, 0.3);
+  --btn-primary-bg: #00FF41;
+  --btn-primary-color: #001100;
 }
 
 [data-theme="munchers"] body,
@@ -93,18 +105,48 @@
 }
 
 [data-theme="winamp"] {
-  --bg-dark: #1E1E1E;
-  --surface: #2D2D2D;
-  --text-on-dark: #FFFFFF;
-  --muted-on-dark: rgba(255, 255, 255, 0.5);
-  --border: rgba(0, 0, 0, 0.5);
-  --accent: #00FF00;
-  --accent-hover: #33FF33;
-  --accent-soft: rgba(0, 255, 0, 0.3);
+  /* Classic Winamp: black body, raised panel surfaces, orange EQ accent */
+  --bg-dark: #000000;
+  --surface: #1a1a1a;
+  --text-on-dark: #E8E8E8;
+  --muted-on-dark: rgba(232, 232, 232, 0.5);
+  --border: #3a3a3a;
+  --accent: #FF8C00;
+  --accent-hover: #FFA733;
+  --accent-soft: rgba(255, 140, 0, 0.3);
   --background: var(--bg-dark);
   --foreground: var(--text-on-dark);
-  --nav-bg: #141414;
-  --nav-border: rgba(0, 0, 0, 0.7);
+  --nav-bg: #0a0a0a;
+  --nav-border: #333333;
+  --btn-primary-bg: linear-gradient(180deg, #3a3a3a 0%, #1e1e1e 100%);
+  --btn-primary-color: #FF8C00;
+}
+
+/* Winamp bevel panels */
+[data-theme="winamp"] .surface {
+  border: 1px solid;
+  border-color: #4a4a4a #111111 #111111 #4a4a4a;
+  box-shadow: inset 1px 1px 0 #555, inset -1px -1px 0 #000, 0 2px 8px rgba(0,0,0,0.8);
+}
+
+/* Winamp monospace everywhere */
+[data-theme="winamp"] body,
+[data-theme="winamp"] input,
+[data-theme="winamp"] textarea,
+[data-theme="winamp"] button {
+  font-family: 'Courier New', Courier, monospace !important;
+}
+
+/* Winamp: orange glow on links and timestamps */
+[data-theme="winamp"] a,
+[data-theme="winamp"] time {
+  color: #FF8C00;
+}
+
+/* Winamp: green spectrum-style bottom nav active indicator */
+[data-theme="winamp"] .hh-bottom-nav {
+  border-top: 2px solid #FF8C00;
+  box-shadow: 0 -2px 12px rgba(255, 140, 0, 0.3);
 }
 
 @media (prefers-color-scheme: light) {
@@ -181,8 +223,8 @@ h1, h2, h3 {
 }
 
 .btn.primary {
-  background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-  color: #e2e8f0;
+  background: var(--btn-primary-bg, linear-gradient(180deg, #334155 0%, #1e293b 100%));
+  color: var(--btn-primary-color, #e2e8f0);
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 
