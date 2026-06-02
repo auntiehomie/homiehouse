@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import webpush from 'web-push';
 
-webpush.setVapidDetails(
-  'mailto:hello@homiehouse.lol',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+// Lazy init — only called inside the handler so missing env vars don't crash at build time
+let vapidInitialized = false;
+function initVapid() {
+  if (vapidInitialized) return;
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) throw new Error('VAPID keys not configured');
+  webpush.setVapidDetails('mailto:hello@homiehouse.lol', pub, priv);
+  vapidInitialized = true;
+}
 
 const HYPERSNAP = process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
 
@@ -47,6 +52,10 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try { initVapid(); } catch {
+    return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 503 });
   }
 
   const sql = getDb();
