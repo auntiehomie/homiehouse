@@ -30,7 +30,7 @@ export default function BottomNav() {
   if (!isAuthenticated) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 border-t z-50 pb-safe hh-bottom-nav">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 border-t z-50 pb-safe hh-bottom-nav">
       <div className="max-w-screen-xl mx-auto px-1 py-1">
         <div className="flex items-center justify-around">
 

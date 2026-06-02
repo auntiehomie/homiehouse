@@ -150,15 +150,47 @@ export class BaseAgent {
 export function createSearchCastsTool() {
   return new DynamicStructuredTool({
     name: 'search_farcaster_casts',
-    description: 'Search for Farcaster casts by keyword or phrase. Use this when users ask to find casts about a specific topic, or to find similar casts to one being analyzed. Returns matching casts with author info and engagement metrics.',
+    description: 'Search for Farcaster casts by keyword or phrase. Use this when users ask to find casts about a specific topic, or to find similar casts to one being analyzed. Returns matching casts with author info and engagement metrics. If a combined query returns empty, automatically tries each keyword individually.',
     schema: z.object({
       query: z.string().describe('The search query to find relevant casts'),
       limit: z.number().optional().default(10).describe('Number of results to return (default: 10, max: 25)')
     }),
     func: async ({ query, limit = 10 }) => {
       try {
-        const results = await searchCasts(query, Math.min(limit, 25));
-        return JSON.stringify(results, null, 2);
+        const cap = Math.min(limit, 25);
+
+        // Primary search with full query
+        const primary = await searchCasts(query, cap);
+        if (Array.isArray(primary?.casts) && primary.casts.length > 0) {
+          return JSON.stringify(primary, null, 2);
+        }
+
+        // Fallback: split on common separators and search each keyword individually
+        const keywords = query
+          .split(/\s+(?:and|or|,)\s+|\s*,\s*/i)
+          .map((k: string) => k.trim())
+          .filter((k: string) => k.length > 2);
+
+        if (keywords.length > 1) {
+          const seen = new Set<string>();
+          const merged: any[] = [];
+
+          for (const kw of keywords) {
+            const r = await searchCasts(kw, cap);
+            for (const cast of (r?.casts ?? [])) {
+              if (!seen.has(cast.hash)) {
+                seen.add(cast.hash);
+                merged.push(cast);
+              }
+            }
+          }
+
+          if (merged.length > 0) {
+            return JSON.stringify({ casts: merged.slice(0, cap), searchedTerms: keywords }, null, 2);
+          }
+        }
+
+        return JSON.stringify({ casts: [], message: 'No casts found. Try a different search term or ask about a specific user.' }, null, 2);
       } catch (error) {
         return `Error searching casts: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
@@ -565,6 +597,11 @@ When asked to find casts or see what someone is posting:
 - Extract @username from queries and use without the @ symbol
 - The get_user_casts tool returns casts sorted by engagement, with the mostEngaged cast highlighted
 - When asked for "most engaged cast", use get_user_casts and report the mostEngaged cast from the results
+
+Search strategy for multi-topic questions:
+- When a user asks about "X and Y" (e.g., "neynar and hypersnap"), call search_farcaster_casts TWICE — once for "X" and once for "Y" separately, then combine what you find
+- For company/product names, also call get_user_casts on their likely Farcaster handles (e.g., for "neynar" try get_user_casts with username "neynar"; for "hypersnap" try username "hypersnap")
+- If search returns little, try related terms or shorter versions of the query
 
 Be accurate, cite what you know, and admit when you're not certain.`;
 

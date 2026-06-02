@@ -251,17 +251,41 @@ export async function searchUsers(query: string, limit = 10): Promise<any> {
 
 /**
  * Search for casts.
- * GET /v2/farcaster/cast/search?q=:query&limit=:limit
+ * Tries the Hypersnap proxy first; if that returns empty and NEYNAR_API_KEY is
+ * set (server-side only), falls back to the Neynar API directly.
  * Returns { casts: [...] }.
  */
 export async function searchCasts(query: string, limit = 10): Promise<any> {
-  const qs = new URLSearchParams({ q: query, limit: String(limit) });
-  const data = await hypersnapFetch(`/v2/farcaster/cast/search?${qs.toString()}`);
-  // Hypersnap returns { result: { casts: [...] } } — hoist to root
-  if (data?.result?.casts && !data?.casts) {
-    return { casts: data.result.casts, next: data.result.next };
+  const normalize = (data: any) => {
+    if (data?.result?.casts && !data?.casts) {
+      return { casts: data.result.casts, next: data.result.next ?? {} };
+    }
+    return data;
+  };
+
+  // 1. Try Hypersnap proxy
+  try {
+    const qs = new URLSearchParams({ q: query, limit: String(limit) });
+    const data = normalize(await hypersnapFetch(`/v2/farcaster/cast/search?${qs.toString()}`));
+    if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
+  } catch {}
+
+  // 2. Fallback: Neynar API directly (server-side only)
+  const neynarKey = typeof process !== 'undefined' ? process.env.NEYNAR_API_KEY : undefined;
+  if (neynarKey) {
+    try {
+      const qs = new URLSearchParams({ q: query, limit: String(limit) });
+      const res = await fetch(`https://api.neynar.com/v2/farcaster/cast/search?${qs.toString()}`, {
+        headers: { accept: 'application/json', api_key: neynarKey },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return normalize(data);
+      }
+    } catch {}
   }
-  return data;
+
+  return { casts: [], next: {} };
 }
 
 /**
