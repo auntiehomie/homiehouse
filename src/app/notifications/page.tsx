@@ -25,7 +25,7 @@ interface Notification {
   };
   user?: Actor;
   actor?: Actor;
-  actors?: Actor[]; // Multiple actors for group notifications
+  actors?: Actor[];
   actorCount?: number;
   timestamp: string;
   most_recent_timestamp?: string;
@@ -38,6 +38,40 @@ interface Notification {
 
 type NotificationFilter = 'all' | 'likes' | 'recasts' | 'replies' | 'follows' | 'mentions';
 
+const pageStyle: React.CSSProperties = {
+  minHeight: '100vh',
+  background: 'var(--bg-dark)',
+  color: 'var(--text-on-dark)',
+  paddingBottom: 80,
+};
+
+const headerStyle: React.CSSProperties = {
+  background: 'var(--bg-dark)',
+  borderBottom: '1px solid var(--border)',
+  position: 'sticky',
+  top: 0,
+  zIndex: 10,
+};
+
+const cardStyle: React.CSSProperties = {
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: '16px',
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 12,
+  transition: 'background 0.15s',
+};
+
+const castPreviewStyle: React.CSSProperties = {
+  marginTop: 8,
+  padding: '12px',
+  background: 'var(--surface)',
+  borderRadius: 8,
+  display: 'block',
+  transition: 'opacity 0.15s',
+};
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,12 +83,11 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadNotifications();
-    
-    // Poll for new notifications every 30 seconds
+
     const interval = setInterval(() => {
       loadNotifications(true);
     }, 30000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -78,9 +111,7 @@ export default function NotificationsPage() {
       }
 
       const response = await fetch(`/api/notifications?fid=${fid}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch notifications');
-      }
+      if (!response.ok) throw new Error('Failed to fetch notifications');
 
       const data = await response.json();
       setNotifications(data.notifications || []);
@@ -101,39 +132,27 @@ export default function NotificationsPage() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'likes':
-        return '❤️';
-      case 'recasts':
-        return '🔄';
-      case 'follows':
-        return '👤';
+      case 'likes': return '❤️';
+      case 'recasts': return '🔄';
+      case 'follows': return '👤';
       case 'mention':
-      case 'mentions':
-        return '💬';
+      case 'mentions': return '💬';
       case 'reply':
-      case 'replies':
-        return '↩️';
-      default:
-        return '🔔';
+      case 'replies': return '↩️';
+      default: return '🔔';
     }
   };
 
   const getNotificationText = (notification: Notification) => {
     switch (notification.type) {
-      case 'likes':
-        return 'liked your cast';
-      case 'recasts':
-        return 'recasted your cast';
-      case 'follows':
-        return 'followed you';
+      case 'likes': return 'liked your cast';
+      case 'recasts': return 'recasted your cast';
+      case 'follows': return 'followed you';
       case 'mention':
-      case 'mentions':
-        return 'mentioned you';
+      case 'mentions': return 'mentioned you';
       case 'reply':
-      case 'replies':
-        return 'replied to your cast';
-      default:
-        return 'interacted with you';
+      case 'replies': return 'replied to your cast';
+      default: return 'interacted with you';
     }
   };
 
@@ -147,23 +166,55 @@ export default function NotificationsPage() {
 
   const filteredNotifications = notifications.filter(notif => {
     if (filter === 'all') return true;
-    return notif.type === filter || notif.type === filter.slice(0, -1); // Handle singular/plural
+    return notif.type === filter || notif.type === filter.slice(0, -1);
   });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
-        <header className="max-w-4xl mx-auto px-6 py-6 border-b dark:border-zinc-800">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Notifications</h1>
-            <Link href="/" className="text-sm text-zinc-400 hover:text-white hover:underline">
+  const Header = () => (
+    <header style={headerStyle}>
+      <div className="max-w-4xl mx-auto px-6 py-6">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold">Notifications</h1>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => loadNotifications()}
+              style={{ color: 'var(--muted-on-dark)', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer' }}
+              title="Refresh notifications"
+            >
+              🔄 Refresh
+            </button>
+            <Link href="/" style={{ color: 'var(--muted-on-dark)', fontSize: 14 }}>
               ← Back
             </Link>
           </div>
-        </header>
+        </div>
+
+        {/* Filter Tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {(['all', 'likes', 'recasts', 'replies', 'follows', 'mentions'] as NotificationFilter[]).map((filterType) => (
+            <button
+              key={filterType}
+              onClick={() => setFilter(filterType)}
+              style={
+                filter === filterType
+                  ? { background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)', padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer' }
+                  : { background: 'var(--surface)', color: 'var(--muted-on-dark)', padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap', border: '1px solid var(--border)', cursor: 'pointer' }
+              }
+            >
+              {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </header>
+  );
+
+  if (loading) {
+    return (
+      <div style={pageStyle}>
+        <Header />
         <main className="max-w-4xl mx-auto px-6 py-6">
           <div className="flex items-center justify-center py-12">
-            <div className="text-zinc-500">Loading notifications...</div>
+            <div style={{ color: 'var(--muted-on-dark)' }}>Loading notifications...</div>
           </div>
         </main>
       </div>
@@ -172,22 +223,12 @@ export default function NotificationsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
-        <header className="max-w-4xl mx-auto px-6 py-6 border-b dark:border-zinc-800">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Notifications</h1>
-            <Link href="/" className="text-sm text-zinc-400 hover:text-white hover:underline">
-              ← Back
-            </Link>
-          </div>
-        </header>
+      <div style={pageStyle}>
+        <Header />
         <main className="max-w-4xl mx-auto px-6 py-6">
           <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <div className="text-zinc-400">{error}</div>
-            <button 
-              onClick={() => loadNotifications()}
-              className="btn primary"
-            >
+            <div style={{ color: 'var(--muted-on-dark)' }}>{error}</div>
+            <button onClick={() => loadNotifications()} className="btn primary">
               Retry
             </button>
           </div>
@@ -197,53 +238,20 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100 pb-20">
-      <header className="max-w-4xl mx-auto px-6 py-6 border-b dark:border-zinc-800 sticky top-0 bg-white dark:bg-black z-10">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">Notifications</h1>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => loadNotifications()}
-              className="text-sm text-zinc-400 hover:text-white hover:underline"
-              title="Refresh notifications"
-            >
-              🔄 Refresh
-            </button>
-            <Link href="/" className="text-sm text-zinc-400 hover:text-white hover:underline">
-              ← Back
-            </Link>
-          </div>
-        </div>
-        
-        {/* Filter Tabs */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {(['all', 'likes', 'recasts', 'replies', 'follows', 'mentions'] as NotificationFilter[]).map((filterType) => (
-            <button
-              key={filterType}
-              onClick={() => setFilter(filterType)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                filter === filterType
-                  ? 'bg-white text-black'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-              }`}
-            >
-              {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-            </button>
-          ))}
-        </div>
-      </header>
+    <div style={pageStyle}>
+      <Header />
 
       <main className="max-w-4xl mx-auto px-6 py-6">
         {filteredNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
             <div className="text-6xl">🔔</div>
-            <div className="text-zinc-500 text-center">
+            <div style={{ color: 'var(--muted-on-dark)', textAlign: 'center' }}>
               {filter === 'all' ? 'No notifications yet' : `No ${filter} notifications`}
             </div>
             {filter !== 'all' && (
               <button
                 onClick={() => setFilter('all')}
-                className="text-sm text-zinc-400 hover:text-white hover:underline"
+                style={{ color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
               >
                 View all notifications
               </button>
@@ -255,11 +263,13 @@ export default function NotificationsPage() {
               const actor = getActor(notification);
               const notifIcon = getNotificationIcon(notification.type);
               const notifText = getNotificationText(notification);
-              
+
               return (
                 <div
                   key={`${notification.timestamp}-${index}`}
-                  className="flex items-start gap-3 p-4 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 rounded-lg transition-colors border dark:border-zinc-800"
+                  style={cardStyle}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = '')}
                 >
                   {/* Actor Avatar */}
                   <div className="relative flex-shrink-0">
@@ -271,38 +281,38 @@ export default function NotificationsPage() {
                         (e.target as HTMLImageElement).src = '/default-avatar.png';
                       }}
                     />
-                    {/* Notification Type Badge */}
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white dark:bg-zinc-900 rounded-full flex items-center justify-center text-sm border-2 border-white dark:border-zinc-900">
+                    <div
+                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-sm"
+                      style={{ background: 'var(--surface)', border: '2px solid var(--bg-dark)' }}
+                    >
                       {notifIcon}
                     </div>
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    {/* Actor Info */}
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Link 
+                      <Link
                         href={`/profile/${actor?.username || actor?.fid}`}
                         className="font-semibold hover:underline flex items-center gap-1"
                       >
                         {actor?.display_name || actor?.username || 'Someone'}
                         {actor?.power_badge && (
-                          <span className="text-zinc-400" title="Power user">⚡</span>
+                          <span style={{ color: 'var(--muted-on-dark)' }} title="Power user">⚡</span>
                         )}
                       </Link>
                       {notification.actorCount && notification.actorCount > 1 && (
-                        <span className="text-zinc-500 text-sm">
+                        <span style={{ color: 'var(--muted-on-dark)', fontSize: 14 }}>
                           and {notification.actorCount - 1} other{notification.actorCount - 1 > 1 ? 's' : ''}
                         </span>
                       )}
-                      <span className="text-zinc-500 text-sm">
+                      <span style={{ color: 'var(--muted-on-dark)', fontSize: 14 }}>
                         {notifText}
                       </span>
                     </div>
 
-                    {/* Actor Stats */}
                     {(actor?.follower_count !== undefined || actor?.following_count !== undefined) && (
-                      <div className="flex gap-3 text-xs text-zinc-500 mb-2">
+                      <div className="flex gap-3 mb-2" style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
                         {actor?.follower_count !== undefined && (
                           <span>{actor.follower_count.toLocaleString()} followers</span>
                         )}
@@ -312,25 +322,20 @@ export default function NotificationsPage() {
                       </div>
                     )}
 
-                    {/* Cast Preview (if applicable) */}
                     {notification.cast?.text && (
-                      <Link
-                        href={`/cast/${notification.cast.hash}`}
-                        className="block mt-2 p-3 bg-zinc-50 dark:bg-zinc-900/30 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900/50 transition-colors"
-                      >
-                        <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-3">
+                      <Link href={`/cast/${notification.cast.hash}`} style={castPreviewStyle}>
+                        <p style={{ fontSize: 14, color: 'var(--text-on-dark)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
                           {notification.cast.text}
                         </p>
                         {notification.cast.embeds && notification.cast.embeds.length > 0 && (
-                          <div className="text-xs text-zinc-500 mt-1">
+                          <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 4 }}>
                             📎 {notification.cast.embeds.length} attachment{notification.cast.embeds.length > 1 ? 's' : ''}
                           </div>
                         )}
                       </Link>
                     )}
 
-                    {/* Timestamp */}
-                    <div className="text-xs text-zinc-500 mt-2">
+                    <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 8 }}>
                       {formatTimestamp(notification.timestamp || notification.most_recent_timestamp || '')}
                     </div>
                   </div>
@@ -340,7 +345,7 @@ export default function NotificationsPage() {
                     {actor?.username && (
                       <Link
                         href={`/profile/${actor.username}`}
-                        className="text-xs text-zinc-400 hover:text-white hover:underline whitespace-nowrap"
+                        style={{ fontSize: 12, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}
                       >
                         View Profile
                       </Link>
@@ -348,7 +353,7 @@ export default function NotificationsPage() {
                     {notification.cast?.hash && (
                       <Link
                         href={`/cast/${notification.cast.hash}`}
-                        className="text-xs text-zinc-400 hover:text-white hover:underline whitespace-nowrap"
+                        style={{ fontSize: 12, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}
                       >
                         View Cast
                       </Link>
@@ -360,12 +365,10 @@ export default function NotificationsPage() {
           </div>
         )}
 
-        {/* Load More */}
         {hasMore && cursor && (
           <div className="flex justify-center mt-6">
             <button
               onClick={() => {
-                // Implement pagination here
                 console.log('Load more with cursor:', cursor);
               }}
               className="btn primary"
