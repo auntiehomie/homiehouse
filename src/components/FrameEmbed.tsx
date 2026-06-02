@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import type { FrameData } from '@/app/api/frame/route';
+import { openMiniApp } from './MiniAppViewer';
 
 interface Props {
   url: string;
@@ -40,7 +41,7 @@ export default function FrameEmbed({ url, castHash }: Props) {
 
   const handleButton = async (btn: FrameData['buttons'][0]) => {
     if (btn.action === 'link') {
-      window.open(btn.target || url, '_blank', 'noopener,noreferrer');
+      openMiniApp(btn.target || url, btn.label);
       return;
     }
     if (btn.action === 'post_redirect' || btn.action === 'post') {

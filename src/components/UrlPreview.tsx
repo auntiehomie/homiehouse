@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { openMiniApp } from './MiniAppViewer';
 
 interface PreviewData {
   ok?: boolean;
@@ -77,19 +78,16 @@ export default function UrlPreview({ url, label }: { url: string; label?: string
         <span style={{ flex: 1, fontSize: 13, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {hostname || displayUrl}
         </span>
-        <a
-          href={displayUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
+        <button
+          onClick={e => { e.stopPropagation(); openMiniApp(displayUrl, m.title); }}
           style={{
             flexShrink: 0, padding: '6px 14px', borderRadius: 20,
             background: '#1e293b', color: '#e2e8f0', fontSize: 13,
-            fontWeight: 600, textDecoration: 'none', border: '1px solid #334155',
+            fontWeight: 600, border: '1px solid #334155', cursor: 'pointer',
           }}
         >
           {btnLabel}
-        </a>
+        </button>
       </div>
     );
   }
