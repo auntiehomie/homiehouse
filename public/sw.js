@@ -1,3 +1,20 @@
+// On install: do NOT skip waiting — let UpdateBanner control when to apply
+self.addEventListener('install', () => {
+  // intentionally no skipWaiting here
+});
+
+// On activate: claim all clients so SW controls the page immediately after update
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
+// UpdateBanner sends this when the user taps "Update"
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('push', (event) => {
   let data = { title: 'HomieHouse', body: '', url: '/notifications' };
   try {
