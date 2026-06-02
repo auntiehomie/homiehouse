@@ -166,15 +166,8 @@ export default function Home() {
         <div className="flex gap-6 items-start">
           {/* Main Content */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center mb-3">
               <h3 className="text-lg font-semibold">Explore</h3>
-              <Link href="/snaps" className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors" title="Your Snaps">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18" />
-                </svg>
-                <span>Snaps</span>
-              </Link>
             </div>
             <FeedTrendingTabs />
           </div>
