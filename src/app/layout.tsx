@@ -1,15 +1,19 @@
 import type { Metadata, Viewport } from "next";
+import dynamic from "next/dynamic";
 import "./globals.css";
-import SdkDevMock from "../components/SdkDevMock";
 import PrivyAuthProvider from "../components/PrivyAuthProvider";
 import PrivyAuthSync from "../components/PrivyAuthSync";
-import SignerInit from "../components/SignerInit";
 import BottomNav from "../components/BottomNav";
-import WelcomeModal from "../components/WelcomeModal";
 import ThemeSync from "../components/ThemeSync";
-import PushNotificationSetup from "../components/PushNotificationSetup";
-import MiniAppViewer from "../components/MiniAppViewer";
-import UpdateBanner from "../components/UpdateBanner";
+
+// Lazy-load everything that isn't needed for the initial paint.
+// ssr:false → excluded from server HTML and the main JS chunk; loaded after hydration.
+const SdkDevMock = dynamic(() => import("../components/SdkDevMock"), { ssr: false });
+const SignerInit = dynamic(() => import("../components/SignerInit"), { ssr: false });
+const WelcomeModal = dynamic(() => import("../components/WelcomeModal"), { ssr: false });
+const PushNotificationSetup = dynamic(() => import("../components/PushNotificationSetup"), { ssr: false });
+const MiniAppViewer = dynamic(() => import("../components/MiniAppViewer"), { ssr: false });
+const UpdateBanner = dynamic(() => import("../components/UpdateBanner"), { ssr: false });
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -106,8 +110,6 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-// Force dynamic rendering since we use client-side auth providers
-export const dynamic = 'force-dynamic';
 
 export default function RootLayout({
   children,

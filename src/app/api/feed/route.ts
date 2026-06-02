@@ -58,7 +58,11 @@ export async function GET(req: NextRequest) {
     const rawCursor = data?.next?.cursor || null;
     const cursor_out = rawCursor === '5b6e756c6c2c6e756c6c5d' ? null : rawCursor;
 
-    return NextResponse.json({ data: casts, cursor: cursor_out });
+    const isPersonalFeed = feedType === 'following' && !!fid;
+    const cc = isPersonalFeed
+      ? 'private, max-age=20, stale-while-revalidate=40'
+      : 'public, s-maxage=30, stale-while-revalidate=60';
+    return NextResponse.json({ data: casts, cursor: cursor_out }, { headers: { 'Cache-Control': cc } });
   } catch (error: any) {
     logger.error('Failed to fetch feed', error);
     return handleApiError(error, 'GET /feed');

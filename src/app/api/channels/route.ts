@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     logger.success('Channels fetched', { count: channels.length });
     logger.end();
 
-    return NextResponse.json({ ok: true, channels });
+    return NextResponse.json({ ok: true, channels }, { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } });
   } catch (error: any) {
     logger.error('Failed to fetch channels', error);
     return handleApiError(error, 'GET /channels');

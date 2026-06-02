@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
     cast.parent_chain = parentChain;
 
-    return NextResponse.json({ ok: true, cast });
+    return NextResponse.json({ ok: true, cast }, { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } });
   } catch (error: any) {
     console.error('[api/cast] error:', error);
     return NextResponse.json(
