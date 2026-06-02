@@ -44,6 +44,8 @@ export default function PrivyAuthSync() {
           bio: '',
         };
         localStorage.setItem('hh_profile', JSON.stringify(profile));
+        // Signal onboarding component to show account creation flow
+        window.dispatchEvent(new Event('hh:need:farcaster-account'));
       }
     } else if (!authenticated) {
       localStorage.removeItem('hh_profile');

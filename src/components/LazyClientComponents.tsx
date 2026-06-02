@@ -12,6 +12,7 @@ const WelcomeModal = dynamic(() => import("./WelcomeModal"), { ssr: false });
 const PushNotificationSetup = dynamic(() => import("./PushNotificationSetup"), { ssr: false });
 const MiniAppViewer = dynamic(() => import("./MiniAppViewer"), { ssr: false });
 const UpdateBanner = dynamic(() => import("./UpdateBanner"), { ssr: false });
+const FarcasterOnboarding = dynamic(() => import("./FarcasterOnboarding"), { ssr: false });
 
 export default function LazyClientComponents() {
   return (
@@ -22,6 +23,7 @@ export default function LazyClientComponents() {
       <PushNotificationSetup />
       <MiniAppViewer />
       <UpdateBanner />
+      <FarcasterOnboarding />
     </>
   );
 }
