@@ -179,8 +179,8 @@ export default function CastDetailPage() {
 
           {/* Reactions + Reply */}
           <div className="flex items-center gap-6 mt-4 text-sm text-gray-600 dark:text-gray-400">
-            <div>❤️ {cast.reactions?.likes_count || 0} likes</div>
-            <div>🔁 {cast.reactions?.recasts_count || 0} recasts</div>
+            <div>❤️ {(cast.reactions?.likes_count ?? cast.reactions?.likes?.length ?? 0)} likes</div>
+            <div>🔁 {(cast.reactions?.recasts_count ?? cast.reactions?.recasts?.length ?? 0)} recasts</div>
             <div>💬 {cast.replies?.count || 0} replies</div>
             <button
               onClick={() => handleReply(cast.hash, cast.author?.fid, authorName)}

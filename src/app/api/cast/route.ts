@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchCast, fetchCastReplies } from '@/lib/hypersnap';
+import { fetchCast, fetchCastConversation } from '@/lib/hypersnap';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -10,9 +10,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [castData, repliesData] = await Promise.all([
+    // Fetch cast + conversation (replies) in parallel
+    const [castData, convData] = await Promise.all([
       fetchCast(hash),
-      fetchCastReplies(hash, 50).catch(() => null),
+      fetchCastConversation(hash).catch(() => null),
     ]);
 
     const cast = castData?.cast ?? castData;
@@ -20,14 +21,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Cast not found' }, { status: 404 });
     }
 
-    const replyCasts: any[] = repliesData?.casts ?? [];
-    cast.direct_replies = replyCasts;
-    if (cast.replies) {
-      cast.replies.count = Math.max(cast.replies.count ?? 0, replyCasts.length);
-      cast.replies.casts = replyCasts;
-    } else {
-      cast.replies = { count: replyCasts.length, casts: replyCasts };
+    // Normalize reaction counts — raw hub returns arrays; Neynar proxy returns _count fields
+    const rxn = cast.reactions ?? {};
+    if (rxn.likes_count == null && Array.isArray(rxn.likes)) {
+      rxn.likes_count = rxn.likes.length;
     }
+    if (rxn.recasts_count == null && Array.isArray(rxn.recasts)) {
+      rxn.recasts_count = rxn.recasts.length;
+    }
+    cast.reactions = rxn;
+
+    // Use replies from conversation endpoint when available (parent_hash filter often unsupported)
+    const convCast = convData?.conversation?.cast;
+    const replyCasts: any[] =
+      convCast?.direct_replies ??
+      convCast?.replies?.casts ??
+      [];
+
+    cast.direct_replies = replyCasts;
+    const knownCount = cast.replies?.count ?? 0;
+    const convCount = convCast?.replies?.count ?? 0;
+    cast.replies = {
+      count: Math.max(knownCount, convCount, replyCasts.length),
+      casts: replyCasts,
+    };
+
+    // Walk up parent chain to show full thread context
+    const parentChain: any[] = [];
+    let current = cast;
+    for (let i = 0; i < 10 && current?.parent_hash; i++) {
+      try {
+        const parentData = await fetchCast(current.parent_hash);
+        const parent = parentData?.cast ?? parentData;
+        if (!parent) break;
+        parentChain.unshift(parent);
+        current = parent;
+      } catch {
+        break;
+      }
+    }
+    cast.parent_chain = parentChain;
 
     return NextResponse.json({ ok: true, cast });
   } catch (error: any) {
