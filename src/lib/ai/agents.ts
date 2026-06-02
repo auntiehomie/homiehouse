@@ -360,7 +360,82 @@ export function createSearchTokensTool() {
   });
 }
 
-// Cast Composer Agent - Helps write better Farcaster casts
+// ─── URL Fetching Tool ────────────────────────────────────────────────────────
+
+function isPrivateIP(ip: string): boolean {
+  if (ip === '::1' || ip === '127.0.0.1') return true;
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4) return false;
+  return (
+    parts[0] === 10 ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168) ||
+    parts[0] === 127 ||
+    parts[0] === 169
+  );
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export function createFetchUrlTool() {
+  return new DynamicStructuredTool({
+    name: 'fetch_url',
+    description: 'Fetch and read the text content of a webpage. Use this when the user asks you to read a URL, summarize a linked article, or when a cast contains a link the user wants to understand. Returns the page title and main text content.',
+    schema: z.object({
+      url: z.string().describe('The full URL to fetch (must start with https://)'),
+    }),
+    func: async ({ url }) => {
+      try {
+        // Only allow HTTPS
+        if (!url.startsWith('https://')) {
+          return 'Only HTTPS URLs are supported.';
+        }
+        const parsed = new URL(url);
+
+        // Block private/internal hosts
+        const { Resolver } = await import('dns/promises');
+        const resolver = new Resolver();
+        const ips = await resolver.resolve4(parsed.hostname).catch(() => [] as string[]);
+        if (ips.some(isPrivateIP)) {
+          return 'That URL resolves to a private/internal address and cannot be fetched.';
+        }
+
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'HomieHouse/1.0 (AI assistant)' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return `Failed to fetch URL: HTTP ${res.status}`;
+
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
+          return `URL returned non-text content (${contentType}). Cannot read it as text.`;
+        }
+
+        const raw = await res.text();
+        // Extract title
+        const titleMatch = raw.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const title = titleMatch ? titleMatch[1].trim() : parsed.hostname;
+
+        const text = stripHtml(raw);
+        // Cap at 6000 chars so it fits comfortably in the LLM context window
+        const truncated = text.length > 6000 ? text.slice(0, 6000) + '\n\n[content truncated]' : text;
+
+        return `**${title}**\n\n${truncated}`;
+      } catch (err: any) {
+        return `Error fetching URL: ${err?.message || 'Unknown error'}`;
+      }
+    },
+  });
+}
+
+
 export class CastComposerAgent extends BaseAgent {
   constructor(userProfile: UserProfile) {
     const systemPrompt = `You are an expert Farcaster cast composer. Your job is to help users write engaging, authentic casts.
@@ -464,6 +539,7 @@ Key Principles:
 Available Tools:
 - search_farcaster_casts: Search for casts by keyword or topic
 - get_user_casts: Get recent casts from a specific user
+- fetch_url: Fetch and read the text content of any public webpage
 
 When analyzing casts:
 - Consider timing, tone, length, and content
@@ -471,12 +547,14 @@ When analyzing casts:
 - Check for clarity and authenticity
 - Suggest specific improvements
 - When asked to find similar casts, use the search tool to discover examples
-- When analyzing a user's style, you can fetch their recent casts`;
+- When analyzing a user's style, you can fetch their recent casts
+- When a cast contains a URL and the user asks about the linked content, use fetch_url to read it`;
 
     // Add Farcaster search tools
     const tools = [
       createSearchCastsTool(),
-      createGetCastsByUserTool()
+      createGetCastsByUserTool(),
+      createFetchUrlTool(),
     ];
 
     super('openai', systemPrompt, tools);
@@ -558,6 +636,7 @@ Available Tools:
 - get_user_casts: Get recent casts from a specific user with engagement metrics
 - get_token_info: Get detailed real-time token information (price, market cap, volume, etc.)
 - search_tokens: Search for tokens by name or symbol
+- fetch_url: Fetch and read the text content of any public webpage or article
 
 When asked to find casts or see what someone is posting:
 - Use search_farcaster_casts for topic-based searches
@@ -566,6 +645,10 @@ When asked to find casts or see what someone is posting:
 - The get_user_casts tool returns casts sorted by engagement, with the mostEngaged cast highlighted
 - When asked for "most engaged cast", use get_user_casts and report the mostEngaged cast from the results
 
+When a cast contains URLs or the user asks you to read a website:
+- Use fetch_url to retrieve the page content, then summarize it
+- Always use fetch_url when the user says "read", "check", "what's on", or "summarize" a URL
+
 Be accurate, cite what you know, and admit when you're not certain.`;
 
     // Add Farcaster search tools and token tools
@@ -573,7 +656,8 @@ Be accurate, cite what you know, and admit when you're not certain.`;
       createSearchCastsTool(),
       createGetCastsByUserTool(),
       createGetTokenInfoTool(),
-      createSearchTokensTool()
+      createSearchTokensTool(),
+      createFetchUrlTool(),
     ];
 
     super('openai', systemPrompt, tools);
