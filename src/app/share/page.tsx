@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import HHLogo from "@/components/HHLogo";
 
 /**
  * /share — Web Share Target handler
@@ -50,11 +51,8 @@ function ShareContent() {
         <div className="bg-surface rounded-2xl shadow-lg p-6">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-white text-lg">🏠</span>
-            </div>
+            <HHLogo size={40} />
             <div>
-              <h1 className="text-lg font-semibold text-text-primary">HomieHouse</h1>
               <p className="text-sm text-text-secondary">Share to Farcaster</p>
             </div>
           </div>
