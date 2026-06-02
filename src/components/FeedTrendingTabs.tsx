@@ -67,7 +67,12 @@ export default function FeedTrendingTabs() {
         </div>
       )}
 
-      {tab === 'feed' && <ChannelStrip />}
+      {/* Channel strip: visible on mobile/tablet, hidden on desktop (shown in sidebar) */}
+      {tab === 'feed' && (
+        <div className="lg:hidden">
+          <ChannelStrip />
+        </div>
+      )}
 
       <div>
         {tab === 'feed' ? (

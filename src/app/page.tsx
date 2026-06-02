@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useNeynarContext } from "@/hooks/useNeynarCompat";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
+import { ChannelSidebar } from "../components/ChannelStrip";
 
 const ComposeModal = dynamic(() => import("../components/ComposeModal"), { ssr: false });
 const ScheduledCastsModal = dynamic(() => import("../components/ScheduledCastsModal"), { ssr: false });
@@ -167,13 +168,23 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24">
         <div className="flex gap-6 items-start">
-          {/* Main Content */}
+
+          {/* Desktop channel sidebar — hidden below lg */}
+          <aside
+            className="hidden lg:block shrink-0"
+            style={{ width: 220, position: 'sticky', top: 72, maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', scrollbarWidth: 'none' }}
+          >
+            <ChannelSidebar />
+          </aside>
+
+          {/* Feed */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center mb-3">
               <h3 className="text-lg font-semibold">Explore</h3>
             </div>
             <FeedTrendingTabs />
           </div>
+
         </div>
       </main>
 

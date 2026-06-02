@@ -89,30 +89,17 @@ export default function WelcomeModal() {
       const result = await provisionSignerWithMnemonic(fid, phrase);
       setPhrase('');
 
-      if (result.status === 'approved') {
-        localStorage.setItem(`signer_${fid}`, JSON.stringify({
-          signer_uuid: result.signer_uuid ?? null,
-          public_key: `0x${result.publicKeyHex}`,
-          private_key: result.privateKeyHex,
-          status: 'approved',
-          signer_approval_url: null,
-        }));
-        window.dispatchEvent(new Event('hh:signer:approved'));
-        setShow(false);
-        setTimeout(() => window.location.reload(), 300);
-      } else {
-        // Warpcast still requires in-app approval — store the key and switch to QR tab
-        localStorage.setItem(`signer_${fid}`, JSON.stringify({
-          signer_uuid: result.signer_uuid ?? null,
-          public_key: `0x${result.publicKeyHex}`,
-          private_key: result.privateKeyHex,
-          status: 'pending_approval',
-          signer_approval_url: result.signer_approval_url ?? null,
-        }));
-        setApprovalUrl(result.signer_approval_url ?? null);
-        setMethod('farcaster');
-        setError('One more step — tap the link or scan the QR code in your Farcaster app to approve.');
-      }
+      // Signer is registered on-chain directly — always approved
+      localStorage.setItem(`signer_${fid}`, JSON.stringify({
+        signer_uuid: result.signer_uuid ?? null,
+        public_key: `0x${result.publicKeyHex}`,
+        private_key: result.privateKeyHex,
+        status: 'approved',
+        signer_approval_url: null,
+      }));
+      window.dispatchEvent(new Event('hh:signer:approved'));
+      setShow(false);
+      setTimeout(() => window.location.reload(), 300);
     } catch (e: any) {
       setError(e.message || 'Failed to set up signer');
     } finally {
