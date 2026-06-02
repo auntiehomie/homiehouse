@@ -125,8 +125,8 @@ export default function Home() {
 
   // Authenticated user experience
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100">
-      <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 border-b border-zinc-200 dark:border-zinc-800">
+    <div className="min-h-screen" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
+      <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0 flex items-center gap-2">
             <HHLogo size={36} />
@@ -137,7 +137,8 @@ export default function Home() {
             <input
               id="header-search-input"
               placeholder="Search people..."
-              className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-transparent text-inherit text-sm"
+              className="w-full px-3 py-2 rounded-lg bg-transparent text-inherit text-sm"
+              style={{ border: '1px solid var(--border)' }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   const v = (e.target as HTMLInputElement).value.trim();
