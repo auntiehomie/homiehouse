@@ -205,6 +205,21 @@ export async function fetchCastReplies(hash: string, limit = 50): Promise<any> {
 }
 
 /**
+ * Fetch a cast conversation (cast + direct replies).
+ * GET /v2/farcaster/cast/conversation?identifier=:hash&type=hash&reply_depth=2
+ * Returns { conversation: { cast: { ...cast, direct_replies: [...] } } }
+ */
+export async function fetchCastConversation(hash: string): Promise<any> {
+  const qs = new URLSearchParams({
+    identifier: hash,
+    type: 'hash',
+    reply_depth: '2',
+    include_chronological_parent_casts: 'false',
+  });
+  return hypersnapFetch(`/v2/farcaster/cast/conversation?${qs.toString()}`);
+}
+
+/**
  * Fetch notifications for a FID.
  * GET /v2/farcaster/notifications?fid=:fid&limit=:limit[&cursor=:cursor]
  */

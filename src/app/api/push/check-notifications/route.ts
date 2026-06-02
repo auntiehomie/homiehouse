@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import webpush from 'web-push';
 
-// Lazy init — only called inside the handler so missing env vars don't crash at build time
+// VAPID keys must be set as env vars:
+//   NEXT_PUBLIC_VAPID_PUBLIC_KEY
+//   VAPID_PRIVATE_KEY
+// Generate once with: npx web-push generate-vapid-keys
 let vapidInitialized = false;
 function initVapid() {
   if (vapidInitialized) return;
@@ -15,10 +18,10 @@ function initVapid() {
 
 const HYPERSNAP = process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
 
-async function fetchLatestNotifications(fid: number) {
+async function fetchLatestNotifications(fid: number): Promise<any[]> {
   const res = await fetch(
     `${HYPERSNAP}/v2/farcaster/notifications?fid=${fid}&limit=5`,
-    { headers: { 'x-api-key': process.env.NEYNAR_API_KEY || '' }, next: { revalidate: 0 } }
+    { headers: { accept: 'application/json' }, cache: 'no-store' }
   );
   if (!res.ok) return [];
   const data = await res.json();
@@ -26,14 +29,21 @@ async function fetchLatestNotifications(fid: number) {
 }
 
 function describeNotification(notif: any): { title: string; body: string; url: string } {
-  const actor = notif.cast?.author || notif.actor || notif.user || {};
+  const actor =
+    notif.cast?.author ||
+    notif.reactions?.[0]?.user ||
+    notif.recasts?.[0]?.user ||
+    notif.follows?.[0]?.user ||
+    notif.actor ||
+    notif.user ||
+    {};
   const name = actor.display_name || actor.username || 'Someone';
   const castHash = notif.cast?.hash || '';
   const url = castHash ? `/cast/${castHash}` : '/notifications';
 
   switch (notif.type) {
     case 'reply':
-      return { title: `${name} replied`, body: notif.cast?.text?.slice(0, 80) || 'to your cast', url };
+      return { title: `${name} replied`, body: notif.cast?.text?.slice(0, 80) || '', url };
     case 'mention':
       return { title: `${name} mentioned you`, body: notif.cast?.text?.slice(0, 80) || '', url };
     case 'likes':
@@ -41,32 +51,38 @@ function describeNotification(notif: any): { title: string; body: string; url: s
     case 'recasts':
       return { title: `${name} recasted you`, body: notif.cast?.text?.slice(0, 60) || '', url };
     case 'follows':
-      return { title: `${name} followed you`, body: '@' + (actor.username || ''), url: `/profile/${actor.fid}` };
+      return {
+        title: `${name} followed you`,
+        body: '@' + (actor.username || ''),
+        url: `/profile?user=${actor.username || actor.fid}`,
+      };
     default:
-      return { title: 'New notification on HomieHouse', body: '', url: '/notifications' };
+      return { title: 'New notification', body: '', url: '/notifications' };
   }
 }
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret
-  const authHeader = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Protect with cron secret
+  const auth = req.headers.get('authorization');
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try { initVapid(); } catch {
+  try {
+    initVapid();
+  } catch {
     return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 503 });
   }
 
-  const sql = getDb();
-  const subs = await sql.query(
+  const db = getDb();
+  const { rows: subs } = await db.query(
     'SELECT id, user_fid, subscription, last_notified_at FROM push_subscriptions'
   );
 
   let sent = 0;
   let errors = 0;
 
-  for (const sub of subs.rows) {
+  for (const sub of subs) {
     try {
       const notifications = await fetchLatestNotifications(sub.user_fid);
       if (!notifications.length) continue;
@@ -76,27 +92,21 @@ export async function GET(req: NextRequest) {
         const ts = new Date(n.most_recent_timestamp || n.timestamp);
         return ts > lastNotified;
       });
-
       if (!newNotifs.length) continue;
 
-      const newest = newNotifs[0];
-      const payload = describeNotification(newest);
+      const payload = describeNotification(newNotifs[0]);
 
-      await webpush.sendNotification(
-        sub.subscription,
-        JSON.stringify(payload)
-      );
+      await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
 
-      await sql.query(
+      await db.query(
         'UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1',
         [sub.id]
       );
-
       sent++;
     } catch (err: any) {
-      // Remove stale subscriptions (410 = endpoint gone)
       if (err?.statusCode === 410) {
-        await sql.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]);
+        // Endpoint gone — remove stale subscription
+        await db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]);
       }
       errors++;
     }
