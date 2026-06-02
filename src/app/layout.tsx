@@ -6,6 +6,7 @@ import PrivyAuthSync from "../components/PrivyAuthSync";
 import SignerInit from "../components/SignerInit";
 import BottomNav from "../components/BottomNav";
 import WelcomeModal from "../components/WelcomeModal";
+import PushNotificationSetup from "../components/PushNotificationSetup";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.xyz';
 
@@ -128,6 +129,7 @@ export default function RootLayout({
           </div>
           <BottomNav />
           <WelcomeModal />
+          <PushNotificationSetup />
         </PrivyAuthProvider>
       </body>
     </html>
