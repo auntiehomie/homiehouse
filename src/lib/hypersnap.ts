@@ -163,8 +163,26 @@ export async function fetchChannelFeed(channelId: string, params: {
 }
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
-  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-  return hypersnapFetch(`/v2/farcaster/user/channels?${qs.toString()}`);
+  // Try Hypersnap proxy first
+  try {
+    const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+    const data = await hypersnapFetch(`/v2/farcaster/user/channels?${qs.toString()}`);
+    if (Array.isArray(data?.channels) && data.channels.length > 0) return data;
+  } catch {}
+
+  // Fallback: Neynar API directly (server-side only)
+  const neynarKey = typeof process !== 'undefined' ? process.env.NEYNAR_API_KEY : undefined;
+  if (neynarKey) {
+    try {
+      const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+      const res = await fetch(`https://api.neynar.com/v2/farcaster/user/channels?${qs.toString()}`, {
+        headers: { accept: 'application/json', api_key: neynarKey },
+      });
+      if (res.ok) return res.json();
+    } catch {}
+  }
+
+  return { channels: [] };
 }
 
 /**

@@ -111,9 +111,17 @@ export default function NotificationsPage() {
     catch { return 'recently'; }
   };
 
+  const FILTER_TYPES: Record<string, string[]> = {
+    likes:    ['likes', 'like'],
+    recasts:  ['recasts', 'recast'],
+    replies:  ['reply', 'replies'],
+    follows:  ['follows', 'follow'],
+    mentions: ['mention', 'mentions'],
+  };
+
   const filteredNotifications = notifications.filter(notif => {
     if (filter === 'all') return true;
-    return notif.type === filter || notif.type === filter.slice(0, -1);
+    return FILTER_TYPES[filter]?.includes(notif.type) ?? false;
   });
 
   const pageStyle: React.CSSProperties = {
