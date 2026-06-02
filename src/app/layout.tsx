@@ -6,6 +6,7 @@ import PrivyAuthSync from "../components/PrivyAuthSync";
 import SignerInit from "../components/SignerInit";
 import BottomNav from "../components/BottomNav";
 import WelcomeModal from "../components/WelcomeModal";
+import ThemeSync from "../components/ThemeSync";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -110,7 +111,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{__html: `(function(){try{var t=localStorage.getItem('hh_theme');if(t&&t!=='default')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}} />
         <script
@@ -128,6 +129,7 @@ export default function RootLayout({
           </div>
           <BottomNav />
           <WelcomeModal />
+          <ThemeSync />
         </PrivyAuthProvider>
       </body>
     </html>
