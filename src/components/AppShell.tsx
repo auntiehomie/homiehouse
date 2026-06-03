@@ -1,6 +1,6 @@
 "use client";
 
-import { ChannelSidebar } from "./ChannelStrip";
+import SidebarNav from "./SidebarNav";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -11,12 +11,12 @@ export default function AppShell({ children }: AppShellProps) {
     <div style={{ minHeight: "100vh", background: "var(--background)", color: "var(--foreground)", paddingBottom: 80 }}>
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-4">
         <div className="flex gap-6 items-start">
-          {/* Desktop channel sidebar — hidden below lg */}
+          {/* Desktop sidebar — hidden below lg */}
           <aside
             className="hidden lg:block shrink-0"
             style={{ width: 220, position: "sticky", top: 16, maxHeight: "calc(100vh - 32px)", overflowY: "auto", scrollbarWidth: "none" }}
           >
-            <ChannelSidebar />
+            <SidebarNav />
           </aside>
 
           {/* Main content */}

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { ChannelSidebar } from '@/components/ChannelStrip';
+import SidebarNav from '@/components/SidebarNav';
 
 interface Actor {
   fid: number;
@@ -178,7 +178,7 @@ export default function NotificationsPage() {
             className="hidden lg:block shrink-0"
             style={{ width: 220, position: 'sticky', top: 105, maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', scrollbarWidth: 'none' }}
           >
-            <ChannelSidebar />
+            <SidebarNav />
           </aside>
           <main className="flex-1 min-w-0">
             {children}
