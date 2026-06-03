@@ -198,6 +198,29 @@ function ModuleCard({
               </span>
             ))}
           </div>
+
+          <a
+            href={`/learn/module?id=${module.id}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 14,
+              padding: '9px 16px',
+              borderRadius: 9,
+              fontSize: 13,
+              fontWeight: 700,
+              background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+              color: '#fff',
+              textDecoration: 'none',
+              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+            }}
+          >
+            {completed ? 'Review Module' : 'Start Module'}
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </a>
         </div>
       )}
     </div>
