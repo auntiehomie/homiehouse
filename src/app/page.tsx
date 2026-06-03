@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useNeynarContext } from "@/hooks/useNeynarCompat";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import SidebarNav from "../components/SidebarNav";
+import LearningHeroCard from "../components/LearningHeroCard";
 
 const ComposeModal = dynamic(() => import("../components/ComposeModal"), { ssr: false });
 const ScheduledCastsModal = dynamic(() => import("../components/ScheduledCastsModal"), { ssr: false });
@@ -179,6 +180,7 @@ export default function Home() {
 
           {/* Feed */}
           <div className="flex-1 min-w-0">
+            <LearningHeroCard />
             <div className="flex items-center mb-3">
               <h3 className="text-lg font-semibold">Explore</h3>
             </div>

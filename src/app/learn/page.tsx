@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
 import SidebarNav from '@/components/SidebarNav';
 
@@ -205,7 +206,8 @@ function ModuleCard({
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function LearnPage() {
+function LearnPageContent() {
+  const searchParams = useSearchParams();
   const [pageState, setPageState] = useState<PageState>('quiz');
   const [step, setStep] = useState(1);
   const [track, setTrack] = useState<Track | null>(null);
@@ -216,6 +218,13 @@ export default function LearnPage() {
   const [plan, setPlan] = useState<LearningPlan | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-select track from ?track= query param (deep-link from hero card)
+  useEffect(() => {
+    const t = searchParams.get('track') as Track | null;
+    const valid: Track[] = ['learner', 'creator', 'financial', 'all'];
+    if (t && valid.includes(t)) setTrack(t);
+  }, [searchParams]);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -723,5 +732,13 @@ export default function LearnPage() {
         </div>
       )}
     </div>,
+  );
+}
+
+export default function LearnPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)', color: 'var(--muted-on-dark)' }}>Loading…</div>}>
+      <LearnPageContent />
+    </Suspense>
   );
 }
