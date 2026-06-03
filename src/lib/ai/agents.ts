@@ -1,43 +1,8 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
-import { ChatGroq } from '@langchain/groq';
 import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
-
-// ─── Provider selection ───────────────────────────────────────────────────────
-// Priority: Anthropic → Groq → OpenAI.
-// All three support tool calling. Groq is free-tier and fast.
-export type Provider = 'anthropic' | 'groq' | 'openai';
-
-export function detectProvider(): Provider {
-  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
-  if (process.env.GROQ_API_KEY) return 'groq';
-  if (process.env.OPENAI_API_KEY) return 'openai';
-  return 'groq'; // default — will surface a clear error if key missing
-}
-
-function buildLLM(provider: Provider): ChatOpenAI | ChatAnthropic | ChatGroq {
-  if (provider === 'anthropic') {
-    return new ChatAnthropic({
-      modelName: 'claude-sonnet-4-6',
-      temperature: 0.7,
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-    });
-  }
-  if (provider === 'groq') {
-    return new ChatGroq({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      temperature: 0.7,
-      apiKey: process.env.GROQ_API_KEY,
-    });
-  }
-  return new ChatOpenAI({
-    modelName: 'gpt-4o',
-    temperature: 0.7,
-    openAIApiKey: process.env.OPENAI_API_KEY,
-  });
-}
 import { searchCasts, getCastsByUsername } from '../hypersnap';
 import { getTokenData, searchTokens, formatTokenDisplay } from '../token-data';
 
@@ -80,18 +45,30 @@ export interface AgentMessage {
 
 // Base Agent Class
 export class BaseAgent {
-  protected llm: ChatOpenAI | ChatAnthropic | ChatGroq;
+  protected llm: ChatOpenAI | ChatAnthropic;
   protected systemPrompt: string;
   protected conversationHistory: BaseMessage[] = [];
   protected tools: DynamicStructuredTool[] = [];
 
   constructor(
-    provider: Provider | 'auto' = 'auto',
+    provider: 'openai' | 'anthropic' = 'openai',
     systemPrompt: string,
     tools: DynamicStructuredTool[] = []
   ) {
-    const resolved = provider === 'auto' ? detectProvider() : provider;
-    this.llm = buildLLM(resolved);
+    if (provider === 'anthropic') {
+      this.llm = new ChatAnthropic({
+        modelName: 'claude-sonnet-4-6',
+        temperature: 0.7,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY
+      });
+    } else {
+      this.llm = new ChatOpenAI({
+        modelName: 'gpt-4o',
+        temperature: 0.7,
+        openAIApiKey: process.env.OPENAI_API_KEY
+      });
+    }
+
     this.systemPrompt = systemPrompt;
     this.tools = tools;
   }
@@ -173,15 +150,47 @@ export class BaseAgent {
 export function createSearchCastsTool() {
   return new DynamicStructuredTool({
     name: 'search_farcaster_casts',
-    description: 'Search for Farcaster casts by keyword or phrase. Use this when users ask to find casts about a specific topic, or to find similar casts to one being analyzed. Returns matching casts with author info and engagement metrics.',
+    description: 'Search for Farcaster casts by keyword or phrase. Use this when users ask to find casts about a specific topic, or to find similar casts to one being analyzed. Returns matching casts with author info and engagement metrics. If a combined query returns empty, automatically tries each keyword individually.',
     schema: z.object({
       query: z.string().describe('The search query to find relevant casts'),
       limit: z.number().optional().default(10).describe('Number of results to return (default: 10, max: 25)')
     }),
     func: async ({ query, limit = 10 }) => {
       try {
-        const results = await searchCasts(query, Math.min(limit, 25));
-        return JSON.stringify(results, null, 2);
+        const cap = Math.min(limit, 25);
+
+        // Primary search with full query
+        const primary = await searchCasts(query, cap);
+        if (Array.isArray(primary?.casts) && primary.casts.length > 0) {
+          return JSON.stringify(primary, null, 2);
+        }
+
+        // Fallback: split on common separators and search each keyword individually
+        const keywords = query
+          .split(/\s+(?:and|or|,)\s+|\s*,\s*/i)
+          .map((k: string) => k.trim())
+          .filter((k: string) => k.length > 2);
+
+        if (keywords.length > 1) {
+          const seen = new Set<string>();
+          const merged: any[] = [];
+
+          for (const kw of keywords) {
+            const r = await searchCasts(kw, cap);
+            for (const cast of (r?.casts ?? [])) {
+              if (!seen.has(cast.hash)) {
+                seen.add(cast.hash);
+                merged.push(cast);
+              }
+            }
+          }
+
+          if (merged.length > 0) {
+            return JSON.stringify({ casts: merged.slice(0, cap), searchedTerms: keywords }, null, 2);
+          }
+        }
+
+        return JSON.stringify({ casts: [], message: 'No casts found. Try a different search term or ask about a specific user.' }, null, 2);
       } catch (error) {
         return `Error searching casts: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
@@ -383,82 +392,7 @@ export function createSearchTokensTool() {
   });
 }
 
-// ─── URL Fetching Tool ────────────────────────────────────────────────────────
-
-function isPrivateIP(ip: string): boolean {
-  if (ip === '::1' || ip === '127.0.0.1') return true;
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4) return false;
-  return (
-    parts[0] === 10 ||
-    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-    (parts[0] === 192 && parts[1] === 168) ||
-    parts[0] === 127 ||
-    parts[0] === 169
-  );
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
-export function createFetchUrlTool() {
-  return new DynamicStructuredTool({
-    name: 'fetch_url',
-    description: 'Fetch and read the text content of a webpage. Use this when the user asks you to read a URL, summarize a linked article, or when a cast contains a link the user wants to understand. Returns the page title and main text content.',
-    schema: z.object({
-      url: z.string().describe('The full URL to fetch (must start with https://)'),
-    }),
-    func: async ({ url }) => {
-      try {
-        // Only allow HTTPS
-        if (!url.startsWith('https://')) {
-          return 'Only HTTPS URLs are supported.';
-        }
-        const parsed = new URL(url);
-
-        // Block private/internal hosts
-        const { Resolver } = await import('dns/promises');
-        const resolver = new Resolver();
-        const ips = await resolver.resolve4(parsed.hostname).catch(() => [] as string[]);
-        if (ips.some(isPrivateIP)) {
-          return 'That URL resolves to a private/internal address and cannot be fetched.';
-        }
-
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'HomieHouse/1.0 (AI assistant)' },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!res.ok) return `Failed to fetch URL: HTTP ${res.status}`;
-
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
-          return `URL returned non-text content (${contentType}). Cannot read it as text.`;
-        }
-
-        const raw = await res.text();
-        // Extract title
-        const titleMatch = raw.match(/<title[^>]*>([^<]+)<\/title>/i);
-        const title = titleMatch ? titleMatch[1].trim() : parsed.hostname;
-
-        const text = stripHtml(raw);
-        // Cap at 6000 chars so it fits comfortably in the LLM context window
-        const truncated = text.length > 6000 ? text.slice(0, 6000) + '\n\n[content truncated]' : text;
-
-        return `**${title}**\n\n${truncated}`;
-      } catch (err: any) {
-        return `Error fetching URL: ${err?.message || 'Unknown error'}`;
-      }
-    },
-  });
-}
-
-
+// Cast Composer Agent - Helps write better Farcaster casts
 export class CastComposerAgent extends BaseAgent {
   constructor(userProfile: UserProfile) {
     const systemPrompt = `You are an expert Farcaster cast composer. Your job is to help users write engaging, authentic casts.
@@ -485,7 +419,7 @@ When helping:
 - Explain WHY a change would improve the cast
 - Learn from user feedback to improve future suggestions`;
 
-    super('auto', systemPrompt);
+    super('anthropic', systemPrompt);
   }
 
   async composeCast(
@@ -562,7 +496,6 @@ Key Principles:
 Available Tools:
 - search_farcaster_casts: Search for casts by keyword or topic
 - get_user_casts: Get recent casts from a specific user
-- fetch_url: Fetch and read the text content of any public webpage
 
 When analyzing casts:
 - Consider timing, tone, length, and content
@@ -570,17 +503,15 @@ When analyzing casts:
 - Check for clarity and authenticity
 - Suggest specific improvements
 - When asked to find similar casts, use the search tool to discover examples
-- When analyzing a user's style, you can fetch their recent casts
-- When a cast contains a URL and the user asks about the linked content, use fetch_url to read it`;
+- When analyzing a user's style, you can fetch their recent casts`;
 
     // Add Farcaster search tools
     const tools = [
       createSearchCastsTool(),
-      createGetCastsByUserTool(),
-      createFetchUrlTool(),
+      createGetCastsByUserTool()
     ];
 
-    super('auto', systemPrompt, tools);
+    super('openai', systemPrompt, tools);
   }
 
   async analyzeCast(castOrMessage: string, metrics?: { likes?: number; recasts?: number; replies?: number }): Promise<string> {
@@ -659,7 +590,6 @@ Available Tools:
 - get_user_casts: Get recent casts from a specific user with engagement metrics
 - get_token_info: Get detailed real-time token information (price, market cap, volume, etc.)
 - search_tokens: Search for tokens by name or symbol
-- fetch_url: Fetch and read the text content of any public webpage or article
 
 When asked to find casts or see what someone is posting:
 - Use search_farcaster_casts for topic-based searches
@@ -668,9 +598,10 @@ When asked to find casts or see what someone is posting:
 - The get_user_casts tool returns casts sorted by engagement, with the mostEngaged cast highlighted
 - When asked for "most engaged cast", use get_user_casts and report the mostEngaged cast from the results
 
-When a cast contains URLs or the user asks you to read a website:
-- Use fetch_url to retrieve the page content, then summarize it
-- Always use fetch_url when the user says "read", "check", "what's on", or "summarize" a URL
+Search strategy for multi-topic questions:
+- When a user asks about "X and Y" (e.g., "neynar and hypersnap"), call search_farcaster_casts TWICE — once for "X" and once for "Y" separately, then combine what you find
+- For company/product names, also call get_user_casts on their likely Farcaster handles (e.g., for "neynar" try get_user_casts with username "neynar"; for "hypersnap" try username "hypersnap")
+- If search returns little, try related terms or shorter versions of the query
 
 Be accurate, cite what you know, and admit when you're not certain.`;
 
@@ -679,11 +610,10 @@ Be accurate, cite what you know, and admit when you're not certain.`;
       createSearchCastsTool(),
       createGetCastsByUserTool(),
       createGetTokenInfoTool(),
-      createSearchTokensTool(),
-      createFetchUrlTool(),
+      createSearchTokensTool()
     ];
 
-    super('auto', systemPrompt, tools);
+    super('openai', systemPrompt, tools);
   }
 
   async research(query: string, context?: string): Promise<string> {
@@ -893,7 +823,7 @@ Be conversational and helpful. Explain how their interests will help prioritize 
 
 Based on what they've said, suggest 3-5 specific interests they might want to add to their feed. Format your response as a friendly explanation followed by a list of suggested interests.`;
 
-    const tempAgent = new BaseAgent('auto', systemPrompt);
+    const tempAgent = new BaseAgent('anthropic', systemPrompt);
     const response = await tempAgent.chat(contextMessage);
 
     // Extract suggested interests from response (look for common patterns)

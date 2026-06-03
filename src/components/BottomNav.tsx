@@ -20,7 +20,7 @@ export default function BottomNav() {
     return pathname === path || pathname.startsWith(path + '/');
   };
   const cls = (path: string) =>
-    `flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-colors text-[9px] font-medium ${
+    `flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-colors text-[9px] font-medium no-underline ${
       isActive(path) ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-400"
     }`;
   const dot = (path: string) =>
@@ -30,7 +30,7 @@ export default function BottomNav() {
   if (!isAuthenticated) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 border-t z-50 pb-safe hh-bottom-nav">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 border-t pb-safe hh-bottom-nav" style={{ zIndex: 9500, pointerEvents: 'all', touchAction: 'manipulation' }}>
       <div className="max-w-screen-xl mx-auto px-1 py-1">
         <div className="flex items-center justify-around">
 
