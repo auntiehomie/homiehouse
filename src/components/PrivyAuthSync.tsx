@@ -10,9 +10,15 @@ import { useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
 export default function PrivyAuthSync() {
-  const { authenticated, user, logout } = usePrivy();
+  const { ready, authenticated, user } = usePrivy();
 
   useEffect(() => {
+    // Wait until Privy has finished loading its session before touching
+    // localStorage. Without this guard, `authenticated` starts as false
+    // on every page load/refresh, causing a premature removal of
+    // hh_profile and a visible flash to the landing page.
+    if (!ready) return;
+
     if (authenticated && user) {
       const farcasterAccount = user.linkedAccounts?.find(
         (a: any) => a.type === 'farcaster'
@@ -35,7 +41,6 @@ export default function PrivyAuthSync() {
         };
         localStorage.setItem('hh_profile', JSON.stringify(profile));
       } else {
-        // Authenticated but no Farcaster account linked — use basic user info
         const profile = {
           fid: 0,
           username: user.id || '',
@@ -44,16 +49,14 @@ export default function PrivyAuthSync() {
           bio: '',
         };
         localStorage.setItem('hh_profile', JSON.stringify(profile));
-        // Signal onboarding component to show account creation flow
         window.dispatchEvent(new Event('hh:need:farcaster-account'));
       }
     } else if (!authenticated) {
       localStorage.removeItem('hh_profile');
     }
 
-    // Notify useNeynarCompat listeners
     window.dispatchEvent(new Event('hh:auth:changed'));
-  }, [authenticated, user]);
+  }, [ready, authenticated, user]);
 
   return null;
 }
