@@ -280,7 +280,7 @@ function ModuleLessonContent() {
         <button
           onClick={toggleComplete}
           style={{
-            width: '100%', padding: '16px', borderRadius: 12, border: 'none',
+            width: '100%', padding: '16px', borderRadius: 12,
             background: completed
               ? 'var(--surface)'
               : 'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
