@@ -5,6 +5,13 @@ import { ChatGroq } from '@langchain/groq';
 
 export const maxDuration = 30;
 
+interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
 interface LessonContent {
   intro: string;
   concepts: Array<{
@@ -15,6 +22,7 @@ interface LessonContent {
   practicalExample: string;
   quickActions: string[];
   summary: string;
+  quiz: QuizQuestion[];
 }
 
 function getModel() {
@@ -41,6 +49,41 @@ function fallbackLesson(title: string, description: string, objectives: string[]
       'Take notes on 3 things you want to remember',
     ],
     summary: `Completing this module will give you a solid foundation in ${title.toLowerCase()} and prepare you for the next step in your learning journey.`,
+    quiz: [
+      {
+        question: `What is the main purpose of this module on ${title}?`,
+        options: [
+          'To provide entertainment',
+          `To teach foundational concepts of ${title.toLowerCase()}`,
+          'To sell crypto',
+          'To replace traditional education',
+        ],
+        correctIndex: 1,
+        explanation: `This module is designed to give you a practical foundation in ${title.toLowerCase()} as part of your decentralization journey.`,
+      },
+      {
+        question: 'Why is understanding decentralization important?',
+        options: [
+          'It helps you make money quickly',
+          'It is required by law',
+          'It lets you understand and participate in systems without central gatekeepers',
+          'It replaces the internet',
+        ],
+        correctIndex: 2,
+        explanation: 'Decentralization removes single points of control, giving you more ownership and freedom in digital systems.',
+      },
+      {
+        question: 'What is the best way to learn about Web3 concepts?',
+        options: [
+          'Wait until the technology is perfect',
+          'Read theory only',
+          'Combine reading with hands-on experimentation',
+          'Ask someone else to do it for you',
+        ],
+        correctIndex: 2,
+        explanation: 'The most effective learning combines understanding concepts with practical, hands-on exploration.',
+      },
+    ],
   };
 }
 
@@ -72,28 +115,40 @@ Module:
 Return ONLY valid JSON — no markdown, no code fences. Use this exact structure:
 
 {
-  "intro": "2-3 sentence engaging intro that hooks the reader and sets context. Speak directly to the learner.",
+  "intro": "2-3 sentence engaging intro. Hook the reader, speak directly to them.",
   "concepts": [
     {
-      "title": "Concept name (short)",
-      "explanation": "2-4 sentences explaining this concept clearly, avoiding jargon where possible.",
-      "analogy": "1 sentence real-world analogy that makes this click (optional but strongly encouraged)"
+      "title": "Short concept name",
+      "explanation": "2-3 sentences max. Clear, jargon-free.",
+      "analogy": "1 sentence real-world analogy (strongly encouraged)"
     }
   ],
-  "practicalExample": "3-5 sentences describing a concrete, relatable real-world example or scenario that illustrates the key idea of this module.",
+  "practicalExample": "3-4 sentences. A concrete real-world scenario that makes the key idea tangible.",
   "quickActions": [
-    "Specific, actionable step the learner can do right now (1 sentence)",
+    "Specific action the learner can do in the next 10 minutes",
     "Another concrete action",
     "A third action"
   ],
-  "summary": "2-3 sentences summarizing the key takeaway and how it connects to the learner's broader journey."
+  "summary": "2 sentences. Key takeaway + how it connects to the broader journey.",
+  "quiz": [
+    {
+      "question": "Clear question testing understanding of a key concept",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctIndex": 0,
+      "explanation": "1-2 sentences explaining why this answer is correct and the others aren't."
+    }
+  ]
 }
 
 Requirements:
-- 3-5 concepts
-- 3 quick actions (specific and doable, not vague like 'research more')
+- 3-4 concepts (keep explanations tight — 2-3 sentences each)
+- 3 quick actions (specific, doable in minutes)
+- 3-4 quiz questions covering different objectives
+- Quiz questions must have exactly 4 options
+- correctIndex is 0-based (0=A, 1=B, 2=C, 3=D)
 - Friendly but authoritative tone
-- All explanations must be accessible to someone at the ${difficulty} level`;
+- Accessible to someone at the ${difficulty} level
+- Quiz should feel like a checkpoint, not a trick test`;
 
     const response = await model.invoke(prompt);
     const content = typeof response.content === 'string'
