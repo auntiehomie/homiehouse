@@ -13,115 +13,163 @@ const ScheduledCastsModal = dynamic(() => import("../components/ScheduledCastsMo
 import NeynarSignIn from "../components/NeynarSignIn";
 import HHLogo from "../components/HHLogo";
 
-const MESSAGES = [
-  "HomieHouse - Your Social Hub",
-  "Cast, learn, and grow with Ask Homie",
-  "Log in to start"
+const PILLARS = [
+  {
+    icon: (
+      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+          d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6m-6-4h2" />
+      </svg>
+    ),
+    badge: 'Social',
+    title: 'Farcaster Client',
+    desc: 'Stay connected to the people and communities building the decentralized future. Browse feeds, cast your thoughts, and engage — from your own social home base.',
+    color: '#818cf8',
+    bg: 'rgba(99,102,241,0.08)',
+    border: 'rgba(99,102,241,0.25)',
+  },
+  {
+    icon: (
+      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 14l9-5-9-5-9 5 9 5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+      </svg>
+    ),
+    badge: 'Learn',
+    title: 'Learning Hub',
+    desc: 'Build a personalized roadmap through Web3, DeFi, and decentralization. Work through AI-curated modules, track your progress, and share milestones with your community.',
+    color: '#34d399',
+    bg: 'rgba(52,211,153,0.08)',
+    border: 'rgba(52,211,153,0.25)',
+  },
+  {
+    icon: (
+      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    ),
+    badge: 'Capture',
+    title: 'Knowledge Hub',
+    desc: 'Capture the ideas that matter. Save insights from casts, modules, and your own thinking. Build a personal knowledge base that grows with you on your journey.',
+    color: '#fbbf24',
+    bg: 'rgba(251,191,36,0.08)',
+    border: 'rgba(251,191,36,0.25)',
+  },
 ];
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [fade, setFade] = useState(true);
-  
   const { isAuthenticated } = useNeynarContext();
 
-  // Wait for client-side mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  const showLanding = !isAuthenticated;
+  if (!mounted) return null;
 
-  useEffect(() => {
-    if (!showLanding) return; // Stop animation when logged in
-
-    const interval = setInterval(() => {
-      setFade(false);
-      
-      setTimeout(() => {
-        setCurrentMessageIndex((prev) => (prev + 1) % MESSAGES.length);
-        setFade(true);
-      }, 500); // Half second fade out before changing text
-      
-    }, 3500); // Show each message for 3.5 seconds
-
-    return () => clearInterval(interval);
-  }, [showLanding]);
-
-  // Prevent hydration mismatch - show nothing until mounted
-  if (!mounted) {
-    return null;
-  }
-
-  // Landing page for unauthenticated users
-  if (showLanding) {
+  // ── Landing page ───────────────────────────────────────────────────────────
+  if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 flex flex-col">
-        <header className="px-4 sm:px-6 py-6 sm:py-8 flex justify-end">
+      <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Nav bar */}
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <HHLogo size={32} />
+            <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em' }}>HomieHouse</span>
+          </div>
           <NeynarSignIn />
         </header>
-        
-        <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6">
-          {/* Animated headline */}
-          <div className="text-center max-w-5xl w-full">
-            <h1 
-              className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold transition-opacity duration-500 px-4 ${
-                fade ? 'opacity-100' : 'opacity-0'
-              }`}
-              style={{ 
-                minHeight: '120px',
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                textAlign: 'center', 
-                margin: '0 auto' 
-              }}
-            >
-              {MESSAGES[currentMessageIndex]}
-            </h1>
+
+        {/* Hero */}
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 20px 80px', maxWidth: 960, margin: '0 auto', width: '100%' }}>
+
+          {/* Badge */}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 14px', borderRadius: 20, marginBottom: 28,
+            background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+            fontSize: 13, fontWeight: 600, color: '#a5b4fc',
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', display: 'inline-block' }} />
+            Built on Farcaster
           </div>
 
-          {/* Value proposition */}
-          <p className="mt-4 text-lg sm:text-xl text-zinc-500 dark:text-zinc-400 max-w-2xl text-center px-4">
-            Your home on the decentralized social web. Browse Farcaster feeds, compose casts, get AI-powered insights, and build your personal knowledge base.
+          {/* Headline */}
+          <h1 style={{
+            fontSize: 'clamp(36px, 7vw, 64px)',
+            fontWeight: 800,
+            textAlign: 'center',
+            lineHeight: 1.15,
+            letterSpacing: '-0.03em',
+            margin: '0 0 20px',
+            background: 'linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}>
+            Your Social<br />Knowledge Hub
+          </h1>
+
+          <p style={{
+            fontSize: 'clamp(16px, 2.5vw, 20px)',
+            color: '#71717a',
+            textAlign: 'center',
+            maxWidth: 560,
+            lineHeight: 1.65,
+            margin: '0 0 40px',
+          }}>
+            Connect on Farcaster. Learn about the decentralized world. Capture everything you discover — all in one place.
           </p>
 
-          {/* Feature grid */}
-          <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-3xl w-full px-4">
-            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
-              <span className="text-2xl">📡</span>
-              <span className="text-sm font-medium text-center">Browse Feeds</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">Follow channels &amp; people you love</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
-              <span className="text-2xl">✍️</span>
-              <span className="text-sm font-medium text-center">Compose Casts</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">Post, schedule, and reply with ease</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
-              <span className="text-2xl">🤖</span>
-              <span className="text-sm font-medium text-center">Ask Homie</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">AI-powered cast analysis &amp; insights</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
-              <span className="text-2xl">📚</span>
-              <span className="text-sm font-medium text-center">Knowledge Base</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400 text-center">Save &amp; curate your favorite casts</span>
-            </div>
-          </div>
-
           {/* CTA */}
-          <div className="mt-10 flex flex-col sm:flex-row items-center gap-4">
-            <div className="scale-110">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 72 }}>
+            <div style={{ transform: 'scale(1.1)' }}>
               <NeynarSignIn />
             </div>
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">Sign in with your Farcaster account</span>
+            <span style={{ fontSize: 13, color: '#52525b' }}>Sign in with your Farcaster account · Free</span>
+          </div>
+
+          {/* Three pillars */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 16,
+            width: '100%',
+          }}>
+            {PILLARS.map((p) => (
+              <div
+                key={p.title}
+                style={{
+                  padding: '24px 22px',
+                  borderRadius: 16,
+                  background: p.bg,
+                  border: `1px solid ${p.border}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                {/* Icon + badge */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div style={{ color: p.color }}>{p.icon}</div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                    background: `${p.color}18`, color: p.color, letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                  }}>
+                    {p.badge}
+                  </span>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: '#f4f4f5', margin: '0 0 8px' }}>{p.title}</h3>
+                  <p style={{ fontSize: 14, color: '#71717a', margin: 0, lineHeight: 1.65 }}>{p.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </main>
 
-        <footer className="py-6 text-center text-xs text-zinc-400">
-          Built on Farcaster &bull; Powered by HomieHouse
+        <footer style={{ textAlign: 'center', padding: '24px', fontSize: 12, color: '#3f3f46', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          HomieHouse · Built on Farcaster · Own your knowledge
         </footer>
       </div>
     );
@@ -134,7 +182,7 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0 flex items-center gap-2">
             <HHLogo size={36} />
-            <p className="text-xs text-zinc-500 hidden lg:block">Your Social Hub</p>
+            <p className="text-xs text-zinc-500 hidden lg:block">Social Knowledge Hub</p>
           </div>
           {/* Search — only on large screens where there's room */}
           <div className="hidden lg:block flex-1 max-w-xs">
