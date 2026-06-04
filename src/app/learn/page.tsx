@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
-import SidebarNav from '@/components/SidebarNav';
+import { ChannelSidebar } from '@/components/ChannelStrip';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -621,7 +621,7 @@ function LearnPageContent() {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <aside className="hidden lg:block shrink-0" style={{ width: 220, borderRight: '1px solid var(--border)', overflowY: 'auto', scrollbarWidth: 'none', padding: '16px 0' }}>
-          <SidebarNav />
+          <ChannelSidebar />
         </aside>
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
           {activeTab === 'homie'
