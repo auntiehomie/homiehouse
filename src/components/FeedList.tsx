@@ -118,6 +118,7 @@ export default function FeedList({
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
   const [curateLoading, setCurateLoading] = useState(false);
+  const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
 
   const router = useRouter();
   const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
@@ -794,6 +795,36 @@ export default function FeedList({
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
                 }
                 label="Ask Homie"
+              />
+
+              {/* Save to Notes */}
+              <ActionBtn
+                active={savedNotes.has(key)}
+                onClick={() => {
+                  const castText = typeof it.text === 'string' ? it.text : (it.body ?? '');
+                  try {
+                    const raw = localStorage.getItem('hh_notes');
+                    const notes = raw ? JSON.parse(raw) : [];
+                    const note = {
+                      id: Date.now().toString(),
+                      title: `@${authorUsername}`,
+                      content: castText,
+                      tags: ['saved-cast', ...(it.channel?.id ? [it.channel.id] : [])],
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                      source: key,
+                    };
+                    localStorage.setItem('hh_notes', JSON.stringify([note, ...notes]));
+                    setSavedNotes(prev => new Set([...prev, key]));
+                    setTimeout(() => setSavedNotes(prev => { const n = new Set(prev); n.delete(key); return n; }), 2500);
+                  } catch {}
+                }}
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill={savedNotes.has(key) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                }
+                label={savedNotes.has(key) ? 'Saved!' : 'Save'}
               />
             </div>
             

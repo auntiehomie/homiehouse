@@ -1,15 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useNeynarContext } from "@/hooks/useNeynarCompat";
 import FeedTrendingTabs from "../components/FeedTrendingTabs";
 import SidebarNav from "../components/SidebarNav";
 import LearningHeroCard from "../components/LearningHeroCard";
 
-const ComposeModal = dynamic(() => import("../components/ComposeModal"), { ssr: false });
-const ScheduledCastsModal = dynamic(() => import("../components/ScheduledCastsModal"), { ssr: false });
 import NeynarSignIn from "../components/NeynarSignIn";
 import HHLogo from "../components/HHLogo";
 
@@ -238,8 +235,6 @@ export default function Home() {
         </div>
       </main>
 
-      <ComposeModal />
-      <ScheduledCastsModal />
     </div>
   );
 }
