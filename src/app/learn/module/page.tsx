@@ -318,9 +318,14 @@ function ModuleLessonContent() {
       setCompleted(!completed);
       if (!completed) {
         setJustCompleted(true);
-        setTimeout(() => router.push('/learn'), 1500);
       }
     } catch {}
+  };
+
+  const shareProgress = () => {
+    if (!mod) return;
+    const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nLearning about Web3 and DeFi — one module at a time. 🏡\n\nhomie.house`;
+    window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text } }));
   };
 
   if (!mod && loading) {
@@ -486,13 +491,45 @@ function ModuleLessonContent() {
       <div style={{ marginTop: 28 }}>
         {justCompleted ? (
           <div style={{
-            padding: '18px 20px', borderRadius: 14, textAlign: 'center',
+            padding: '20px', borderRadius: 16,
             background: 'linear-gradient(135deg, #14532d 0%, #166534 100%)',
             border: '1px solid #16a34a', marginBottom: 12,
           }}>
-            <p style={{ fontSize: 22, margin: '0 0 4px' }}>🎉</p>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#bbf7d0', margin: '0 0 4px' }}>Module complete!</p>
-            <p style={{ fontSize: 13, color: '#86efac', margin: 0 }}>Progress saved.</p>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <p style={{ fontSize: 28, margin: '0 0 6px' }}>🎉</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color: '#bbf7d0', margin: '0 0 4px' }}>Module complete!</p>
+              <p style={{ fontSize: 13, color: '#86efac', margin: 0 }}>Progress saved. What's next?</p>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={shareProgress}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                  color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                Share Progress
+              </button>
+              <button
+                onClick={() => router.push('/learn')}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: 10,
+                  background: '#16a34a', border: 'none',
+                  color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l9-5-9-5-9 5 9 5z"/>
+                </svg>
+                Back to Plan
+              </button>
+            </div>
           </div>
         ) : (
           <button
