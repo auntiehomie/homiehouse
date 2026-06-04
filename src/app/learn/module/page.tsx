@@ -316,7 +316,10 @@ function ModuleLessonContent() {
         : [...new Set([...progress, moduleId])];
       localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(next));
       setCompleted(!completed);
-      if (!completed) setJustCompleted(true);
+      if (!completed) {
+        setJustCompleted(true);
+        setTimeout(() => router.push('/learn'), 1500);
+      }
     } catch {}
   };
 
