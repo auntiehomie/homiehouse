@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import { useNeynarContext } from '@/hooks/useNeynarCompat';
 
@@ -11,11 +12,13 @@ export default function NeynarSignIn() {
     return (
       <div className="flex items-center gap-2">
         {user.pfp_url && (
-          <img
-            src={user.pfp_url}
-            alt={user.display_name}
-            className="w-8 h-8 rounded-full object-cover shrink-0"
-          />
+          <Link href="/profile" title="My Profile">
+            <img
+              src={user.pfp_url}
+              alt={user.display_name}
+              className="w-8 h-8 rounded-full object-cover shrink-0 hover:ring-2 hover:ring-zinc-400 transition-all"
+            />
+          </Link>
         )}
         {/* Name/username — hidden on small screens */}
         <div className="hidden sm:block leading-tight">
