@@ -74,7 +74,7 @@ export default function ChannelPage() {
               <p style={{ fontSize: 13, color: '#888', margin: '2px 0 0' }}>/{channelId}</p>
             </div>
             <Link
-              href="/"
+              href="/feed"
               style={{
                 fontSize: 13,
                 color: '#666',

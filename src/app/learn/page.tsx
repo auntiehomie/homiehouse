@@ -593,7 +593,7 @@ function LearnPageContent() {
             </Link>
             <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 2 }}>Learning Hub</p>
           </div>
-          <Link href="/" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Back</Link>
+          <Link href="/feed" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Feed</Link>
         </div>
 
         {/* Tab nav — always visible */}

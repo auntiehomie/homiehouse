@@ -1,30 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useNeynarContext } from "@/hooks/useNeynarCompat";
-import FeedTrendingTabs from "../components/FeedTrendingTabs";
-import SidebarNav from "../components/SidebarNav";
-import LearningHeroCard from "../components/LearningHeroCard";
-
 import NeynarSignIn from "../components/NeynarSignIn";
 import HHLogo from "../components/HHLogo";
 
 const PILLARS = [
-  {
-    icon: (
-      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-          d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6m-6-4h2" />
-      </svg>
-    ),
-    badge: 'Social',
-    title: 'Farcaster Client',
-    desc: 'Stay connected to the people and communities building the decentralized future. Browse feeds, cast your thoughts, and engage — from your own social home base.',
-    color: '#818cf8',
-    bg: 'rgba(99,102,241,0.08)',
-    border: 'rgba(99,102,241,0.25)',
-  },
   {
     icon: (
       <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -53,183 +35,140 @@ const PILLARS = [
     bg: 'rgba(251,191,36,0.08)',
     border: 'rgba(251,191,36,0.25)',
   },
+  {
+    icon: (
+      <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+          d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6m-6-4h2" />
+      </svg>
+    ),
+    badge: 'Social',
+    title: 'Farcaster Feed',
+    desc: 'Stay connected to the people and communities building the decentralized future. Browse feeds, cast your thoughts, and engage — from your own social home base.',
+    color: '#818cf8',
+    bg: 'rgba(99,102,241,0.08)',
+    border: 'rgba(99,102,241,0.25)',
+  },
 ];
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useNeynarContext();
+  const router = useRouter();
 
   useEffect(() => { setMounted(true); }, []);
 
+  useEffect(() => {
+    if (mounted && isAuthenticated) {
+      router.replace('/learn');
+    }
+  }, [mounted, isAuthenticated, router]);
+
   if (!mounted) return null;
+  if (isAuthenticated) return null;
 
-  // ── Landing page ───────────────────────────────────────────────────────────
-  if (!isAuthenticated) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
-
-        {/* Nav bar */}
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <HHLogo size={32} />
-            <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em' }}>HomieHouse</span>
-          </div>
-          <NeynarSignIn />
-        </header>
-
-        {/* Hero */}
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 20px 80px', maxWidth: 960, margin: '0 auto', width: '100%' }}>
-
-          {/* Badge */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 14px', borderRadius: 20, marginBottom: 28,
-            background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
-            fontSize: 13, fontWeight: 600, color: '#a5b4fc',
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1', display: 'inline-block' }} />
-            Built on Farcaster
-          </div>
-
-          {/* Headline */}
-          <h1 style={{
-            fontSize: 'clamp(36px, 7vw, 64px)',
-            fontWeight: 800,
-            textAlign: 'center',
-            lineHeight: 1.15,
-            letterSpacing: '-0.03em',
-            margin: '0 0 20px',
-            background: 'linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}>
-            Your Social<br />Knowledge Hub
-          </h1>
-
-          <p style={{
-            fontSize: 'clamp(16px, 2.5vw, 20px)',
-            color: '#71717a',
-            textAlign: 'center',
-            maxWidth: 560,
-            lineHeight: 1.65,
-            margin: '0 0 40px',
-          }}>
-            Connect on Farcaster. Learn about the decentralized world. Capture everything you discover — all in one place.
-          </p>
-
-          {/* CTA */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 72 }}>
-            <div style={{ transform: 'scale(1.1)' }}>
-              <NeynarSignIn />
-            </div>
-            <span style={{ fontSize: 13, color: '#52525b' }}>Sign in with your Farcaster account · Free</span>
-          </div>
-
-          {/* Three pillars */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-            gap: 16,
-            width: '100%',
-          }}>
-            {PILLARS.map((p) => (
-              <div
-                key={p.title}
-                style={{
-                  padding: '24px 22px',
-                  borderRadius: 16,
-                  background: p.bg,
-                  border: `1px solid ${p.border}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12,
-                }}
-              >
-                {/* Icon + badge */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <div style={{ color: p.color }}>{p.icon}</div>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
-                    background: `${p.color}18`, color: p.color, letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                  }}>
-                    {p.badge}
-                  </span>
-                </div>
-                <div>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: '#f4f4f5', margin: '0 0 8px' }}>{p.title}</h3>
-                  <p style={{ fontSize: 14, color: '#71717a', margin: 0, lineHeight: 1.65 }}>{p.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
-
-        <footer style={{ textAlign: 'center', padding: '24px', fontSize: 12, color: '#3f3f46', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-          HomieHouse · Built on Farcaster · Own your knowledge
-        </footer>
-      </div>
-    );
-  }
-
-  // Authenticated user experience
   return (
-    <div className="min-h-screen" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
-      <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-3">
-          <div className="flex-shrink-0 flex items-center gap-2">
-            <HHLogo size={36} />
-            <p className="text-xs text-zinc-500 hidden lg:block">Social Knowledge Hub</p>
-          </div>
-          {/* Search — only on large screens where there's room */}
-          <div className="hidden lg:block flex-1 max-w-xs">
-            <input
-              id="header-search-input"
-              placeholder="Search people..."
-              className="w-full px-3 py-2 rounded-lg bg-transparent text-inherit text-sm"
-              style={{ border: '1px solid var(--border)' }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const v = (e.target as HTMLInputElement).value.trim();
-                  if (v) window.location.href = `/search?q=${encodeURIComponent(v)}`;
-                }
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <Link href="/search" className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center hover:border-zinc-500 transition-colors" title="Search">
-              <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </Link>
-<NeynarSignIn />
-          </div>
+    <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
+
+      {/* Nav bar */}
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <HHLogo size={32} />
+          <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em' }}>HomieHouse</span>
         </div>
+        <NeynarSignIn />
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24">
-        <div className="flex gap-6 items-start">
+      {/* Hero */}
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 20px 80px', maxWidth: 960, margin: '0 auto', width: '100%' }}>
 
-          {/* Desktop sidebar — hidden below lg */}
-          <aside
-            className="hidden lg:block shrink-0"
-            style={{ width: 220, position: 'sticky', top: 72, maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', scrollbarWidth: 'none' }}
-          >
-            <SidebarNav />
-          </aside>
+        {/* Badge */}
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '5px 14px', borderRadius: 20, marginBottom: 28,
+          background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)',
+          fontSize: 13, fontWeight: 600, color: '#6ee7b7',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} />
+          Learn Web3 your way
+        </div>
 
-          {/* Feed */}
-          <div className="flex-1 min-w-0">
-            <LearningHeroCard />
-            <div className="flex items-center mb-3">
-              <h3 className="text-lg font-semibold">Explore</h3>
-            </div>
-            <FeedTrendingTabs />
+        {/* Headline */}
+        <h1 style={{
+          fontSize: 'clamp(36px, 7vw, 64px)',
+          fontWeight: 800,
+          textAlign: 'center',
+          lineHeight: 1.15,
+          letterSpacing: '-0.03em',
+          margin: '0 0 20px',
+          background: 'linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}>
+          Learn Web3.<br />Build in Public.
+        </h1>
+
+        <p style={{
+          fontSize: 'clamp(16px, 2.5vw, 20px)',
+          color: '#71717a',
+          textAlign: 'center',
+          maxWidth: 560,
+          lineHeight: 1.65,
+          margin: '0 0 40px',
+        }}>
+          A personalized learning platform for Web3 and DeFi — with an AI tutor, knowledge notes, and a Farcaster community to learn alongside.
+        </p>
+
+        {/* CTA */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 72 }}>
+          <div style={{ transform: 'scale(1.1)' }}>
+            <NeynarSignIn />
           </div>
+          <span style={{ fontSize: 13, color: '#52525b' }}>Sign in with your Farcaster account · Free</span>
+        </div>
 
+        {/* Three pillars */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: 16,
+          width: '100%',
+        }}>
+          {PILLARS.map((p) => (
+            <div
+              key={p.title}
+              style={{
+                padding: '24px 22px',
+                borderRadius: 16,
+                background: p.bg,
+                border: `1px solid ${p.border}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div style={{ color: p.color }}>{p.icon}</div>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                  background: `${p.color}18`, color: p.color, letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                }}>
+                  {p.badge}
+                </span>
+              </div>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#f4f4f5', margin: '0 0 8px' }}>{p.title}</h3>
+                <p style={{ fontSize: 14, color: '#71717a', margin: 0, lineHeight: 1.65 }}>{p.desc}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </main>
 
+      <footer style={{ textAlign: 'center', padding: '24px', fontSize: 12, color: '#3f3f46', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+        HomieHouse · Learn Web3 · Built on Farcaster
+      </footer>
     </div>
   );
 }

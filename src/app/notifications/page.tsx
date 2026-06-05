@@ -137,7 +137,7 @@ export default function NotificationsPage() {
               >
                 🔄 Refresh
               </button>
-              <Link href="/" style={{ color: 'var(--muted-on-dark)', fontSize: 14, textDecoration: 'none' }}>
+              <Link href="/feed" style={{ color: 'var(--muted-on-dark)', fontSize: 14, textDecoration: 'none' }}>
                 ← Back
               </Link>
             </div>

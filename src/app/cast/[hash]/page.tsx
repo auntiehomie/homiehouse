@@ -59,7 +59,7 @@ export default function CastDetailPage() {
           <div className="text-4xl mb-4">😔</div>
           <div className="text-xl font-bold mb-2">Cast Not Found</div>
           <div className="text-gray-400 dark:text-gray-500 mb-6">{error || 'Unable to load this cast'}</div>
-          <Link href="/" className="text-zinc-400 hover:text-white">
+          <Link href="/feed" className="text-zinc-400 hover:text-white">
             ← Back to Home
           </Link>
         </div>
@@ -98,7 +98,7 @@ export default function CastDetailPage() {
       <div className="max-w-2xl mx-auto px-6 py-8">
         {/* Back Button */}
         <Link 
-          href="/" 
+          href="/feed" 
           className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 mb-6 transition-colors"
         >
           ← Back
