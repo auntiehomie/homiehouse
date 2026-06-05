@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
+import FeedTrendingTabs from '@/components/FeedTrendingTabs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ interface LearningPlan {
 type PageState = 'quiz' | 'generating' | 'plan';
 type Track = 'learner' | 'creator' | 'financial' | 'all';
 type Level = 'beginner' | 'intermediate' | 'advanced';
-type LearnTab = 'plan' | 'homie';
+type LearnTab = 'plan' | 'homie' | 'feed';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
@@ -601,6 +602,7 @@ function LearnPageContent() {
           {([
             { id: 'plan' as LearnTab, label: 'My Plan', icon: '📚' },
             { id: 'homie' as LearnTab, label: 'Ask Homie', icon: '🤖' },
+            { id: 'feed' as LearnTab, label: 'Feed', icon: '📰' },
           ]).map((tab) => (
             <button
               key={tab.id}
@@ -626,6 +628,8 @@ function LearnPageContent() {
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
           {activeTab === 'homie'
             ? <HomieReadPanel currentPlan={plan} />
+            : activeTab === 'feed'
+            ? <FeedTrendingTabs />
             : children
           }
         </main>
