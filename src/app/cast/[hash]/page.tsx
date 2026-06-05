@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import SmartEmbed from "@/components/SmartEmbed";
 
 export default function CastDetailPage() {
@@ -13,10 +12,6 @@ export default function CastDetailPage() {
   const [cast, setCast] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<{ hash: string; fid: number; name: string } | null>(null);
-  const [replyText, setReplyText] = useState('');
-  const [replying, setReplying] = useState(false);
-  const { reply } = useFarcasterWrites();
 
   const fetchCastDetail = useCallback(async () => {
     if (!hash) return;
@@ -93,23 +88,9 @@ export default function CastDetailPage() {
   const replies = cast.replies?.casts || cast.direct_replies || [];
 
   const handleReply = (parentHash: string, parentFid: number, parentName: string) => {
-    setReplyingTo({ hash: parentHash, fid: parentFid, name: parentName });
-    setReplyText('');
-  };
-
-  const submitReply = async () => {
-    if (!replyText.trim() || !replyingTo) return;
-    setReplying(true);
-    try {
-      await reply({ text: replyText.trim(), parentCastHash: replyingTo.hash, parentCastFid: replyingTo.fid });
-      setReplyingTo(null);
-      setReplyText('');
-      await fetchCastDetail();
-    } catch (e) {
-      console.error('Reply failed:', e);
-    } finally {
-      setReplying(false);
-    }
+    window.dispatchEvent(new CustomEvent('openComposeModal', {
+      detail: { parentCastHash: parentHash, parentCastFid: parentFid, replyingToName: parentName },
+    }));
   };
 
   return (
@@ -191,34 +172,6 @@ export default function CastDetailPage() {
           </div>
         </div>
 
-        {/* Inline reply composer */}
-        {replyingTo && (
-          <div className="mb-6 p-4 bg-zinc-900 border border-zinc-700 rounded-xl">
-            <div className="text-xs text-zinc-500 mb-2">Replying to {replyingTo.name}</div>
-            <textarea
-              value={replyText}
-              onChange={e => setReplyText(e.target.value)}
-              placeholder="Write your reply..."
-              rows={3}
-              className="w-full bg-zinc-800 text-zinc-100 text-sm rounded-lg p-3 resize-none border border-zinc-700 focus:outline-none focus:border-zinc-500"
-            />
-            <div className="flex justify-end gap-2 mt-2">
-              <button
-                onClick={() => setReplyingTo(null)}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitReply}
-                disabled={replying || !replyText.trim()}
-                className="px-4 py-1.5 text-xs bg-zinc-100 text-black rounded-full font-medium disabled:opacity-40 hover:bg-white transition-colors"
-              >
-                {replying ? 'Posting…' : 'Post'}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Replies Section */}
         {replies.length > 0 && (

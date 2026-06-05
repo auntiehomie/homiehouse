@@ -6,12 +6,15 @@ import { usePrivy } from "@privy-io/react-auth";
 
 export default function ComposeModal() {
   const { user } = usePrivy();
-  const { hasActiveSigner, requestSigner, submitCast } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [replyParentHash, setReplyParentHash] = useState<string | null>(null);
+  const [replyParentFid, setReplyParentFid] = useState<number | null>(null);
+  const [replyParentName, setReplyParentName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [mentionSearch, setMentionSearch] = useState('');
@@ -38,10 +41,11 @@ export default function ComposeModal() {
   // Listen for custom event to open compose with pre-filled text
   useEffect(() => {
     const handleOpenCompose = (e: CustomEvent) => {
-      const { text: prefilledText } = e.detail;
-      if (prefilledText) {
-        setText(prefilledText);
-      }
+      const { text: prefilledText, parentCastHash, parentCastFid, replyingToName } = e.detail || {};
+      if (prefilledText) setText(prefilledText);
+      setReplyParentHash(parentCastHash ?? null);
+      setReplyParentFid(parentCastFid ?? null);
+      setReplyParentName(replyingToName ?? null);
       setOpen(true);
     };
 
@@ -355,19 +359,30 @@ export default function ComposeModal() {
         }
             } else {
         // Post immediately
-        // Submit directly via Privy signer → Hypersnap (no server round-trip)
-        await submitCast({
-          text: body.text,
-          embeds: body.embeds,
-          channelKey: body.channelKey,
-          parentUrl: body.parentUrl,
-        });
+        if (replyParentHash && replyParentFid) {
+          await reply({
+            text: body.text,
+            parentCastHash: replyParentHash,
+            parentCastFid: replyParentFid,
+            embeds: body.embeds,
+          });
+        } else {
+          await submitCast({
+            text: body.text,
+            embeds: body.embeds,
+            channelKey: body.channelKey,
+            parentUrl: body.parentUrl,
+          });
+        }
         setStatus("✓ Posted successfully!");
         setText("");
         setImageUrl("");
         setUploadedImage(null);
         setUrlPreview(null);
         setDetectedUrl(null);
+        setReplyParentHash(null);
+        setReplyParentFid(null);
+        setReplyParentName(null);
         setTimeout(() => {
           setOpen(false);
           setStatus(null);
@@ -399,11 +414,16 @@ export default function ComposeModal() {
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>New Cast</h3>
+              <h3>{replyParentName ? `Reply to ${replyParentName}` : 'New Cast'}</h3>
               <div>
-                <button className="btn" onClick={() => setOpen(false)} aria-label="Close">Close</button>
+                <button className="btn" onClick={() => { setOpen(false); setReplyParentHash(null); setReplyParentFid(null); setReplyParentName(null); }} aria-label="Close">Close</button>
               </div>
             </div>
+            {replyParentName && (
+              <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 8, padding: '4px 0' }}>
+                Replying to <strong>{replyParentName}</strong>
+              </div>
+            )}
 
             {
               /* Normal compose interface */
