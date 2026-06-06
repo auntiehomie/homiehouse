@@ -34,6 +34,10 @@ export default function ComposeModal() {
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const [isLongForm, setIsLongForm] = useState(false);
+
+  const CAST_LIMIT = 320;
+  const LONG_FORM_LIMIT = 10000;
 
   // Legacy stub — no longer needed, writes go direct via useFarcasterWrites
   const getStoredSignerUuid = (): string | undefined => undefined;
@@ -265,8 +269,11 @@ export default function ComposeModal() {
 
       console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
 
+      // In long-form mode only the first 320 chars go to the Farcaster timeline
+      const castText = isLongForm ? text.slice(0, CAST_LIMIT) : text;
+
       // Prepare cast data (for scheduled path)
-      const body: any = { text, fid: userFid };
+      const body: any = { text: castText, fid: userFid };
 
       // Build embeds array
       const embeds: any[] = [];
@@ -383,6 +390,7 @@ export default function ComposeModal() {
         setReplyParentHash(null);
         setReplyParentFid(null);
         setReplyParentName(null);
+        setIsLongForm(false);
         setTimeout(() => {
           setOpen(false);
           setStatus(null);
@@ -428,15 +436,73 @@ export default function ComposeModal() {
             {
               /* Normal compose interface */
               <>
-                <div style={{ marginTop: 16, position: 'relative' }}>
+                {/* Long-form toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                  <button
+                    onClick={() => setIsLongForm(v => !v)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                      background: isLongForm ? 'rgba(99,102,241,0.15)' : 'var(--surface)',
+                      border: `1px solid ${isLongForm ? 'rgba(99,102,241,0.5)' : 'var(--border)'}`,
+                      color: isLongForm ? '#a5b4fc' : 'var(--muted-on-dark)',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    ✨ Pro · Long Form
+                  </button>
+                  {isLongForm && (
+                    <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
+                      First 320 chars appear in timeline
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ marginTop: 12, position: 'relative' }}>
                   <textarea
                     className="compose-textarea"
                     value={text}
-                    onChange={handleTextChange}
-                    placeholder="Write a cast..."
+                    onChange={e => {
+                      if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT)) {
+                        handleTextChange(e);
+                      }
+                    }}
+                    placeholder={isLongForm ? 'Write your long-form cast… (first 320 chars appear in timeline)' : 'Write a cast…'}
                     autoFocus
+                    style={{ minHeight: isLongForm ? 180 : undefined }}
                   />
                   
+                  {/* Character counter */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    {isLongForm && text.length > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
+                        Timeline preview: {Math.min(text.length, CAST_LIMIT)}/{CAST_LIMIT}
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: 12, fontWeight: 600,
+                      color: text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40)
+                        ? text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : '#f59e0b'
+                        : 'var(--muted-on-dark)',
+                    }}>
+                      {text.length}/{isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT}
+                    </span>
+                  </div>
+
+                  {/* 320-char cutoff marker in long-form mode */}
+                  {isLongForm && text.length > CAST_LIMIT && (
+                    <div style={{
+                      marginTop: 8, padding: '6px 10px', borderRadius: 8,
+                      background: 'rgba(99,102,241,0.08)', border: '1px dashed rgba(99,102,241,0.3)',
+                      fontSize: 12, color: '#a5b4fc',
+                    }}>
+                      <strong>Timeline preview</strong> (first 320 chars):{' '}
+                      <span style={{ color: 'var(--muted-on-dark)' }}>
+                        {text.slice(0, CAST_LIMIT)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Mention autocomplete dropdown */}
                   {showMentions && mentionResults.length > 0 && (
                     <div style={{
@@ -824,6 +890,7 @@ export default function ComposeModal() {
                     setUploadedImage(null);
                     setScheduleTime('');
                     setIsScheduled(false);
+                    setIsLongForm(false);
                   }}>Cancel</button>
                   <button
                     className="btn primary"
