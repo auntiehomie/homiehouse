@@ -3,12 +3,16 @@ import { publishReaction, deleteReaction } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
+import { verifyPrivyAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-recast');
   logger.start();
 
   try {
+    // Verify auth token
+    const claims = await verifyPrivyAuth(request);
+    
     const body = await request.json();
     const { castHash, fid, targetCastFid, signerPrivateKey } = body;
 

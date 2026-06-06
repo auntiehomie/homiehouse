@@ -3,12 +3,16 @@ import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash } from '@/lib/validation';
+import { verifyPrivyAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-reply');
   logger.start();
 
   try {
+    // Verify auth token
+    const claims = await verifyPrivyAuth(request);
+    
     const body = await request.json();
     const { text, parentHash, parentCastHash, fid, parentCastFid, signerPrivateKey } = body;
 

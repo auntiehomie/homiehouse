@@ -5,6 +5,45 @@
 import { NextRequest } from 'next/server';
 import { AuthError } from './errors';
 
+// Lazy Privy client — only initialized when first used
+let _privyClient: any = null;
+
+function getPrivyClient() {
+  if (!_privyClient) {
+    const { PrivyClient } = require('@privy-io/server-auth');
+    const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    const appSecret = process.env.PRIVY_APP_SECRET;
+    if (!appId || !appSecret) {
+      throw new AuthError('Privy credentials not configured', 500, 'MISSING_PRIVY_CONFIG');
+    }
+    _privyClient = new PrivyClient(appId, appSecret);
+  }
+  return _privyClient;
+}
+
+/**
+ * Verify a Privy auth token from the Authorization header.
+ * Returns the verified claims (userId, linked accounts, etc.)
+ * Throws AuthError if token is missing or invalid.
+ */
+export async function verifyPrivyAuth(request: NextRequest): Promise<any> {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new AuthError('Missing or invalid authorization header', 401, 'MISSING_AUTH_HEADER');
+  }
+  const token = authHeader.substring(7);
+  if (!token) {
+    throw new AuthError('Token is required', 401, 'MISSING_TOKEN');
+  }
+  try {
+    const client = getPrivyClient();
+    const claims = await client.verifyAuthToken(token);
+    return claims;
+  } catch (err: any) {
+    throw new AuthError(err?.message || 'Invalid or expired token', 401, 'INVALID_TOKEN');
+  }
+}
+
 // ── Bearer token auth ────────────────────────────────────────────────────────
 
 /**
