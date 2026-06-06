@@ -7,6 +7,7 @@ import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
+import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 
 function getBotOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -16,10 +17,6 @@ function getBotAnthropic() {
 }
 
 const BOT_FID = parseInt(process.env.APP_FID || '1349780');;
-
-// ⚠️ WARNING: In-memory storage only works within same serverless instance
-// For production with database, replace with database calls
-// See: /server/src/db.ts for BotReplyService implementation
 
 // Simple, casual bot personality - no fancy words
 const BOT_PERSONALITY = `You are a chill friend on Farcaster. Reply naturally and casually. Keep it SHORT - max 280 characters. No hashtags unless the user uses them first.
@@ -313,26 +310,8 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
   }
 }
 
-// In-memory cache to track recently replied casts (per serverless instance)
-// This helps prevent duplicate replies within the same instance lifetime
-const repliedCastsCache = new Map<string, number>();
-
-// Clean up old entries from cache (older than 24 hours)
-function cleanupCache() {
-  const now = Date.now();
-  const oneDayAgo = now - 24 * 60 * 60 * 1000;
-  
-  for (const [hash, timestamp] of repliedCastsCache.entries()) {
-    if (timestamp < oneDayAgo) {
-      repliedCastsCache.delete(hash);
-    }
-  }
-}
-
-// TODO: Replace with database storage for production
-// Example: import { BotReplyService } from '@/server/src/db';
-// Then use: await BotReplyService.hasRepliedTo(castHash)
-//           await BotReplyService.recordReply(castHash, replyHash, 'mention', replyText)
+// Database-backed reply tracking via bot_replies table (Neon DB)
+// Replaces previous in-memory-only cache which lost state on cold starts
 
 export async function GET(request: NextRequest) {
   const logger = createApiLogger('/bot/check');
@@ -342,9 +321,8 @@ export async function GET(request: NextRequest) {
     verifyCronSecret(request, process.env.CRON_SECRET);
     
     logger.start();
-    cleanupCache();
-    
-    logger.info(`In-memory cache has ${repliedCastsCache.size} entries`);
+    logger.info('Using DB-backed reply tracking (bot_replies table)')
+
     
     let repliedCount = 0;
 
@@ -387,17 +365,10 @@ export async function GET(request: NextRequest) {
       
       console.log(`Processing: cast=${castHash}, parent=${parentHash}, root=${rootParentHash}`);
 
-      // Check if we've already replied to ANY of these keys (only in-memory cache)
-      let alreadyReplied = false;
-      for (const key of trackingKeys) {
-        if (repliedCastsCache.has(key)) {
-          logger.info(`Already replied to ${key}, skipping entire thread`);
-          alreadyReplied = true;
-          break;
-        }
-      }
-      
-      if (alreadyReplied) {
+      // Check if we've already replied to ANY of these keys (DB-backed)
+      const alreadyRepliedKey = await hasRepliedToAny(trackingKeys);
+      if (alreadyRepliedKey) {
+        logger.info(`Already replied to ${alreadyRepliedKey}, skipping entire thread`);
         continue;
       }
 
@@ -424,10 +395,11 @@ export async function GET(request: NextRequest) {
         );
 
         if (botAlreadyReplied) {
-          logger.info(`Already replied to parent ${parentHash}, caching all tracking keys and skipping`);
-          // Cache ALL tracking keys to prevent any future duplicates in this instance
-          trackingKeys.forEach(key => {
-            repliedCastsCache.set(key, Date.now());
+          logger.info(`Already replied to parent ${parentHash}, recording in DB and skipping`);
+          await recordReplyBatch({
+            trackingKeys,
+            replyHash: 'already-replied',
+            commandType: 'mention',
           });
           continue;
         }
@@ -437,8 +409,10 @@ export async function GET(request: NextRequest) {
         logger.error(`Error checking replies for parent ${parentHash}`, error);
         // If we can't check reliably, assume we've replied to be safe
         logger.warn('Skipping cast due to check error (being conservative)');
-        trackingKeys.forEach(key => {
-          repliedCastsCache.set(key, Date.now());
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: 'check-error',
+          commandType: 'mention',
         });
         continue;
       }
@@ -465,17 +439,22 @@ export async function GET(request: NextRequest) {
 
         logger.success(`Posted reply to ${castHash}`, { reply });
         
-        // Cache ALL tracking keys after successful reply to prevent duplicates
-        trackingKeys.forEach(key => {
-          repliedCastsCache.set(key, Date.now());
+        // Record in DB after successful reply to prevent duplicates across instances
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: castHash, // will be replaced with actual reply hash if available
+          commandType: 'mention',
+          replyText: reply,
         });
         repliedCount++;
 
       } catch (error) {
         logger.error(`Error replying to parent ${parentHash}`, error);
         // Even on error, mark as attempted to avoid retry loops
-        trackingKeys.forEach(key => {
-          repliedCastsCache.set(key, Date.now());
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: 'error-no-reply',
+          commandType: 'mention',
         });
       }
     }
