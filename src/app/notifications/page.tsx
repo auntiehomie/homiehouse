@@ -284,7 +284,7 @@ export default function NotificationsPage() {
                           {actor?.username && (
                             <Link
                               href={`/profile?user=${actor.username}`}
-                              style={{ fontSize: 12, color: 'var(--muted-on-dark)', textDecoration: 'none' }}
+                              style={{ fontSize: 12, color: 'var(--muted-on-dark)', textDecoration: 'none', marginLeft: 'auto' }}
                             >
                               View Profile
                             </Link>
