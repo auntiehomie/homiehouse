@@ -487,6 +487,29 @@ function ModuleLessonContent() {
         </>
       ) : null}
 
+      {/* Ask your network */}
+      {mod && (
+        <div style={{ marginTop: 24 }}>
+          <button
+            onClick={() => {
+              const text = `Learning about "${mod.title}" on HomieHouse 🧠\n\nAnyone have good resources or insights on this topic? Drop them below 👇\n\nhomiehouse.lol`;
+              window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text } }));
+            }}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 12,
+              background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)',
+              color: '#a5b4fc', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+            </svg>
+            Ask your Farcaster network about this topic
+          </button>
+        </div>
+      )}
+
       {/* Completion */}
       <div style={{ marginTop: 28 }}>
         {justCompleted ? (

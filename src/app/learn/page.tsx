@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
-import FeedTrendingTabs from '@/components/FeedTrendingTabs';
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,99 @@ type LearnTab = 'plan' | 'homie' | 'feed';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
+
+// ─── Learning Community Feed ──────────────────────────────────────────────────
+
+const LEARNING_CHANNELS = [
+  { id: '', label: 'All' },
+  { id: 'defi', label: 'DeFi' },
+  { id: 'web3', label: 'Web3' },
+  { id: 'base', label: 'Base' },
+  { id: 'dao', label: 'DAOs' },
+  { id: 'nft', label: 'NFTs' },
+];
+
+function LearningFeed() {
+  const [channel, setChannel] = useState('');
+  const [casts, setCasts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    setCasts([]);
+    const url = channel ? `/api/feed?channel=${channel}&limit=20` : `/api/feed?limit=20`;
+    fetch(url)
+      .then(r => r.json())
+      .then(d => { setCasts(d.data || d.casts || []); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [channel]);
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      {/* Channel pills */}
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none' }}>
+        {LEARNING_CHANNELS.map(ch => (
+          <button
+            key={ch.id}
+            onClick={() => setChannel(ch.id)}
+            style={{
+              flexShrink: 0, padding: '5px 14px', borderRadius: 20, fontSize: 13,
+              fontWeight: channel === ch.id ? 700 : 400,
+              background: channel === ch.id ? 'var(--accent)' : 'transparent',
+              color: channel === ch.id ? '#fff' : 'var(--muted-on-dark)',
+              border: `1px solid ${channel === ch.id ? 'var(--accent)' : 'var(--border)'}`,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {ch.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>Loading…</div>
+      )}
+      {!loading && casts.length === 0 && (
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>No posts found</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {casts.map((cast: any) => {
+          const author = cast.author;
+          return (
+            <a
+              key={cast.hash}
+              href={`/cast/${cast.hash}`}
+              style={{
+                display: 'block', padding: '14px', borderRadius: 12,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                textDecoration: 'none', color: 'inherit',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                {author?.pfp_url && (
+                  <img src={author.pfp_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                )}
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, margin: 0, color: 'var(--text-on-dark)' }}>{author?.display_name || author?.username}</p>
+                  <p style={{ fontSize: 11, color: 'var(--muted-on-dark)', margin: 0 }}>@{author?.username}</p>
+                </div>
+              </div>
+              <p style={{ fontSize: 14, margin: 0, lineHeight: 1.55, color: 'var(--text-on-dark)', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {cast.text}
+              </p>
+              <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted-on-dark)' }}>
+                <span>❤️ {cast.reactions?.likes_count ?? 0}</span>
+                <span>💬 {cast.replies?.count ?? 0}</span>
+                <span>🔁 {cast.reactions?.recasts_count ?? 0}</span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -500,6 +593,7 @@ function LearnPageContent() {
   const [plan, setPlan] = useState<LearningPlan | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [learnerCount, setLearnerCount] = useState(0);
 
   // Deep-link pre-selection
   useEffect(() => {
@@ -526,6 +620,10 @@ function LearnPageContent() {
   useEffect(() => {
     if (plan) { try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...completedIds])); } catch { } }
   }, [completedIds, plan]);
+
+  useEffect(() => {
+    fetch('/api/learner-count').then(r => r.json()).then(d => setLearnerCount(d.count || 0)).catch(() => {});
+  }, []);
 
   const toggleModule = useCallback((id: string) => {
     setCompletedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -629,7 +727,7 @@ function LearnPageContent() {
           {activeTab === 'homie'
             ? <HomieReadPanel currentPlan={plan} />
             : activeTab === 'feed'
-            ? <FeedTrendingTabs />
+            ? <LearningFeed />
             : children
           }
         </main>
@@ -684,6 +782,11 @@ function LearnPageContent() {
           <div style={{ height: 8, background: 'var(--bg-dark)', borderRadius: 4, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 4, transition: 'width 0.4s ease' }} />
           </div>
+          {learnerCount > 0 && (
+            <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 10, textAlign: 'right' }}>
+              🧑‍🎓 {learnerCount} people learning with HomieHouse
+            </p>
+          )}
           {pct === 100 && (
             <p style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginTop: 8, marginBottom: 0 }}>
               🎉 Plan complete! You're a decentralization expert.
@@ -747,7 +850,7 @@ function LearnPageContent() {
           <GradCapIcon size={36} />
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', color: 'var(--text-on-dark)' }}>
-          Decentralization Learning Hub
+          The Learning Hub
         </h1>
         <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
           Get a personalized path into Web3 — tailored to your goals and level.
