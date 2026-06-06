@@ -6,6 +6,46 @@ export function openMiniApp(url: string, title?: string) {
   window.dispatchEvent(new CustomEvent("hh:open-miniapp", { detail: { url, title } }));
 }
 
+function getProfile() {
+  try { return JSON.parse(localStorage.getItem('hh_profile') || '{}'); } catch { return {}; }
+}
+
+function buildContext(profile: any) {
+  return {
+    user: {
+      fid: profile.fid || 0,
+      username: profile.username || '',
+      displayName: profile.display_name || profile.username || '',
+      pfpUrl: profile.pfp_url || '',
+    },
+    location: { type: 'cast_embed' },
+    client: { clientFid: 0, added: false },
+  };
+}
+
+// Send context in every known SDK format variant.
+// req is the incoming message we're responding to (used to echo id/requestId).
+function sendContext(target: Window, context: any, req?: any) {
+  const id = req?.id ?? req?.requestId;
+
+  // Type-based (older SDK versions)
+  target.postMessage({ type: 'frameContext', data: context }, '*');
+  target.postMessage({ type: 'context', data: context }, '*');
+  target.postMessage({ type: 'setContext', context }, '*');
+  target.postMessage({ type: 'contextResponse', context }, '*');
+
+  // fc-frame / fc-mini-app protocol
+  target.postMessage({ type: 'fc-frame', action: 'setContext', context }, '*');
+  target.postMessage({ type: 'fc-mini-app', action: 'setContext', context }, '*');
+
+  // JSON-RPC style (current @farcaster/frame-sdk): echo back the id
+  if (id !== undefined) {
+    target.postMessage({ id, result: context }, '*');
+    target.postMessage({ id, result: { context } }, '*');
+    target.postMessage({ requestId: id, type: 'contextResponse', context }, '*');
+  }
+}
+
 export default function MiniAppViewer() {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
@@ -26,46 +66,34 @@ export default function MiniAppViewer() {
   }, []);
 
   // Farcaster Mini-app SDK host protocol.
-  // When the iframe sends any "ready" event, respond with the user's Farcaster
-  // context so the mini-app knows it's inside a compatible client and doesn't
-  // redirect to farcaster.xyz for sign-up.
+  // Handles both old type/action format and current JSON-RPC method/id format.
   useEffect(() => {
     if (!open) return;
 
     const handleFrameMessage = (e: MessageEvent) => {
       const iframe = iframeRef.current;
       if (!iframe?.contentWindow) return;
-
-      let profile: any = {};
-      try { profile = JSON.parse(localStorage.getItem('hh_profile') || '{}'); } catch {}
+      // Only handle messages originating from our iframe
+      if (!e.source || e.source !== iframe.contentWindow) return;
 
       const msg = e.data;
       if (!msg || typeof msg !== 'object') return;
 
+      const context = buildContext(getProfile());
+
+      // Detect ready / context-request in all known formats
       const isReady =
         msg.type === 'frameReady' ||
         msg.type === 'ready' ||
         msg.type === 'frame:ready' ||
-        (msg.type === 'fc-frame' && msg.action === 'ready') ||
-        (msg.type === 'fc-mini-app' && msg.action === 'ready');
+        msg.method === 'ready' ||
+        msg.method === 'fc_ready' ||
+        msg.method === 'getContext' ||
+        msg.method === 'fc_getContext' ||
+        (msg.type === 'fc-frame' && (msg.action === 'ready' || msg.action === 'getContext')) ||
+        (msg.type === 'fc-mini-app' && (msg.action === 'ready' || msg.action === 'getContext'));
 
-      if (isReady) {
-        const context = {
-          user: {
-            fid: profile.fid || 0,
-            username: profile.username || '',
-            displayName: profile.display_name || profile.username || '',
-            pfpUrl: profile.pfp_url || '',
-          },
-          location: { type: 'cast_embed' },
-          client: { clientFid: 0, added: false },
-        };
-        // Respond in multiple formats to cover different SDK versions
-        iframe.contentWindow.postMessage({ type: 'frameContext', data: context }, '*');
-        iframe.contentWindow.postMessage({ type: 'context', data: context }, '*');
-        iframe.contentWindow.postMessage({ type: 'fc-frame', action: 'setContext', context }, '*');
-        iframe.contentWindow.postMessage({ type: 'fc-mini-app', action: 'setContext', context }, '*');
-      }
+      if (isReady) sendContext(iframe.contentWindow, context, msg);
 
       const isClose =
         msg.type === 'frameClose' ||
@@ -96,6 +124,14 @@ export default function MiniAppViewer() {
 
   let hostname = url;
   try { hostname = new URL(url).hostname; } catch {}
+
+  const handleIframeLoad = () => {
+    setLoading(false);
+    // Proactively push context before the mini-app even sends 'ready',
+    // covering SDKs that resolve context from the first available message.
+    const target = iframeRef.current?.contentWindow;
+    if (target) sendContext(target, buildContext(getProfile()));
+  };
 
   return (
     <div
@@ -191,7 +227,7 @@ export default function MiniAppViewer() {
       <iframe
         ref={iframeRef}
         src={url}
-        onLoad={() => setLoading(false)}
+        onLoad={handleIframeLoad}
         style={{ flex: 1, border: "none", width: "100%", background: "#fff" }}
         allow="camera; microphone; clipboard-write; payment"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
