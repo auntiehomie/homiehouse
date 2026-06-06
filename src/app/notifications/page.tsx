@@ -264,7 +264,7 @@ export default function NotificationsPage() {
                           <Link
                             href={`/cast/${notification.cast.hash}`}
                             style={{
-                              display: 'block', marginTop: 8, padding: '8px 10px',
+                              display: 'block', marginTop: 8, marginLeft: '-60px', padding: '8px 10px',
                               background: 'var(--bg-dark)', borderRadius: 8,
                               border: '1px solid var(--border)',
                               fontSize: 13, color: 'var(--muted-on-dark)',
