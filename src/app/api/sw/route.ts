@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 
-// Evaluated once at cold start — changes on every fresh Vercel deployment,
-// so the browser byte-diff check detects a new SW and triggers the update banner.
-const DEPLOY_TIME = Date.now();
+// VERCEL_GIT_COMMIT_SHA is identical across all instances of the same deployment,
+// so every function instance returns byte-for-byte identical SW content.
+// This prevents the false-update loop caused by Date.now() differing per instance.
+// Changes between commits → browser detects a real new SW → shows the update banner once.
+const DEPLOY_ID = process.env.VERCEL_GIT_COMMIT_SHA || 'dev';
 
 const SW_CONTENT = `
-// HomieHouse SW — build ${DEPLOY_TIME}
+// HomieHouse SW — ${DEPLOY_ID}
 self.addEventListener('install', () => {
   // intentionally no skipWaiting — UpdateBanner controls when to apply
 });
