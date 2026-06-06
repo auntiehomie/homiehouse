@@ -44,6 +44,55 @@ export async function verifyPrivyAuth(request: NextRequest): Promise<any> {
   }
 }
 
+/**
+ * Verify that a Farcaster signer (private key or UUID) belongs to the
+ * authenticated user by checking the linked Farcaster account in their
+ * Privy claims.
+ *
+ * This prevents users from using another user's signer to post casts.
+ *
+ * @param claims - Verified Privy auth claims
+ * @param expectedFid - The FID the signer should belong to (optional)
+ * @returns The user's Farcaster FID
+ * @throws AuthError if signer doesn't match the user's linked Farcaster account
+ */
+export function verifyFarcasterSigner(
+  claims: any,
+  expectedFid?: number
+): number {
+  const linkedAccounts = claims?.linkedAccounts ?? [];
+  const farcasterAccount = linkedAccounts.find(
+    (a: any) => a.type === 'farcaster' || a.provider === 'farcaster'
+  );
+
+  if (!farcasterAccount) {
+    throw new AuthError(
+      'No Farcaster account linked to this user',
+      403,
+      'NO_FARCASTER_ACCOUNT'
+    );
+  }
+
+  const fid = farcasterAccount.fid ?? farcasterAccount.subject;
+  if (!fid) {
+    throw new AuthError(
+      'Could not determine Farcaster FID from linked account',
+      403,
+      'MISSING_FID'
+    );
+  }
+
+  if (expectedFid !== undefined && Number(fid) !== Number(expectedFid)) {
+    throw new AuthError(
+      'Signer FID does not match authenticated user',
+      403,
+      'FID_MISMATCH'
+    );
+  }
+
+  return Number(fid);
+}
+
 // ── Bearer token auth ────────────────────────────────────────────────────────
 
 /**
