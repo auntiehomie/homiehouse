@@ -50,17 +50,35 @@ function LearningFeed() {
   const [channel, setChannel] = useState('');
   const [casts, setCasts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     setLoading(true);
     setCasts([]);
-    const url = channel ? `/api/feed?channel=${channel}&limit=20` : `/api/feed?limit=20`;
-    fetch(url)
+    setError(false);
+
+    let fid: string | undefined;
+    try {
+      const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
+      if (p?.fid) fid = String(p.fid);
+    } catch {}
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    const url = channel
+      ? `/api/feed?channel=${channel}&limit=20${fid ? `&fid=${fid}` : ''}`
+      : `/api/feed?limit=20${fid ? `&fid=${fid}` : ''}`;
+
+    fetch(url, { signal: controller.signal })
       .then(r => r.json())
       .then(d => { setCasts(d.data || d.casts || []); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [channel]);
+      .catch(() => { setError(true); })
+      .finally(() => { clearTimeout(timer); setLoading(false); });
+
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [channel, retryCount]);
 
   return (
     <div style={{ padding: '12px 16px' }}>
@@ -87,7 +105,18 @@ function LearningFeed() {
       {loading && (
         <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>Loading…</div>
       )}
-      {!loading && casts.length === 0 && (
+      {!loading && error && (
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>
+          <p style={{ marginBottom: 12 }}>Couldn't load feed</p>
+          <button
+            onClick={() => setRetryCount(n => n + 1)}
+            style={{ padding: '8px 18px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-on-dark)', cursor: 'pointer', fontSize: 13 }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {!loading && !error && casts.length === 0 && (
         <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>No posts found</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
