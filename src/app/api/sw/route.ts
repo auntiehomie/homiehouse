@@ -1,14 +1,19 @@
-// On install: do NOT skip waiting — let UpdateBanner control when to apply
+import { NextResponse } from 'next/server';
+
+// Evaluated once at cold start — changes on every fresh Vercel deployment,
+// so the browser byte-diff check detects a new SW and triggers the update banner.
+const DEPLOY_TIME = Date.now();
+
+const SW_CONTENT = `
+// HomieHouse SW — build ${DEPLOY_TIME}
 self.addEventListener('install', () => {
-  // intentionally no skipWaiting here
+  // intentionally no skipWaiting — UpdateBanner controls when to apply
 });
 
-// On activate: claim all clients so SW controls the page immediately after update
 self.addEventListener('activate', (event) => {
   event.waitUntil(clients.claim());
 });
 
-// UpdateBanner sends this when the user taps "Update"
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -20,7 +25,6 @@ self.addEventListener('push', (event) => {
   try {
     if (event.data) data = { ...data, ...JSON.parse(event.data.text()) };
   } catch (_) {}
-
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
@@ -46,3 +50,14 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+`.trim();
+
+export async function GET() {
+  return new NextResponse(SW_CONTENT, {
+    headers: {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Service-Worker-Allowed': '/',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    },
+  });
+}
