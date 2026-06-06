@@ -287,18 +287,9 @@ function ComposePageInner() {
         embeds.push({ url: imageUrl.trim() });
       }
 
-      // Add URL embed if we have a preview
+      // Add URL embed if we have a preview (URL is already in the text; just attach as embed)
       if (urlPreview && detectedUrl) {
         embeds.push({ url: detectedUrl });
-        
-        // If it's an article with text, prepend summary to cast text
-        if (urlPreview.isArticle && urlPreview.articleText && !text.includes(urlPreview.metadata.title)) {
-          const summary = urlPreview.articleText.slice(0, 200) + '...';
-          body.text = `${urlPreview.metadata.title || 'Article'}\n\n${summary}\n\n${text}`;
-        } else if (urlPreview.metadata.title && !text.includes(urlPreview.metadata.title)) {
-          // For non-articles, just add the title if not already in text
-          body.text = `${urlPreview.metadata.title}\n\n${text}`;
-        }
       }
 
       if (embeds.length > 0) {
@@ -407,7 +398,7 @@ function ComposePageInner() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingBottom: 80 }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
           <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -418,7 +409,8 @@ function ComposePageInner() {
         <div style={{ width: 22 }} />
       </header>
 
-      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px' }}>
+      {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (80px) + breathing room */}
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px', paddingBottom: 160 }}>
         {userFid && !hasActiveSigner ? (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
@@ -572,89 +564,6 @@ function ComposePageInner() {
               </div>
             )}
 
-            {/* Toolbar */}
-            <div style={{ position: 'relative', marginTop: 12 }}>
-              {/* Channel picker dropdown */}
-              {showChannelSuggestions && (
-                <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 4, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
-                  <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
-                    <input
-                      type="text"
-                      value={channelSearch}
-                      onChange={e => setChannelSearch(e.target.value)}
-                      placeholder="Search channels…"
-                      autoFocus
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
-                    />
-                  </div>
-                  {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
-                    <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }}
-                      style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                      <span style={muted}>/</span>{ch.id}
-                      {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                {/* Left scrollable actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
-                  {/* Image upload */}
-                  <label htmlFor="image-upload-compose" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
-                    {uploadingImage
-                      ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
-                      : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    }
-                    <input id="image-upload-compose" type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
-                  </label>
-
-                  {/* Channel */}
-                  <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel"
-                    style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
-                    <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
-                    {selectedChannel && (
-                      <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
-                    )}
-                  </button>
-
-                  {/* Clock — schedule toggle */}
-                  <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast"
-                    style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </button>
-
-                  {/* Calendar — view queue */}
-                  <button onClick={() => router.push('/scheduled')} title="Scheduled casts" style={toolBtn}>
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  </button>
-                </div>
-
-                {/* Right: char count + Post button */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
-                  {text.length > 0 && (
-                    <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)' }}>{text.length}</span>
-                  )}
-                  <button
-                    onClick={handlePost}
-                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
-                    style={{
-                      padding: '8px 20px', borderRadius: 24, border: 'none', cursor: 'pointer',
-                      background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
-                      fontSize: 14, fontWeight: 700,
-                      opacity: (loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
-                    }}
-                  >
-                    {loading ? (isScheduled ? 'Scheduling…' : 'Posting…') : (isScheduled ? 'Schedule' : 'Post')}
-                  </button>
-                </div>
-              </div>
-            </div>
-
             {status && (
               <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--muted-on-dark)' }}>
                 {status}
@@ -663,6 +572,88 @@ function ComposePageInner() {
           </div>
         )}
       </main>
+
+      {/* Fixed toolbar — always visible above the bottom nav */}
+      <div style={{
+        position: 'fixed', bottom: 80, left: 0, right: 0, zIndex: 20,
+        background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
+      }}>
+        {/* Channel picker opens upward from here */}
+        {showChannelSuggestions && (
+          <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+            <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
+              <input
+                type="text"
+                value={channelSearch}
+                onChange={e => setChannelSearch(e.target.value)}
+                placeholder="Search channels…"
+                autoFocus
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
+              />
+            </div>
+            {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
+              <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }}
+                style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={muted}>/</span>{ch.id}
+                {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', maxWidth: 640, margin: '0 auto' }}>
+          {/* Left scrollable actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
+            <label htmlFor="image-upload-compose" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
+              {uploadingImage
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
+                : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              }
+              <input id="image-upload-compose" type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
+            </label>
+
+            <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel"
+              style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
+              <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
+              {selectedChannel && (
+                <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
+              )}
+            </button>
+
+            <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast"
+              style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </button>
+
+            <button onClick={() => router.push('/scheduled')} title="Scheduled casts" style={toolBtn}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </button>
+          </div>
+
+          {/* Right: char count + Post/Schedule button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
+            {text.length > 0 && (
+              <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)' }}>{text.length}</span>
+            )}
+            <button
+              onClick={handlePost}
+              disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
+              style={{
+                padding: '8px 20px', borderRadius: 24, border: 'none', cursor: 'pointer',
+                background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
+                fontSize: 14, fontWeight: 700,
+                opacity: (loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
+              }}
+            >
+              {loading ? (isScheduled ? 'Scheduling…' : 'Posting…') : (isScheduled ? 'Schedule' : 'Post')}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
