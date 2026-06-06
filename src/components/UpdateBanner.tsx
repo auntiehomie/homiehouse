@@ -38,11 +38,15 @@ export default function UpdateBanner() {
 
   const applyUpdate = () => {
     if (!waitingSW) return;
-    // Listen for controllerchange BEFORE posting message to avoid race
+    const sw = waitingSW;
+    // Hide banner immediately so one tap is enough
+    setWaitingSW(null);
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       window.location.reload();
     });
-    waitingSW.postMessage({ type: "SKIP_WAITING" });
+    sw.postMessage({ type: "SKIP_WAITING" });
+    // Fallback: reload after 2s if controllerchange never fires
+    setTimeout(() => window.location.reload(), 2000);
   };
 
   if (!waitingSW) return null;
