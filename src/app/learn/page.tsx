@@ -38,16 +38,16 @@ const LS_PROGRESS_KEY = 'hh_learning_progress';
 // ─── Learning Community Feed ──────────────────────────────────────────────────
 
 const LEARNING_CHANNELS = [
-  { id: '', label: 'All' },
-  { id: 'defi', label: 'DeFi' },
-  { id: 'web3', label: 'Web3' },
-  { id: 'base', label: 'Base' },
-  { id: 'dao', label: 'DAOs' },
-  { id: 'nft', label: 'NFTs' },
+  { id: '', label: 'All', query: '' },
+  { id: 'defi', label: 'DeFi', query: 'DeFi' },
+  { id: 'web3', label: 'Web3', query: 'web3' },
+  { id: 'base', label: 'Base', query: 'Base chain' },
+  { id: 'dao', label: 'DAOs', query: 'DAO' },
+  { id: 'nft', label: 'NFTs', query: 'NFT' },
 ];
 
 function LearningFeed() {
-  const [channel, setChannel] = useState('');
+  const [channelId, setChannelId] = useState('');
   const [casts, setCasts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -67,8 +67,10 @@ function LearningFeed() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10000);
 
-    const url = channel
-      ? `/api/feed?channel=${channel}&limit=20${fid ? `&fid=${fid}` : ''}`
+    const active = LEARNING_CHANNELS.find(c => c.id === channelId) ?? LEARNING_CHANNELS[0];
+    // "All" → user's following feed; specific topic → keyword search (more reliable than channel feed)
+    const url = active.query
+      ? `/api/casts/search?q=${encodeURIComponent(active.query)}&limit=20`
       : `/api/feed?limit=20${fid ? `&fid=${fid}` : ''}`;
 
     fetch(url, { signal: controller.signal })
@@ -78,7 +80,7 @@ function LearningFeed() {
       .finally(() => { clearTimeout(timer); setLoading(false); });
 
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [channel, retryCount]);
+  }, [channelId, retryCount]);
 
   return (
     <div style={{ padding: '12px 16px' }}>
@@ -87,13 +89,13 @@ function LearningFeed() {
         {LEARNING_CHANNELS.map(ch => (
           <button
             key={ch.id}
-            onClick={() => setChannel(ch.id)}
+            onClick={() => setChannelId(ch.id)}
             style={{
               flexShrink: 0, padding: '5px 14px', borderRadius: 20, fontSize: 13,
-              fontWeight: channel === ch.id ? 700 : 400,
-              background: channel === ch.id ? 'var(--accent)' : 'transparent',
-              color: channel === ch.id ? '#fff' : 'var(--muted-on-dark)',
-              border: `1px solid ${channel === ch.id ? 'var(--accent)' : 'var(--border)'}`,
+              fontWeight: channelId === ch.id ? 700 : 400,
+              background: channelId === ch.id ? 'var(--accent)' : 'transparent',
+              color: channelId === ch.id ? '#fff' : 'var(--muted-on-dark)',
+              border: `1px solid ${channelId === ch.id ? 'var(--accent)' : 'var(--border)'}`,
               cursor: 'pointer', transition: 'all 0.15s',
             }}
           >
