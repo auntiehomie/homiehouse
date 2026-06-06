@@ -5,6 +5,7 @@ import PrivyAuthSync from "../components/PrivyAuthSync";
 import BottomNav from "../components/BottomNav";
 import ThemeSync from "../components/ThemeSync";
 import LazyClientComponents from "../components/LazyClientComponents";
+import UpdateBanner from "../components/UpdateBanner";
 import { Analytics } from '@vercel/analytics/next';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
@@ -134,6 +135,7 @@ export default function RootLayout({
           <BottomNav />
           <ThemeSync />
           <LazyClientComponents />
+          <UpdateBanner />
         </PrivyAuthProvider>
         <Analytics />
       </body>

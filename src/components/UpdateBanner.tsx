@@ -19,8 +19,7 @@ export default function UpdateBanner() {
       });
     };
 
-    navigator.serviceWorker.getRegistration("/sw.js").then((reg) => {
-      if (!reg) return;
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
       if (reg.waiting && navigator.serviceWorker.controller) {
         setWaitingSW(reg.waiting);
       }
