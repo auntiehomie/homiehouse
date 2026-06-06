@@ -98,7 +98,7 @@ export default function FrameEmbed({ url, castHash }: Props) {
       {frame.image && (
         <div
           className="w-full aspect-[1.91/1] bg-zinc-800 overflow-hidden cursor-pointer"
-          onClick={() => openMiniApp(url, 'Frame')}
+          onClick={() => openMiniApp(frame.miniAppUrl || url, 'Frame')}
         >
           <img
             src={frame.image}
@@ -126,7 +126,7 @@ export default function FrameEmbed({ url, castHash }: Props) {
       {noButtons ? (
         <div className="p-3">
           <button
-            onClick={() => openMiniApp(url, 'Frame')}
+            onClick={() => openMiniApp(frame.miniAppUrl || url, 'Frame')}
             className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium bg-zinc-800 text-zinc-200 rounded-lg border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-500 transition-colors"
           >
             Open
