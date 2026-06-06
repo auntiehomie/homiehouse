@@ -277,29 +277,27 @@ export default function NotificationsPage() {
                           </Link>
                         )}
 
-                        <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 6 }}>
-                          {fmtTime(notification.timestamp || notification.most_recent_timestamp || '')}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
+                          <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
+                            {fmtTime(notification.timestamp || notification.most_recent_timestamp || '')}
+                          </span>
+                          {actor?.username && (
+                            <Link
+                              href={`/profile?user=${actor.username}`}
+                              style={{ fontSize: 12, color: 'var(--muted-on-dark)', textDecoration: 'none' }}
+                            >
+                              View Profile
+                            </Link>
+                          )}
+                          {notification.cast?.hash && (
+                            <Link
+                              href={`/cast/${notification.cast.hash}`}
+                              style={{ fontSize: 12, color: 'var(--muted-on-dark)', textDecoration: 'none' }}
+                            >
+                              View Cast
+                            </Link>
+                          )}
                         </div>
-                      </div>
-
-                      {/* Quick actions */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-                        {actor?.username && (
-                          <Link
-                            href={`/profile?user=${actor.username}`}
-                            style={{ fontSize: 12, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap', textDecoration: 'none' }}
-                          >
-                            View Profile
-                          </Link>
-                        )}
-                        {notification.cast?.hash && (
-                          <Link
-                            href={`/cast/${notification.cast.hash}`}
-                            style={{ fontSize: 12, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap', textDecoration: 'none' }}
-                          >
-                            View Cast
-                          </Link>
-                        )}
                       </div>
                     </div>
                   );
