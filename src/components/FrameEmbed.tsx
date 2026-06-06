@@ -90,11 +90,16 @@ export default function FrameEmbed({ url, castHash }: Props) {
     mint: '⬡',
   };
 
+  const noButtons = frame.buttons.length === 0;
+
   return (
     <div className="rounded-xl border border-zinc-800 overflow-hidden bg-zinc-900">
-      {/* Frame image */}
+      {/* Frame image — tapping always opens the mini-app in-app */}
       {frame.image && (
-        <div className="w-full aspect-[1.91/1] bg-zinc-800 overflow-hidden">
+        <div
+          className="w-full aspect-[1.91/1] bg-zinc-800 overflow-hidden cursor-pointer"
+          onClick={() => openMiniApp(url, 'Frame')}
+        >
           <img
             src={frame.image}
             alt="Frame"
@@ -117,8 +122,17 @@ export default function FrameEmbed({ url, castHash }: Props) {
         </div>
       )}
 
-      {/* Buttons */}
-      {frame.buttons.length > 0 && (
+      {/* Buttons — or fallback Open button when the frame has none */}
+      {noButtons ? (
+        <div className="p-3">
+          <button
+            onClick={() => openMiniApp(url, 'Frame')}
+            className="w-full flex items-center justify-center gap-1 px-3 py-2 text-sm font-medium bg-zinc-800 text-zinc-200 rounded-lg border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-500 transition-colors"
+          >
+            Open
+          </button>
+        </div>
+      ) : (
         <div className={`grid gap-2 p-3 ${frame.buttons.length === 1 ? 'grid-cols-1' : frame.buttons.length === 2 ? 'grid-cols-2' : frame.buttons.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
           {frame.buttons.map(btn => (
             <button
