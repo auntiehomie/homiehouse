@@ -277,7 +277,7 @@ export default function NotificationsPage() {
                           </Link>
                         )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, marginLeft: '-60px' }}>
                           <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
                             {fmtTime(notification.timestamp || notification.most_recent_timestamp || '')}
                           </span>
