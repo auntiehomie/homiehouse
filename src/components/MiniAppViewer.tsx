@@ -25,6 +25,66 @@ export default function MiniAppViewer() {
     return () => window.removeEventListener("hh:open-miniapp", handler);
   }, []);
 
+  // Farcaster Mini-app SDK host protocol.
+  // When the iframe sends any "ready" event, respond with the user's Farcaster
+  // context so the mini-app knows it's inside a compatible client and doesn't
+  // redirect to farcaster.xyz for sign-up.
+  useEffect(() => {
+    if (!open) return;
+
+    const handleFrameMessage = (e: MessageEvent) => {
+      const iframe = iframeRef.current;
+      if (!iframe?.contentWindow) return;
+
+      let profile: any = {};
+      try { profile = JSON.parse(localStorage.getItem('hh_profile') || '{}'); } catch {}
+
+      const msg = e.data;
+      if (!msg || typeof msg !== 'object') return;
+
+      const isReady =
+        msg.type === 'frameReady' ||
+        msg.type === 'ready' ||
+        msg.type === 'frame:ready' ||
+        (msg.type === 'fc-frame' && msg.action === 'ready') ||
+        (msg.type === 'fc-mini-app' && msg.action === 'ready');
+
+      if (isReady) {
+        const context = {
+          user: {
+            fid: profile.fid || 0,
+            username: profile.username || '',
+            displayName: profile.display_name || profile.username || '',
+            pfpUrl: profile.pfp_url || '',
+          },
+          location: { type: 'cast_embed' },
+          client: { clientFid: 0, added: false },
+        };
+        // Respond in multiple formats to cover different SDK versions
+        iframe.contentWindow.postMessage({ type: 'frameContext', data: context }, '*');
+        iframe.contentWindow.postMessage({ type: 'context', data: context }, '*');
+        iframe.contentWindow.postMessage({ type: 'fc-frame', action: 'setContext', context }, '*');
+        iframe.contentWindow.postMessage({ type: 'fc-mini-app', action: 'setContext', context }, '*');
+      }
+
+      const isClose =
+        msg.type === 'frameClose' ||
+        msg.type === 'close' ||
+        (msg.type === 'fc-frame' && msg.action === 'close') ||
+        (msg.type === 'fc-mini-app' && msg.action === 'close');
+      if (isClose) setOpen(false);
+
+      const isOpenUrl =
+        msg.type === 'openUrl' ||
+        (msg.type === 'fc-frame' && msg.action === 'openUrl') ||
+        (msg.type === 'fc-mini-app' && msg.action === 'openUrl');
+      if (isOpenUrl && msg.url) window.open(msg.url, '_blank');
+    };
+
+    window.addEventListener('message', handleFrameMessage);
+    return () => window.removeEventListener('message', handleFrameMessage);
+  }, [open]);
+
   // Prevent body scroll when open
   useEffect(() => {
     if (open) document.body.style.overflow = "hidden";
@@ -61,7 +121,6 @@ export default function MiniAppViewer() {
         background: "var(--surface)",
         flexShrink: 0,
       }}>
-        {/* Close */}
         <button
           onClick={() => setOpen(false)}
           style={{
@@ -78,7 +137,6 @@ export default function MiniAppViewer() {
           </svg>
         </button>
 
-        {/* URL / title */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 13, fontWeight: 600, color: "var(--text-on-dark)",
@@ -93,7 +151,6 @@ export default function MiniAppViewer() {
           )}
         </div>
 
-        {/* Open in browser escape hatch */}
         <a
           href={url}
           target="_blank"
@@ -116,7 +173,6 @@ export default function MiniAppViewer() {
         </a>
       </div>
 
-      {/* Loading bar */}
       {loading && (
         <div style={{ height: 2, background: "var(--border)", flexShrink: 0, overflow: "hidden" }}>
           <div style={{
@@ -132,7 +188,6 @@ export default function MiniAppViewer() {
         </div>
       )}
 
-      {/* Mini app iframe */}
       <iframe
         ref={iframeRef}
         src={url}
