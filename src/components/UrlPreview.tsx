@@ -3,6 +3,39 @@
 import React, { useEffect, useState } from 'react';
 import { openMiniApp } from './MiniAppViewer';
 
+// Sites that set X-Frame-Options: DENY or CSP frame-ancestors: none.
+// Opening these in our iframe just shows a blank page, so send to a browser tab instead.
+const BLOCKED = new Set([
+  'x.com', 'twitter.com',
+  'youtube.com', 'youtu.be',
+  'instagram.com',
+  'facebook.com', 'fb.com',
+  'linkedin.com',
+  'tiktok.com',
+  'reddit.com',
+  'netflix.com',
+  'spotify.com',
+  'google.com',
+  'apple.com',
+  'amazon.com',
+  'github.com',
+]);
+
+function isBlocked(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, '');
+    return BLOCKED.has(h) || [...BLOCKED].some(d => h.endsWith('.' + d));
+  } catch { return false; }
+}
+
+function openUrl(url: string, title?: string) {
+  if (isBlocked(url)) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else {
+    openMiniApp(url, title);
+  }
+}
+
 interface PreviewData {
   ok?: boolean;
   metadata?: {
@@ -79,7 +112,7 @@ export default function UrlPreview({ url, label }: { url: string; label?: string
           {hostname || displayUrl}
         </span>
         <button
-          onClick={e => { e.stopPropagation(); openMiniApp(displayUrl, m.title); }}
+          onClick={e => { e.stopPropagation(); openUrl(displayUrl, m.title); }}
           style={{
             flexShrink: 0, padding: '6px 14px', borderRadius: 20,
             background: '#1e293b', color: '#e2e8f0', fontSize: 13,
@@ -122,7 +155,7 @@ export default function UrlPreview({ url, label }: { url: string; label?: string
           <div style={{ fontSize: 11, color: '#555' }}>{m.siteName || hostname}</div>
         </div>
         <button
-          onClick={e => { e.stopPropagation(); openMiniApp(displayUrl, m.title); }}
+          onClick={e => { e.stopPropagation(); openUrl(displayUrl, m.title); }}
           style={{
             flexShrink: 0, padding: '7px 14px', borderRadius: 20,
             background: '#1e293b', color: '#e2e8f0', fontSize: 13,

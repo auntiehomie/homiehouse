@@ -232,6 +232,7 @@ export default function MiniAppViewer() {
         background: "var(--bg-dark)",
         display: "flex", flexDirection: "column",
         animation: "hhSlideUp 0.22s ease-out",
+        paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
       <style>{`
