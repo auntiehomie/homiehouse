@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateEmbeds, validateChannelKey } from '@/lib/validation';
 import { verifyPrivyAuth } from '@/lib/auth';
+import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-compose');
@@ -12,6 +13,10 @@ export async function POST(request: NextRequest) {
   try {
     // Verify auth token
     const claims = await verifyPrivyAuth(request);
+    
+    // Rate limit: 20 compose requests per minute per user
+    const userId = claims?.userId || 'unknown';
+    await enforceRateLimit({ key: `compose:${userId}`, limit: 20, windowSeconds: 60, label: 'compose' });
     
     const body = await request.json();
     const { text, embeds, channelKey, parentUrl, parentCastHash, isQuoteCast, fid, signerPrivateKey } = body;

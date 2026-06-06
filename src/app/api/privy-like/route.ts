@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
 import { verifyPrivyAuth } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-like');
@@ -12,6 +13,10 @@ export async function POST(request: NextRequest) {
   try {
     // Verify auth token
     const claims = await verifyPrivyAuth(request);
+    
+    // Rate limit: 30 likes per minute per user
+    const userId = claims?.userId || 'unknown';
+    await enforceRateLimit({ key: `like:${userId}`, limit: 30, windowSeconds: 60, label: 'like' });
     
     const body = await request.json();
     const { castHash, fid, targetCastFid, signerPrivateKey } = body;
