@@ -264,16 +264,16 @@ export default function NotificationsPage() {
                           <Link
                             href={`/cast/${notification.cast.hash}`}
                             style={{
-                              display: '-webkit-box', marginTop: 8, padding: '8px 10px',
+                              display: 'block', marginTop: 8, padding: '8px 10px',
                               background: 'var(--bg-dark)', borderRadius: 8,
                               border: '1px solid var(--border)',
                               fontSize: 13, color: 'var(--muted-on-dark)',
                               textDecoration: 'none', lineHeight: 1.4,
-                              overflow: 'hidden',
-                              WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
                             } as React.CSSProperties}
                           >
-                            {notification.cast.text}
+                            {notification.cast.text.length > 320
+                              ? notification.cast.text.slice(0, 320) + '…'
+                              : notification.cast.text}
                           </Link>
                         )}
 
