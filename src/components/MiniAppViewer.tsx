@@ -10,40 +10,128 @@ function getProfile() {
   try { return JSON.parse(localStorage.getItem('hh_profile') || '{}'); } catch { return {}; }
 }
 
+function getWalletAddress(): string {
+  const p = getProfile();
+  return p.custody_address
+    || p.verified_addresses?.eth_addresses?.[0]
+    || '';
+}
+
 function buildContext(profile: any) {
   return {
     user: {
       fid: profile.fid || 0,
       username: profile.username || '',
-      displayName: profile.display_name || profile.username || '',
-      pfpUrl: profile.pfp_url || '',
+      displayName: profile.displayName || profile.display_name || profile.username || '',
+      pfpUrl: profile.pfpUrl || profile.pfp_url || '',
     },
     location: { type: 'cast_embed' },
     client: { clientFid: 0, added: false },
   };
 }
 
-// Send context in every known SDK format variant.
-// req is the incoming message we're responding to (used to echo id/requestId).
+// Send Farcaster context in every known SDK format variant.
 function sendContext(target: Window, context: any, req?: any) {
   const id = req?.id ?? req?.requestId;
 
-  // Type-based (older SDK versions)
   target.postMessage({ type: 'frameContext', data: context }, '*');
   target.postMessage({ type: 'context', data: context }, '*');
   target.postMessage({ type: 'setContext', context }, '*');
   target.postMessage({ type: 'contextResponse', context }, '*');
-
-  // fc-frame / fc-mini-app protocol
   target.postMessage({ type: 'fc-frame', action: 'setContext', context }, '*');
   target.postMessage({ type: 'fc-mini-app', action: 'setContext', context }, '*');
 
-  // JSON-RPC style (current @farcaster/frame-sdk): echo back the id
   if (id !== undefined) {
     target.postMessage({ id, result: context }, '*');
     target.postMessage({ id, result: { context } }, '*');
     target.postMessage({ requestId: id, type: 'contextResponse', context }, '*');
   }
+}
+
+// EIP-1193 wallet provider: handle JSON-RPC wallet calls from the mini-app.
+// Returns true if the message was handled as a wallet call.
+function handleWalletRpc(target: Window, msg: any): boolean {
+  const method: string | undefined = msg.method
+    ?? (msg.type === 'fc-frame' || msg.type === 'fc-mini-app' ? msg.action : undefined);
+
+  if (!method) return false;
+
+  const ETH_METHODS = new Set([
+    'eth_requestAccounts', 'eth_accounts', 'eth_chainId', 'net_version',
+    'eth_getBalance', 'eth_blockNumber', 'eth_gasPrice',
+    'wallet_switchEthereumChain', 'wallet_addEthereumChain',
+    'wallet_getPermissions', 'wallet_requestPermissions',
+    'personal_sign', 'eth_sign', 'eth_signTypedData',
+    'eth_signTypedData_v3', 'eth_signTypedData_v4',
+    'eth_sendTransaction', 'eth_sendRawTransaction',
+  ]);
+
+  if (!ETH_METHODS.has(method)) return false;
+
+  const id = msg.id ?? msg.requestId;
+  const address = getWalletAddress();
+
+  let result: any;
+  let error: any;
+
+  switch (method) {
+    case 'eth_requestAccounts':
+    case 'eth_accounts':
+      result = address ? [address.toLowerCase()] : [];
+      break;
+
+    case 'eth_chainId':
+      result = '0x2105'; // Base mainnet
+      break;
+
+    case 'net_version':
+      result = '8453'; // Base mainnet
+      break;
+
+    case 'eth_getBalance':
+      result = '0x0';
+      break;
+
+    case 'eth_blockNumber':
+      result = '0x0';
+      break;
+
+    case 'eth_gasPrice':
+      result = '0x3B9ACA00'; // 1 gwei
+      break;
+
+    case 'wallet_switchEthereumChain':
+    case 'wallet_addEthereumChain':
+    case 'wallet_getPermissions':
+    case 'wallet_requestPermissions':
+      result = null;
+      break;
+
+    // Signing and transactions require a real signer — not supported inline.
+    // Return a user-rejection error so the app can show its own fallback.
+    case 'personal_sign':
+    case 'eth_sign':
+    case 'eth_signTypedData':
+    case 'eth_signTypedData_v3':
+    case 'eth_signTypedData_v4':
+    case 'eth_sendTransaction':
+    case 'eth_sendRawTransaction':
+      error = { code: 4001, message: 'HomieHouse does not support signing yet — open in browser to sign.' };
+      break;
+
+    default:
+      error = { code: 4200, message: `Method ${method} not supported` };
+  }
+
+  if (id !== undefined) {
+    if (error) {
+      target.postMessage({ id, error }, '*');
+    } else {
+      target.postMessage({ id, result }, '*');
+    }
+  }
+
+  return true;
 }
 
 export default function MiniAppViewer() {
@@ -65,23 +153,19 @@ export default function MiniAppViewer() {
     return () => window.removeEventListener("hh:open-miniapp", handler);
   }, []);
 
-  // Farcaster Mini-app SDK host protocol.
-  // Handles both old type/action format and current JSON-RPC method/id format.
+  // Farcaster Mini-app SDK host protocol + EIP-1193 wallet provider.
   useEffect(() => {
     if (!open) return;
 
     const handleFrameMessage = (e: MessageEvent) => {
       const iframe = iframeRef.current;
       if (!iframe?.contentWindow) return;
-      // Only handle messages originating from our iframe
       if (!e.source || e.source !== iframe.contentWindow) return;
 
       const msg = e.data;
       if (!msg || typeof msg !== 'object') return;
 
-      const context = buildContext(getProfile());
-
-      // Detect ready / context-request in all known formats
+      // --- Farcaster context ---
       const isReady =
         msg.type === 'frameReady' ||
         msg.type === 'ready' ||
@@ -93,15 +177,23 @@ export default function MiniAppViewer() {
         (msg.type === 'fc-frame' && (msg.action === 'ready' || msg.action === 'getContext')) ||
         (msg.type === 'fc-mini-app' && (msg.action === 'ready' || msg.action === 'getContext'));
 
-      if (isReady) sendContext(iframe.contentWindow, context, msg);
+      if (isReady) {
+        sendContext(iframe.contentWindow, buildContext(getProfile()), msg);
+        return;
+      }
 
+      // --- EIP-1193 wallet provider ---
+      if (handleWalletRpc(iframe.contentWindow, msg)) return;
+
+      // --- close ---
       const isClose =
         msg.type === 'frameClose' ||
         msg.type === 'close' ||
         (msg.type === 'fc-frame' && msg.action === 'close') ||
         (msg.type === 'fc-mini-app' && msg.action === 'close');
-      if (isClose) setOpen(false);
+      if (isClose) { setOpen(false); return; }
 
+      // --- openUrl ---
       const isOpenUrl =
         msg.type === 'openUrl' ||
         (msg.type === 'fc-frame' && msg.action === 'openUrl') ||
@@ -127,10 +219,10 @@ export default function MiniAppViewer() {
 
   const handleIframeLoad = () => {
     setLoading(false);
-    // Proactively push context before the mini-app even sends 'ready',
-    // covering SDKs that resolve context from the first available message.
     const target = iframeRef.current?.contentWindow;
-    if (target) sendContext(target, buildContext(getProfile()));
+    if (!target) return;
+    const profile = getProfile();
+    sendContext(target, buildContext(profile));
   };
 
   return (

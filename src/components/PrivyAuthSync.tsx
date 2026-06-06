@@ -25,6 +25,23 @@ export default function PrivyAuthSync() {
       ) as any;
 
       if (farcasterAccount) {
+        // Privy exposes the Farcaster custody address as ownerAddress or custodyAddress
+        const custodyAddress: string =
+          (farcasterAccount as any).ownerAddress ||
+          (farcasterAccount as any).custodyAddress ||
+          '';
+
+        const linkedWallets: string[] = user.linkedAccounts
+          ?.filter((a: any) => a.type === 'wallet')
+          .map((a: any) => a.address as string)
+          .filter(Boolean) || [];
+
+        // Prefer custody address first so mini-apps get the Farcaster-native wallet
+        const ethAddresses = [
+          ...(custodyAddress ? [custodyAddress] : []),
+          ...linkedWallets.filter(a => a.toLowerCase() !== custodyAddress.toLowerCase()),
+        ];
+
         const profile = {
           fid: farcasterAccount.fid,
           username: farcasterAccount.username || '',
@@ -32,12 +49,8 @@ export default function PrivyAuthSync() {
           pfpUrl: farcasterAccount.pfp || farcasterAccount.pfp_url || '',
           bio: farcasterAccount.bio || '',
           signer_uuid: farcasterAccount.signerPublicKey || '',
-          verified_addresses: {
-            eth_addresses: user.linkedAccounts
-              ?.filter((a: any) => a.type === 'wallet')
-              .map((a: any) => a.address)
-              .filter(Boolean) || [],
-          },
+          custody_address: custodyAddress,
+          verified_addresses: { eth_addresses: ethAddresses },
         };
         localStorage.setItem('hh_profile', JSON.stringify(profile));
       } else {
