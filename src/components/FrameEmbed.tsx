@@ -140,14 +140,12 @@ export default function FrameEmbed({ url, castHash }: Props) {
         <div className="px-3 pb-3 flex items-center gap-2 flex-wrap">
           <span className="text-xs text-red-400">{interactError}</span>
           <span className="text-xs text-zinc-600">—</span>
-          <a
-            href={`https://warpcast.com`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-zinc-400 hover:text-white underline"
+          <button
+            onClick={() => openMiniApp(url, 'Frame')}
+            className="text-xs text-zinc-400 hover:text-white underline bg-transparent border-none cursor-pointer p-0"
           >
-            Open in Warpcast to interact
-          </a>
+            Open in HomieHouse
+          </button>
         </div>
       )}
     </div>
