@@ -283,18 +283,9 @@ export default function ComposeModal() {
         embeds.push({ url: imageUrl.trim() });
       }
 
-      // Add URL embed if we have a preview
+      // Add URL embed if we have a preview (URL is already in the text; just attach as embed)
       if (urlPreview && detectedUrl) {
         embeds.push({ url: detectedUrl });
-        
-        // If it's an article with text, prepend summary to cast text
-        if (urlPreview.isArticle && urlPreview.articleText && !text.includes(urlPreview.metadata?.title || '')) {
-          const summary = urlPreview.articleText.slice(0, 200) + '...';
-          body.text = `${urlPreview.metadata?.title || 'Article'}\n\n${summary}\n\n${text}`;
-        } else if (urlPreview.metadata?.title && !text.includes(urlPreview.metadata.title)) {
-          // For non-articles, just add the title if not already in text
-          body.text = `${urlPreview.metadata.title}\n\n${text}`;
-        }
       }
 
       if (embeds.length > 0) {
