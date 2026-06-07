@@ -174,7 +174,7 @@ export default function Home() {
             background: 'linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           }}>
-            Your home on Farcaster.<br />Learn Web3 while you scroll.
+            Your cozy, decentralized<br />learning corner.
           </h1>
 
           <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', color: '#71717a', maxWidth: 520, lineHeight: 1.7, margin: '0 0 36px' }}>
