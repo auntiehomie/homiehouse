@@ -102,7 +102,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(fallbackLesson(title, description, objectives));
     }
 
+    const isHyperliquidModule =
+      title?.toLowerCase().includes('hyperliquid') ||
+      tags?.some((t: string) => t.toLowerCase().includes('hyperliquid') || t.toLowerCase() === 'hype');
+
+    const hyperliquidContext = isHyperliquidModule ? `
+FACTUAL CONTEXT — use this for the Hyperliquid lesson:
+- Hyperliquid is a decentralized perpetuals (perps) exchange built on its own L1 chain (HyperEVM), not on Ethereum or Solana
+- HYPE is the native token — launched November 2024 via a large community airdrop with NO venture capital allocation, which was widely praised
+- By mid-2026 HYPE has grown to surpass Solana (SOL) in market cap, becoming a top-10 crypto asset
+- Prominent investor Arthur Hayes publicly targeted $150 for HYPE and exited near that level in June 2026
+- Hyperliquid earns protocol fees from trading volume; those fees go to an Assistance Fund and token buybacks — a real revenue model
+- Key risk: it is a single team-controlled chain; decentralization is not yet proven; regulatory risk applies
+- Practical example: a user can trade perps directly on app.hyperliquid.xyz with no KYC and self-custody
+` : '';
+
     const prompt = `You are a friendly, practical Web3 / decentralization educator. Generate a lesson for this learning module.
+${hyperliquidContext}
 
 Module:
 - Title: ${title}

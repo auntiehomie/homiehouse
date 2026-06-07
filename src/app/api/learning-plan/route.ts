@@ -33,6 +33,117 @@ function getModel() {
   return null;
 }
 
+const FALLBACK_FINANCIAL_PLAN: LearningPlan = {
+  track: 'financial',
+  level: 'beginner',
+  summary:
+    'Build real financial literacy in Web3 — from what a token actually is, to evaluating tokenomics, to understanding the protocols (like Hyperliquid) reshaping decentralized finance.',
+  modules: [
+    {
+      id: 'what-is-a-token',
+      title: 'What Is a Crypto Token?',
+      description:
+        'Break down the different types of crypto tokens — utility, governance, LP, and revenue-sharing — and understand how they differ from coins.',
+      whyItMatters:
+        'Every financial decision in Web3 involves tokens. Knowing what you actually own is the foundation of everything else.',
+      objectives: [
+        'Explain the difference between a coin (e.g. ETH) and a token (e.g. HYPE, UNI)',
+        'Identify utility tokens, governance tokens, and LP tokens',
+        'Understand how tokens are created and deployed on a chain',
+        'Read a token contract address on a block explorer',
+      ],
+      estimatedMinutes: 25,
+      difficulty: 'beginner',
+      tags: ['tokens', 'fundamentals', 'DeFi'],
+    },
+    {
+      id: 'tokenomics-101',
+      title: 'Tokenomics: Reading Between the Lines',
+      description:
+        'Learn how to evaluate a token's supply, distribution, vesting schedules, and emission rate — the signals that separate strong projects from pump-and-dumps.',
+      whyItMatters:
+        'Tokenomics determines long-term value. A great product with bad tokenomics can still destroy your investment.',
+      objectives: [
+        'Read a token's circulating supply vs max supply',
+        'Understand what vesting and cliff schedules mean for price',
+        'Spot red flags: insider concentration, unlocks, and inflation',
+        'Compare market cap vs fully diluted valuation (FDV)',
+      ],
+      estimatedMinutes: 30,
+      difficulty: 'beginner',
+      tags: ['tokenomics', 'research', 'investing'],
+    },
+    {
+      id: 'hyperliquid-case-study',
+      title: 'Hyperliquid: A Case Study in Protocol Tokens',
+      description:
+        'Examine Hyperliquid (HYPE) — a decentralized perpetuals exchange that grew to surpass Solana in market cap by mid-2026 — as a real-world lesson in protocol value accrual.',
+      whyItMatters:
+        'Hyperliquid shows how a protocol can capture value through fees, community distribution, and product-market fit. Understanding it sharpens your lens for evaluating any token.',
+      objectives: [
+        'Explain what a perpetuals DEX is and why it attracts volume',
+        'Understand how Hyperliquid distributed HYPE (no VCs, airdrop-first)',
+        'Read protocol revenue and see how it flows back to token holders',
+        'Evaluate why HYPE grew from launch to top-10 asset and what risks remain',
+      ],
+      estimatedMinutes: 35,
+      difficulty: 'intermediate',
+      tags: ['hyperliquid', 'HYPE', 'perps', 'case-study', 'DeFi'],
+    },
+    {
+      id: 'defi-protocol-tokens',
+      title: 'DeFi Protocol Tokens & Governance',
+      description:
+        'Learn how governance tokens like UNI, AAVE, and MKR work — and when holding them makes sense beyond speculation.',
+      whyItMatters:
+        'Protocol tokens let you participate in shaping the future of financial infrastructure. They also earn fees when designed well.',
+      objectives: [
+        'Explain what a governance vote is and how quorum works',
+        'Understand ve-tokenomics (vote-escrowed locking for yield)',
+        'Identify protocols where the token genuinely captures value vs vanity governance',
+        'Participate in or simulate a governance vote',
+      ],
+      estimatedMinutes: 30,
+      difficulty: 'intermediate',
+      tags: ['governance', 'DeFi', 'protocol-tokens'],
+    },
+    {
+      id: 'on-chain-portfolio',
+      title: 'Building & Tracking an On-Chain Portfolio',
+      description:
+        'Set up a real on-chain portfolio using tools like Zapper, DeBank, or Zerion. Understand gas costs, slippage, and how to think about position sizing.',
+      whyItMatters:
+        'Managing your own assets on-chain is the whole point of DeFi. A clear view of your portfolio is your most important risk tool.',
+      objectives: [
+        'Connect a wallet to a portfolio tracker and understand what it shows',
+        'Calculate the true cost of a trade including gas and slippage',
+        'Set a simple position-sizing rule for DeFi allocations',
+        'Export your transaction history for tax purposes',
+      ],
+      estimatedMinutes: 25,
+      difficulty: 'beginner',
+      tags: ['portfolio', 'tools', 'DeFi', 'tax'],
+    },
+    {
+      id: 'risk-management-defi',
+      title: 'DeFi Risk Management',
+      description:
+        'Understand smart contract risk, liquidation mechanics, impermanent loss, and how to size positions so a single exploit does not wipe you out.',
+      whyItMatters:
+        'DeFi yields are real, but so are the risks. The investors who survive long-term are those who understand what can go wrong.',
+      objectives: [
+        'Name the top 5 DeFi risk categories: smart contract, oracle, liquidity, protocol, regulatory',
+        'Understand how lending liquidations work and how to avoid them',
+        'Calculate impermanent loss on an LP position',
+        'Apply a simple rule: never put more in a single protocol than you can afford to lose',
+      ],
+      estimatedMinutes: 35,
+      difficulty: 'intermediate',
+      tags: ['risk', 'DeFi', 'security', 'lending'],
+    },
+  ],
+};
+
 const FALLBACK_PLAN: LearningPlan = {
   track: 'learner',
   level: 'beginner',
@@ -142,16 +253,25 @@ export async function POST(req: NextRequest) {
 
     if (!model) {
       console.warn('[learning-plan] No AI provider configured, returning fallback plan');
-      return NextResponse.json({ ...FALLBACK_PLAN, track, level });
+      const fallback = track === 'financial' ? FALLBACK_FINANCIAL_PLAN : FALLBACK_PLAN;
+      return NextResponse.json({ ...fallback, track, level });
     }
+
+    const financialTrackGuidance = track === 'financial' || track === 'all' ? `
+IMPORTANT — Token & DeFi curriculum requirements:
+- Include a foundational module on "What is a crypto token?" covering utility tokens, governance tokens, LP tokens
+- Include a tokenomics module covering supply, vesting, FDV vs market cap, and how to spot red flags
+- Include a module specifically on Hyperliquid (HYPE token): it is a decentralized perpetuals exchange that grew to a top-10 asset by mid-2026, surpassing Solana's market cap. Cover why its community-first distribution (no VCs, large airdrop) and fee revenue model made it a notable case study in protocol value accrual. Arthur Hayes famously targeted $150 for HYPE. Use this as a real-world example of evaluating a protocol token.
+- Include modules on DeFi portfolio management, governance tokens, and DeFi risk management (liquidations, impermanent loss, smart contract risk)
+` : '';
 
     const prompt = `You are a Web3 / decentralization education expert. Create a personalized learning plan as a JSON object.
 
 User profile:
-- Track: ${track} (learner = understand concepts, creator = build things on-chain, financial = manage assets, all = full picture)
+- Track: ${track} (learner = understand concepts, creator = build things on-chain, financial = manage assets and understand DeFi tokens, all = full picture)
 - Level: ${level}
 - Specific goals: ${specificGoals || 'not provided'}
-
+${financialTrackGuidance}
 Return ONLY valid JSON — no markdown, no code fences, no explanation. Match this TypeScript type exactly:
 
 {
@@ -197,7 +317,8 @@ Requirements:
       plan = JSON.parse(cleaned) as LearningPlan;
     } catch (parseError) {
       console.error('[learning-plan] Failed to parse AI response, using fallback', parseError);
-      return NextResponse.json({ ...FALLBACK_PLAN, track, level });
+      const fallback = track === 'financial' ? FALLBACK_FINANCIAL_PLAN : FALLBACK_PLAN;
+      return NextResponse.json({ ...fallback, track, level });
     }
 
     // Ensure the track/level from the request are in the response
