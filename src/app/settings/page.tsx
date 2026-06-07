@@ -198,7 +198,7 @@ interface FarcasterProfile {
   pfpUrl?: string;
 }
 
-function AccountPanel({ profile, onProfileUpdate }: { profile: FarcasterProfile | null; onProfileUpdate: (p: FarcasterProfile) => void }) {
+function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: FarcasterProfile | null; onProfileUpdate: (p: FarcasterProfile) => void; hideTitle?: boolean }) {
   const [fidInput, setFidInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -231,7 +231,7 @@ function AccountPanel({ profile, onProfileUpdate }: { profile: FarcasterProfile 
 
   return (
     <div>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Farcaster Account</div>
+      {!hideTitle && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Farcaster Account</div>}
 
       {/* Current profile card */}
       {profile?.fid ? (
@@ -393,26 +393,57 @@ export default function SettingsPage() {
     } catch { alert("No notes to export."); }
   }
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const showInstallPrompt = ios && !standalone;
   const notifEnabled = notifState === "granted";
   const notifDenied = notifState === "denied";
   const currentThemeName = ALL_THEMES.find(t => t.id === activeTheme)?.name ?? "HomieHouse";
   const togglePanel = (panel: ActivePanel) => setActivePanel(prev => prev === panel ? null : panel);
 
+  // On mobile, when a panel is open, render only the panel with a back button
+  const mobileShowingPanel = isMobile && activePanel !== null;
+
+  const panelBackButton = (
+    <button
+      onClick={() => setActivePanel(null)}
+      style={{ background: "none", border: "none", color: "var(--muted-on-dark)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+    >
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+    </button>
+  );
+
+  const panelTitles: Record<NonNullable<ActivePanel>, string> = {
+    account: "Farcaster Account",
+    themes: "Choose Theme",
+    notifications: "Push Notifications",
+    wallet: "Wallet",
+  };
+
   return (
     <AppShell>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "var(--muted-on-dark)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
-          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-        </button>
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Settings</h1>
+        {mobileShowingPanel ? panelBackButton : (
+          <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "var(--muted-on-dark)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+        )}
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+          {mobileShowingPanel ? panelTitles[activePanel!] : "Settings"}
+        </h1>
       </div>
 
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-        {/* ── Left column ── */}
-        <div style={{ minWidth: 240, maxWidth: 300, flex: "0 0 260px" }}>
+        {/* ── Left column — hidden on mobile when a panel is open ── */}
+        <div style={{ minWidth: 240, maxWidth: 300, flex: "0 0 260px", display: mobileShowingPanel ? "none" : undefined }}>
 
           {/* Account */}
           <div style={{ marginBottom: 18 }}>
@@ -563,16 +594,16 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* ── Right panel ── */}
+        {/* ── Right panel — full width on mobile, flex col on desktop ── */}
         {activePanel === "account" && (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <AccountPanel profile={profile} onProfileUpdate={setProfile} />
+          <div style={{ flex: 1, minWidth: 0, width: mobileShowingPanel ? "100%" : undefined }}>
+            <AccountPanel profile={profile} onProfileUpdate={setProfile} hideTitle={isMobile} />
           </div>
         )}
 
         {activePanel === "themes" && (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Choose Theme</div>
+          <div style={{ flex: 1, minWidth: 0, width: mobileShowingPanel ? "100%" : undefined }}>
+            {!isMobile && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Choose Theme</div>}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-on-dark)", marginBottom: 10 }}>Free</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginBottom: 20 }}>
               {FREE_THEMES.map(theme => (
@@ -608,8 +639,8 @@ export default function SettingsPage() {
         )}
 
         {activePanel === "notifications" && showInstallPrompt && (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Push Notifications</div>
+          <div style={{ flex: 1, minWidth: 0, width: mobileShowingPanel ? "100%" : undefined }}>
+            {!isMobile && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Push Notifications</div>}
             <IOSInstallCard />
           </div>
         )}
