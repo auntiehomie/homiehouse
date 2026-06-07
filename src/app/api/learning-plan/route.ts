@@ -60,11 +60,11 @@ const FALLBACK_FINANCIAL_PLAN: LearningPlan = {
       id: 'tokenomics-101',
       title: 'Tokenomics: Reading Between the Lines',
       description:
-        'Learn how to evaluate a token's supply, distribution, vesting schedules, and emission rate — the signals that separate strong projects from pump-and-dumps.',
+        "Learn how to evaluate a token's supply, distribution, vesting schedules, and emission rate — the signals that separate strong projects from pump-and-dumps.",
       whyItMatters:
         'Tokenomics determines long-term value. A great product with bad tokenomics can still destroy your investment.',
       objectives: [
-        'Read a token's circulating supply vs max supply',
+        "Read a token's circulating supply vs max supply",
         'Understand what vesting and cliff schedules mean for price',
         'Spot red flags: insider concentration, unlocks, and inflation',
         'Compare market cap vs fully diluted valuation (FDV)',
