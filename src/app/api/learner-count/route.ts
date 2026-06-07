@@ -12,5 +12,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ count: Math.max(learners.size, 47) }); // seed with realistic floor
+  return NextResponse.json({ count: learners.size });
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 
@@ -40,8 +40,6 @@ const DIFF_COLORS: Record<string, string> = {
   advanced: '#a855f7',
 };
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-
 function Skeleton({ lines = 4 }: { lines?: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -59,8 +57,6 @@ function Skeleton({ lines = 4 }: { lines?: number }) {
   );
 }
 
-// ─── Section Header ───────────────────────────────────────────────────────────
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p style={{
@@ -75,16 +71,27 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── Knowledge Check ──────────────────────────────────────────────────────────
 
-function KnowledgeCheck({ questions }: { questions: QuizQuestion[] }) {
+function KnowledgeCheck({ questions, onPass }: { questions: QuizQuestion[]; onPass: () => void }) {
   const [answers, setAnswers] = useState<(number | null)[]>(() => questions.map(() => null));
   const [submitted, setSubmitted] = useState(false);
   const [started, setStarted] = useState(false);
+  const passedRef = useRef(false);
 
   const score = submitted
     ? answers.filter((a, i) => a === questions[i].correctIndex).length
     : 0;
 
   const allAnswered = answers.every(a => a !== null);
+
+  useEffect(() => {
+    if (submitted && !passedRef.current) {
+      const pct = Math.round((score / questions.length) * 100);
+      if (pct >= 60) {
+        passedRef.current = true;
+        onPass();
+      }
+    }
+  }, [submitted, score, questions.length, onPass]);
 
   if (!started) {
     return (
@@ -98,7 +105,7 @@ function KnowledgeCheck({ questions }: { questions: QuizQuestion[] }) {
             Knowledge Check
           </p>
           <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0 }}>
-            {questions.length} questions · ~2 min
+            {questions.length} questions · ~2 min · required to complete
           </p>
         </div>
         <button
@@ -121,7 +128,6 @@ function KnowledgeCheck({ questions }: { questions: QuizQuestion[] }) {
     const passed = pct >= 60;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Score banner */}
         <div style={{
           padding: '18px 16px', borderRadius: 14, textAlign: 'center',
           background: passed
@@ -136,11 +142,10 @@ function KnowledgeCheck({ questions }: { questions: QuizQuestion[] }) {
             {passed ? '🎉 Nice work!' : '📖 Review and retry'}
           </p>
           <p style={{ fontSize: 13, color: passed ? '#86efac' : '#fcd34d', margin: 0 }}>
-            {pct}% correct
+            {pct}% correct {!passed && '— 60% needed to complete'}
           </p>
         </div>
 
-        {/* Per-question review */}
         {questions.map((q, qi) => {
           const chosen = answers[qi];
           const correct = chosen === q.correctIndex;
@@ -268,6 +273,14 @@ function ModuleLessonContent() {
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [justCompleted, setJustCompleted] = useState(false);
+  const [quizPassed, setQuizPassed] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Fade in on mount
+    const t = setTimeout(() => setVisible(true), 20);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (!moduleId) { router.replace('/learn'); return; }
@@ -282,7 +295,9 @@ function ModuleLessonContent() {
 
       const progRaw = localStorage.getItem(LS_PROGRESS_KEY);
       const progress: string[] = progRaw ? JSON.parse(progRaw) : [];
-      setCompleted(progress.includes(moduleId));
+      const alreadyDone = progress.includes(moduleId);
+      setCompleted(alreadyDone);
+      if (alreadyDone) setQuizPassed(true); // already passed previously
 
       fetch('/api/lesson', {
         method: 'POST',
@@ -316,9 +331,7 @@ function ModuleLessonContent() {
         : [...new Set([...progress, moduleId])];
       localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(next));
       setCompleted(!completed);
-      if (!completed) {
-        setJustCompleted(true);
-      }
+      if (!completed) setJustCompleted(true);
     } catch {}
   };
 
@@ -327,6 +340,14 @@ function ModuleLessonContent() {
     const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nLearning about Web3 and DeFi — one module at a time. 🏡\n\nhomie.house`;
     window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text } }));
   };
+
+  const goBack = () => {
+    setVisible(false);
+    setTimeout(() => router.push('/learn'), 220);
+  };
+
+  const hasQuiz = (lesson?.quiz?.length ?? 0) > 0;
+  const canComplete = !hasQuiz || quizPassed;
 
   if (!mod && loading) {
     return (
@@ -350,15 +371,24 @@ function ModuleLessonContent() {
   const diffColor = DIFF_COLORS[mod.difficulty] ?? '#94a3b8';
 
   return (
-    <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 80px' }}>
+    <div style={{
+      maxWidth: 680, margin: '0 auto', padding: '20px 16px 80px',
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'translateY(0)' : 'translateY(12px)',
+      transition: 'opacity 0.22s ease, transform 0.22s ease',
+    }}>
 
       {/* Back */}
-      <Link href="/learn" style={{
-        fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none',
-        display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 20,
-      }}>
+      <button
+        onClick={goBack}
+        style={{
+          fontSize: 13, color: 'var(--muted-on-dark)', background: 'none',
+          border: 'none', cursor: 'pointer', padding: 0,
+          display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 20,
+        }}
+      >
         ← Back to plan
-      </Link>
+      </button>
 
       {/* Module header */}
       <div style={{ marginBottom: 20 }}>
@@ -478,18 +508,37 @@ function ModuleLessonContent() {
           </div>
 
           {/* Knowledge Check */}
-          {lesson.quiz?.length > 0 && (
+          {hasQuiz && (
             <>
               <SectionLabel>Knowledge Check</SectionLabel>
-              <KnowledgeCheck questions={lesson.quiz} />
+              <KnowledgeCheck questions={lesson.quiz} onPass={() => setQuizPassed(true)} />
             </>
           )}
+
+          {/* Source credit */}
+          <div style={{
+            marginTop: 24, padding: '12px 14px', borderRadius: 10,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+          }}>
+            <span style={{ fontSize: 16, flexShrink: 0 }}>🤖</span>
+            <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
+              <strong style={{ color: 'var(--text-on-dark)' }}>AI-generated content.</strong>{' '}
+              This lesson was created by Claude (Anthropic) and tailored to your learning track.
+              Always cross-reference with primary sources — try{' '}
+              <span style={{ color: 'var(--accent)' }}>ethereum.org</span>,{' '}
+              <span style={{ color: 'var(--accent)' }}>docs.uniswap.org</span>, or search the{' '}
+              <span style={{ color: 'var(--accent)' }}>/defi</span> and{' '}
+              <span style={{ color: 'var(--accent)' }}>/web3</span> channels on Farcaster.
+              Nothing here is financial advice.
+            </p>
+          </div>
         </>
       ) : null}
 
       {/* Ask your network */}
       {mod && (
-        <div style={{ marginTop: 24 }}>
+        <div style={{ marginTop: 20 }}>
           <button
             onClick={() => {
               const text = `Learning about "${mod.title}" on HomieHouse 🧠\n\nAnyone have good resources or insights on this topic? Drop them below 👇\n\nhomiehouse.lol`;
@@ -539,7 +588,7 @@ function ModuleLessonContent() {
                 Share Progress
               </button>
               <button
-                onClick={() => router.push('/learn')}
+                onClick={goBack}
                 style={{
                   flex: 1, padding: '12px', borderRadius: 10,
                   background: '#16a34a', border: 'none',
@@ -547,39 +596,58 @@ function ModuleLessonContent() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 }}
               >
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l9-5-9-5-9 5 9 5z"/>
-                </svg>
                 Back to Plan
               </button>
             </div>
           </div>
         ) : (
-          <button
-            onClick={toggleComplete}
-            style={{
-              width: '100%', padding: '16px', borderRadius: 12,
-              background: completed
-                ? 'var(--surface)'
-                : 'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
-              color: completed ? 'var(--muted-on-dark)' : '#fff',
-              fontSize: 15, fontWeight: 700, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              border: completed ? '1px solid var(--border)' : 'none',
-              marginBottom: 12,
-              transition: 'all 0.15s',
-            }}
-          >
-            {completed ? '✓ Completed — mark as incomplete' : '✓ Mark as Complete'}
-          </button>
+          <>
+            {!canComplete && !completed && (
+              <div style={{
+                padding: '11px 14px', borderRadius: 10, marginBottom: 10,
+                background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+                fontSize: 13, color: '#a5b4fc', textAlign: 'center',
+              }}>
+                Complete the knowledge check above to mark this module done.
+              </div>
+            )}
+            <button
+              onClick={canComplete || completed ? toggleComplete : undefined}
+              disabled={!canComplete && !completed}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 12,
+                background: completed
+                  ? 'var(--surface)'
+                  : canComplete
+                    ? 'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)'
+                    : 'var(--surface)',
+                color: completed
+                  ? 'var(--muted-on-dark)'
+                  : canComplete ? '#fff' : 'var(--muted-on-dark)',
+                fontSize: 15, fontWeight: 700,
+                cursor: (canComplete || completed) ? 'pointer' : 'not-allowed',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                border: (completed || !canComplete) ? '1px solid var(--border)' : 'none',
+                marginBottom: 12,
+                opacity: (!canComplete && !completed) ? 0.5 : 1,
+                transition: 'all 0.15s',
+              }}
+            >
+              {completed ? '✓ Completed — mark as incomplete' : '✓ Mark as Complete'}
+            </button>
+          </>
         )}
 
-        <Link href="/learn" style={{
-          display: 'block', textAlign: 'center',
-          fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none', padding: 8,
-        }}>
+        <button
+          onClick={goBack}
+          style={{
+            display: 'block', width: '100%', textAlign: 'center',
+            fontSize: 13, color: 'var(--muted-on-dark)',
+            background: 'none', border: 'none', cursor: 'pointer', padding: 8,
+          }}
+        >
           ← Back to learning plan
-        </Link>
+        </button>
       </div>
     </div>
   );

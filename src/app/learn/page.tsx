@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
 
@@ -190,8 +190,8 @@ function DifficultyBadge({ level }: { level: 'beginner' | 'intermediate' | 'adva
 
 // ─── Module Card ──────────────────────────────────────────────────────────────
 
-function ModuleCard({ module, index, completed, onToggle }: {
-  module: LearningModule; index: number; completed: boolean; onToggle: (id: string) => void;
+function ModuleCard({ module, index, completed, onToggle, onNavigate }: {
+  module: LearningModule; index: number; completed: boolean; onToggle: (id: string) => void; onNavigate: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -267,20 +267,21 @@ function ModuleCard({ module, index, completed, onToggle }: {
               <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, border: '1px solid var(--border)', color: 'var(--muted-on-dark)' }}>{tag}</span>
             ))}
           </div>
-          <a
-            href={`/learn/module?id=${module.id}`}
+          <button
+            onClick={() => onNavigate(module.id)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14,
               padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700,
               background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
-              color: '#fff', textDecoration: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+              color: '#fff', border: 'none', cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
             }}
           >
             {completed ? 'Review Module' : 'Start Module'}
             <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
             </svg>
-          </a>
+          </button>
         </div>
       )}
     </div>
@@ -614,6 +615,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
 
 function LearnPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [pageState, setPageState] = useState<PageState>('quiz');
   const [activeTab, setActiveTab] = useState<LearnTab>('plan');
   const [step, setStep] = useState(1);
@@ -625,6 +627,8 @@ function LearnPageContent() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [learnerCount, setLearnerCount] = useState(0);
+  const [contentVisible, setContentVisible] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
   // Deep-link pre-selection
   useEffect(() => {
@@ -655,6 +659,16 @@ function LearnPageContent() {
   useEffect(() => {
     fetch('/api/learner-count').then(r => r.json()).then(d => setLearnerCount(d.count || 0)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setContentVisible(true), 30);
+    return () => clearTimeout(t);
+  }, []);
+
+  const navigateToModule = useCallback((id: string) => {
+    setNavigating(true);
+    setTimeout(() => router.push(`/learn/module?id=${id}`), 200);
+  }, [router]);
 
   const toggleModule = useCallback((id: string) => {
     setCompletedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -792,7 +806,12 @@ function LearnPageContent() {
     const levelLabel = plan.level.charAt(0).toUpperCase() + plan.level.slice(1);
 
     return wrap(
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{
+        maxWidth: 720, margin: '0 auto', padding: '24px 16px',
+        opacity: navigating ? 0 : (contentVisible ? 1 : 0),
+        transform: navigating ? 'translateY(-8px)' : (contentVisible ? 'translateY(0)' : 'translateY(10px)'),
+        transition: 'opacity 0.2s ease, transform 0.2s ease',
+      }}>
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
             <GradCapIcon size={22} />
@@ -841,7 +860,7 @@ function LearnPageContent() {
         {/* Modules */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
           {plan.modules.map((mod, i) => (
-            <ModuleCard key={mod.id} module={mod} index={i} completed={completedIds.has(mod.id)} onToggle={toggleModule} />
+            <ModuleCard key={mod.id} module={mod} index={i} completed={completedIds.has(mod.id)} onToggle={toggleModule} onNavigate={navigateToModule} />
           ))}
         </div>
 
