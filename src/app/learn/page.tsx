@@ -530,7 +530,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
                     <button
                       onClick={() => {
                         const shareText = `Read this: ${msg.url}\n\nKey insight: ${msg.content.slice(0, 200)}...`;
-                        window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text: shareText } }));
+                        router.push(`/compose?text=${encodeURIComponent(shareText)}`);
                       }}
                       style={{
                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
@@ -706,7 +706,7 @@ function LearnPageContent() {
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     const progressLine = pct === 0 ? 'Just getting started 🌱' : pct < 50 ? 'Making progress 🔥' : pct < 100 ? 'Almost there 💪' : 'Plan complete! 🎉';
     const text = `📚 My Web3 Learning Journey on HomieHouse\n\nTrack: ${plan.track} | Level: ${plan.level}\nProgress: ${done}/${total} modules (${pct}%)\n\n${progressLine}\n\nBuilding my path to decentralization, one step at a time.`;
-    window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text } }));
+    router.push(`/compose?text=${encodeURIComponent(text)}`);
   };
 
   // ─── Options ──────────────────────────────────────────────────────────────

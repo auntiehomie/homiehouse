@@ -338,7 +338,7 @@ function ModuleLessonContent() {
   const shareProgress = () => {
     if (!mod) return;
     const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nLearning about Web3 and DeFi — one module at a time. 🏡\n\nhomie.house`;
-    window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text } }));
+    router.push(`/compose?text=${encodeURIComponent(text)}`);
   };
 
   const goBack = () => {
@@ -542,7 +542,7 @@ function ModuleLessonContent() {
           <button
             onClick={() => {
               const text = `Learning about "${mod.title}" on HomieHouse 🧠\n\nAnyone have good resources or insights on this topic? Drop them below 👇\n\nhomiehouse.lol`;
-              window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text } }));
+              router.push(`/compose?text=${encodeURIComponent(text)}`);
             }}
             style={{
               width: '100%', padding: '14px', borderRadius: 12,
