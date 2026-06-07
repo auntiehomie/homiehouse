@@ -65,23 +65,23 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse',
-    description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
+    title: 'HomieHouse — Your home on Farcaster',
+    description: 'Personalized Web3 learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.',
     url: BASE_URL,
     images: [
       {
-        url: '/og-image.png',
+        url: '/api/og',
         width: 1200,
         height: 630,
-        alt: 'HomieHouse',
+        alt: 'HomieHouse — Learn Web3. Connect with your community.',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse',
-    description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
-    images: ['/og-image.png'],
+    title: 'HomieHouse — Your home on Farcaster',
+    description: 'Personalized Web3 learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.',
+    images: ['/api/og'],
   },
   robots: {
     index: true,
