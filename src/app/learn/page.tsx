@@ -334,6 +334,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 }
 
 function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

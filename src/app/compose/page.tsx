@@ -575,7 +575,7 @@ function ComposePageInner() {
 
       {/* Fixed toolbar — always visible above the bottom nav */}
       <div style={{
-        position: 'fixed', bottom: 80, left: 0, right: 0, zIndex: 20,
+        position: 'fixed', bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, zIndex: 100,
         background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
       }}>
         {/* Channel picker opens upward from here */}
