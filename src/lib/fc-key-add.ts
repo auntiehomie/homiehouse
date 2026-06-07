@@ -1,18 +1,12 @@
 /**
  * Farcaster signer provisioning via recovery phrase (mnemonic).
  *
- * The user's BIP-39 mnemonic is used to derive their Farcaster custody
- * secp256k1 key (m/44'/60'/0'/0/0).  That key signs a SignedKeyRequest
- * EIP-712 message with the user's own FID as requestFid, using the standard
- * Farcaster SignedKeyRequestValidator domain (chainId 10, OP Mainnet).
+ * Derives the user's Farcaster custody key from their BIP-39 mnemonic,
+ * generates a fresh Ed25519 signer keypair, then registers it on-chain
+ * directly via KeyRegistry.addFor() — no Warpcast approval required.
  *
- * The signed request is submitted via /api/register-user-key, which forwards
- * to the Warpcast API.  Because the signer IS the FID owner's custody address,
- * Warpcast may auto-approve the request; if still pending, the caller receives
- * an approval URL that can be shown as a QR code.
- *
- * The mnemonic is held in memory only for the duration of this function and
- * is never persisted or sent to any server.
+ * The mnemonic is held in memory only for the duration of this function
+ * and is never persisted or sent to any server.
  */
 
 import { mnemonicToSeedSync, validateMnemonic } from '@scure/bip39';
@@ -21,14 +15,15 @@ import { HDKey } from '@scure/bip32';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { ed25519 } from '@noble/curves/ed25519';
 import { hashTypedData } from 'viem';
+import { privateKeyToAddress } from 'viem/accounts';
 import { hexToBytes } from './fc-message-builder';
 
-// Standard Farcaster SignedKeyRequestValidator on OP Mainnet
-const SIGNED_KEY_REQUEST_DOMAIN = {
-  name: 'Farcaster SignedKeyRequestValidator',
+// Farcaster KeyRegistry EIP-712 domain (Optimism mainnet)
+const KEY_REGISTRY_DOMAIN = {
+  name: 'Farcaster KeyRegistry',
   version: '1',
   chainId: 10,
-  verifyingContract: '0x00000000fc700472606ed4fa22623acf62c60553',
+  verifyingContract: '0x00000000Fc1237824fb747aBDE0FF18990E59b7e',
 } as const;
 
 export interface ProvisionResult {
@@ -51,13 +46,6 @@ function mnemonicToCustodyKey(mnemonic: string): Uint8Array {
   return child.privateKey;
 }
 
-function secp256k1Sign65(digestHex: `0x${string}`, privateKey: Uint8Array): Uint8Array {
-  const sig = secp256k1.sign(hexToBytes(digestHex), privateKey);
-  const r = hexToBytes(sig.r.toString(16).padStart(64, '0'));
-  const s = hexToBytes(sig.s.toString(16).padStart(64, '0'));
-  return new Uint8Array([...r, ...s, sig.recovery! + 27]);
-}
-
 export async function provisionSignerWithMnemonic(
   fid: number,
   mnemonic: string,
@@ -68,56 +56,84 @@ export async function provisionSignerWithMnemonic(
     throw new Error('Invalid recovery phrase — check that all words are correct and in order.');
   }
 
-  // Derive custody key — stays in memory only
+  // Derive custody secp256k1 key + address — stays in memory only
   const custodyPrivKey = mnemonicToCustodyKey(clean);
+  const custodyPrivHex = bytesToHex(custodyPrivKey);
+  const custodyAddress = privateKeyToAddress(custodyPrivHex);
 
-  // Fresh Ed25519 keypair for this signer
+  // Generate fresh Ed25519 signer keypair
   const edPrivKey = ed25519.utils.randomPrivateKey();
-  const edPubKey = ed25519.getPublicKey(edPrivKey);
-  const keyHex = bytesToHex(edPubKey);
+  const edPubKey  = ed25519.getPublicKey(edPrivKey);
+  const signerPublicKey  = bytesToHex(edPubKey);
+  const signerPrivateKey = bytesToHex(edPrivKey);
 
-  const deadline = Math.floor(Date.now() / 1000) + 3600;
+  const keyAddDeadline = Math.floor(Date.now() / 1000) + 86_400; // 24 h
 
-  // Sign SignedKeyRequest EIP-712 using the user's OWN FID as requestFid.
-  // Because the signer's custody address matches the FID owner, Warpcast
-  // may auto-approve or present a simplified approval UI.
+  // Step 1: Fetch nonces + server-signed SignedKeyRequestMetadata
+  const prepRes = await fetch(
+    `/api/create-account?address=${custodyAddress}&signerKey=${signerPublicKey}&deadline=${keyAddDeadline}`,
+  );
+  if (!prepRes.ok) {
+    const err = await prepRes.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to prepare signer registration');
+  }
+  const { keyAddNonce, signedKeyRequestMetadata } = await prepRes.json();
+
+  // Step 2: Sign the KeyRegistry Add EIP-712 with the custody key (no wallet popup)
   const digest = hashTypedData({
-    domain: SIGNED_KEY_REQUEST_DOMAIN,
+    domain: KEY_REGISTRY_DOMAIN,
     types: {
-      SignedKeyRequest: [
-        { name: 'requestFid', type: 'uint256' },
-        { name: 'key', type: 'bytes' },
-        { name: 'deadline', type: 'uint256' },
+      Add: [
+        { name: 'owner',        type: 'address' },
+        { name: 'keyType',      type: 'uint32'  },
+        { name: 'key',          type: 'bytes'   },
+        { name: 'metadataType', type: 'uint32'  },
+        { name: 'metadata',     type: 'bytes'   },
+        { name: 'nonce',        type: 'uint256' },
+        { name: 'deadline',     type: 'uint256' },
       ],
     },
-    primaryType: 'SignedKeyRequest',
-    message: { requestFid: BigInt(fid), key: keyHex, deadline: BigInt(deadline) },
+    primaryType: 'Add',
+    message: {
+      owner:        custodyAddress,
+      keyType:      1,
+      key:          signerPublicKey as `0x${string}`,
+      metadataType: 1,
+      metadata:     signedKeyRequestMetadata as `0x${string}`,
+      nonce:        BigInt(keyAddNonce),
+      deadline:     BigInt(keyAddDeadline),
+    },
   });
-  const sigBytes = secp256k1Sign65(digest, custodyPrivKey);
-  const signatureHex = bytesToHex(sigBytes);
 
-  // Submit via server proxy (avoids CORS with Warpcast API)
-  const res = await fetch('/api/register-user-key', {
+  const sig = secp256k1.sign(hexToBytes(digest.slice(2)), custodyPrivKey);
+  const r = sig.r.toString(16).padStart(64, '0');
+  const s = sig.s.toString(16).padStart(64, '0');
+  const v = (sig.recovery! + 27).toString(16).padStart(2, '0');
+  const keyAddSig: `0x${string}` = `0x${r}${s}${v}`;
+
+  // Step 3: Server calls KeyRegistry.addFor() — immediately approved, no Warpcast
+  const addRes = await fetch('/api/add-signer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      key: keyHex,
-      requestFid: fid,
-      deadline,
-      signature: signatureHex,
+      fidOwner: custodyAddress,
+      signerPublicKey,
+      signedKeyRequestMetadata,
+      keyAddSig,
+      keyAddDeadline,
     }),
   });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `Registration failed (${res.status})`);
+  if (!addRes.ok) {
+    const err = await addRes.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to register signer on-chain');
   }
 
   return {
-    publicKeyHex: keyHex.slice(2),
-    privateKeyHex: bytesToHex(edPrivKey).slice(2),
-    status: data.status === 'approved' ? 'approved' : 'pending',
-    signer_uuid: data.token,
-    signer_approval_url: data.signer_approval_url,
+    publicKeyHex:       signerPublicKey.slice(2),
+    privateKeyHex:      signerPrivateKey.slice(2),
+    status:             'approved',
+    signer_uuid:        undefined,
+    signer_approval_url: null,
   };
 }

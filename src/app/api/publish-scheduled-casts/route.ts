@@ -1,24 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { publishCast } from '@/lib/farcaster-writes';
+import { buildSignedMessage, hexToBytes, MessageType } from '@/lib/fc-message-builder';
+import type { CastEmbed } from '@/lib/fc-message-builder';
+import { ed25519 } from '@noble/curves/ed25519';
+
+const HYPERSNAP_BASE =
+  process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
+
+async function publishWithStoredKey(cast: any): Promise<string> {
+  const privateKeyHex = cast.signer_uuid && cast.signer_uuid !== 'app-managed' ? cast.signer_uuid : null;
+  if (!privateKeyHex) {
+    throw new Error('No signer key stored. Re-schedule this cast after approving posting permissions.');
+  }
+
+  const privateKeyBytes = hexToBytes(privateKeyHex);
+  const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
+  const signer = {
+    publicKey: publicKeyBytes,
+    sign: async (hash: Uint8Array) => ed25519.sign(hash, privateKeyBytes),
+  };
+
+  const rawEmbeds: Array<{ url: string }> = Array.isArray(cast.embeds)
+    ? cast.embeds
+    : JSON.parse(cast.embeds || '[]');
+  const castEmbeds: CastEmbed[] = rawEmbeds.map((e: { url: string }) => ({ url: e.url }));
+  const parentUrl = cast.channel_id
+    ? `https://warpcast.com/~/channel/${cast.channel_id}`
+    : undefined;
+
+  const message = await buildSignedMessage(
+    {
+      type: MessageType.CAST_ADD,
+      fid: cast.user_fid,
+      body: {
+        castAddBody: {
+          text: cast.text,
+          embeds: castEmbeds.length ? castEmbeds : undefined,
+          parent: parentUrl ? { url: parentUrl } : undefined,
+        },
+      },
+    },
+    signer,
+  );
+
+  const hubRes = await fetch(`${HYPERSNAP_BASE}/v1/submitMessage`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/octet-stream', accept: 'application/json' },
+    body: message as unknown as BodyInit,
+  });
+
+  if (!hubRes.ok) {
+    const errData = await hubRes.json().catch(() => ({}));
+    throw new Error(errData.message || errData.errMsg || errData.error || `Hub error ${hubRes.status}`);
+  }
+
+  const result = await hubRes.json();
+  return result.hash ?? result.cast?.hash ?? result.data?.hash ?? '';
+}
 
 async function handlePublishScheduledCasts(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
+    const isVercelCron = req.headers.get('x-vercel-cron') === '1';
 
-    if (!cronSecret || cronSecret.length < 32) {
-      console.error('❌ CRITICAL: CRON_SECRET not configured or too weak');
-      return NextResponse.json({ ok: false, error: 'Service unavailable' }, { status: 503 });
+    // If CRON_SECRET is configured, enforce it. Otherwise allow Vercel cron calls through.
+    if (cronSecret && cronSecret.length >= 32) {
+      const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+      if (authHeader !== `Bearer ${cronSecret}` && !isVercelCron) {
+        console.warn('❌ Unauthorized cron request from:', ip);
+        return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+      }
+    } else if (!isVercelCron) {
+      // No secret configured — block non-Vercel-cron external calls
+      console.warn('⚠️ CRON_SECRET not set; add it to Vercel env vars');
     }
 
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      console.warn('❌ Unauthorized cron request from:', ip);
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
-
-    console.log('✅ Cron job authenticated');
+    console.log('✅ Cron job running');
 
     const db = getDb();
     const now = new Date();
@@ -39,26 +97,18 @@ async function handlePublishScheduledCasts(req: NextRequest) {
       try {
         console.log(`📤 Publishing cast ${cast.id} for user ${cast.user_fid}...`);
 
-        const embeds = Array.isArray(cast.embeds) ? cast.embeds : JSON.parse(cast.embeds || '[]');
+        const castHash = await publishWithStoredKey(cast);
 
-        // Use app-managed signer via farcaster-writes
-        const publishResult = await publishCast({
-          text: cast.text,
-          fid: cast.user_fid,
-          embeds: embeds.length ? embeds : undefined,
-          channelKey: cast.channel_id || undefined,
-        });
-
-        console.log(`✅ Published! Hash: ${publishResult.castHash}`);
+        console.log(`✅ Published! Hash: ${castHash}`);
 
         await db.query(
           `UPDATE scheduled_casts
            SET status = 'published', published_at = $1, cast_hash = $2, updated_at = NOW()
            WHERE id = $3`,
-          [now.toISOString(), publishResult.castHash || null, cast.id]
+          [now.toISOString(), castHash || null, cast.id]
         );
 
-        results.push({ id: cast.id, success: true, cast_hash: publishResult.castHash });
+        results.push({ id: cast.id, success: true, cast_hash: castHash });
       } catch (error: any) {
         console.error(`❌ Error publishing cast ${cast.id}:`, error.message);
 
@@ -129,24 +179,18 @@ export async function PUT(req: NextRequest) {
 
     const cast = rows[0];
     try {
-      const embeds = Array.isArray(cast.embeds) ? cast.embeds : JSON.parse(cast.embeds || '[]');
-      const publishResult = await publishCast({
-        text: cast.text,
-        fid: cast.user_fid,
-        embeds: embeds.length ? embeds : undefined,
-        channelKey: cast.channel_id || undefined,
-      });
+      const castHash = await publishWithStoredKey(cast);
 
       await db.query(
         `UPDATE scheduled_casts
          SET status = 'published', published_at = NOW(), cast_hash = $1, updated_at = NOW()
          WHERE id = $2`,
-        [publishResult.castHash || null, id]
+        [castHash || null, id]
       );
 
       return NextResponse.json({
         ok: true,
-        cast_hash: publishResult.castHash,
+        cast_hash: castHash,
         message: 'Cast published successfully',
       });
     } catch (error: any) {

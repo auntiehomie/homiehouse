@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import SnapRenderer, { type SnapData, type SnapAction } from './SnapRenderer';
 import FrameEmbed from './FrameEmbed';
 import UrlPreview from './UrlPreview';
+import { openMiniApp } from './MiniAppViewer';
 import { buildJfs, getSignerForFid } from '@/lib/snap-jfs';
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
@@ -74,7 +75,7 @@ export default function SmartEmbed({ url, castHash }: Props) {
   const handleSnapAction = async (action: SnapAction, inputs: Record<string, unknown>) => {
     switch (action.action) {
       case 'open_url':
-        if (action.params?.target) window.open(action.params.target as string, '_blank', 'noopener,noreferrer');
+        if (action.params?.target) openMiniApp(action.params.target as string);
         return;
       case 'view_cast':
         if (action.params?.hash) router.push(`/cast/${action.params.hash}`);

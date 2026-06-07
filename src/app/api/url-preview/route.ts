@@ -131,36 +131,40 @@ async function fetchXPreview(url: string): Promise<{ ok: boolean; metadata: Open
 }
 
 /**
- * Extract Open Graph and meta tags from HTML
+ * Extract Open Graph and meta tags from HTML.
+ * Handles both attribute orderings: property=... content=... and content=... property=...
  */
 function extractMetadata(html: string, url: string): OpenGraphData {
   const metadata: OpenGraphData = {};
 
-  const ogTitleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i);
-  const ogDescMatch = html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i);
-  const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i);
-  const ogSiteMatch = html.match(/<meta\s+property=["']og:site_name["']\s+content=["']([^"']+)["']/i);
-  const ogTypeMatch = html.match(/<meta\s+property=["']og:type["']\s+content=["']([^"']+)["']/i);
+  function getOgTag(property: string): string {
+    // Try property before content
+    const m1 = html.match(new RegExp(`<meta[^>]+property=["']${property}["'][^>]+content=["']([^"']+)["']`, 'i'));
+    if (m1) return m1[1];
+    // Try content before property
+    const m2 = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${property}["']`, 'i'));
+    return m2?.[1] || '';
+  }
 
-  const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-  const descMatch = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i);
+  function getMetaTag(name: string): string {
+    const m1 = html.match(new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'));
+    if (m1) return m1[1];
+    const m2 = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, 'i'));
+    return m2?.[1] || '';
+  }
 
-  metadata.title = ogTitleMatch?.[1] || titleMatch?.[1] || '';
-  metadata.description = ogDescMatch?.[1] || descMatch?.[1] || '';
-  metadata.image = ogImageMatch?.[1] || '';
-  metadata.siteName = ogSiteMatch?.[1] || '';
-  metadata.type = ogTypeMatch?.[1] || '';
-  metadata.url = url;
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
 
-  const decodeHtml = (str: string) => {
-    return str
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&#x27;/g, "'");
-  };
+  metadata.title = getOgTag('og:title') || titleMatch?.[1] || '';
+  metadata.description = getOgTag('og:description') || getMetaTag('description') || '';
+  metadata.image = getOgTag('og:image') || '';
+  metadata.siteName = getOgTag('og:site_name') || '';
+  metadata.type = getOgTag('og:type') || '';
+  metadata.url = getOgTag('og:url') || url;
+
+  const decodeHtml = (str: string) => str
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'");
 
   if (metadata.title) metadata.title = decodeHtml(metadata.title);
   if (metadata.description) metadata.description = decodeHtml(metadata.description);

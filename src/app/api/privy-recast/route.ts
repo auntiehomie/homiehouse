@@ -3,14 +3,28 @@ import { publishReaction, deleteReaction } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateHash } from '@/lib/validation';
+import { verifyPrivyAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-recast');
   logger.start();
 
   try {
+    // Verify auth token
+    const claims = await verifyPrivyAuth(request);
+    
     const body = await request.json();
     const { castHash, fid, targetCastFid, signerPrivateKey } = body;
+    
+    // Rate limit: 20 recasts per minute per user
+    const userId = claims?.userId || 'unknown';
+    await enforceRateLimit({ key: `recast:${userId}`, limit: 20, windowSeconds: 60, label: 'recast' });
+    
+    // Verify signer ownership if a specific FID is provided
+    if (fid) {
+      verifyFarcasterSigner(claims, Number(fid));
+    }
 
     // Validate input
     const validatedCastHash = validateHash(castHash, 'castHash');

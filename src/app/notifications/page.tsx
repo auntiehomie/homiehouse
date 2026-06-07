@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { ChannelSidebar } from '@/components/ChannelStrip';
+import SidebarNav from '@/components/SidebarNav';
 
 interface Actor {
   fid: number;
@@ -137,7 +137,7 @@ export default function NotificationsPage() {
               >
                 🔄 Refresh
               </button>
-              <Link href="/" style={{ color: 'var(--muted-on-dark)', fontSize: 14, textDecoration: 'none' }}>
+              <Link href="/feed" style={{ color: 'var(--muted-on-dark)', fontSize: 14, textDecoration: 'none' }}>
                 ← Back
               </Link>
             </div>
@@ -176,7 +176,7 @@ export default function NotificationsPage() {
             className="hidden lg:block shrink-0"
             style={{ width: 220, position: 'sticky', top: 105, maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', scrollbarWidth: 'none' }}
           >
-            <ChannelSidebar />
+            <SidebarNav />
           </aside>
 
           <main className="flex-1 min-w-0">
@@ -264,42 +264,40 @@ export default function NotificationsPage() {
                           <Link
                             href={`/cast/${notification.cast.hash}`}
                             style={{
-                              display: '-webkit-box', marginTop: 8, padding: '8px 10px',
+                              display: 'block', marginTop: 8, marginLeft: '-60px', padding: '8px 10px',
                               background: 'var(--bg-dark)', borderRadius: 8,
                               border: '1px solid var(--border)',
                               fontSize: 13, color: 'var(--muted-on-dark)',
                               textDecoration: 'none', lineHeight: 1.4,
-                              overflow: 'hidden',
-                              WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
                             } as React.CSSProperties}
                           >
-                            {notification.cast.text}
+                            {notification.cast.text.length > 320
+                              ? notification.cast.text.slice(0, 320) + '…'
+                              : notification.cast.text}
                           </Link>
                         )}
 
-                        <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 6 }}>
-                          {fmtTime(notification.timestamp || notification.most_recent_timestamp || '')}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, marginLeft: '-60px' }}>
+                          <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
+                            {fmtTime(notification.timestamp || notification.most_recent_timestamp || '')}
+                          </span>
+                          {actor?.username && (
+                            <Link
+                              href={`/profile?user=${actor.username}`}
+                              style={{ fontSize: 12, color: 'var(--muted-on-dark)', textDecoration: 'none', marginLeft: 'auto' }}
+                            >
+                              View Profile
+                            </Link>
+                          )}
+                          {notification.cast?.hash && (
+                            <Link
+                              href={`/cast/${notification.cast.hash}`}
+                              style={{ fontSize: 12, color: 'var(--muted-on-dark)', textDecoration: 'none' }}
+                            >
+                              View Cast
+                            </Link>
+                          )}
                         </div>
-                      </div>
-
-                      {/* Quick actions */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-                        {actor?.username && (
-                          <Link
-                            href={`/profile?user=${actor.username}`}
-                            style={{ fontSize: 12, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap', textDecoration: 'none' }}
-                          >
-                            View Profile
-                          </Link>
-                        )}
-                        {notification.cast?.hash && (
-                          <Link
-                            href={`/cast/${notification.cast.hash}`}
-                            style={{ fontSize: 12, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap', textDecoration: 'none' }}
-                          >
-                            View Cast
-                          </Link>
-                        )}
                       </div>
                     </div>
                   );

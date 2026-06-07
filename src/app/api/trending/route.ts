@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     logger.success('Trending casts fetched', { count: casts.length });
     logger.end();
 
-    return NextResponse.json({ data: casts });
+    return NextResponse.json({ data: casts }, { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' } });
   } catch (error: any) {
     logger.error('Failed to fetch trending', error);
     return handleApiError(error, 'GET /trending');

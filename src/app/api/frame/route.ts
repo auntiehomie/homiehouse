@@ -18,6 +18,7 @@ export interface FrameData {
   image: string;
   postUrl: string | null;
   inputText: string | null;
+  miniAppUrl: string | null;
   buttons: Array<{
     index: number;
     label: string;
@@ -58,7 +59,22 @@ export async function GET(request: NextRequest) {
       buttons.push({ index: i, label, action, target });
     }
 
-    return NextResponse.json({ isFrame: true, frame: { version, image, postUrl, inputText, buttons } });
+    // Frame v2 / mini-app: fc:frame content is JSON with button.action.url as the launch URL
+    let miniAppUrl: string | null = null;
+    try {
+      const v2 = JSON.parse(version);
+      const launchUrl = v2?.button?.action?.url;
+      if (launchUrl && typeof launchUrl === 'string') {
+        miniAppUrl = launchUrl;
+        // Synthesize a link button if none were found via v1 tags
+        if (buttons.length === 0) {
+          const label = v2?.button?.title || v2?.button?.action?.name || 'Open';
+          buttons.push({ index: 1, label, action: 'link', target: launchUrl });
+        }
+      }
+    } catch {}
+
+    return NextResponse.json({ isFrame: true, frame: { version, image, postUrl, inputText, miniAppUrl, buttons } });
   } catch {
     return NextResponse.json({ isFrame: false });
   }

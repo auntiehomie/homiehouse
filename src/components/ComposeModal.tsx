@@ -6,12 +6,15 @@ import { usePrivy } from "@privy-io/react-auth";
 
 export default function ComposeModal() {
   const { user } = usePrivy();
-  const { hasActiveSigner, requestSigner, submitCast } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [replyParentHash, setReplyParentHash] = useState<string | null>(null);
+  const [replyParentFid, setReplyParentFid] = useState<number | null>(null);
+  const [replyParentName, setReplyParentName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [mentionSearch, setMentionSearch] = useState('');
@@ -31,6 +34,10 @@ export default function ComposeModal() {
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const [isLongForm, setIsLongForm] = useState(false);
+
+  const CAST_LIMIT = 320;
+  const LONG_FORM_LIMIT = 10000;
 
   // Legacy stub — no longer needed, writes go direct via useFarcasterWrites
   const getStoredSignerUuid = (): string | undefined => undefined;
@@ -38,10 +45,11 @@ export default function ComposeModal() {
   // Listen for custom event to open compose with pre-filled text
   useEffect(() => {
     const handleOpenCompose = (e: CustomEvent) => {
-      const { text: prefilledText } = e.detail;
-      if (prefilledText) {
-        setText(prefilledText);
-      }
+      const { text: prefilledText, parentCastHash, parentCastFid, replyingToName } = e.detail || {};
+      if (prefilledText) setText(prefilledText);
+      setReplyParentHash(parentCastHash ?? null);
+      setReplyParentFid(parentCastFid ?? null);
+      setReplyParentName(replyingToName ?? null);
       setOpen(true);
     };
 
@@ -261,8 +269,11 @@ export default function ComposeModal() {
 
       console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
 
+      // In long-form mode only the first 320 chars go to the Farcaster timeline
+      const castText = isLongForm ? text.slice(0, CAST_LIMIT) : text;
+
       // Prepare cast data (for scheduled path)
-      const body: any = { text, fid: userFid };
+      const body: any = { text: castText, fid: userFid };
 
       // Build embeds array
       const embeds: any[] = [];
@@ -272,18 +283,9 @@ export default function ComposeModal() {
         embeds.push({ url: imageUrl.trim() });
       }
 
-      // Add URL embed if we have a preview
+      // Add URL embed if we have a preview (URL is already in the text; just attach as embed)
       if (urlPreview && detectedUrl) {
         embeds.push({ url: detectedUrl });
-        
-        // If it's an article with text, prepend summary to cast text
-        if (urlPreview.isArticle && urlPreview.articleText && !text.includes(urlPreview.metadata?.title || '')) {
-          const summary = urlPreview.articleText.slice(0, 200) + '...';
-          body.text = `${urlPreview.metadata?.title || 'Article'}\n\n${summary}\n\n${text}`;
-        } else if (urlPreview.metadata?.title && !text.includes(urlPreview.metadata.title)) {
-          // For non-articles, just add the title if not already in text
-          body.text = `${urlPreview.metadata.title}\n\n${text}`;
-        }
       }
 
       if (embeds.length > 0) {
@@ -355,19 +357,31 @@ export default function ComposeModal() {
         }
             } else {
         // Post immediately
-        // Submit directly via Privy signer → Hypersnap (no server round-trip)
-        await submitCast({
-          text: body.text,
-          embeds: body.embeds,
-          channelKey: body.channelKey,
-          parentUrl: body.parentUrl,
-        });
+        if (replyParentHash && replyParentFid) {
+          await reply({
+            text: body.text,
+            parentCastHash: replyParentHash,
+            parentCastFid: replyParentFid,
+            embeds: body.embeds,
+          });
+        } else {
+          await submitCast({
+            text: body.text,
+            embeds: body.embeds,
+            channelKey: body.channelKey,
+            parentUrl: body.parentUrl,
+          });
+        }
         setStatus("✓ Posted successfully!");
         setText("");
         setImageUrl("");
         setUploadedImage(null);
         setUrlPreview(null);
         setDetectedUrl(null);
+        setReplyParentHash(null);
+        setReplyParentFid(null);
+        setReplyParentName(null);
+        setIsLongForm(false);
         setTimeout(() => {
           setOpen(false);
           setStatus(null);
@@ -399,24 +413,87 @@ export default function ComposeModal() {
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>New Cast</h3>
+              <h3>{replyParentName ? `Reply to ${replyParentName}` : 'New Cast'}</h3>
               <div>
-                <button className="btn" onClick={() => setOpen(false)} aria-label="Close">Close</button>
+                <button className="btn" onClick={() => { setOpen(false); setReplyParentHash(null); setReplyParentFid(null); setReplyParentName(null); }} aria-label="Close">Close</button>
               </div>
             </div>
+            {replyParentName && (
+              <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 8, padding: '4px 0' }}>
+                Replying to <strong>{replyParentName}</strong>
+              </div>
+            )}
 
             {
               /* Normal compose interface */
               <>
-                <div style={{ marginTop: 16, position: 'relative' }}>
+                {/* Long-form toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                  <button
+                    onClick={() => setIsLongForm(v => !v)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                      background: isLongForm ? 'rgba(99,102,241,0.15)' : 'var(--surface)',
+                      border: `1px solid ${isLongForm ? 'rgba(99,102,241,0.5)' : 'var(--border)'}`,
+                      color: isLongForm ? '#a5b4fc' : 'var(--muted-on-dark)',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                  >
+                    ✨ Pro · Long Form
+                  </button>
+                  {isLongForm && (
+                    <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
+                      First 320 chars appear in timeline
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ marginTop: 12, position: 'relative' }}>
                   <textarea
                     className="compose-textarea"
                     value={text}
-                    onChange={handleTextChange}
-                    placeholder="Write a cast..."
+                    onChange={e => {
+                      if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT)) {
+                        handleTextChange(e);
+                      }
+                    }}
+                    placeholder={isLongForm ? 'Write your long-form cast… (first 320 chars appear in timeline)' : 'Write a cast…'}
                     autoFocus
+                    style={{ minHeight: isLongForm ? 180 : undefined }}
                   />
                   
+                  {/* Character counter */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    {isLongForm && text.length > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
+                        Timeline preview: {Math.min(text.length, CAST_LIMIT)}/{CAST_LIMIT}
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: 12, fontWeight: 600,
+                      color: text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40)
+                        ? text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : '#f59e0b'
+                        : 'var(--muted-on-dark)',
+                    }}>
+                      {text.length}/{isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT}
+                    </span>
+                  </div>
+
+                  {/* 320-char cutoff marker in long-form mode */}
+                  {isLongForm && text.length > CAST_LIMIT && (
+                    <div style={{
+                      marginTop: 8, padding: '6px 10px', borderRadius: 8,
+                      background: 'rgba(99,102,241,0.08)', border: '1px dashed rgba(99,102,241,0.3)',
+                      fontSize: 12, color: '#a5b4fc',
+                    }}>
+                      <strong>Timeline preview</strong> (first 320 chars):{' '}
+                      <span style={{ color: 'var(--muted-on-dark)' }}>
+                        {text.slice(0, CAST_LIMIT)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Mention autocomplete dropdown */}
                   {showMentions && mentionResults.length > 0 && (
                     <div style={{
@@ -804,6 +881,7 @@ export default function ComposeModal() {
                     setUploadedImage(null);
                     setScheduleTime('');
                     setIsScheduled(false);
+                    setIsLongForm(false);
                   }}>Cancel</button>
                   <button
                     className="btn primary"

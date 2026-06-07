@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
       displayName: normalizedUser.display_name
     });
 
-    return NextResponse.json({ ...normalizedUser, casts });
+    return NextResponse.json({ ...normalizedUser, casts }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');

@@ -8,7 +8,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import AgentChat from '@/components/AgentChat';
 import FeedCurationChat from '@/components/FeedCurationChat';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
-import { ChannelSidebar } from '@/components/ChannelStrip';
+import SidebarNav from '@/components/SidebarNav';
 
 function AskHomieContent() {
   const [castContext, setCastContext] = useState<any>(null);
@@ -88,7 +88,7 @@ function AskHomieContent() {
           className="hidden lg:block shrink-0"
           style={{ width: 220, borderRight: '1px solid var(--border)', overflowY: 'auto', scrollbarWidth: 'none', padding: '16px 0' }}
         >
-          <ChannelSidebar />
+          <SidebarNav />
         </aside>
 
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 80 }}>

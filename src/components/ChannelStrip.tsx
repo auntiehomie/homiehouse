@@ -96,6 +96,7 @@ export default function ChannelStrip() {
           </Link>
         ))}
       </div>
+      {/* Fade indicator that more channels exist to the right */}
       <div
         className="absolute top-0 right-0 bottom-2 w-10 pointer-events-none"
         style={{ background: 'linear-gradient(to right, transparent, var(--bg-dark))' }}

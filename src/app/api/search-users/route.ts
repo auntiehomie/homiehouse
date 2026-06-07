@@ -39,8 +39,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Search users using shared utility
+    // searchUsers normalizes the response so users are always in .users
     const searchResults = await searchUsers(query, 5);
-    const resultUsers = searchResults.result?.users || [];
+    const resultUsers = searchResults.users || searchResults.result?.users || searchResults.result || [];
     
     // Add search results, avoiding duplicates
     resultUsers.forEach((user: any) => {

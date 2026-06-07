@@ -3,14 +3,28 @@ import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash } from '@/lib/validation';
+import { verifyPrivyAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { enforceRateLimit } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/privy-reply');
   logger.start();
 
   try {
+    // Verify auth token
+    const claims = await verifyPrivyAuth(request);
+    
     const body = await request.json();
     const { text, parentHash, parentCastHash, fid, parentCastFid, signerPrivateKey } = body;
+    
+    // Rate limit: 20 replies per minute per user
+    const userId = claims?.userId || 'unknown';
+    await enforceRateLimit({ key: `reply:${userId}`, limit: 20, windowSeconds: 60, label: 'reply' });
+    
+    // Verify signer ownership if a specific FID is provided
+    if (fid) {
+      verifyFarcasterSigner(claims, Number(fid));
+    }
 
     // Support both parentHash and parentCastHash field names
     const resolvedParentHash = parentCastHash || parentHash;

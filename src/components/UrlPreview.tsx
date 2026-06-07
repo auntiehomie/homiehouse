@@ -1,6 +1,40 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { openMiniApp } from './MiniAppViewer';
+
+// Sites that set X-Frame-Options: DENY or CSP frame-ancestors: none.
+// Opening these in our iframe just shows a blank page, so send to a browser tab instead.
+const BLOCKED = new Set([
+  'x.com', 'twitter.com',
+  'youtube.com', 'youtu.be',
+  'instagram.com',
+  'facebook.com', 'fb.com',
+  'linkedin.com',
+  'tiktok.com',
+  'reddit.com',
+  'netflix.com',
+  'spotify.com',
+  'google.com',
+  'apple.com',
+  'amazon.com',
+  'github.com',
+]);
+
+function isBlocked(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, '');
+    return BLOCKED.has(h) || [...BLOCKED].some(d => h.endsWith('.' + d));
+  } catch { return false; }
+}
+
+function openUrl(url: string, title?: string) {
+  if (isBlocked(url)) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else {
+    openMiniApp(url, title);
+  }
+}
 
 interface PreviewData {
   ok?: boolean;
@@ -77,19 +111,16 @@ export default function UrlPreview({ url, label }: { url: string; label?: string
         <span style={{ flex: 1, fontSize: 13, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {hostname || displayUrl}
         </span>
-        <a
-          href={displayUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
+        <button
+          onClick={e => { e.stopPropagation(); openUrl(displayUrl, m.title); }}
           style={{
             flexShrink: 0, padding: '6px 14px', borderRadius: 20,
             background: '#1e293b', color: '#e2e8f0', fontSize: 13,
-            fontWeight: 600, textDecoration: 'none', border: '1px solid #334155',
+            fontWeight: 600, border: '1px solid #334155', cursor: 'pointer',
           }}
         >
           {btnLabel}
-        </a>
+        </button>
       </div>
     );
   }
@@ -123,20 +154,17 @@ export default function UrlPreview({ url, label }: { url: string; label?: string
           )}
           <div style={{ fontSize: 11, color: '#555' }}>{m.siteName || hostname}</div>
         </div>
-        <a
-          href={displayUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
+        <button
+          onClick={e => { e.stopPropagation(); openUrl(displayUrl, m.title); }}
           style={{
             flexShrink: 0, padding: '7px 14px', borderRadius: 20,
             background: '#1e293b', color: '#e2e8f0', fontSize: 13,
-            fontWeight: 600, textDecoration: 'none', border: '1px solid #334155',
+            fontWeight: 600, border: '1px solid #334155', cursor: 'pointer',
             alignSelf: 'center',
           }}
         >
           {btnLabel}
-        </a>
+        </button>
       </div>
     </div>
   );

@@ -41,10 +41,14 @@ CREATE TABLE IF NOT EXISTS cast_notes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_saved_casts_user_id ON saved_casts(user_id);
-CREATE INDEX IF NOT EXISTS idx_saved_casts_cast_hash ON saved_casts(cast_hash);
-CREATE INDEX IF NOT EXISTS idx_cast_notes_cast_id ON cast_notes(cast_id);
-CREATE INDEX IF NOT EXISTS idx_cast_notes_user_id ON cast_notes(user_id);
+CREATE TABLE IF NOT EXISTS saved_mini_apps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_fid INTEGER NOT NULL,
+  app_id TEXT NOT NULL,
+  app_data JSONB NOT NULL,
+  saved_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_fid, app_id)
+);
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -55,6 +59,11 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   UNIQUE(user_fid, (subscription->>'endpoint'))
 );
 
+CREATE INDEX IF NOT EXISTS idx_saved_casts_user_id ON saved_casts(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_casts_cast_hash ON saved_casts(cast_hash);
+CREATE INDEX IF NOT EXISTS idx_cast_notes_cast_id ON cast_notes(cast_id);
+CREATE INDEX IF NOT EXISTS idx_cast_notes_user_id ON cast_notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_mini_apps_fid ON saved_mini_apps(user_fid);
 CREATE INDEX IF NOT EXISTS idx_push_subscriptions_fid ON push_subscriptions(user_fid);
 `;
 
@@ -90,7 +99,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       message: 'Schema applied successfully',
-      tables: ['users', 'saved_casts', 'cast_notes', 'push_subscriptions'],
+      tables: ['users', 'saved_casts', 'cast_notes', 'saved_mini_apps', 'push_subscriptions'],
     });
   } catch (err: any) {
     console.error('[migrate] error:', err);

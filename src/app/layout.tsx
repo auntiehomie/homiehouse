@@ -1,14 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import SdkDevMock from "../components/SdkDevMock";
 import PrivyAuthProvider from "../components/PrivyAuthProvider";
 import PrivyAuthSync from "../components/PrivyAuthSync";
-import SignerInit from "../components/SignerInit";
 import BottomNav from "../components/BottomNav";
-import WelcomeModal from "../components/WelcomeModal";
-import PushNotificationSetup from "../components/PushNotificationSetup";
+import ThemeSync from "../components/ThemeSync";
+import LazyClientComponents from "../components/LazyClientComponents";
+import { Analytics } from '@vercel/analytics/next';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.xyz';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
 // JSON-LD structured data for SEO
 const jsonLd = {
@@ -34,6 +33,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: '/hh-logo.svg', type: 'image/svg+xml' },
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
       { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     apple: [
       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
-    shortcut: '/favicon-32.png',
+    shortcut: '/hh-logo.svg',
   },
   manifest: '/manifest.json',
   applicationName: 'HomieHouse',
@@ -64,23 +64,23 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse',
-    description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
+    title: 'HomieHouse — Your home on Farcaster',
+    description: 'Personalized Web3 learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.',
     url: BASE_URL,
     images: [
       {
-        url: '/og-image.png',
+        url: '/api/og',
         width: 1200,
         height: 630,
-        alt: 'HomieHouse',
+        alt: 'HomieHouse — Learn Web3. Connect with your community.',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse',
-    description: 'Browse your Farcaster feed, compose casts, explore channels, get AI-powered insights, and connect with the decentralized social web.',
-    images: ['/og-image.png'],
+    title: 'HomieHouse — Your home on Farcaster',
+    description: 'Personalized Web3 learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.',
+    images: ['/api/og'],
   },
   robots: {
     index: true,
@@ -102,8 +102,11 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-// Force dynamic rendering since we use client-side auth providers
+// Privy auth context requires a live React tree and can't run in a static
+// build worker — force-dynamic prevents Next.js from attempting to
+// statically prerender any page through this layout.
 export const dynamic = 'force-dynamic';
+
 
 export default function RootLayout({
   children,
@@ -111,26 +114,28 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{__html: `(function(){try{var t=localStorage.getItem('hh_theme');if(t&&t!=='default')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}} />
+        <script dangerouslySetInnerHTML={{__html: `(function(){try{var t=localStorage.getItem('hh_theme');if(!t||t==='default')return;if(t==='custom'){var c=JSON.parse(localStorage.getItem('hh_custom_theme')||'{}'),s=document.documentElement.style;[['bgDark','--bg-dark'],['surface','--surface'],['textOnDark','--text-on-dark'],['accent','--accent'],['navBg','--nav-bg'],['btnPrimaryBg','--btn-primary-bg'],['btnPrimaryColor','--btn-primary-color']].forEach(function(p){if(c[p[0]])s.setProperty(p[1],c[p[0]]);});}else{document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`}} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* iOS PWA splash screens — required for clean launch experience */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        <link rel="apple-touch-startup-image" href="/splash.png" />
       </head>
       <body className={`antialiased`}>
         <PrivyAuthProvider>
           <PrivyAuthSync />
-          <SignerInit />
-          <SdkDevMock />
           <div className="pb-20 lg:pb-0">
             {children}
           </div>
           <BottomNav />
-          <WelcomeModal />
-          <PushNotificationSetup />
+          <ThemeSync />
+          <LazyClientComponents />
         </PrivyAuthProvider>
+        <Analytics />
       </body>
     </html>
   );

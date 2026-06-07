@@ -13,6 +13,13 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
 
 const nextConfig: NextConfig = {
   /* config options here */
+  async rewrites() {
+    return [
+      // Serve SW dynamically so the deployment timestamp changes on each deploy,
+      // letting the browser detect new versions and show the update banner.
+      { source: '/sw.js', destination: '/api/sw' },
+    ];
+  },
   reactCompiler: true,
   typescript: {
     ignoreBuildErrors: false,

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { text, fid, embeds = [], scheduled_time, channelKey } = body;
+    const { text, fid, embeds = [], scheduled_time, channelKey, private_key } = body;
 
     if (!text || !fid || !scheduled_time) {
       return NextResponse.json(
@@ -40,11 +40,12 @@ export async function POST(req: NextRequest) {
     const db = getDb();
     const { rows } = await db.query(
       `INSERT INTO scheduled_casts
-        (user_fid, text, embeds, channel_id, scheduled_time, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending')
+        (user_fid, signer_uuid, text, embeds, channel_id, scheduled_time, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
        RETURNING *`,
       [
         userFid,
+        private_key || 'app-managed',
         text,
         JSON.stringify(embeds),
         channelKey || null,
@@ -98,6 +99,43 @@ export async function GET(req: NextRequest) {
       { ok: false, error: 'Failed to fetch scheduled casts' },
       { status: 500 }
     );
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, fid, cast_hash } = body;
+
+    if (!id || !fid) {
+      return NextResponse.json({ ok: false, error: 'Missing id or fid' }, { status: 400 });
+    }
+
+    const userFid = Number(fid);
+    if (!userFid || isNaN(userFid)) {
+      return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
+    }
+
+    const db = getDb();
+    const { rows } = await db.query(
+      `UPDATE scheduled_casts
+       SET status = 'published', published_at = NOW(), cast_hash = $1, updated_at = NOW()
+       WHERE id = $2 AND user_fid = $3 AND status IN ('pending', 'failed')
+       RETURNING *`,
+      [cast_hash || null, parseInt(id), userFid]
+    );
+
+    if (rows.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: 'Scheduled cast not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ ok: true, cast_hash });
+  } catch (error: any) {
+    console.error('Error in schedule-cast PATCH:', error);
+    return NextResponse.json({ ok: false, error: 'Failed to mark as published' }, { status: 500 });
   }
 }
 

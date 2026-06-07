@@ -21,8 +21,12 @@ const HYPERSNAP_BASE =
  */
 export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}): Promise<any> {
   const url = `${HYPERSNAP_BASE}${endpoint}`;
+  const isWrite = opts.method && opts.method !== 'GET' && opts.method !== 'HEAD';
   const res = await fetch(url, {
     ...opts,
+    // On the server, tell Next.js to revalidate this response every 30 s.
+    // Client-side the `next` key is silently ignored by the browser fetch.
+    ...(!isWrite && { next: { revalidate: 30 } }),
     headers: {
       accept: 'application/json',
       ...(opts.headers || {}),

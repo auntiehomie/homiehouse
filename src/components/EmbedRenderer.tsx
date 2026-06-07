@@ -4,6 +4,19 @@ import React from 'react';
 import SmartEmbed from './SmartEmbed';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 
+// Extract YouTube video ID from various URL formats
+function parseYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
+    if (u.hostname.includes('youtube.com')) {
+      if (u.pathname.startsWith('/shorts/')) return u.pathname.split('/shorts/')[1].split('?')[0];
+      return u.searchParams.get('v');
+    }
+  } catch {}
+  return null;
+}
+
 // Extracts cast hash from Farcaster/Warpcast cast URLs:
 //   farcaster.xyz/~/c/[network:]0xhash
 //   farcaster.xyz/username/0xhash
@@ -71,6 +84,21 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
   }
 
   if (!embedUrl.startsWith('http')) return null;
+
+  // YouTube embed
+  const youtubeId = parseYouTubeId(embedUrl);
+  if (youtubeId) {
+    return (
+      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, borderRadius: 12, overflow: 'hidden' }}>
+        <iframe
+          src={`https://www.youtube.com/embed/${youtubeId}`}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
 
   // Farcaster cast link → inline quote-cast card
   const castHash = parseFarcasterCastUrl(embedUrl);

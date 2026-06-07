@@ -26,8 +26,33 @@ interface NeynarCompatContext {
 }
 
 export function useNeynarContext(): NeynarCompatContext {
-  const [user, setUser] = useState<NeynarCompatUser | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<NeynarCompatUser | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = localStorage.getItem('hh_profile');
+      if (stored) {
+        const profile = JSON.parse(stored);
+        if (profile?.fid) return {
+          fid: profile.fid,
+          username: profile.username || '',
+          display_name: profile.displayName || profile.display_name || '',
+          pfp_url: profile.pfpUrl || profile.pfp_url || '',
+          profile: { bio: { text: profile.bio || '' } },
+          signer_uuid: profile.signer_uuid,
+          verified_addresses: profile.verified_addresses,
+        };
+      }
+    } catch {}
+    return null;
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const stored = localStorage.getItem('hh_profile');
+      const profile = stored ? JSON.parse(stored) : null;
+      return !!(profile?.fid);
+    } catch { return false; }
+  });
 
   useEffect(() => {
     const readProfile = () => {

@@ -47,7 +47,122 @@ interface Trade {
   contractAddress: string;
 }
 
-type Tab = 'casts' | 'replies' | 'trades';
+type Tab = 'casts' | 'replies' | 'trades' | 'learning';
+
+function LearningTab({ profileFid }: { profileFid: number }) {
+  const [plan, setPlan] = useState<any>(null);
+  const [progress, setProgress] = useState<Set<string>>(new Set());
+  const [viewerFid, setViewerFid] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('hh_profile');
+      if (raw) {
+        const p = JSON.parse(raw);
+        setViewerFid(p.fid ?? null);
+      }
+    } catch {}
+    try {
+      const p = localStorage.getItem('hh_learning_plan');
+      if (p) setPlan(JSON.parse(p));
+      const prog = localStorage.getItem('hh_learning_progress');
+      if (prog) setProgress(new Set(JSON.parse(prog)));
+    } catch {}
+  }, []);
+
+  const isOwnProfile = viewerFid === profileFid;
+
+  if (!isOwnProfile) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>🎓</div>
+        <p style={{ fontWeight: 600, marginBottom: 6 }}>Learning on HomieHouse</p>
+        <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, marginBottom: 20 }}>
+          Start your own Web3 learning journey and share your progress with the community.
+        </p>
+        <a href="/learn" style={{
+          display: 'inline-block', padding: '10px 24px', borderRadius: 10,
+          background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14,
+          textDecoration: 'none',
+        }}>
+          Start Learning →
+        </a>
+      </div>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>📚</div>
+        <p style={{ fontWeight: 600, marginBottom: 6 }}>No learning plan yet</p>
+        <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, marginBottom: 20 }}>
+          Build a personalized Web3 learning path tailored to your goals.
+        </p>
+        <a href="/learn" style={{
+          display: 'inline-block', padding: '10px 24px', borderRadius: 10,
+          background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14,
+          textDecoration: 'none',
+        }}>
+          Build My Plan →
+        </a>
+      </div>
+    );
+  }
+
+  const modules: any[] = plan.modules || [];
+  const completed = progress.size;
+  const total = modules.length;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return (
+    <div>
+      {/* Plan header */}
+      <div className="surface" style={{ borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>My Learning Plan</span>
+          <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{completed}/{total} modules · {pct}%</span>
+        </div>
+        <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3, transition: 'width 0.4s' }} />
+        </div>
+        {plan.summary && (
+          <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginTop: 10, lineHeight: 1.5 }}>{plan.summary}</p>
+        )}
+      </div>
+
+      {/* Module list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {modules.map((mod: any, i: number) => {
+          const done = progress.has(mod.id);
+          return (
+            <div key={mod.id} className="surface" style={{ borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, opacity: done ? 0.6 : 1 }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                background: done ? 'var(--accent)' : 'transparent',
+                border: `2px solid ${done ? 'var(--accent)' : 'var(--border)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {done && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="var(--bg-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, margin: 0, textDecoration: done ? 'line-through' : 'none' }}>{String(i + 1).padStart(2, '0')} {mod.title}</p>
+                <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: '2px 0 0' }}>{mod.estimatedMinutes} min · {mod.difficulty}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {pct === 100 && (
+        <div style={{ textAlign: 'center', marginTop: 20, padding: '1rem', background: 'rgba(52,211,153,0.1)', borderRadius: 12, border: '1px solid rgba(52,211,153,0.2)' }}>
+          <p style={{ fontSize: 20, margin: '0 0 6px' }}>🎉</p>
+          <p style={{ fontWeight: 700, color: '#34d399', margin: 0 }}>Plan complete!</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CastCard({ cast }: { cast: Cast }) {
   let timeLabel = '';
@@ -216,13 +331,14 @@ function ProfileContent() {
     { id: 'casts', label: 'Recent Casts' },
     { id: 'replies', label: 'Replies' },
     { id: 'trades', label: 'Recent Trades' },
+    { id: 'learning', label: '🎓 Learning' },
   ];
 
   return (
     <>
       {/* Back link */}
       <Link
-        href="/"
+        href="/feed"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--muted-on-dark)', marginBottom: '1rem', textDecoration: 'none', fontSize: '0.9rem' }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -363,6 +479,10 @@ function ProfileContent() {
             {trades.map((trade) => <TradeCard key={trade.hash + trade.contractAddress} trade={trade} />)}
           </div>
         )
+      )}
+
+      {activeTab === 'learning' && (
+        <LearningTab profileFid={profile.fid} />
       )}
     </>
   );

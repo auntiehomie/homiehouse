@@ -56,18 +56,23 @@ export default function FeedTrendingTabs() {
       </div>
 
       {selectedChannel && (
-        <div className="flex items-center justify-between px-3 py-2 mb-4 rounded-lg bg-zinc-800 text-zinc-100">
+        <div className="flex items-center justify-between px-3 py-2 mb-4 rounded-lg surface">
           <span className="text-sm font-semibold">Viewing: {selectedChannel}</span>
           <button
             onClick={() => setSelectedChannel(null)}
-            className="text-xs px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 transition-colors"
+            className="text-xs px-2 py-1 rounded btn"
           >
             Clear
           </button>
         </div>
       )}
 
-      {tab === 'feed' && <ChannelStrip />}
+      {/* Channel strip: visible on mobile/tablet, hidden on desktop (shown in sidebar) */}
+      {tab === 'feed' && (
+        <div className="lg:hidden">
+          <ChannelStrip />
+        </div>
+      )}
 
       <div>
         {tab === 'feed' ? (

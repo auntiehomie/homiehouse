@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface AppEntry {
   id: string;
@@ -35,6 +36,10 @@ const SKELETON_APPS: AppEntry[] = Array.from({ length: 8 }, (_, i) => ({
 }));
 
 export default function AppsPage() {
+  const { user } = usePrivy();
+  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
+  const userFid = farcasterAccount?.fid;
+
   const [activeTab, setActiveTab] = useState<Tab>("trending");
   const [trendingApps, setTrendingApps] = useState<AppEntry[]>([]);
   const [newApps, setNewApps] = useState<AppEntry[]>([]);
@@ -49,39 +54,97 @@ export default function AppsPage() {
   const [newCursor, setNewCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Load saved app data (full objects)
+  // Load saved app data — merge DB (if logged in) with localStorage
   useEffect(() => {
-    try {
-      // Try new format first (full objects keyed by id)
-      const storedData = localStorage.getItem(STORAGE_APPS_KEY);
-      if (storedData) {
-        const parsed: Record<string, AppEntry> = JSON.parse(storedData);
-        const apps = Object.values(parsed);
-        setSavedApps(apps);
-        setSavedIds(new Set(apps.map(a => a.id)));
-        return;
-      }
-      // Migrate old format (IDs only) — we keep the IDs; full data loads later from allApps
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          const ids = parsed.map((x: any) => typeof x === "string" ? x : (x.id || x.url));
-          setSavedIds(new Set(ids));
+    async function loadSaved() {
+      // Read localStorage first
+      let localApps: AppEntry[] = [];
+      try {
+        const storedData = localStorage.getItem(STORAGE_APPS_KEY);
+        if (storedData) {
+          const parsed: Record<string, AppEntry> = JSON.parse(storedData);
+          localApps = Object.values(parsed);
+        } else {
+          // Migrate old format (IDs only)
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+              const ids = parsed.map((x: any) => typeof x === "string" ? x : (x.id || x.url));
+              setSavedIds(new Set(ids));
+            }
+          }
         }
-      }
-    } catch {}
-  }, []);
+      } catch {}
 
-  function persistApps(apps: AppEntry[]) {
+      if (userFid) {
+        try {
+          const res = await fetch(`/api/saved-apps?fid=${userFid}`);
+          const data = await res.json();
+          const dbApps: AppEntry[] = data.apps ?? [];
+          // Merge: db takes precedence, then add any local-only apps
+          const dbIds = new Set(dbApps.map((a: AppEntry) => a.id));
+          const localOnly = localApps.filter(a => !dbIds.has(a.id));
+          // Upload local-only apps to DB so they sync
+          for (const app of localOnly) {
+            fetch('/api/saved-apps', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fid: userFid, app }),
+            }).catch(() => {});
+          }
+          const merged = [...dbApps, ...localOnly];
+          setSavedApps(merged);
+          setSavedIds(new Set(merged.map(a => a.id)));
+          // Update localStorage to match merged state
+          const map: Record<string, AppEntry> = {};
+          merged.forEach(a => { map[a.id] = a; });
+          try {
+            localStorage.setItem(STORAGE_APPS_KEY, JSON.stringify(map));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged.map(a => a.id)));
+          } catch {}
+          return;
+        } catch {}
+      }
+
+      // Fallback: just use localStorage
+      if (localApps.length > 0) {
+        setSavedApps(localApps);
+        setSavedIds(new Set(localApps.map(a => a.id)));
+      }
+    }
+    loadSaved();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userFid]);
+
+  async function persistApps(apps: AppEntry[], changedApp?: AppEntry, removed?: boolean) {
     const map: Record<string, AppEntry> = {};
     apps.forEach(a => { map[a.id] = a; });
     setSavedApps(apps);
     setSavedIds(new Set(apps.map(a => a.id)));
+    // Update localStorage as fallback
     try {
       localStorage.setItem(STORAGE_APPS_KEY, JSON.stringify(map));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(apps.map(a => a.id)));
     } catch {}
+    // Sync to DB if logged in
+    if (userFid && changedApp) {
+      try {
+        if (removed) {
+          await fetch('/api/saved-apps', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fid: userFid, appId: changedApp.id }),
+          });
+        } else {
+          await fetch('/api/saved-apps', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fid: userFid, app: changedApp }),
+          });
+        }
+      } catch {}
+    }
   }
 
   // Once allApps loads, backfill any legacy saved IDs that have no full data yet
@@ -329,7 +392,7 @@ export default function AppsPage() {
               {/* Add / Remove Mini App */}
               {isSaved(openApp) ? (
                 <button
-                  onClick={() => persistApps(savedApps.filter(a => a.id !== openApp.id))}
+                  onClick={() => persistApps(savedApps.filter(a => a.id !== openApp.id), openApp, true)}
                   style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "14px", background: "transparent", border: "1px solid #333", borderRadius: 14, fontSize: 15, color: "#ef4444", fontWeight: 500, cursor: "pointer" }}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
@@ -337,7 +400,7 @@ export default function AppsPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => persistApps([...savedApps, openApp])}
+                  onClick={() => persistApps([...savedApps, openApp], openApp, false)}
                   style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "14px", background: "transparent", border: "1px solid #444", borderRadius: 14, fontSize: 15, color: "#aaa", fontWeight: 500, cursor: "pointer" }}
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></svg>

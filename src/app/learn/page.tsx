@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,10 +30,134 @@ interface LearningPlan {
 type PageState = 'quiz' | 'generating' | 'plan';
 type Track = 'learner' | 'creator' | 'financial' | 'all';
 type Level = 'beginner' | 'intermediate' | 'advanced';
-type LearnTab = 'plan' | 'homie';
+type LearnTab = 'plan' | 'homie' | 'feed';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
+
+// ─── Learning Community Feed ──────────────────────────────────────────────────
+
+const LEARNING_CHANNELS = [
+  { id: '', label: 'All', query: '' },
+  { id: 'defi', label: 'DeFi', query: 'DeFi' },
+  { id: 'web3', label: 'Web3', query: 'web3' },
+  { id: 'base', label: 'Base', query: 'Base chain' },
+  { id: 'dao', label: 'DAOs', query: 'DAO' },
+  { id: 'nft', label: 'NFTs', query: 'NFT' },
+];
+
+function LearningFeed() {
+  const [channelId, setChannelId] = useState('');
+  const [casts, setCasts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+
+  useEffect(() => {
+    setLoading(true);
+    setCasts([]);
+    setError(false);
+
+    let fid: string | undefined;
+    try {
+      const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
+      if (p?.fid) fid = String(p.fid);
+    } catch {}
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    const active = LEARNING_CHANNELS.find(c => c.id === channelId) ?? LEARNING_CHANNELS[0];
+    // "All" → user's following feed; specific topic → keyword search (more reliable than channel feed)
+    const url = active.query
+      ? `/api/casts/search?q=${encodeURIComponent(active.query)}&limit=20`
+      : `/api/feed?limit=20${fid ? `&fid=${fid}` : ''}`;
+
+    fetch(url, { signal: controller.signal })
+      .then(r => r.json())
+      .then(d => { setCasts(d.data || d.casts || []); })
+      .catch(() => { setError(true); })
+      .finally(() => { clearTimeout(timer); setLoading(false); });
+
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [channelId, retryCount]);
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      {/* Channel pills */}
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, scrollbarWidth: 'none' }}>
+        {LEARNING_CHANNELS.map(ch => (
+          <button
+            key={ch.id}
+            onClick={() => setChannelId(ch.id)}
+            style={{
+              flexShrink: 0, padding: '5px 14px', borderRadius: 20, fontSize: 13,
+              fontWeight: channelId === ch.id ? 700 : 400,
+              background: channelId === ch.id ? 'var(--accent)' : 'transparent',
+              color: channelId === ch.id ? '#fff' : 'var(--muted-on-dark)',
+              border: `1px solid ${channelId === ch.id ? 'var(--accent)' : 'var(--border)'}`,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {ch.label}
+          </button>
+        ))}
+      </div>
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>Loading…</div>
+      )}
+      {!loading && error && (
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>
+          <p style={{ marginBottom: 12 }}>Couldn't load feed</p>
+          <button
+            onClick={() => setRetryCount(n => n + 1)}
+            style={{ padding: '8px 18px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-on-dark)', cursor: 'pointer', fontSize: 13 }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {!loading && !error && casts.length === 0 && (
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>No posts found</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {casts.map((cast: any) => {
+          const author = cast.author;
+          return (
+            <a
+              key={cast.hash}
+              href={`/cast/${cast.hash}`}
+              style={{
+                display: 'block', padding: '14px', borderRadius: 12,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                textDecoration: 'none', color: 'inherit',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                {author?.pfp_url && (
+                  <img src={author.pfp_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+                )}
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, margin: 0, color: 'var(--text-on-dark)' }}>{author?.display_name || author?.username}</p>
+                  <p style={{ fontSize: 11, color: 'var(--muted-on-dark)', margin: 0 }}>@{author?.username}</p>
+                </div>
+              </div>
+              <p style={{ fontSize: 14, margin: 0, lineHeight: 1.55, color: 'var(--text-on-dark)', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                {cast.text}
+              </p>
+              <div style={{ marginTop: 8, display: 'flex', gap: 12, fontSize: 12, color: 'var(--muted-on-dark)' }}>
+                <span>❤️ {cast.reactions?.likes_count ?? 0}</span>
+                <span>💬 {cast.replies?.count ?? 0}</span>
+                <span>🔁 {cast.reactions?.recasts_count ?? 0}</span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -65,8 +190,8 @@ function DifficultyBadge({ level }: { level: 'beginner' | 'intermediate' | 'adva
 
 // ─── Module Card ──────────────────────────────────────────────────────────────
 
-function ModuleCard({ module, index, completed, onToggle }: {
-  module: LearningModule; index: number; completed: boolean; onToggle: (id: string) => void;
+function ModuleCard({ module, index, completed, onToggle, onNavigate }: {
+  module: LearningModule; index: number; completed: boolean; onToggle: (id: string) => void; onNavigate: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -142,20 +267,21 @@ function ModuleCard({ module, index, completed, onToggle }: {
               <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, border: '1px solid var(--border)', color: 'var(--muted-on-dark)' }}>{tag}</span>
             ))}
           </div>
-          <a
-            href={`/learn/module?id=${module.id}`}
+          <button
+            onClick={() => onNavigate(module.id)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14,
               padding: '9px 16px', borderRadius: 9, fontSize: 13, fontWeight: 700,
               background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
-              color: '#fff', textDecoration: 'none', boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+              color: '#fff', border: 'none', cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
             }}
           >
             {completed ? 'Review Module' : 'Start Module'}
             <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
             </svg>
-          </a>
+          </button>
         </div>
       )}
     </div>
@@ -208,6 +334,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
 }
 
 function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -404,7 +531,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
                     <button
                       onClick={() => {
                         const shareText = `Read this: ${msg.url}\n\nKey insight: ${msg.content.slice(0, 200)}...`;
-                        window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text: shareText } }));
+                        router.push(`/compose?text=${encodeURIComponent(shareText)}`);
                       }}
                       style={{
                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
@@ -489,6 +616,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
 
 function LearnPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [pageState, setPageState] = useState<PageState>('quiz');
   const [activeTab, setActiveTab] = useState<LearnTab>('plan');
   const [step, setStep] = useState(1);
@@ -499,6 +627,9 @@ function LearnPageContent() {
   const [plan, setPlan] = useState<LearningPlan | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [learnerCount, setLearnerCount] = useState(0);
+  const [contentVisible, setContentVisible] = useState(false);
+  const [navigating, setNavigating] = useState(false);
 
   // Deep-link pre-selection
   useEffect(() => {
@@ -525,6 +656,20 @@ function LearnPageContent() {
   useEffect(() => {
     if (plan) { try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...completedIds])); } catch { } }
   }, [completedIds, plan]);
+
+  useEffect(() => {
+    fetch('/api/learner-count').then(r => r.json()).then(d => setLearnerCount(d.count || 0)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setContentVisible(true), 30);
+    return () => clearTimeout(t);
+  }, []);
+
+  const navigateToModule = useCallback((id: string) => {
+    setNavigating(true);
+    setTimeout(() => router.push(`/learn/module?id=${id}`), 200);
+  }, [router]);
 
   const toggleModule = useCallback((id: string) => {
     setCompletedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -562,7 +707,7 @@ function LearnPageContent() {
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     const progressLine = pct === 0 ? 'Just getting started 🌱' : pct < 50 ? 'Making progress 🔥' : pct < 100 ? 'Almost there 💪' : 'Plan complete! 🎉';
     const text = `📚 My Web3 Learning Journey on HomieHouse\n\nTrack: ${plan.track} | Level: ${plan.level}\nProgress: ${done}/${total} modules (${pct}%)\n\n${progressLine}\n\nBuilding my path to decentralization, one step at a time.`;
-    window.dispatchEvent(new CustomEvent('openComposeModal', { detail: { text } }));
+    router.push(`/compose?text=${encodeURIComponent(text)}`);
   };
 
   // ─── Options ──────────────────────────────────────────────────────────────
@@ -593,7 +738,7 @@ function LearnPageContent() {
             </Link>
             <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 2 }}>Learning Hub</p>
           </div>
-          <Link href="/" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Back</Link>
+          <Link href="/feed" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Feed</Link>
         </div>
 
         {/* Tab nav — always visible */}
@@ -601,6 +746,7 @@ function LearnPageContent() {
           {([
             { id: 'plan' as LearnTab, label: 'My Plan', icon: '📚' },
             { id: 'homie' as LearnTab, label: 'Ask Homie', icon: '🤖' },
+            { id: 'feed' as LearnTab, label: 'Feed', icon: '📰' },
           ]).map((tab) => (
             <button
               key={tab.id}
@@ -626,6 +772,8 @@ function LearnPageContent() {
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
           {activeTab === 'homie'
             ? <HomieReadPanel currentPlan={plan} />
+            : activeTab === 'feed'
+            ? <LearningFeed />
             : children
           }
         </main>
@@ -659,7 +807,12 @@ function LearnPageContent() {
     const levelLabel = plan.level.charAt(0).toUpperCase() + plan.level.slice(1);
 
     return wrap(
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px' }}>
+      <div style={{
+        maxWidth: 720, margin: '0 auto', padding: '24px 16px',
+        opacity: navigating ? 0 : (contentVisible ? 1 : 0),
+        transform: navigating ? 'translateY(-8px)' : (contentVisible ? 'translateY(0)' : 'translateY(10px)'),
+        transition: 'opacity 0.2s ease, transform 0.2s ease',
+      }}>
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
             <GradCapIcon size={22} />
@@ -680,6 +833,11 @@ function LearnPageContent() {
           <div style={{ height: 8, background: 'var(--bg-dark)', borderRadius: 4, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 4, transition: 'width 0.4s ease' }} />
           </div>
+          {learnerCount > 0 && (
+            <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 10, textAlign: 'right' }}>
+              🧑‍🎓 {learnerCount} people learning with HomieHouse
+            </p>
+          )}
           {pct === 100 && (
             <p style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginTop: 8, marginBottom: 0 }}>
               🎉 Plan complete! You're a decentralization expert.
@@ -703,7 +861,7 @@ function LearnPageContent() {
         {/* Modules */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
           {plan.modules.map((mod, i) => (
-            <ModuleCard key={mod.id} module={mod} index={i} completed={completedIds.has(mod.id)} onToggle={toggleModule} />
+            <ModuleCard key={mod.id} module={mod} index={i} completed={completedIds.has(mod.id)} onToggle={toggleModule} onNavigate={navigateToModule} />
           ))}
         </div>
 
@@ -743,7 +901,7 @@ function LearnPageContent() {
           <GradCapIcon size={36} />
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 8px', color: 'var(--text-on-dark)' }}>
-          Decentralization Learning Hub
+          The Learning Hub
         </h1>
         <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
           Get a personalized path into Web3 — tailored to your goals and level.

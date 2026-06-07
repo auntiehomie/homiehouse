@@ -6,4 +6,6 @@ Sentry.init({
   debug: false,
   replaysOnErrorSampleRate: 1.0,
   replaysSessionSampleRate: 0.01,
+  integrations: integrations =>
+    integrations.filter(i => i.name !== 'Feedback'),
 });

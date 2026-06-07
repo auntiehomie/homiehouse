@@ -14,6 +14,29 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+function renderCastText(text: string) {
+  const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
+  const parts = text.split(tokenOrUrl);
+  return parts.map((part, i) => {
+    if (/^\$[A-Z][A-Z0-9]{0,9}$/.test(part)) {
+      return (
+        <Link key={i} href={`/tokens/${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }} onClick={e => e.stopPropagation()}>
+          {part}
+        </Link>
+      );
+    }
+    if (/^https?:\/\//i.test(part) || /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/.test(part)) {
+      const href = part.startsWith('http') ? part : `https://${part}`;
+      return (
+        <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>
+          {part}
+        </a>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+}
+
 function ActionBtn({
   onClick, icon, label, active = false, disabled = false,
 }: {
@@ -95,6 +118,7 @@ export default function FeedList({
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
   const [curateLoading, setCurateLoading] = useState(false);
+  const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
 
   const router = useRouter();
   const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
@@ -772,6 +796,36 @@ export default function FeedList({
                 }
                 label="Ask Homie"
               />
+
+              {/* Save to Notes */}
+              <ActionBtn
+                active={savedNotes.has(key)}
+                onClick={() => {
+                  const castText = typeof it.text === 'string' ? it.text : (it.body ?? '');
+                  try {
+                    const raw = localStorage.getItem('hh_notes');
+                    const notes = raw ? JSON.parse(raw) : [];
+                    const note = {
+                      id: Date.now().toString(),
+                      title: `@${authorUsername}`,
+                      content: castText,
+                      tags: ['saved-cast', ...(it.channel?.id ? [it.channel.id] : [])],
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                      source: key,
+                    };
+                    localStorage.setItem('hh_notes', JSON.stringify([note, ...notes]));
+                    setSavedNotes(prev => new Set([...prev, key]));
+                    setTimeout(() => setSavedNotes(prev => { const n = new Set(prev); n.delete(key); return n; }), 2500);
+                  } catch {}
+                }}
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill={savedNotes.has(key) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                }
+                label={savedNotes.has(key) ? 'Saved!' : 'Save'}
+              />
             </div>
             
             {/* Reply input */}
@@ -1076,7 +1130,7 @@ export default function FeedList({
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word'
                     }}>
-                      {cast.text || '(No text)'}
+                      {renderCastText(cast.text || '(No text)')}
                     </p>
                     {cast.embeds && cast.embeds.length > 0 && cast.embeds[0]?.url && (
                       <div style={{ marginTop: '12px' }}>

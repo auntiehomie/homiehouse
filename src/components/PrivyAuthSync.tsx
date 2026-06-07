@@ -10,15 +10,38 @@ import { useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
 export default function PrivyAuthSync() {
-  const { authenticated, user, logout } = usePrivy();
+  const { ready, authenticated, user } = usePrivy();
 
   useEffect(() => {
+    // Wait until Privy has finished loading its session before touching
+    // localStorage. Without this guard, `authenticated` starts as false
+    // on every page load/refresh, causing a premature removal of
+    // hh_profile and a visible flash to the landing page.
+    if (!ready) return;
+
     if (authenticated && user) {
       const farcasterAccount = user.linkedAccounts?.find(
         (a: any) => a.type === 'farcaster'
       ) as any;
 
       if (farcasterAccount) {
+        // Privy exposes the Farcaster custody address as ownerAddress or custodyAddress
+        const custodyAddress: string =
+          (farcasterAccount as any).ownerAddress ||
+          (farcasterAccount as any).custodyAddress ||
+          '';
+
+        const linkedWallets: string[] = user.linkedAccounts
+          ?.filter((a: any) => a.type === 'wallet')
+          .map((a: any) => a.address as string)
+          .filter(Boolean) || [];
+
+        // Prefer custody address first so mini-apps get the Farcaster-native wallet
+        const ethAddresses = [
+          ...(custodyAddress ? [custodyAddress] : []),
+          ...linkedWallets.filter(a => a.toLowerCase() !== custodyAddress.toLowerCase()),
+        ];
+
         const profile = {
           fid: farcasterAccount.fid,
           username: farcasterAccount.username || '',
@@ -26,16 +49,11 @@ export default function PrivyAuthSync() {
           pfpUrl: farcasterAccount.pfp || farcasterAccount.pfp_url || '',
           bio: farcasterAccount.bio || '',
           signer_uuid: farcasterAccount.signerPublicKey || '',
-          verified_addresses: {
-            eth_addresses: user.linkedAccounts
-              ?.filter((a: any) => a.type === 'wallet')
-              .map((a: any) => a.address)
-              .filter(Boolean) || [],
-          },
+          custody_address: custodyAddress,
+          verified_addresses: { eth_addresses: ethAddresses },
         };
         localStorage.setItem('hh_profile', JSON.stringify(profile));
       } else {
-        // Authenticated but no Farcaster account linked — use basic user info
         const profile = {
           fid: 0,
           username: user.id || '',
@@ -44,14 +62,14 @@ export default function PrivyAuthSync() {
           bio: '',
         };
         localStorage.setItem('hh_profile', JSON.stringify(profile));
+        window.dispatchEvent(new Event('hh:need:farcaster-account'));
       }
     } else if (!authenticated) {
       localStorage.removeItem('hh_profile');
     }
 
-    // Notify useNeynarCompat listeners
     window.dispatchEvent(new Event('hh:auth:changed'));
-  }, [authenticated, user]);
+  }, [ready, authenticated, user]);
 
   return null;
 }

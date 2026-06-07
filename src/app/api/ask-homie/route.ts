@@ -410,6 +410,23 @@ export async function POST(req: NextRequest) {
         }
         
         if (activeCastContext) {
+          // Collect any URLs embedded in the cast
+          const embedUrls: string[] = [];
+          if (Array.isArray(activeCastContext.embeds)) {
+            for (const embed of activeCastContext.embeds) {
+              if (embed?.url && embed.url.startsWith('https://')) embedUrls.push(embed.url);
+            }
+          }
+          // Also scan the cast text for https:// links
+          const textUrlMatches = (activeCastContext.text || '').match(/https?:\/\/[^\s]+/g) || [];
+          for (const u of textUrlMatches) {
+            if (!embedUrls.includes(u)) embedUrls.push(u);
+          }
+
+          const urlSection = embedUrls.length > 0
+            ? `\n🔗 Embedded URLs:\n${embedUrls.map(u => `   • ${u}`).join('\n')}\n   (You can use the fetch_url tool to read any of these links)`
+            : '';
+
           const castDetails = `
 ═══════════════════════════════════════════
 📋 CAST BEING ANALYZED
@@ -421,10 +438,10 @@ export async function POST(req: NextRequest) {
 
 💬 Cast Content:
 "${activeCastContext.text}"
-
+${urlSection}
 📊 Engagement:
    ❤️  ${activeCastContext.reactions?.likes_count || 0} likes
-   🔄 ${activeCastContext.reactions?.recasts_count || 0} recasts  
+   🔄 ${activeCastContext.reactions?.recasts_count || 0} recasts
    💭 ${activeCastContext.replies?.count || 0} replies
 
 🕒 Posted: ${activeCastContext.timestamp ? new Date(activeCastContext.timestamp).toLocaleString() : 'N/A'}
@@ -434,7 +451,7 @@ export async function POST(req: NextRequest) {
 
 👤 User's Question: ${userMessage}
 
-ANALYZE THE CAST ABOVE. When the user asks about "this cast", "annaramirez", or asks to find similar casts, they are referring to the cast shown above. You have search tools available to find similar casts or casts from specific users.`;
+ANALYZE THE CAST ABOVE. When the user asks about "this cast" or asks to find similar casts, they are referring to the cast shown above. If the user asks to read a URL or website, use the fetch_url tool on the relevant embedded URL.`;
           
           contextualMessage = castDetails;
         }

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MentionInput from './MentionInput';
-import { sdk } from '@farcaster/miniapp-sdk';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
 type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
@@ -107,6 +107,7 @@ function getSignerUuid(): string | null {
 }
 
 export default function AgentChat({ userId, userContext, castContext, onCastSelect, initialMessage }: AgentChatProps) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
@@ -506,25 +507,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                 <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">
                   <button
                     onClick={() => {
-                      // Attribution for shared responses
                       const attribution = '\n\nshared from @auntiehomie';
                       const finalText = msg.content + attribution;
-                      
-                      // Check if we're in a Farcaster mini app context
-                      const isMiniApp = typeof window !== 'undefined' && window.location.hostname.includes('warpcast');
-                      
-                      if (isMiniApp) {
-                        // In mini app: open Warpcast composer with embed
-                        const embedUrl = 'https://homiehouse.fun';
-                        sdk.actions.openUrl(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`).catch(() => {
-                          window.open(`https://warpcast.com/~/compose?text=${encodeURIComponent(finalText)}&embeds[]=${encodeURIComponent(embedUrl)}`, '_blank');
-                        });
-                      } else {
-                        // In web app: dispatch event to open ComposeModal
-                        window.dispatchEvent(new CustomEvent('openComposeModal', {
-                          detail: { text: finalText }
-                        }));
-                      }
+                      router.push(`/compose?text=${encodeURIComponent(finalText)}`);
                     }}
                     className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors flex items-center gap-1"
                     title="Share as cast"
