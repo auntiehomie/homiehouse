@@ -702,6 +702,25 @@ export default function SettingsPage() {
             </Card>
           </div>
 
+          {/* Support */}
+          <div style={{ marginBottom: 18 }}>
+            <SectionLabel>Support</SectionLabel>
+            <div style={{ background: "var(--surface)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
+              <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-on-dark)", marginBottom: 3 }}>Enjoying HomieHouse?</div>
+                <div style={{ fontSize: 12, color: "var(--muted-on-dark)", lineHeight: 1.5 }}>
+                  HomieHouse is free and independent. If it's been useful, a small tip goes a long way toward keeping the lights on.
+                </div>
+              </div>
+              <SettingRow
+                onClick={() => router.push("/settings/themes")}
+                icon={<span style={{ fontSize: 15 }}>☕</span>}
+                label="Buy us a coffee"
+                sublabel="$0.50 USDC on Base · also unlocks premium themes"
+              />
+            </div>
+          </div>
+
           {/* About */}
           <div style={{ marginBottom: 18 }}>
             <SectionLabel>About</SectionLabel>

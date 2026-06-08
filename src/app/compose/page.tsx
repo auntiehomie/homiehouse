@@ -453,7 +453,7 @@ function ComposePageInner() {
             {status && <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--surface)', borderRadius: 10, fontSize: 13, ...muted }}>{status}</div>}
           </div>
         ) : null}
-        {userFid && hasActiveSigner ? (
+        {userFid && hasActiveSigner && (
           <div>
             {/* Textarea with floating autocomplete */}
             <div style={{ position: 'relative' }}>
