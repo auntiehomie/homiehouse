@@ -411,7 +411,32 @@ function ComposePageInner() {
 
       {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (80px) + breathing room */}
       <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px', paddingBottom: 160 }}>
-        {userFid && !hasActiveSigner ? (
+        {!userFid ? (
+          <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>💬</div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10, color: 'var(--text-on-dark)' }}>Connect to Cast</h2>
+            <p style={{ color: 'var(--muted-on-dark)', marginBottom: 28, maxWidth: 320, margin: '0 auto 28px', lineHeight: 1.6, fontSize: 14 }}>
+              You need a Farcaster account to post. Sign in or import your account to get started.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 280, margin: '0 auto' }}>
+              <button
+                onClick={() => router.push('/')}
+                style={{ padding: '11px 24px', borderRadius: 24, background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer' }}
+              >
+                Sign in with Farcaster
+              </button>
+              <button
+                onClick={() => router.push('/settings')}
+                style={{ padding: '11px 24px', borderRadius: 24, background: 'none', color: 'var(--text-on-dark)', fontWeight: 600, fontSize: 14, border: '1px solid var(--border)', cursor: 'pointer' }}
+              >
+                Import account in Settings
+              </button>
+            </div>
+            <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, marginTop: 20, lineHeight: 1.5 }}>
+              In Settings → Account, you can import any Farcaster account using your recovery phrase for full posting access.
+            </p>
+          </div>
+        ) : userFid && !hasActiveSigner ? (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: 'var(--text-on-dark)' }}>Enable Posting</h2>
@@ -427,7 +452,8 @@ function ComposePageInner() {
             </button>
             {status && <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--surface)', borderRadius: 10, fontSize: 13, ...muted }}>{status}</div>}
           </div>
-        ) : (
+        ) : null}
+        {userFid && hasActiveSigner ? (
           <div>
             {/* Textarea with floating autocomplete */}
             <div style={{ position: 'relative' }}>
@@ -604,7 +630,7 @@ function ComposePageInner() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', maxWidth: 640, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', maxWidth: 640, margin: '0 auto', boxSizing: 'border-box', width: '100%' }}>
           {/* Left scrollable actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
             <label htmlFor="image-upload-compose" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
@@ -643,13 +669,13 @@ function ComposePageInner() {
               onClick={handlePost}
               disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
               style={{
-                padding: '8px 20px', borderRadius: 24, border: 'none', cursor: 'pointer',
+                padding: '8px 16px', borderRadius: 24, border: 'none', cursor: 'pointer',
                 background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
                 fontSize: 14, fontWeight: 700,
                 opacity: (loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
               }}
             >
-              {loading ? (isScheduled ? 'Scheduling…' : 'Posting…') : (isScheduled ? 'Schedule' : 'Post')}
+              {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}
             </button>
           </div>
         </div>
