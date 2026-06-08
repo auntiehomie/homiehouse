@@ -13,7 +13,7 @@ export default function BottomNav() {
 
   useEffect(() => {
     setMounted(true);
-    setHasLearnPlan(!!localStorage.getItem('hh_learning_plan'));
+    try { setHasLearnPlan(!!localStorage.getItem('hh_learning_plan')); } catch { }
   }, []);
 
   const isActive = (path: string) => {
