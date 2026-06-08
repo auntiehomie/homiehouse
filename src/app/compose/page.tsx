@@ -630,7 +630,7 @@ function ComposePageInner() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', maxWidth: 640, margin: '0 auto', boxSizing: 'border-box', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
           {/* Left scrollable actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
             <label htmlFor="image-upload-compose" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
@@ -660,18 +660,18 @@ function ComposePageInner() {
             </button>
           </div>
 
-          {/* Right: char count + Post/Schedule button */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
-            {text.length > 0 && (
-              <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)' }}>{text.length}</span>
+          {/* Right: char count (near-limit only) + Post/Schedule button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 6 }}>
+            {text.length > 260 && (
+              <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>{text.length}</span>
             )}
             <button
               onClick={handlePost}
               disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
               style={{
-                padding: '8px 16px', borderRadius: 24, border: 'none', cursor: 'pointer',
+                padding: '7px 14px', borderRadius: 24, border: 'none', cursor: 'pointer',
                 background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
-                fontSize: 14, fontWeight: 700,
+                fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
                 opacity: (loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
               }}
             >
