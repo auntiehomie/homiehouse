@@ -71,8 +71,30 @@ function extractContent(html: string): { title: string; text: string } {
   return { title, text: text.slice(0, 10000) };
 }
 
-async function summarizeWithAI(url: string, title: string, text: string): Promise<string> {
-  const prompt = `You are Homie, an AI assistant inside HomieHouse — a social learning platform for Web3, DeFi, and crypto.
+async function summarizeWithAI(url: string, title: string, text: string, urlOnly = false): Promise<string> {
+  const prompt = urlOnly
+    ? `You are Homie, an AI assistant inside HomieHouse — a social learning platform for Web3, DeFi, and crypto.
+
+A user shared this link but the page could not be fetched (it may be paywalled or block automated access):
+URL: ${url}
+${title ? `Title (from metadata): ${title}` : ''}
+
+Based solely on what you know about this URL, domain, and topic, provide what you can:
+
+**What This Likely Covers**
+2-3 sentences about what this article/page is probably about based on the URL and your training knowledge.
+
+**Key Context**
+3-5 bullet points of relevant background knowledge on this topic you can share.
+
+**Why It Matters for Web3/DeFi Learners**
+2-3 sentences connecting this topic to the decentralized finance or crypto landscape.
+
+**Explore Further**
+2 follow-up questions the user could ask Homie to go deeper.
+
+Be honest that you couldn't read the actual article — only share what you genuinely know. Don't fabricate article-specific facts.`
+    : `You are Homie, an AI assistant inside HomieHouse — a social learning platform for Web3, DeFi, and crypto.
 
 A user shared this article:
 URL: ${url}
@@ -233,11 +255,20 @@ export async function POST(req: NextRequest) {
       } catch (_) {}
     }
 
+    // Strategy 3: page unreadable — use AI knowledge about the URL itself
     if (!fetchOk) {
-      return NextResponse.json(
-        { error: 'Could not read this page. It may be paywalled, require login, or block automated access.' },
-        { status: 422 }
-      );
+      logger.info('Both fetch strategies failed, using AI knowledge fallback', { url });
+      try {
+        const summary = await summarizeWithAI(url, pageTitle, '', true);
+        logger.success('AI knowledge fallback succeeded', { url });
+        logger.end();
+        return NextResponse.json({ summary, title: pageTitle, url, fetchFallback: true });
+      } catch (_) {
+        return NextResponse.json(
+          { error: 'Could not read this page. It may be paywalled, require login, or block automated access.' },
+          { status: 422 }
+        );
+      }
     }
 
     logger.info('Summarizing', { titleLen: pageTitle.length, textLen: pageText.length });
@@ -245,7 +276,7 @@ export async function POST(req: NextRequest) {
 
     logger.success('Summarized', { url });
     logger.end();
-    return NextResponse.json({ summary, title, url });
+    return NextResponse.json({ summary, title: pageTitle, url });
   } catch (err: any) {
     logger.error('summarize-url failed', err);
     if (err.name === 'TimeoutError' || err.message?.includes('timeout')) {
