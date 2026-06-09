@@ -783,6 +783,15 @@ export default function FeedList({
                 label={actionLoading === `recast-${key}` ? '…' : recastedCasts.has(key) ? 'Recasted' : 'Recast'}
               />
 
+              {/* Quote */}
+              <ActionBtn
+                onClick={() => { setShowQuoteModal(key); }}
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>
+                }
+                label="Quote"
+              />
+
               {/* Reply */}
               <ActionBtn
                 active={replyingTo === key}
