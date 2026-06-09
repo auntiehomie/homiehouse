@@ -4,6 +4,7 @@ import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
+import { getRecentPosts, savePost, buildMemoryContext } from '@/lib/agent-memory';
 
 const HOMIEHOUSELOL_FID = parseInt(
   process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
@@ -95,7 +96,7 @@ async function pickRelevantTrend(casts: any[]): Promise<any | null> {
   return candidates[0] ?? null;
 }
 
-async function generateTrendPost(cast: any): Promise<string> {
+async function generateTrendPost(cast: any, memoryContext: string): Promise<string> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const author = cast.author?.username || 'someone';
   const text = (cast.text || '').slice(0, 300);
@@ -103,7 +104,7 @@ async function generateTrendPost(cast: any): Promise<string> {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 150,
-    system: SYSTEM_PROMPT,
+    system: SYSTEM_PROMPT + memoryContext,
     messages: [
       {
         role: 'user',
@@ -117,13 +118,13 @@ async function generateTrendPost(cast: any): Promise<string> {
   return block.text.trim().slice(0, 280);
 }
 
-async function generateDailyTip(topic: string): Promise<string> {
+async function generateDailyTip(topic: string, memoryContext: string): Promise<string> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 150,
-    system: SYSTEM_PROMPT,
+    system: SYSTEM_PROMPT + memoryContext,
     messages: [
       {
         role: 'user',
@@ -148,6 +149,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Load memory before generating
+    const recentPosts = await getRecentPosts(HOMIEHOUSELOL_FID, 10);
+    const memoryContext = buildMemoryContext(recentPosts);
+    if (recentPosts.length) {
+      console.log(`[agent/tip] Loaded ${recentPosts.length} recent posts from memory`);
+    }
+
     let content: string;
     let source: 'trend' | 'daily-tip';
     let meta: Record<string, string> = {};
@@ -159,7 +167,7 @@ export async function GET(request: NextRequest) {
 
       const trendCast = await pickRelevantTrend(casts);
       if (trendCast) {
-        content = await generateTrendPost(trendCast);
+        content = await generateTrendPost(trendCast, memoryContext);
         source = 'trend';
         meta = { trendAuthor: trendCast.author?.username || '', trendText: (trendCast.text || '').slice(0, 80) };
         console.log(`[agent/tip] Using trend from @${meta.trendAuthor}`);
@@ -170,7 +178,7 @@ export async function GET(request: NextRequest) {
       // Fall back to daily tip
       const topic = getDailyTopic();
       console.log(`[agent/tip] Trend unavailable (${trendErr?.message}), using daily topic: ${topic}`);
-      content = await generateDailyTip(topic);
+      content = await generateDailyTip(topic, memoryContext);
       source = 'daily-tip';
       meta = { topic };
     }
@@ -180,6 +188,15 @@ export async function GET(request: NextRequest) {
       text: content,
       fid: HOMIEHOUSELOL_FID,
       ...(signerKey ? { signerPrivateKey: signerKey } : {}),
+    });
+
+    // Persist to memory
+    await savePost({
+      fid: HOMIEHOUSELOL_FID,
+      castHash,
+      text: content,
+      source,
+      topic: meta.topic || meta.trendText || undefined,
     });
 
     console.log(`[agent/tip] Posted (${source}): "${content}" → ${castHash}`);
