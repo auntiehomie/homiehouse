@@ -228,7 +228,7 @@ export default function MiniAppViewer() {
   return (
     <div
       style={{
-        position: "fixed", inset: 0, zIndex: 9000,
+        position: "fixed", inset: 0, zIndex: 10000,
         background: "var(--bg-dark)",
         display: "flex", flexDirection: "column",
         animation: "hhSlideUp 0.22s ease-out",
@@ -317,15 +317,17 @@ export default function MiniAppViewer() {
         </div>
       )}
 
-      <iframe
-        ref={iframeRef}
-        src={url}
-        onLoad={handleIframeLoad}
-        style={{ flex: 1, border: "none", width: "100%", background: "#fff" }}
-        allow="camera; microphone; clipboard-write; payment"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-        title={title || hostname}
-      />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <iframe
+          ref={iframeRef}
+          src={url}
+          onLoad={handleIframeLoad}
+          style={{ flex: 1, border: "none", width: "100%", background: "#fff" }}
+          allow="camera; microphone; clipboard-write; payment"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-top-navigation-by-user-activation"
+          title={title || hostname}
+        />
+      </div>
     </div>
   );
 }
