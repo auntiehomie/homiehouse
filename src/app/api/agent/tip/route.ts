@@ -4,7 +4,7 @@ import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
-import { getRecentPosts, savePost, buildMemoryContext } from '@/lib/agent-memory';
+import { buildFullMemoryContext, savePost } from '@/lib/agent-memory';
 
 const HOMIEHOUSELOL_FID = parseInt(
   process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
@@ -149,12 +149,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Load memory before generating
-    const recentPosts = await getRecentPosts(HOMIEHOUSELOL_FID, 10);
-    const memoryContext = buildMemoryContext(recentPosts);
-    if (recentPosts.length) {
-      console.log(`[agent/tip] Loaded ${recentPosts.length} recent posts from memory`);
-    }
+    // Load memory (recent + top performers) before generating
+    const memoryContext = await buildFullMemoryContext(HOMIEHOUSELOL_FID);
+    if (memoryContext) console.log('[agent/tip] Memory context loaded');
 
     let content: string;
     let source: 'trend' | 'daily-tip';
