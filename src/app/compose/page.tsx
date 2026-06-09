@@ -654,14 +654,10 @@ function ComposePageInner() {
               style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </button>
-
-            <button onClick={() => router.push('/scheduled')} title="Scheduled casts" style={toolBtn}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            </button>
           </div>
 
           {/* Right: char count (near-limit only) + Post/Schedule button */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto', paddingLeft: 8 }}>
             {text.length > 260 && (
               <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>{text.length}</span>
             )}
