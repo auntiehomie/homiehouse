@@ -409,8 +409,8 @@ function ComposePageInner() {
         <div style={{ width: 22 }} />
       </header>
 
-      {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (80px) + breathing room */}
-      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px', paddingBottom: 160 }}>
+      {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (~100px) + breathing room */}
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px', paddingBottom: 176 }}>
         {!userFid ? (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>💬</div>
@@ -601,7 +601,7 @@ function ComposePageInner() {
 
       {/* Fixed toolbar — always visible above the bottom nav */}
       <div style={{
-        position: 'fixed', bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, zIndex: 100,
+        position: 'fixed', bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, zIndex: 100,
         background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
       }}>
         {/* Channel picker opens upward from here */}
