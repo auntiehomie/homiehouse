@@ -15,6 +15,10 @@
     {
       "path": "/api/agent/tip",
       "schedule": "0 9,21 * * *"
+    },
+    {
+      "path": "/api/agent/mention",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
