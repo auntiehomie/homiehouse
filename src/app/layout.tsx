@@ -5,6 +5,7 @@ import PrivyAuthSync from "../components/PrivyAuthSync";
 import BottomNav from "../components/BottomNav";
 import ThemeSync from "../components/ThemeSync";
 import LazyClientComponents from "../components/LazyClientComponents";
+import PageTransition from "../components/PageTransition";
 import { Analytics } from '@vercel/analytics/next';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
@@ -128,9 +129,11 @@ export default function RootLayout({
       <body className={`antialiased`}>
         <PrivyAuthProvider>
           <PrivyAuthSync />
-          <div className="pb-20 lg:pb-0">
-            {children}
-          </div>
+          <PageTransition>
+            <div className="pb-20 lg:pb-0">
+              {children}
+            </div>
+          </PageTransition>
           <BottomNav />
           <ThemeSync />
           <LazyClientComponents />
