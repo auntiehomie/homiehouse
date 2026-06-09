@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { fetchNotifications, fetchCast } from '@/lib/hypersnap';
+import type { Tool, MessageParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages';
+import { fetchNotifications, fetchCast, searchCasts } from '@/lib/hypersnap';
+import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
+import { getRecentPosts, savePost, buildMemoryContext } from '@/lib/agent-memory';
 
 const HOMIEHOUSELOL_FID = parseInt(
   process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
@@ -17,6 +20,7 @@ When someone mentions you:
 - Give a clear, useful answer to their actual question
 - Keep replies under 280 characters
 - Be warm and direct, not robotic or over-formal
+- Use your tools to look up real-time data when someone asks about a specific token, price, or topic
 - For security questions, give cautious, practical advice
 - If you're not sure about something, say so honestly
 
@@ -24,23 +28,120 @@ Topics you know well: crypto wallets, DeFi, Layer 2, AI in web3, smart contract 
 
 Never start with "Great question!" or use: "fascinating", "incredible", "as an AI language model", "I'd be happy to"`;
 
-async function generateReply(castText: string, authorUsername: string): Promise<string> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 150,
-    system: BOT_PERSONA,
-    messages: [
-      {
-        role: 'user',
-        content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars.`,
+const TOOLS: Tool[] = [
+  {
+    name: 'get_token_info',
+    description:
+      'Get current price, market cap, volume, and other details about a cryptocurrency token. Use this when someone asks about a specific token, its price, or market data.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        identifier: {
+          type: 'string',
+          description: 'Token name, symbol (e.g. "ETH"), or contract address',
+        },
       },
-    ],
-  });
+      required: ['identifier'],
+    },
+  },
+  {
+    name: 'search_farcaster_casts',
+    description:
+      'Search recent Farcaster posts about a topic. Use this to find what the community is saying about something before responding.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+        limit: { type: 'number', description: 'Number of results, max 8' },
+      },
+      required: ['query'],
+    },
+  },
+];
 
-  const block = response.content[0];
-  if (block.type !== 'text') throw new Error('Unexpected non-text response from Claude');
-  return block.text.trim().slice(0, 280);
+async function runTool(name: string, input: Record<string, any>): Promise<string> {
+  if (name === 'get_token_info') {
+    try {
+      const token = await getTokenData(input.identifier);
+      if (!token) return `No data found for "${input.identifier}".`;
+      return formatTokenDisplay(token).slice(0, 600);
+    } catch (err: any) {
+      return `Error fetching token data: ${err?.message}`;
+    }
+  }
+
+  if (name === 'search_farcaster_casts') {
+    try {
+      const limit = Math.min(input.limit || 5, 8);
+      const results = await searchCasts(input.query, limit);
+      const casts: any[] = results?.casts ?? [];
+      if (!casts.length) return 'No recent casts found on that topic.';
+      return casts
+        .map(
+          (c: any) =>
+            `@${c.author?.username || '?'}: "${(c.text || '').slice(0, 120)}" [${c.reactions?.likes_count || 0} likes]`
+        )
+        .join('\n');
+    } catch (err: any) {
+      return `Error searching casts: ${err?.message}`;
+    }
+  }
+
+  return 'Unknown tool.';
+}
+
+async function generateReply(
+  castText: string,
+  authorUsername: string,
+  memoryContext: string
+): Promise<string> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  const messages: MessageParam[] = [
+    {
+      role: 'user',
+      content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`,
+    },
+  ];
+
+  // Tool-use loop — cap at 3 rounds to bound latency
+  for (let round = 0; round < 3; round++) {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 300,
+      system: BOT_PERSONA + memoryContext,
+      tools: TOOLS,
+      messages,
+    });
+
+    if (response.stop_reason === 'end_turn') {
+      const textBlock = response.content.find((b) => b.type === 'text');
+      if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
+      throw new Error('No text in final response');
+    }
+
+    if (response.stop_reason === 'tool_use') {
+      const toolCalls = response.content.filter((b) => b.type === 'tool_use');
+      const toolResults: ToolResultBlockParam[] = [];
+
+      for (const call of toolCalls) {
+        if (call.type !== 'tool_use') continue;
+        const result = await runTool(call.name, call.input as Record<string, any>);
+        toolResults.push({ type: 'tool_result', tool_use_id: call.id, content: result });
+      }
+
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: toolResults });
+      continue;
+    }
+
+    // Unexpected stop reason — extract whatever text is there
+    const textBlock = response.content.find((b) => b.type === 'text');
+    if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
+    throw new Error(`Unexpected stop_reason: ${response.stop_reason}`);
+  }
+
+  throw new Error('Tool-use loop exceeded max rounds');
 }
 
 export async function GET(request: NextRequest) {
@@ -53,6 +154,10 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Load memory once for this cron run
+    const recentPosts = await getRecentPosts(HOMIEHOUSELOL_FID, 8);
+    const memoryContext = buildMemoryContext(recentPosts);
 
     let repliedCount = 0;
 
@@ -82,12 +187,9 @@ export async function GET(request: NextRequest) {
       ];
 
       const alreadyReplied = await hasRepliedToAny(trackingKeys);
-      if (alreadyReplied) {
-        console.log(`[agent/mention] Already replied to ${alreadyReplied}, skipping`);
-        continue;
-      }
+      if (alreadyReplied) continue;
 
-      // Confirm bot hasn't already replied in-thread
+      // Confirm no existing in-thread reply
       try {
         const castData = await fetchCast(parentHash);
         const parentCast = castData?.data?.cast ?? castData?.cast;
@@ -100,25 +202,38 @@ export async function GET(request: NextRequest) {
           continue;
         }
       } catch {
-        // Conservative: skip if we can't verify
         await recordReplyBatch({ trackingKeys, replyHash: 'check-error', commandType: 'mention' });
         continue;
       }
 
       try {
         const authorUsername = cast.author?.username || 'friend';
-        const reply = await generateReply(cast.text || '', authorUsername);
+        const reply = await generateReply(cast.text || '', authorUsername, memoryContext);
 
         const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
-        await publishCast({
+        const { castHash: replyHash } = await publishCast({
           text: reply,
           fid: HOMIEHOUSELOL_FID,
           parentCastHash: castHash,
           ...(signerKey ? { signerPrivateKey: signerKey } : {}),
         });
 
+        // Persist reply to memory
+        await savePost({
+          fid: HOMIEHOUSELOL_FID,
+          castHash: replyHash,
+          text: reply,
+          source: 'reply',
+          topic: `reply to @${authorUsername}`,
+        });
+
         console.log(`[agent/mention] Replied to @${authorUsername}: "${reply}"`);
-        await recordReplyBatch({ trackingKeys, replyHash: castHash, commandType: 'mention', replyText: reply });
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash,
+          commandType: 'mention',
+          replyText: reply,
+        });
         repliedCount++;
       } catch (error: any) {
         console.error(`[agent/mention] Failed to reply to ${castHash}:`, error?.message);
