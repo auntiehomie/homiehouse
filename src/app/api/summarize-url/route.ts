@@ -174,34 +174,74 @@ export async function POST(req: NextRequest) {
 
     logger.info('Fetching URL', { url });
 
-    const fetchRes = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; HomieHouse/1.0; +https://homiehouse.lol)',
-        'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      signal: AbortSignal.timeout(12000),
-    });
+    // Strategy 1: direct fetch with a realistic browser UA
+    let pageTitle = '';
+    let pageText = '';
+    let fetchOk = false;
 
-    if (!fetchRes.ok) {
-      return NextResponse.json({ error: `Could not fetch page (HTTP ${fetchRes.status})` }, { status: 422 });
+    try {
+      const directRes = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+        signal: AbortSignal.timeout(10000),
+        redirect: 'follow',
+      });
+
+      if (directRes.ok) {
+        const ct = directRes.headers.get('content-type') || '';
+        if (ct.includes('html') || ct.includes('text')) {
+          const buf = await directRes.arrayBuffer();
+          const html = new TextDecoder().decode(buf.slice(0, 1_500_000));
+          const extracted = extractContent(html);
+          if (extracted.text.length >= 80) {
+            pageTitle = extracted.title;
+            pageText = extracted.text;
+            fetchOk = true;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Strategy 2: Jina AI Reader — converts any URL to clean AI-readable text,
+    // bypasses paywalls and bot-detection that block direct server fetches.
+    if (!fetchOk) {
+      logger.info('Direct fetch failed, trying Jina Reader', { url });
+      try {
+        const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
+          headers: {
+            'Accept': 'text/plain, text/markdown',
+            'X-Return-Format': 'markdown',
+          },
+          signal: AbortSignal.timeout(20000),
+        });
+        if (jinaRes.ok) {
+          const md = await jinaRes.text();
+          if (md.length >= 80) {
+            // Jina prepends "Title: ..." and "URL Source: ..." — extract them
+            const titleLine = md.match(/^Title:\s*(.+)/m);
+            pageTitle = titleLine?.[1]?.trim() ?? '';
+            pageText = md.slice(0, 10000);
+            fetchOk = true;
+          }
+        }
+      } catch (_) {}
     }
 
-    const ct = fetchRes.headers.get('content-type') || '';
-    if (!ct.includes('html') && !ct.includes('text')) {
-      return NextResponse.json({ error: 'URL does not point to a readable page' }, { status: 422 });
+    if (!fetchOk) {
+      return NextResponse.json(
+        { error: 'Could not read this page. It may be paywalled, require login, or block automated access.' },
+        { status: 422 }
+      );
     }
 
-    const buf = await fetchRes.arrayBuffer();
-    const html = new TextDecoder().decode(buf.slice(0, 1_500_000));
-    const { title, text } = extractContent(html);
-
-    if (text.length < 80) {
-      return NextResponse.json({ error: 'Could not extract readable content from this page' }, { status: 422 });
-    }
-
-    logger.info('Summarizing', { titleLen: title.length, textLen: text.length });
-    const summary = await summarizeWithAI(url, title, text);
+    logger.info('Summarizing', { titleLen: pageTitle.length, textLen: pageText.length });
+    const summary = await summarizeWithAI(url, pageTitle, pageText);
 
     logger.success('Summarized', { url });
     logger.end();
