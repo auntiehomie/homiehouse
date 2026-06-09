@@ -440,7 +440,7 @@ export default function ComposeModal() {
         <div
           role="dialog"
           aria-modal="true"
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -453,8 +453,8 @@ export default function ComposeModal() {
             <div style={{ width: 22 }} />
           </div>
 
-          {/* Scrollable body */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 0' }}>
+          {/* Scrollable body — minHeight:0 prevents iOS Safari flex overflow bug */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 16px 0' }}>
             {replyParentName && (
               <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 10 }}>
                 Replying to <strong style={{ color: 'var(--text-on-dark)' }}>@{replyParentName}</strong>
