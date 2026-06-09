@@ -5,6 +5,39 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import SmartEmbed from "@/components/SmartEmbed";
+import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+
+function ActionBtn({
+  onClick, icon, label, active = false, disabled = false,
+}: {
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+        border: 'none',
+        color: active ? 'var(--text-on-dark, #fff)' : 'var(--muted-on-dark, #999)',
+        cursor: disabled ? 'default' : 'pointer',
+        fontSize: 13, fontWeight: active ? 600 : 400,
+        padding: '5px 9px', borderRadius: 8,
+        transition: 'background 0.15s, color 0.15s',
+        flexShrink: 0, whiteSpace: 'nowrap',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
 
 export default function CastDetailPage() {
   const params = useParams();
@@ -13,16 +46,32 @@ export default function CastDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Interaction state
+  const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
+  const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [showQuoteModal, setShowQuoteModal] = useState<{ hash: string; authorFid: number; preview: string } | null>(null);
+  const [quoteText, setQuoteText] = useState("");
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const { hasActiveSigner, requestSigner, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn, submitCast } = useFarcasterWrites();
+
+  const showToast = useCallback((msg: string, ok: boolean) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   const fetchCastDetail = useCallback(async () => {
     if (!hash) return;
     try {
       const response = await fetch(`/api/cast?hash=${encodeURIComponent(hash)}`);
-
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to fetch cast');
       }
-
       const data = await response.json();
       setCast(data.cast);
     } catch (err: any) {
@@ -32,36 +81,133 @@ export default function CastDetailPage() {
   }, [hash]);
 
   useEffect(() => {
-    if (!hash) {
-      setError("No cast hash provided");
-      setLoading(false);
-      return;
-    }
-
+    if (!hash) { setError("No cast hash provided"); setLoading(false); return; }
     fetchCastDetail().finally(() => setLoading(false));
   }, [hash, fetchCastDetail]);
 
+  const handleLike = async (castHash: string, authorFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    setActionLoading(`like-${castHash}`);
+    try {
+      if (likedCasts.has(castHash)) {
+        await unlikeCast({ targetCastHash: castHash, targetCastFid: authorFid });
+        setLikedCasts(prev => { const s = new Set(prev); s.delete(castHash); return s; });
+      } else {
+        await likeCast({ targetCastHash: castHash, targetCastFid: authorFid });
+        setLikedCasts(prev => new Set([...prev, castHash]));
+      }
+    } catch (err: any) {
+      showToast(`Failed to like: ${err?.message ?? 'error'}`, false);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRecast = async (castHash: string, authorFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    setActionLoading(`recast-${castHash}`);
+    try {
+      if (recastedCasts.has(castHash)) {
+        await removeRecast({ targetCastHash: castHash, targetCastFid: authorFid });
+        setRecastedCasts(prev => { const s = new Set(prev); s.delete(castHash); return s; });
+      } else {
+        await recastFn({ targetCastHash: castHash, targetCastFid: authorFid });
+        setRecastedCasts(prev => new Set([...prev, castHash]));
+      }
+    } catch (err: any) {
+      showToast(`Failed to recast: ${err?.message ?? 'error'}`, false);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReply = async (castHash: string, authorFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    const text = replyText.trim();
+    if (!text) return;
+    setReplyText('');
+    setReplyingTo(null);
+    showToast('Sending reply…', true);
+    try {
+      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid });
+      showToast('Reply posted!', true);
+    } catch (err: any) {
+      showToast(`Failed: ${err?.message ?? 'error'}`, false);
+    }
+  };
+
+  const handleQuoteCast = async () => {
+    if (!showQuoteModal) return;
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    if (!quoteText.trim()) return;
+    setQuoteLoading(true);
+    try {
+      const castUrl = `https://warpcast.com/~/conversations/${showQuoteModal.hash}`;
+      await submitCast({ text: quoteText, embeds: [{ url: castUrl }] });
+      setQuoteText('');
+      setShowQuoteModal(null);
+      showToast('Quote cast posted!', true);
+    } catch (err: any) {
+      showToast(`Failed: ${err?.message ?? 'error'}`, false);
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  const renderActionRow = (castHash: string, authorFid: number, previewText: string) => (
+    <div style={{
+      display: 'flex', gap: 4, marginTop: 12, paddingTop: 12,
+      borderTop: '1px solid rgba(255,255,255,0.08)',
+      flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none',
+    }}>
+      {/* Like */}
+      <ActionBtn
+        active={likedCasts.has(castHash)}
+        disabled={actionLoading === `like-${castHash}`}
+        onClick={() => handleLike(castHash, authorFid)}
+        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill={likedCasts.has(castHash) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>}
+        label={actionLoading === `like-${castHash}` ? '…' : 'Like'}
+      />
+      {/* Recast */}
+      <ActionBtn
+        active={recastedCasts.has(castHash)}
+        disabled={actionLoading === `recast-${castHash}`}
+        onClick={() => handleRecast(castHash, authorFid)}
+        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>}
+        label={actionLoading === `recast-${castHash}` ? '…' : recastedCasts.has(castHash) ? 'Recasted' : 'Recast'}
+      />
+      {/* Quote */}
+      <ActionBtn
+        onClick={() => setShowQuoteModal({ hash: castHash, authorFid, preview: previewText })}
+        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>}
+        label="Quote"
+      />
+      {/* Reply */}
+      <ActionBtn
+        active={replyingTo === castHash}
+        onClick={() => setReplyingTo(replyingTo === castHash ? null : castHash)}
+        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
+        label="Reply"
+      />
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⏳</div>
-          <div className="text-gray-400 dark:text-gray-500">Loading cast...</div>
-        </div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--muted-on-dark, #999)' }}>Loading cast…</div>
       </div>
     );
   }
 
   if (error || !cast) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100 flex items-center justify-center">
-        <div className="text-center max-w-md p-6">
-          <div className="text-4xl mb-4">😔</div>
-          <div className="text-xl font-bold mb-2">Cast Not Found</div>
-          <div className="text-gray-400 dark:text-gray-500 mb-6">{error || 'Unable to load this cast'}</div>
-          <Link href="/feed" className="text-zinc-400 hover:text-white">
-            ← Back to Home
-          </Link>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', maxWidth: 400, padding: 24 }}>
+          <div style={{ fontSize: 32, marginBottom: 16 }}>😔</div>
+          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Cast Not Found</div>
+          <div style={{ color: 'var(--muted-on-dark, #999)', marginBottom: 24 }}>{error || 'Unable to load this cast'}</div>
+          <Link href="/feed" style={{ color: 'var(--muted-on-dark, #999)' }}>← Back to Feed</Link>
         </div>
       </div>
     );
@@ -70,171 +216,167 @@ export default function CastDetailPage() {
   const author = cast.author;
   const authorName = author?.display_name || author?.username || 'Unknown';
   const authorUsername = author?.username || '';
+  const authorFid = author?.fid ?? 0;
   const authorPfp = author?.pfp_url;
   const text = cast.text || '';
-  const timestamp = cast.timestamp;
-  let timeLabel = '';
-  
-  if (timestamp) {
-    try {
-      const date = new Date(timestamp);
-      if (!isNaN(date.getTime())) {
-        timeLabel = formatDistanceToNow(date, { addSuffix: true });
-      }
-    } catch (e) {}
-  }
-
   const embeds = cast.embeds || [];
   const replies = cast.replies?.casts || cast.direct_replies || [];
 
-  const handleReply = (parentHash: string, parentFid: number, parentName: string) => {
-    window.dispatchEvent(new CustomEvent('openComposeModal', {
-      detail: { parentCastHash: parentHash, parentCastFid: parentFid, replyingToName: parentName },
-    }));
-  };
+  let timeLabel = '';
+  if (cast.timestamp) {
+    try {
+      const d = new Date(cast.timestamp);
+      if (!isNaN(d.getTime())) timeLabel = formatDistanceToNow(d, { addSuffix: true });
+    } catch {}
+  }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        {/* Back Button */}
-        <Link 
-          href="/feed" 
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 mb-6 transition-colors"
+    <div style={{ minHeight: '100vh' }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
+          left: '50%', transform: 'translateX(-50%)',
+          background: toast.ok ? 'rgba(30,30,30,0.95)' : 'rgba(180,30,30,0.95)',
+          color: '#fff', padding: '10px 20px', borderRadius: 24,
+          fontSize: 14, fontWeight: 500, zIndex: 20000,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          whiteSpace: 'nowrap',
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px' }}>
+        {/* Back */}
+        <Link
+          href="/feed"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted-on-dark, #999)', textDecoration: 'none', marginBottom: 20, fontSize: 14 }}
         >
           ← Back
         </Link>
 
         {/* Main Cast */}
-        <div className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl p-6 mb-6">
-          {/* Author Info */}
-          <div className="flex items-start gap-3 mb-4">
+        <div className="surface" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             {authorPfp && (
-              <img 
-                src={authorPfp} 
-                alt={authorName}
-                className="w-12 h-12 rounded-full border-2 border-gray-300 dark:border-zinc-700"
-              />
+              <Link href={`/profile?user=${authorUsername}`}>
+                <img src={authorPfp} alt={authorName} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              </Link>
             )}
-            <div className="flex-1">
-              <Link 
-                href={`/profile?user=${authorUsername}`}
-                className="font-bold text-lg hover:text-white transition-colors"
-              >
+            <div>
+              <Link href={`/profile?user=${authorUsername}`} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 {authorName}
               </Link>
-              <div className="text-sm text-gray-500 dark:text-gray-400">@{authorUsername}</div>
+              <div style={{ fontSize: 13, color: 'var(--muted-on-dark, #999)' }}>@{authorUsername}</div>
             </div>
           </div>
 
-          {/* Cast Text */}
-          <div className="text-base leading-relaxed mb-4 whitespace-pre-wrap break-words">
+          <div style={{ fontSize: 16, lineHeight: 1.6, marginBottom: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {text}
           </div>
 
-          {/* Embeds */}
           {embeds.length > 0 && (
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
               {embeds.map((embed: any, idx: number) => {
                 if (!embed.url) return null;
-                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(embed.url) ||
-                  /imagedelivery\.net|imgur\.com/i.test(embed.url);
-                if (isImage) {
-                  return (
-                    <img
-                      key={idx}
-                      src={embed.url}
-                      alt="Cast embed"
-                      className="w-full rounded-lg border border-gray-200 dark:border-zinc-700"
-                    />
-                  );
-                }
+                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(embed.url) || /imagedelivery\.net|imgur\.com/i.test(embed.url);
+                if (isImage) return <img key={idx} src={embed.url} alt="embed" style={{ maxWidth: '100%', borderRadius: 8 }} />;
                 return <SmartEmbed key={idx} url={embed.url} castHash={cast.hash} />;
               })}
             </div>
           )}
 
-          {/* Timestamp */}
-          <div className="text-sm text-gray-500 dark:text-gray-400 mt-4 pt-4 border-t border-gray-200 dark:border-zinc-800">
-            {timeLabel}
+          {/* Stats row */}
+          <div style={{ display: 'flex', gap: 20, fontSize: 13, color: 'var(--muted-on-dark, #999)', marginBottom: 4 }}>
+            <span>{cast.reactions?.likes_count ?? cast.reactions?.likes?.length ?? 0} likes</span>
+            <span>{cast.reactions?.recasts_count ?? cast.reactions?.recasts?.length ?? 0} recasts</span>
+            <span>{cast.replies?.count ?? 0} replies</span>
+            <span style={{ marginLeft: 'auto' }}>{timeLabel}</span>
           </div>
 
-          {/* Reactions + Reply */}
-          <div className="flex items-center gap-6 mt-4 text-sm text-gray-600 dark:text-gray-400">
-            <div>❤️ {(cast.reactions?.likes_count ?? cast.reactions?.likes?.length ?? 0)} likes</div>
-            <div>🔁 {(cast.reactions?.recasts_count ?? cast.reactions?.recasts?.length ?? 0)} recasts</div>
-            <div>💬 {cast.replies?.count || 0} replies</div>
-            <button
-              onClick={() => handleReply(cast.hash, cast.author?.fid, authorName)}
-              className="ml-auto text-zinc-500 hover:text-zinc-200 transition-colors text-xs"
-            >
-              Reply
-            </button>
-          </div>
+          {/* Action buttons */}
+          {renderActionRow(cast.hash, authorFid, text)}
+
+          {/* Reply input for main cast */}
+          {replyingTo === cast.hash && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <textarea
+                className="compose-textarea"
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                placeholder={`Replying to @${authorUsername}…`}
+                autoFocus
+                style={{ minHeight: 80, fontSize: 14, width: '100%' }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); }}>Cancel</button>
+                <button className="btn primary" onClick={() => handleReply(cast.hash, authorFid)} disabled={!replyText.trim()}>Post Reply</button>
+              </div>
+            </div>
+          )}
         </div>
 
-
-        {/* Replies Section */}
+        {/* Replies */}
         {replies.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold mb-4">Replies ({replies.length})</h2>
-            <div className="space-y-4">
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Replies ({replies.length})</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {replies.map((reply: any, idx: number) => {
-                const replyAuthor = reply.author;
-                const replyAuthorName = replyAuthor?.display_name || replyAuthor?.username || 'Unknown';
-                const replyAuthorUsername = replyAuthor?.username || '';
-                const replyAuthorPfp = replyAuthor?.pfp_url;
-                const replyText = reply.text || '';
-                const replyTimestamp = reply.timestamp;
-                let replyTimeLabel = '';
-                
-                if (replyTimestamp) {
+                const rAuthor = reply.author;
+                const rName = rAuthor?.display_name || rAuthor?.username || 'Unknown';
+                const rUsername = rAuthor?.username || '';
+                const rFid = rAuthor?.fid ?? 0;
+                const rPfp = rAuthor?.pfp_url;
+                const rText = reply.text || '';
+                let rTime = '';
+                if (reply.timestamp) {
                   try {
-                    const date = new Date(replyTimestamp);
-                    if (!isNaN(date.getTime())) {
-                      replyTimeLabel = formatDistanceToNow(date, { addSuffix: true });
-                    }
-                  } catch (e) {}
+                    const d = new Date(reply.timestamp);
+                    if (!isNaN(d.getTime())) rTime = formatDistanceToNow(d, { addSuffix: true });
+                  } catch {}
                 }
 
                 return (
-                  <div 
-                    key={reply.hash || idx}
-                    className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg p-4"
-                  >
-                    <div className="flex items-start gap-3">
-                      {replyAuthorPfp && (
-                        <img 
-                          src={replyAuthorPfp} 
-                          alt={replyAuthorName}
-                          className="w-10 h-10 rounded-full border-2 border-gray-300 dark:border-zinc-700"
-                        />
+                  <div key={reply.hash || idx} className="surface">
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
+                      {rPfp && (
+                        <Link href={`/profile?user=${rUsername}`}>
+                          <img src={rPfp} alt={rName} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        </Link>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Link 
-                            href={`/profile?user=${replyAuthorUsername}`}
-                            className="font-bold hover:text-white transition-colors"
-                          >
-                            {replyAuthorName}
-                          </Link>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            @{replyAuthorUsername}
-                          </span>
-                        </div>
-                        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                          {replyText}
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{replyTimeLabel}</span>
-                          <button
-                            onClick={() => handleReply(reply.hash, replyAuthor?.fid, replyAuthorName)}
-                            className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors"
-                          >
-                            Reply
-                          </button>
-                        </div>
+                      <div>
+                        <Link href={`/profile?user=${rUsername}`} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 14 }}>
+                          {rName}
+                        </Link>
+                        <div style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>@{rUsername} · {rTime}</div>
                       </div>
                     </div>
+                    <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 4 }}>
+                      {rText}
+                    </div>
+
+                    {/* Action buttons on each reply */}
+                    {renderActionRow(reply.hash, rFid, rText)}
+
+                    {/* Reply input for this reply */}
+                    {replyingTo === reply.hash && (
+                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                        <textarea
+                          className="compose-textarea"
+                          value={replyText}
+                          onChange={e => setReplyText(e.target.value)}
+                          placeholder={`Replying to @${rUsername}…`}
+                          autoFocus
+                          style={{ minHeight: 72, fontSize: 14, width: '100%' }}
+                        />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                          <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); }}>Cancel</button>
+                          <button className="btn primary" onClick={() => handleReply(reply.hash, rFid)} disabled={!replyText.trim()}>Post Reply</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -242,6 +384,56 @@ export default function CastDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Quote Cast Modal */}
+      {showQuoteModal && (
+        <div
+          onClick={() => setShowQuoteModal(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            zIndex: 9000, padding: '0 0 env(safe-area-inset-bottom, 0px)',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--surface, #1a1a1a)', borderRadius: '16px 16px 0 0',
+              padding: '24px 20px', width: '100%', maxWidth: 600,
+              maxHeight: '80vh', overflow: 'auto',
+            }}
+          >
+            <h3 style={{ margin: '0 0 12px 0', fontSize: 17, fontWeight: 600 }}>Quote Cast</h3>
+            {/* Preview */}
+            <div style={{
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 10, padding: '12px 14px', marginBottom: 14,
+              fontSize: 13, color: 'var(--muted-on-dark, #999)',
+              maxHeight: 80, overflow: 'hidden',
+            }}>
+              {showQuoteModal.preview.slice(0, 200)}{showQuoteModal.preview.length > 200 ? '…' : ''}
+            </div>
+            <textarea
+              className="compose-textarea"
+              value={quoteText}
+              onChange={e => setQuoteText(e.target.value)}
+              placeholder="Add your thoughts…"
+              autoFocus
+              style={{ minHeight: 100, fontSize: 15, width: '100%' }}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 12, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => { setShowQuoteModal(null); setQuoteText(''); }}>Cancel</button>
+              <button
+                className="btn primary"
+                onClick={handleQuoteCast}
+                disabled={quoteLoading || !quoteText.trim()}
+              >
+                {quoteLoading ? 'Posting…' : 'Post Quote'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
