@@ -409,8 +409,8 @@ function ComposePageInner() {
         <div style={{ width: 22 }} />
       </header>
 
-      {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (80px) + breathing room */}
-      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px', paddingBottom: 160 }}>
+      {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (~100px) + breathing room */}
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px', paddingBottom: 176 }}>
         {userFid && !hasActiveSigner ? (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
@@ -575,7 +575,7 @@ function ComposePageInner() {
 
       {/* Fixed toolbar — always visible above the bottom nav */}
       <div style={{
-        position: 'fixed', bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, zIndex: 100,
+        position: 'fixed', bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, zIndex: 100,
         background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
       }}>
         {/* Channel picker opens upward from here */}
@@ -627,10 +627,6 @@ function ComposePageInner() {
             <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast"
               style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </button>
-
-            <button onClick={() => router.push('/scheduled')} title="Scheduled casts" style={toolBtn}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
             </button>
           </div>
 
