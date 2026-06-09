@@ -40,13 +40,23 @@ export async function GET(req: NextRequest) {
         fetchParams.feed_type = 'following';
         fetchParams.fid = fid;
         fetchParams.viewer_fid = fid;
+        data = await fetchFeed(fetchParams);
+        // If following feed is empty, fall back to global trending so the user
+        // always sees something. Skip Hypersnap here since it may already be slow —
+        // call Neynar directly via fetchFeed with the trending params.
+        if (!data?.casts?.length) {
+          const trendingParams: any = { feed_type: 'filter', filter_type: 'global_trending', limit };
+          if (cursor) trendingParams.cursor = cursor;
+          if (fid) trendingParams.viewer_fid = fid;
+          const fallback = await fetchFeed(trendingParams);
+          if (fallback?.casts?.length) data = fallback;
+        }
       } else {
         fetchParams.feed_type = 'filter';
         fetchParams.filter_type = 'global_trending';
         if (fid) fetchParams.viewer_fid = fid;
+        data = await fetchFeed(fetchParams);
       }
-
-      data = await fetchFeed(fetchParams);
     }
 
     const casts = data?.casts || [];

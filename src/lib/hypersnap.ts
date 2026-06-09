@@ -18,25 +18,35 @@ const HYPERSNAP_BASE =
 /**
  * Generic unauthenticated fetch to Hypersnap.
  * No auth needed for read endpoints.
+ * timeoutMs: abort if no response within this many ms (default 6 s).
  */
-export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}): Promise<any> {
+export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}, timeoutMs = 6000): Promise<any> {
   const url = `${HYPERSNAP_BASE}${endpoint}`;
   const isWrite = opts.method && opts.method !== 'GET' && opts.method !== 'HEAD';
-  const res = await fetch(url, {
-    ...opts,
-    // On the server, tell Next.js to revalidate this response every 30 s.
-    // Client-side the `next` key is silently ignored by the browser fetch.
-    ...(!isWrite && { next: { revalidate: 30 } }),
-    headers: {
-      accept: 'application/json',
-      ...(opts.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Hypersnap API error ${res.status} at ${endpoint}: ${text}`);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...opts,
+      signal: controller.signal,
+      // On the server, tell Next.js to revalidate this response every 30 s.
+      // Client-side the `next` key is silently ignored by the browser fetch.
+      ...(!isWrite && { next: { revalidate: 30 } }),
+      headers: {
+        accept: 'application/json',
+        ...(opts.headers || {}),
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Hypersnap API error ${res.status} at ${endpoint}: ${text}`);
+    }
+    return res.json();
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json();
 }
 
 /** Backward-compat alias — callers that imported neynarFetch still work. */
@@ -64,6 +74,8 @@ export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
  * feed_type=following       → GET /v2/farcaster/feed/following?fid=:fid&limit=:limit
  * feed_type=filter/global_trending → GET /v2/farcaster/feed/trending?limit=:limit
  * default                   → GET /v2/farcaster/feed/following?fid=:fid&limit=:limit
+ *
+ * Falls back to the Neynar API directly if Hypersnap times out or returns empty.
  */
 export async function fetchFeed(params: Record<string, any> = {}): Promise<any> {
   const feedType = params.feed_type || 'following';
@@ -75,13 +87,40 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
     if (v !== undefined && v !== null) qs.set(k, String(v));
   }
 
-  const endpoint = isTrending
+  const hypersnapEndpoint = isTrending
     ? `/v2/farcaster/feed/trending?${qs.toString()}`
     : feedType === 'filter'
     ? `/v2/farcaster/feed?${qs.toString()}`
     : `/v2/farcaster/feed/following?${qs.toString()}`;
 
-  return hypersnapFetch(endpoint);
+  // 1. Try Hypersnap proxy
+  try {
+    const data = await hypersnapFetch(hypersnapEndpoint);
+    if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
+  } catch (_) {}
+
+  // 2. Fallback: Neynar API directly (server-side only)
+  const neynarKey = typeof process !== 'undefined' ? process.env.NEYNAR_API_KEY : undefined;
+  if (neynarKey) {
+    try {
+      const neynarEndpoint = isTrending
+        ? `https://api.neynar.com/v2/farcaster/feed/trending?${qs.toString()}`
+        : `https://api.neynar.com/v2/farcaster/feed?${qs.toString()}`;
+      const neynarController = new AbortController();
+      const neynarTimer = setTimeout(() => neynarController.abort(), 6000);
+      try {
+        const res = await fetch(neynarEndpoint, {
+          signal: neynarController.signal,
+          headers: { accept: 'application/json', api_key: neynarKey },
+        });
+        if (res.ok) return res.json();
+      } finally {
+        clearTimeout(neynarTimer);
+      }
+    } catch (_) {}
+  }
+
+  return { casts: [] };
 }
 
 /**

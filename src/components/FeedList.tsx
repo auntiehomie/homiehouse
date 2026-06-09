@@ -405,10 +405,12 @@ export default function FeedList({
       </div>
     );
   if (!items.length) return (
-    <div className="surface">
+    <div className="surface" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted-on-dark)' }}>
       {selectedChannel
         ? `No casts found in #${selectedChannel}.`
-        : 'No casts to show. Follow people to populate your feed.'}
+        : feedType === 'following'
+        ? 'No casts to show yet. Follow people on Farcaster to populate your feed.'
+        : 'No casts available right now. Pull down to refresh or try again shortly.'}
     </div>
   );
 
