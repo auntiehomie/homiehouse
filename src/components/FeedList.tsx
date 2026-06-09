@@ -117,6 +117,7 @@ export default function FeedList({
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [curateLoading, setCurateLoading] = useState(false);
   const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
 
@@ -172,20 +173,27 @@ export default function FeedList({
     }
   };
 
+  const showToast = (msg: string, ok: boolean) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleReply = async (castHash: string, authorFid: number) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
-    if (!replyText.trim()) return;
-    setReplyLoading(true);
+    const text = replyText.trim();
+    if (!text) return;
+
+    // Optimistic dismiss — close the form immediately so the user isn't waiting
+    setReplyText('');
+    setReplyingTo(null);
+    showToast('Sending reply…', true);
+
     try {
-      await replyFn({ text: replyText, parentCastHash: castHash, parentCastFid: authorFid });
-      setReplyText('');
-      setReplyingTo(null);
-      alert('Reply posted!');
+      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid });
+      showToast('Reply posted!', true);
     } catch (error: any) {
       console.error('Reply error:', error);
-      alert(`Failed to reply: ${error?.message ?? error}`);
-    } finally {
-      setReplyLoading(false);
+      showToast(`Failed: ${error?.message ?? 'unknown error'}`, false);
     }
   };
 
@@ -471,6 +479,22 @@ export default function FeedList({
   }
 
   return (
+    <>
+    {/* Non-blocking toast for reply/post feedback */}
+    {toast && (
+      <div style={{
+        position: 'fixed', bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
+        left: '50%', transform: 'translateX(-50%)',
+        background: toast.ok ? 'rgba(30,30,30,0.95)' : 'rgba(180,30,30,0.95)',
+        color: '#fff', padding: '10px 20px', borderRadius: 24,
+        fontSize: 14, fontWeight: 500, zIndex: 20000,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        animation: 'hhFadeIn 0.15s ease-out',
+        whiteSpace: 'nowrap',
+      }}>
+        {toast.msg}
+      </div>
+    )}
     <div className="space-y-4">
       {filteredItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
@@ -850,12 +874,12 @@ export default function FeedList({
                   >
                     Cancel
                   </button>
-                  <button 
-                    className="btn primary" 
+                  <button
+                    className="btn primary"
                     onClick={() => handleReply(key, authorObj?.fid ?? 0)}
-                    disabled={replyLoading || !replyText.trim()}
+                    disabled={!replyText.trim()}
                   >
-                    {replyLoading ? "Posting..." : "Post Reply"}
+                    Post Reply
                   </button>
                 </div>
               </div>
@@ -1228,5 +1252,6 @@ export default function FeedList({
         <p className="text-center text-sm text-zinc-500 py-2">Loading…</p>
       )}
     </div>
+    </>
   );
 }
