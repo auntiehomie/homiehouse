@@ -440,7 +440,7 @@ export default function ComposeModal() {
         <div
           role="dialog"
           aria-modal="true"
-          style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -450,13 +450,7 @@ export default function ComposeModal() {
             <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-on-dark)' }}>
               {replyParentName ? `Reply to ${replyParentName}` : 'New Cast'}
             </h1>
-            <button
-              onClick={async () => { await handlePost(); }}
-              disabled={!canPost}
-              style={{ padding: '7px 18px', borderRadius: 24, border: 'none', cursor: canPost ? 'pointer' : 'default', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 13, fontWeight: 700, opacity: canPost ? 1 : 0.35, whiteSpace: 'nowrap' }}
-            >
-              {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}
-            </button>
+            <div style={{ width: 22 }} />
           </div>
 
           {/* Scrollable body */}
@@ -591,6 +585,22 @@ export default function ComposeModal() {
 
                 <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast" style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
                   <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </button>
+              </div>
+
+              {/* Right: char count + Post/Schedule */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 8 }}>
+                {text.length > 260 && (
+                  <span style={{ fontSize: 12, color: text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40) ? '#f59e0b' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>
+                    {text.length}
+                  </span>
+                )}
+                <button
+                  onClick={async () => { await handlePost(); }}
+                  disabled={!canPost}
+                  style={{ padding: '7px 14px', borderRadius: 24, border: 'none', cursor: canPost ? 'pointer' : 'default', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 13, fontWeight: 700, opacity: canPost ? 1 : 0.35, whiteSpace: 'nowrap' }}
+                >
+                  {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}
                 </button>
               </div>
             </div>
