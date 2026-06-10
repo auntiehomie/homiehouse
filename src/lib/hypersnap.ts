@@ -6,12 +6,17 @@
  * Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient.
  * Those stubs throw descriptive errors pointing to the proper implementation path.
  *
- * Base URL: process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com'
+ * Primary node:  NEXT_PUBLIC_HYPERSNAP_URL  (default: https://haatz.quilibrium.com)
+ * Fallback node: HYPERSNAP_FALLBACK_URL     (optional second hub for resilience)
  */
 
 const HYPERSNAP_BASE =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_HYPERSNAP_URL) ||
   'https://haatz.quilibrium.com';
+
+/** Optional second hub — same API surface, used when primary is slow/unavailable. */
+const HYPERSNAP_FALLBACK =
+  (typeof process !== 'undefined' && process.env.HYPERSNAP_FALLBACK_URL) || null;
 
 // ─── Generic fetch ──────────────────────────────────────────────────────────
 
@@ -49,6 +54,30 @@ export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}, t
   }
 }
 
+/**
+ * Fetch the same endpoint from the fallback hub.
+ * Only called when the primary Hypersnap node times out or returns empty.
+ * Returns null if no fallback is configured or if the fallback also fails.
+ */
+async function fallbackFetch(endpoint: string): Promise<any> {
+  if (!HYPERSNAP_FALLBACK) return null;
+  const url = `${HYPERSNAP_FALLBACK}${endpoint}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Backward-compat alias — callers that imported neynarFetch still work. */
 // neynarFetch alias removed — use hypersnapFetch directly
 
@@ -75,7 +104,7 @@ export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
  * feed_type=filter/global_trending → GET /v2/farcaster/feed/trending?limit=:limit
  * default                   → GET /v2/farcaster/feed/following?fid=:fid&limit=:limit
  *
- * Falls back to the Neynar API directly if Hypersnap times out or returns empty.
+ * Falls back to HYPERSNAP_FALLBACK_URL if the primary node times out or returns empty.
  */
 export async function fetchFeed(params: Record<string, any> = {}): Promise<any> {
   const feedType = params.feed_type || 'following';
@@ -87,38 +116,21 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
     if (v !== undefined && v !== null) qs.set(k, String(v));
   }
 
-  const hypersnapEndpoint = isTrending
+  const endpoint = isTrending
     ? `/v2/farcaster/feed/trending?${qs.toString()}`
     : feedType === 'filter'
     ? `/v2/farcaster/feed?${qs.toString()}`
     : `/v2/farcaster/feed/following?${qs.toString()}`;
 
-  // 1. Try Hypersnap proxy
+  // 1. Primary Hypersnap node
   try {
-    const data = await hypersnapFetch(hypersnapEndpoint);
+    const data = await hypersnapFetch(endpoint);
     if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
   } catch (_) {}
 
-  // 2. Fallback: Neynar API directly (server-side only)
-  const neynarKey = typeof process !== 'undefined' ? process.env.NEYNAR_API_KEY : undefined;
-  if (neynarKey) {
-    try {
-      const neynarEndpoint = isTrending
-        ? `https://api.neynar.com/v2/farcaster/feed/trending?${qs.toString()}`
-        : `https://api.neynar.com/v2/farcaster/feed?${qs.toString()}`;
-      const neynarController = new AbortController();
-      const neynarTimer = setTimeout(() => neynarController.abort(), 6000);
-      try {
-        const res = await fetch(neynarEndpoint, {
-          signal: neynarController.signal,
-          headers: { accept: 'application/json', api_key: neynarKey },
-        });
-        if (res.ok) return res.json();
-      } finally {
-        clearTimeout(neynarTimer);
-      }
-    } catch (_) {}
-  }
+  // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
+  const fallback = await fallbackFetch(endpoint);
+  if (Array.isArray(fallback?.casts) && fallback.casts.length > 0) return fallback;
 
   return { casts: [] };
 }
@@ -206,24 +218,18 @@ export async function fetchChannelFeed(channelId: string, params: {
 }
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
-  // Try Hypersnap proxy first
+  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  const endpoint = `/v2/farcaster/user/channels?${qs.toString()}`;
+
+  // 1. Primary hub
   try {
-    const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-    const data = await hypersnapFetch(`/v2/farcaster/user/channels?${qs.toString()}`);
+    const data = await hypersnapFetch(endpoint);
     if (Array.isArray(data?.channels) && data.channels.length > 0) return data;
   } catch {}
 
-  // Fallback: Neynar API directly (server-side only)
-  const neynarKey = typeof process !== 'undefined' ? process.env.NEYNAR_API_KEY : undefined;
-  if (neynarKey) {
-    try {
-      const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-      const res = await fetch(`https://api.neynar.com/v2/farcaster/user/channels?${qs.toString()}`, {
-        headers: { accept: 'application/json', api_key: neynarKey },
-      });
-      if (res.ok) return res.json();
-    } catch {}
-  }
+  // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
+  const fallback = await fallbackFetch(endpoint);
+  if (Array.isArray(fallback?.channels) && fallback.channels.length > 0) return fallback;
 
   return { channels: [] };
 }
@@ -312,8 +318,7 @@ export async function searchUsers(query: string, limit = 10): Promise<any> {
 
 /**
  * Search for casts.
- * Tries the Hypersnap proxy first; if that returns empty and NEYNAR_API_KEY is
- * set (server-side only), falls back to the Neynar API directly.
+ * Tries the primary Hypersnap node first; falls back to HYPERSNAP_FALLBACK_URL.
  * Returns { casts: [...] }.
  */
 export async function searchCasts(query: string, limit = 10): Promise<any> {
@@ -324,27 +329,18 @@ export async function searchCasts(query: string, limit = 10): Promise<any> {
     return data;
   };
 
-  // 1. Try Hypersnap proxy
+  const qs = new URLSearchParams({ q: query, limit: String(limit) });
+  const endpoint = `/v2/farcaster/cast/search?${qs.toString()}`;
+
+  // 1. Primary hub
   try {
-    const qs = new URLSearchParams({ q: query, limit: String(limit) });
-    const data = normalize(await hypersnapFetch(`/v2/farcaster/cast/search?${qs.toString()}`));
+    const data = normalize(await hypersnapFetch(endpoint));
     if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
   } catch {}
 
-  // 2. Fallback: Neynar API directly (server-side only)
-  const neynarKey = typeof process !== 'undefined' ? process.env.NEYNAR_API_KEY : undefined;
-  if (neynarKey) {
-    try {
-      const qs = new URLSearchParams({ q: query, limit: String(limit) });
-      const res = await fetch(`https://api.neynar.com/v2/farcaster/cast/search?${qs.toString()}`, {
-        headers: { accept: 'application/json', api_key: neynarKey },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        return normalize(data);
-      }
-    } catch {}
-  }
+  // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
+  const fallback = normalize(await fallbackFetch(endpoint) ?? {});
+  if (Array.isArray(fallback?.casts) && fallback.casts.length > 0) return fallback;
 
   return { casts: [], next: {} };
 }
