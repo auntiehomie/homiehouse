@@ -101,6 +101,11 @@ export default function FeedList({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [pullDist, setPullDist] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartYRef = useRef(0);
+  const PULL_THRESHOLD = 72;
   const [showActions, setShowActions] = useState<string | null>(null);
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
   const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
@@ -343,7 +348,7 @@ export default function FeedList({
     return () => {
       mounted = false;
     };
-  }, [feedType, selectedChannel]);
+  }, [feedType, selectedChannel, refreshKey]);
 
   // loadMore: fetch next page and append
   const loadMore = async () => {
@@ -480,6 +485,24 @@ export default function FeedList({
       .sort((a, b) => b._interestScore - a._interestScore);
   }
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY <= 0) touchStartYRef.current = e.touches[0].clientY;
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) { setPullDist(0); return; }
+    const dist = e.touches[0].clientY - touchStartYRef.current;
+    if (dist > 0) setPullDist(Math.min(dist, PULL_THRESHOLD * 1.5));
+  };
+  const handleTouchEnd = () => {
+    if (pullDist >= PULL_THRESHOLD) {
+      setIsRefreshing(true);
+      setItems(null);
+      setRefreshKey(k => k + 1);
+      setTimeout(() => { setIsRefreshing(false); }, 800);
+    }
+    setPullDist(0);
+  };
+
   return (
     <>
     {/* Non-blocking toast for reply/post feedback */}
@@ -497,7 +520,28 @@ export default function FeedList({
         {toast.msg}
       </div>
     )}
-    <div className="space-y-4">
+    <style>{`@keyframes ptr-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    {/* Pull-to-refresh indicator */}
+    <div style={{
+      overflow: 'hidden',
+      height: isRefreshing ? 48 : Math.max(0, pullDist * 0.45),
+      transition: pullDist === 0 ? 'height 0.3s ease' : 'none',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        width: 22, height: 22, borderRadius: '50%',
+        border: '2.5px solid var(--accent)',
+        borderTopColor: 'transparent',
+        transform: isRefreshing ? undefined : `rotate(${pullDist * 3}deg)`,
+        animation: isRefreshing ? 'ptr-spin 0.7s linear infinite' : 'none',
+        opacity: Math.min(1, pullDist / PULL_THRESHOLD),
+      }} />
+    </div>
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="space-y-4"
       {filteredItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
         const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
