@@ -6,17 +6,18 @@
  * Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient.
  * Those stubs throw descriptive errors pointing to the proper implementation path.
  *
- * Primary node:  NEXT_PUBLIC_HYPERSNAP_URL  (default: https://haatz.quilibrium.com)
- * Fallback node: HYPERSNAP_FALLBACK_URL     (optional second hub for resilience)
+ * Primary node:  NEXT_PUBLIC_HYPERSNAP_URL  (default: Hypersnap Public — haatz.quilibrium.com)
+ * Fallback node: HYPERSNAP_FALLBACK_URL     (default: Ardea/Arca   — ardea.arcabot.ai)
  */
 
 const HYPERSNAP_BASE =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_HYPERSNAP_URL) ||
   'https://haatz.quilibrium.com';
 
-/** Optional second hub — same API surface, used when primary is slow/unavailable. */
+/** Ardea/Arca — second Hypersnap node, same API surface. Used when primary is slow/unavailable. */
 const HYPERSNAP_FALLBACK =
-  (typeof process !== 'undefined' && process.env.HYPERSNAP_FALLBACK_URL) || null;
+  (typeof process !== 'undefined' && process.env.HYPERSNAP_FALLBACK_URL) ||
+  'https://ardea.arcabot.ai';
 
 // ─── Generic fetch ──────────────────────────────────────────────────────────
 
