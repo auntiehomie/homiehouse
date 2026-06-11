@@ -668,13 +668,13 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   padding-bottom: max(env(safe-area-inset-bottom), 16px);
 }
 
-/* Page transition — fade + subtle upward slide */
+/* Page transition — quick fade only; no translate (causes layout shift) */
 @keyframes hhPageIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .hh-page-transition {
-  animation: hhPageIn 0.18s ease-out;
+  animation: hhPageIn 0.12s ease-out;
 }
 
 /* Toast fade-in */
