@@ -2,7 +2,9 @@
  * One-time setup script: generate & register a Farcaster signer for @homiehouselol.
  *
  * Run:
- *   MNEMONIC="your twelve word phrase here" APP_FID=12345 npx tsx scripts/setup-agent-signer.ts
+ *   MNEMONIC="your twelve word phrase here" APP_FID=12345 npm run setup-agent-signer
+ *
+ *   APP_FID is the same as HOMIEHOUSELOL_FID — no need to set both.
  *
  * What it does:
  *   1. Derives the EVM custody wallet from your mnemonic
@@ -156,11 +158,9 @@ async function main() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(approved ? '✅  APPROVED — paste these into Vercel env vars:' : '⚠️  Add these env vars AFTER approving the link above:');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-  console.log(`  HOMIEHOUSELOL_FID=${appFid}`);
   console.log(`  HOMIEHOUSELOL_SIGNER_KEY=${privateKeyHex}`);
-  console.log(`  APP_FID=${appFid}`);
-  console.log(`  APP_MNEMONIC="${mnemonic}"`);
   console.log(`  CRON_SECRET=<generate one: openssl rand -hex 32>\n`);
+  console.log('  (APP_FID and APP_MNEMONIC are the same account — no need to add them again\n   if they are already set in Vercel.)\n');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   console.log('  After adding env vars, redeploy on Vercel for them to take effect.\n');
 }
