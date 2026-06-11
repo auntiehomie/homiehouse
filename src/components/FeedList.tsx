@@ -542,6 +542,7 @@ export default function FeedList({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       className="space-y-4"
+    >
       {filteredItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
         const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
