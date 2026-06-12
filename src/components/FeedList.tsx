@@ -126,6 +126,8 @@ export default function FeedList({
   const [curateLoading, setCurateLoading] = useState(false);
   const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
 
+  const manualRefreshRef = useRef(false);
+
   const router = useRouter();
   const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
 
@@ -281,10 +283,35 @@ export default function FeedList({
 
   useEffect(() => {
     let mounted = true;
-    // Reset pagination state when feed changes
+    const cacheKey = `hh_feed_${feedType}_${selectedChannel ?? 'all'}`;
+    const isManualRefresh = manualRefreshRef.current;
+    manualRefreshRef.current = false;
+
+    // Reset pagination cursors
     setCursor(null);
     setHasMore(true);
-    setItems(null);
+
+    // Restore from sessionStorage cache immediately (skip skeleton) unless pull-to-refresh
+    if (!isManualRefresh) {
+      try {
+        const raw = sessionStorage.getItem(cacheKey);
+        if (raw) {
+          const { items: ci, cursor: cc, ts } = JSON.parse(raw);
+          if (Array.isArray(ci) && Date.now() - (ts ?? 0) < 5 * 60 * 1000) {
+            setItems(ci);
+            setCursor(cc ?? null);
+            setHasMore(!!cc);
+          } else {
+            setItems(null);
+          }
+        } else {
+          setItems(null);
+        }
+      } catch {
+        setItems(null);
+      }
+    }
+
     (async () => {
       let res;
       let nextCursor: string | null = null;
@@ -343,6 +370,14 @@ export default function FeedList({
         setItems(res);
         setCursor(nextCursor);
         setHasMore(!!nextCursor);
+        // Cache for instant restore on next navigation
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({
+            items: Array.isArray(res) ? res.slice(0, 60) : res,
+            cursor: nextCursor,
+            ts: Date.now(),
+          }));
+        } catch {}
       }
     })();
     return () => {
@@ -495,6 +530,7 @@ export default function FeedList({
   };
   const handleTouchEnd = () => {
     if (pullDist >= PULL_THRESHOLD) {
+      manualRefreshRef.current = true;
       setIsRefreshing(true);
       setItems(null);
       setRefreshKey(k => k + 1);
@@ -507,17 +543,27 @@ export default function FeedList({
     <>
     {/* Non-blocking toast for reply/post feedback */}
     {toast && (
-      <div style={{
-        position: 'fixed', bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
-        left: '50%', transform: 'translateX(-50%)',
-        background: toast.ok ? 'rgba(30,30,30,0.95)' : 'rgba(180,30,30,0.95)',
-        color: '#fff', padding: '10px 20px', borderRadius: 24,
-        fontSize: 14, fontWeight: 500, zIndex: 20000,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-        animation: 'hhFadeIn 0.15s ease-out',
-        whiteSpace: 'nowrap',
-      }}>
+      <div
+        onClick={() => { if (toast.msg === 'Saved to Notes') router.push('/notes'); }}
+        style={{
+          position: 'fixed', bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
+          left: '50%', transform: 'translateX(-50%)',
+          background: toast.ok ? 'rgba(30,30,30,0.95)' : 'rgba(180,30,30,0.95)',
+          color: '#fff', padding: '10px 20px', borderRadius: 24,
+          fontSize: 14, fontWeight: 500, zIndex: 20000,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          animation: 'hhFadeIn 0.15s ease-out',
+          whiteSpace: 'nowrap',
+          cursor: toast.msg === 'Saved to Notes' ? 'pointer' : 'default',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
         {toast.msg}
+        {toast.msg === 'Saved to Notes' && (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        )}
       </div>
     )}
     <style>{`@keyframes ptr-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
@@ -896,6 +942,7 @@ export default function FeedList({
                     };
                     localStorage.setItem('hh_notes', JSON.stringify([note, ...notes]));
                     setSavedNotes(prev => new Set([...prev, key]));
+                    showToast('Saved to Notes', true);
                     setTimeout(() => setSavedNotes(prev => { const n = new Set(prev); n.delete(key); return n; }), 2500);
                   } catch {}
                 }}
