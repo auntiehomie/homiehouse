@@ -165,7 +165,87 @@ export default function MiniAppViewer() {
       const msg = e.data;
       if (!msg || typeof msg !== 'object') return;
 
-      // --- Farcaster context ---
+      const target = iframe.contentWindow;
+      const profile = getProfile();
+      const context = buildContext(profile);
+
+      // --- Comlink protocol (used by @farcaster/miniapp-sdk via comlink.wrap) ---
+      // Messages: { id, type: 'GET'|'APPLY'|'RELEASE', path: string[], argumentList?: WireValue[] }
+      // Response: { id, type: 'RAW', value: <result> }
+      const COMLINK_CALL_TYPES = new Set(['GET', 'SET', 'APPLY', 'CONSTRUCT', 'ENDPOINT', 'RELEASE']);
+      if (msg.id && COMLINK_CALL_TYPES.has(msg.type) && Array.isArray(msg.path)) {
+        const path: string[] = msg.path;
+        const prop = path[path.length - 1] ?? '';
+        const comlinkRespond = (value: unknown) => {
+          target.postMessage({ id: msg.id, type: 'RAW', value }, '*');
+        };
+
+        if (msg.type === 'GET') {
+          if (prop === 'context') {
+            comlinkRespond(context);
+          } else if (prop === 'getCapabilities' || prop === 'getChains') {
+            comlinkRespond([]);
+          } else {
+            comlinkRespond(undefined);
+          }
+          return;
+        }
+
+        if (msg.type === 'APPLY') {
+          const rawArgs = (Array.isArray(msg.argumentList) ? msg.argumentList : [])
+            .map((a: any) => (a?.type === 'RAW' ? a.value : undefined));
+
+          if (prop === 'ready') {
+            comlinkRespond(undefined);
+          } else if (prop === 'close') {
+            setOpen(false);
+            comlinkRespond(undefined);
+          } else if (prop === 'openUrl') {
+            const urlArg = rawArgs[0];
+            const href = typeof urlArg === 'string' ? urlArg : (urlArg?.url ?? '');
+            if (href) window.open(href.trim(), '_blank', 'noopener,noreferrer');
+            comlinkRespond(undefined);
+          } else if (prop === 'getCapabilities' || prop === 'getChains') {
+            comlinkRespond([]);
+          } else if (prop === 'setPrimaryButton') {
+            comlinkRespond(undefined);
+          } else if (prop === 'composeCast') {
+            const opts = rawArgs[0] ?? {};
+            if (opts.text !== undefined) {
+              window.dispatchEvent(new CustomEvent('hh:compose', { detail: { text: opts.text ?? '' } }));
+            }
+            comlinkRespond({ result: {} });
+          } else if (prop === 'viewCast') {
+            const hash = rawArgs[0]?.hash ?? rawArgs[0];
+            if (hash) window.dispatchEvent(new CustomEvent('hh:view-cast', { detail: { hash } }));
+            comlinkRespond({ result: undefined });
+          } else if (prop === 'viewProfile') {
+            const fid = rawArgs[0]?.fid ?? rawArgs[0];
+            if (fid) window.dispatchEvent(new CustomEvent('hh:view-profile', { detail: { fid } }));
+            comlinkRespond({ result: undefined });
+          } else if (prop === 'signIn') {
+            comlinkRespond({ error: { type: 'rejected_by_user' } });
+          } else if (prop === 'addFrame' || prop === 'addMiniApp') {
+            comlinkRespond({ error: { type: 'rejected_by_user' } });
+          } else if (prop === 'impactOccurred' || prop === 'notificationOccurred' || prop === 'selectionChanged') {
+            comlinkRespond(undefined);
+          } else {
+            comlinkRespond(undefined);
+          }
+          return;
+        }
+
+        if (msg.type === 'RELEASE') {
+          target.postMessage({ id: msg.id, type: 'RAW', value: undefined }, '*');
+          return;
+        }
+
+        // SET / CONSTRUCT / ENDPOINT — acknowledge but no-op
+        target.postMessage({ id: msg.id, type: 'RAW', value: undefined }, '*');
+        return;
+      }
+
+      // --- Legacy Farcaster context (older frame SDKs) ---
       const isReady =
         msg.type === 'frameReady' ||
         msg.type === 'ready' ||
@@ -178,12 +258,12 @@ export default function MiniAppViewer() {
         (msg.type === 'fc-mini-app' && (msg.action === 'ready' || msg.action === 'getContext'));
 
       if (isReady) {
-        sendContext(iframe.contentWindow, buildContext(getProfile()), msg);
+        sendContext(target, context, msg);
         return;
       }
 
       // --- EIP-1193 wallet provider ---
-      if (handleWalletRpc(iframe.contentWindow, msg)) return;
+      if (handleWalletRpc(target, msg)) return;
 
       // --- close ---
       const isClose =
@@ -222,7 +302,16 @@ export default function MiniAppViewer() {
     const target = iframeRef.current?.contentWindow;
     if (!target) return;
     const profile = getProfile();
-    sendContext(target, buildContext(profile));
+    const ctx = buildContext(profile);
+    // Legacy SDK formats
+    sendContext(target, ctx);
+    // Comlink SDK: push context eagerly so isInMiniApp() resolves without waiting for a GET
+    // The SDK checks `miniAppHost.context` which, once it sees the RAW value, caches it.
+    // We can't know the comlink id ahead of time, so we rely on responding to GET messages.
+    // However, some SDK versions may check a global; inject it as a fallback.
+    try {
+      target.postMessage({ type: 'farcasterContextResponse', context: ctx }, '*');
+    } catch {}
   };
 
   return (
