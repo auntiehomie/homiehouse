@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
+import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
 interface UserProfile {
   fid: number;
@@ -246,8 +247,22 @@ function ProfileContent() {
   const [tradesLoading, setTradesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('casts');
+  const [viewerFid, setViewerFid] = useState<number | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { follow, unfollow } = useFarcasterWrites();
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('hh_profile');
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p?.fid) setViewerFid(p.fid);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -291,6 +306,15 @@ function ProfileContent() {
 
     loadProfile();
   }, [router, searchParams]);
+
+  // Check follow status once profile and viewerFid are both known
+  useEffect(() => {
+    if (!profile || !viewerFid || viewerFid === profile.fid) return;
+    fetch(`/api/follow-status?fid=${viewerFid}&target_fid=${profile.fid}`)
+      .then((r) => r.json())
+      .then((d) => setIsFollowing(!!d.following))
+      .catch(() => {});
+  }, [profile, viewerFid]);
 
   // Fetch trades when trades tab selected and we have ETH addresses
   useEffect(() => {
@@ -366,9 +390,51 @@ function ProfileContent() {
             )}
           </div>
 
-          {/* Name */}
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{profile.display_name}</h1>
-          <p style={{ color: 'var(--muted-on-dark)', marginBottom: '1rem' }}>@{profile.username}</p>
+          {/* Name + Follow button row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{profile.display_name}</h1>
+              <p style={{ color: 'var(--muted-on-dark)', margin: 0 }}>@{profile.username}</p>
+            </div>
+            {viewerFid && viewerFid !== profile.fid && (
+              <button
+                onClick={async () => {
+                  setFollowLoading(true);
+                  try {
+                    if (isFollowing) {
+                      await unfollow(profile.fid);
+                      setIsFollowing(false);
+                    } else {
+                      await follow(profile.fid);
+                      setIsFollowing(true);
+                    }
+                  } catch (err: any) {
+                    alert(err?.message || 'Failed — make sure your signer is approved in Warpcast.');
+                  } finally {
+                    setFollowLoading(false);
+                  }
+                }}
+                disabled={followLoading}
+                style={{
+                  flexShrink: 0,
+                  marginTop: '0.35rem',
+                  padding: '8px 18px',
+                  borderRadius: 20,
+                  border: isFollowing ? '1.5px solid var(--border)' : 'none',
+                  background: isFollowing ? 'transparent' : 'var(--accent)',
+                  color: isFollowing ? 'var(--text-on-dark)' : '#fff',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  cursor: followLoading ? 'not-allowed' : 'pointer',
+                  opacity: followLoading ? 0.6 : 1,
+                  transition: 'all 0.15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {followLoading ? '…' : isFollowing ? 'Following' : 'Follow'}
+              </button>
+            )}
+          </div>
 
           {/* Stats */}
           <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.25rem', paddingBottom: '1.25rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>

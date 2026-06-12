@@ -68,6 +68,8 @@ export interface UseFarcasterWritesReturn {
   recast: (params: ReactionParams) => Promise<void>;
   removeRecast: (params: ReactionParams) => Promise<void>;
   reply: (params: ReplyParams) => Promise<{ castHash: string }>;
+  follow: (targetFid: number) => Promise<void>;
+  unfollow: (targetFid: number) => Promise<void>;
   signerApprovalUrl: null;
   checkSignerStatus: () => Promise<void>;
   /** Returns the approved private key hex for this FID, or null if not available */
@@ -216,6 +218,24 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     return { castHash: result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '' };
   }, [getSigner, fid]);
 
+  const follow = useCallback(async (targetFid: number): Promise<void> => {
+    const signer = await getSigner();
+    const message = await buildSignedMessage(
+      { type: MessageType.LINK_ADD, fid, body: { linkBody: { type: 'follow', targetFid } } },
+      signer,
+    );
+    await submitMessage(message);
+  }, [getSigner, fid]);
+
+  const unfollow = useCallback(async (targetFid: number): Promise<void> => {
+    const signer = await getSigner();
+    const message = await buildSignedMessage(
+      { type: MessageType.LINK_REMOVE, fid, body: { linkBody: { type: 'follow', targetFid } } },
+      signer,
+    );
+    await submitMessage(message);
+  }, [getSigner, fid]);
+
   const getPrivateKeyHex = useCallback((): string | null => {
     if (!fid) return null;
     try {
@@ -236,6 +256,8 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     recast,
     removeRecast,
     reply,
+    follow,
+    unfollow,
     signerApprovalUrl: null,
     checkSignerStatus: async () => {},
     getPrivateKeyHex,
