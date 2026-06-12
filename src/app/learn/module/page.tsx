@@ -478,6 +478,8 @@ function ModuleLessonContent() {
   return (
     <div style={{
       height: '100dvh',
+      paddingTop: 'env(safe-area-inset-top, 0px)',
+      boxSizing: 'border-box',
       display: 'flex', flexDirection: 'column',
       background: 'var(--bg-dark)', color: 'var(--text-on-dark)',
       overscrollBehavior: 'none',
