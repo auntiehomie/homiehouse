@@ -460,22 +460,7 @@ export default function FeedList({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loadingMore, cursor]);
 
-  if (items === null)
-    return (
-      <div aria-busy="true" aria-live="polite">
-        <FeedSkeleton count={3} />
-      </div>
-    );
-  if (!items.length) return (
-    <div className="surface" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted-on-dark)' }}>
-      {selectedChannel
-        ? `No casts found in #${selectedChannel}.`
-        : feedType === 'following'
-        ? 'No casts to show yet. Follow people on Farcaster to populate your feed.'
-        : 'No casts available right now. Pull down to refresh or try again shortly.'}
-    </div>
-  );
-
+  // Must be before any early returns — hooks can't be called conditionally
   const filteredItems = useMemo(() => {
     const interests = getUserInterests();
     let result = (items || []).filter((it, index) => {
@@ -496,6 +481,22 @@ export default function FeedList({
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, mutedUsers, hiddenCasts, seeLessAuthors]);
+
+  if (items === null)
+    return (
+      <div aria-busy="true" aria-live="polite">
+        <FeedSkeleton count={3} />
+      </div>
+    );
+  if (!items.length) return (
+    <div className="surface" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted-on-dark)' }}>
+      {selectedChannel
+        ? `No casts found in #${selectedChannel}.`
+        : feedType === 'following'
+        ? 'No casts to show yet. Follow people on Farcaster to populate your feed.'
+        : 'No casts available right now. Pull down to refresh or try again shortly.'}
+    </div>
+  );
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY <= 0) touchStartYRef.current = e.touches[0].clientY;
