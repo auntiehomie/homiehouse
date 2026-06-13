@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
@@ -377,10 +378,12 @@ function ProfileContent() {
         <div style={{ padding: '0 1.5rem 1.5rem' }}>
           {/* Avatar */}
           <div style={{ position: 'relative', marginTop: '-4rem', marginBottom: '1rem' }}>
-            <img
+            <Image
               src={profile.pfp_url || '/default-avatar.png'}
               alt={profile.display_name || 'User avatar'}
-              style={{ width: '8rem', height: '8rem', borderRadius: '50%', border: '4px solid var(--surface)', objectFit: 'cover' }}
+              width={128}
+              height={128}
+              style={{ borderRadius: '50%', border: '4px solid var(--surface)', objectFit: 'cover' }}
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-avatar.png'; }}
             />
             {profile.power_badge && (

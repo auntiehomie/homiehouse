@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
 import SmartEmbed from "@/components/SmartEmbed";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
@@ -262,7 +263,7 @@ export default function CastDetailPage() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             {authorPfp && (
               <Link href={`/profile?user=${authorUsername}`}>
-                <img src={authorPfp} alt={authorName} style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                <Image src={authorPfp} alt={authorName} width={44} height={44} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
               </Link>
             )}
             <div>
@@ -343,7 +344,7 @@ export default function CastDetailPage() {
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
                       {rPfp && (
                         <Link href={`/profile?user=${rUsername}`}>
-                          <img src={rPfp} alt={rName} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          <Image src={rPfp} alt={rName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         </Link>
                       )}
                       <div>

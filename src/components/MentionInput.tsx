@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 
 interface User {
   fid: number;
@@ -172,11 +173,7 @@ export default function MentionInput({
                 }`}
               >
                 {user.pfp_url && (
-                  <img 
-                    src={user.pfp_url} 
-                    alt={user.username}
-                    className="w-8 h-8 rounded-full"
-                  />
+                  <Image src={user.pfp_url} alt={user.username} width={32} height={32} className="rounded-full" style={{ objectFit: 'cover' }} />
                 )}
                 <div className="flex-1 text-left">
                   <div className="text-white font-medium">{user.display_name}</div>

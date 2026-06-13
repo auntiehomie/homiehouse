@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
 import AppShell from "@/components/AppShell";
 import { provisionSignerWithMnemonic } from "@/lib/fc-key-add";
 
@@ -238,7 +239,7 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
       {profile?.fid ? (
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
           {profile.pfpUrl ? (
-            <img src={profile.pfpUrl} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+            <Image src={profile.pfpUrl} alt="" width={44} height={44} style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
           ) : (
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
               {(profile.displayName || profile.username || "?")[0].toUpperCase()}
@@ -602,7 +603,7 @@ export default function SettingsPage() {
                 }}
               >
                 {profile?.pfpUrl ? (
-                  <img src={profile.pfpUrl} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                  <Image src={profile.pfpUrl} alt="" width={32} height={32} style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
                 ) : (
                   <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
                     {profile?.displayName?.[0]?.toUpperCase() || profile?.username?.[0]?.toUpperCase() || "?"}

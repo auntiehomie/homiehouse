@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
 
 const FAB_HIDDEN_PATHS = ['/learn', '/compose', '/settings'];
 
@@ -489,7 +490,7 @@ export default function ComposeModal() {
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
                   {mentionResults.slice(0, 5).map(user => (
                     <button key={user.fid} onClick={() => insertMention(user)} style={{ width: '100%', padding: 12, display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      {user.pfp_url && <img src={user.pfp_url} alt={user.username} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />}
+                      {user.pfp_url && <Image src={user.pfp_url} alt={user.username} width={32} height={32} style={{ borderRadius: '50%', objectFit: 'cover' }} />}
                       <div><div style={{ fontWeight: 600, fontSize: 14 }}>{user.display_name}</div><div style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>@{user.username}</div></div>
                     </button>
                   ))}

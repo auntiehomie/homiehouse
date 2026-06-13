@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import Image from "next/image";
 
 function fmtPrice(p?: number) {
   if (p == null) return '—';
@@ -71,7 +72,7 @@ export default function TokenDetailPage() {
             {/* Header row */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
               {token.image
-                ? <img src={token.image} alt={token.symbol} style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
+                ? <Image src={token.image} alt={token.symbol} width={56} height={56} style={{ borderRadius: '50%', objectFit: 'cover' }} />
                 : <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>$</div>
               }
               <div>
