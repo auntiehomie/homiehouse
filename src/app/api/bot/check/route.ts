@@ -431,11 +431,13 @@ export async function GET(request: NextRequest) {
         }
 
         // Post reply via farcaster-writes (app-managed signer)
+        const botSignerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
         await publishCast({
           text: reply,
           fid: BOT_FID,
           parentCastHash: castHash,
           parentCastFid: cast.author?.fid,
+          ...(botSignerKey ? { signerPrivateKey: botSignerKey } : {}),
         });
 
         logger.success(`Posted reply to ${castHash}`, { reply });

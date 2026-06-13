@@ -22,32 +22,21 @@ import {
   CastType,
   hexStringToBytes,
 } from '@farcaster/core';
-import { mnemonicToAccount } from 'viem/accounts';
-
 // Hypersnap hub — supports /v1/submitMessage REST endpoint.
 const HUB_URL =
   (typeof process !== 'undefined' && process.env.FARCASTER_HUB_URL) ||
   'https://haatz.quilibrium.com';
 
-/**
- * Derive a deterministic Ed25519 private key hex string from APP_MNEMONIC.
- * This key is NOT registered on-chain; set HOMIEHOUSELOL_SIGNER_KEY to an
- * approved signer key or the hub will reject with "invalid signer".
- */
+/** Return the registered Ed25519 signer key for the bot FID. */
 function getAppSignerKey(): { privateKeyHex: string; fid: number } {
-  const mnemonic = process.env.APP_MNEMONIC;
   const appFid = parseInt(process.env.APP_FID || '0', 10);
+  if (!appFid) throw new Error('APP_FID environment variable is required for server-side Farcaster writes');
 
-  if (!mnemonic) {
-    throw new Error('APP_MNEMONIC environment variable is required for server-side Farcaster writes');
-  }
-  if (!appFid) {
-    throw new Error('APP_FID environment variable is required for server-side Farcaster writes');
-  }
+  // Prefer the explicitly-registered key over any derived fallback.
+  const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
+  if (signerKey) return { privateKeyHex: signerKey, fid: appFid };
 
-  const account = mnemonicToAccount(mnemonic as `${string}`);
-  const seed = account.address.slice(2).padStart(64, '0').slice(0, 64);
-  return { privateKeyHex: seed, fid: appFid };
+  throw new Error('HOMIEHOUSELOL_SIGNER_KEY is required — set it to the registered Ed25519 private key for the bot FID');
 }
 
 function buildSigner(privateKeyHex: string): NobleEd25519Signer {
