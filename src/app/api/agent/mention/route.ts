@@ -170,10 +170,16 @@ export async function GET(request: NextRequest) {
       if (repliedCount >= 1) break; // One reply per cron run
 
       const cast = notification.cast ?? notification;
+      const notifType = notification.type ?? notification.notification_type;
+      const castHash = cast?.hash ?? '(no hash)';
+      console.log(`[agent/mention] notif type=${notifType} hash=${castHash} author=@${cast?.author?.username ?? '?'}`);
+
       if (!cast?.hash) continue;
 
-      const notifType = notification.type ?? notification.notification_type;
-      if (notifType && !['mention', 'reply'].includes(notifType)) continue;
+      if (notifType && !['mention', 'reply'].includes(notifType)) {
+        console.log(`[agent/mention] skip: type "${notifType}" not mention/reply`);
+        continue;
+      }
 
       const castHash = cast.hash;
       const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
@@ -186,7 +192,10 @@ export async function GET(request: NextRequest) {
       ];
 
       const alreadyReplied = await hasRepliedToAny(trackingKeys);
-      if (alreadyReplied) continue;
+      if (alreadyReplied) {
+        console.log(`[agent/mention] skip: already replied (matched key: ${alreadyReplied})`);
+        continue;
+      }
 
       // Confirm no existing in-thread reply
       try {
