@@ -113,15 +113,16 @@ export async function GET(req: NextRequest) {
     message: { requestFid: appFid, key: signerPublicKey, deadline },
   });
 
-  // ABI-encode SignedKeyRequestMetadata
+  // ABI-encode SignedKeyRequestMetadata as a TUPLE — the validator does
+  // abi.decode(metadata, (SignedKeyRequestMetadata)) which requires the 0x20 tuple wrapper.
   const signedKeyRequestMetadata = encodeAbiParameters(
-    [
+    [{ type: 'tuple', components: [
       { name: 'requestFid',    type: 'uint256' },
       { name: 'requestSigner', type: 'address' },
       { name: 'signature',     type: 'bytes'   },
       { name: 'deadline',      type: 'uint256' },
-    ],
-    [appFid, custodyAddress, signedKeyRequestSig, deadline],
+    ]}],
+    [{ requestFid: appFid, requestSigner: custodyAddress, signature: signedKeyRequestSig, deadline }],
   );
 
   // Custody key signs the KeyRegistry Add EIP-712 message
