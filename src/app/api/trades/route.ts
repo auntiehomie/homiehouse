@@ -81,12 +81,16 @@ export async function GET(request: NextRequest) {
         if (fromMe && !toMe) type = "sell";
         else if (!fromMe && toMe) type = "buy";
 
+        const amount = formatAmount(tx.value, tx.tokenDecimal);
+        // Skip dust / spam transfers (value rounds to zero)
+        if (amount === '0') continue;
+
         trades.push({
           hash: tx.hash,
           type,
           tokenSymbol: tx.tokenSymbol,
           tokenName: tx.tokenName,
-          amount: formatAmount(tx.value, tx.tokenDecimal),
+          amount,
           from: tx.from,
           to: tx.to,
           timestamp: parseInt(tx.timeStamp) * 1000,

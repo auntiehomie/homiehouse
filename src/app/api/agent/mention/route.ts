@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import type { Tool, MessageParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages';
 import { fetchNotifications, fetchCast, searchCasts } from '@/lib/hypersnap';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
@@ -95,53 +96,76 @@ async function generateReply(
   authorUsername: string,
   memoryContext: string
 ): Promise<string> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // Try Claude with tool-use first
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const messages: MessageParam[] = [
-    {
-      role: 'user',
-      content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`,
-    },
-  ];
+    const messages: MessageParam[] = [
+      {
+        role: 'user',
+        content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`,
+      },
+    ];
 
-  // Tool-use loop — cap at 3 rounds to bound latency
-  for (let round = 0; round < 3; round++) {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 300,
-      system: BOT_PERSONA + memoryContext,
-      tools: TOOLS,
-      messages,
-    });
+    // Tool-use loop — cap at 3 rounds to bound latency
+    for (let round = 0; round < 3; round++) {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 300,
+        system: BOT_PERSONA + memoryContext,
+        tools: TOOLS,
+        messages,
+      });
 
-    if (response.stop_reason === 'end_turn') {
-      const textBlock = response.content.find((b) => b.type === 'text');
-      if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
-      throw new Error('No text in final response');
-    }
-
-    if (response.stop_reason === 'tool_use') {
-      const toolCalls = response.content.filter((b) => b.type === 'tool_use');
-      const toolResults: ToolResultBlockParam[] = [];
-
-      for (const call of toolCalls) {
-        if (call.type !== 'tool_use') continue;
-        const result = await runTool(call.name, call.input as Record<string, any>);
-        toolResults.push({ type: 'tool_result', tool_use_id: call.id, content: result });
+      if (response.stop_reason === 'end_turn') {
+        const textBlock = response.content.find((b) => b.type === 'text');
+        if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
+        break;
       }
 
-      messages.push({ role: 'assistant', content: response.content });
-      messages.push({ role: 'user', content: toolResults });
-      continue;
-    }
+      if (response.stop_reason === 'tool_use') {
+        const toolCalls = response.content.filter((b) => b.type === 'tool_use');
+        const toolResults: ToolResultBlockParam[] = [];
 
-    // Unexpected stop reason — extract whatever text is there
-    const textBlock = response.content.find((b) => b.type === 'text');
-    if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
-    throw new Error(`Unexpected stop_reason: ${response.stop_reason}`);
+        for (const call of toolCalls) {
+          if (call.type !== 'tool_use') continue;
+          const result = await runTool(call.name, call.input as Record<string, any>);
+          toolResults.push({ type: 'tool_result', tool_use_id: call.id, content: result });
+        }
+
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: toolResults });
+        continue;
+      }
+
+      // Unexpected stop reason — extract whatever text is there
+      const textBlock = response.content.find((b) => b.type === 'text');
+      if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
+      break;
+    }
+  } catch (err: any) {
+    console.error('[agent/mention] Claude failed:', err?.message);
   }
 
-  throw new Error('Tool-use loop exceeded max rounds');
+  // Fallback to OpenAI
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: BOT_PERSONA },
+        { role: 'user', content: `@${authorUsername} says: ${castText.slice(0, 500)}` },
+      ],
+      max_tokens: 100,
+      temperature: 0.8,
+    });
+    const text = response.choices[0]?.message?.content?.trim();
+    if (text) return text.slice(0, 280);
+  } catch (err: any) {
+    console.error('[agent/mention] OpenAI fallback failed:', err?.message);
+  }
+
+  return 'hey! 🏠';
 }
 
 export async function GET(request: NextRequest) {
@@ -161,19 +185,47 @@ export async function GET(request: NextRequest) {
     let repliedCount = 0;
 
     const notifData = await fetchNotifications({ fid: HOMIEHOUSELOL_FID, limit: 50 });
-    const notifications: any[] =
+    const rawNotifications: any[] =
       notifData?.data?.notifications ?? notifData?.notifications ?? [];
 
-    console.log(`[agent/mention] ${notifications.length} notifications for FID ${HOMIEHOUSELOL_FID}`);
+    console.log(`[agent/mention] ${rawNotifications.length} notifications for FID ${HOMIEHOUSELOL_FID}`);
+
+    // Also search for recent casts mentioning @homiehouselol.
+    // The notification index can lag by hours; cast search is usually fresh.
+    let searchMentions: any[] = [];
+    try {
+      const searchData = await searchCasts('@homiehouselol', 15);
+      const searchCastList: any[] = searchData?.casts ?? [];
+      const notifHashes = new Set(
+        rawNotifications.map((n: any) => (n.cast ?? n)?.hash).filter(Boolean)
+      );
+      searchMentions = searchCastList
+        .filter((c: any) => c.hash && !notifHashes.has(c.hash))
+        .filter((c: any) => c.author?.fid !== HOMIEHOUSELOL_FID)
+        .map((c: any) => ({ type: 'mention', cast: c }));
+      if (searchMentions.length > 0) {
+        console.log(`[agent/mention] ${searchMentions.length} additional mention(s) via cast search`);
+      }
+    } catch (err: any) {
+      console.warn('[agent/mention] Cast search fallback failed:', err?.message);
+    }
+
+    const notifications = [...rawNotifications, ...searchMentions];
 
     for (const notification of notifications) {
       if (repliedCount >= 1) break; // One reply per cron run
 
       const cast = notification.cast ?? notification;
+      const notifType = notification.type ?? notification.notification_type;
+      const hash = cast?.hash ?? '(no hash)';
+      console.log(`[agent/mention] notif type=${notifType} hash=${hash} author=@${cast?.author?.username ?? '?'}`);
+
       if (!cast?.hash) continue;
 
-      const notifType = notification.type ?? notification.notification_type;
-      if (notifType && !['mention', 'reply'].includes(notifType)) continue;
+      if (notifType && !['mention', 'reply'].includes(notifType)) {
+        console.log(`[agent/mention] skip: type "${notifType}" not mention/reply`);
+        continue;
+      }
 
       const castHash = cast.hash;
       const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
@@ -186,7 +238,10 @@ export async function GET(request: NextRequest) {
       ];
 
       const alreadyReplied = await hasRepliedToAny(trackingKeys);
-      if (alreadyReplied) continue;
+      if (alreadyReplied) {
+        console.log(`[agent/mention] skip: already replied (matched key: ${alreadyReplied})`);
+        continue;
+      }
 
       // Confirm no existing in-thread reply
       try {
@@ -211,10 +266,12 @@ export async function GET(request: NextRequest) {
         const reply = await generateReply(cast.text || '', authorUsername, memoryContext);
 
         const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
+        console.error(`[agent/mention] ATTEMPTING reply to @${authorUsername} (cast ${castHash.slice(0, 10)}): "${reply.slice(0, 60)}"`);
         const { castHash: replyHash } = await publishCast({
           text: reply,
           fid: HOMIEHOUSELOL_FID,
           parentCastHash: castHash,
+          parentCastFid: cast.author?.fid,
           ...(signerKey ? { signerPrivateKey: signerKey } : {}),
         });
 
@@ -227,7 +284,7 @@ export async function GET(request: NextRequest) {
           topic: `reply to @${authorUsername}`,
         });
 
-        console.log(`[agent/mention] Replied to @${authorUsername}: "${reply}"`);
+        console.error(`[agent/mention] SUCCESS reply to @${authorUsername} replyHash=${replyHash}`);
         await recordReplyBatch({
           trackingKeys,
           replyHash,
@@ -237,10 +294,11 @@ export async function GET(request: NextRequest) {
         repliedCount++;
       } catch (error: any) {
         // Don't blacklist on error — let next cron run retry
-        console.error(`[agent/mention] Failed to reply to ${castHash}:`, error?.message);
+        console.error(`[agent/mention] FAILED reply to ${castHash}:`, error?.message);
       }
     }
 
+    console.error(`[agent/mention] DONE: checked=${notifications.length} replied=${repliedCount} fid=${HOMIEHOUSELOL_FID}`);
     return NextResponse.json({
       ok: true,
       checked: notifications.length,

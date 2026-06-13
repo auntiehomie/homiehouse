@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
   try {
     initVapid();
   } catch {
-    return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 503 });
+    // VAPID keys not yet configured — skip silently rather than flooding logs with 503
+    return NextResponse.json({ ok: true, sent: 0, errors: 0, note: 'VAPID not configured' });
   }
 
   const db = getDb();

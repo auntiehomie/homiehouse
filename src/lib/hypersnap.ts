@@ -38,8 +38,9 @@ export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}, t
       ...opts,
       signal: controller.signal,
       // On the server, tell Next.js to revalidate this response every 30 s.
+      // Skip if the caller explicitly set cache (e.g. 'no-store' for live data).
       // Client-side the `next` key is silently ignored by the browser fetch.
-      ...(!isWrite && { next: { revalidate: 30 } }),
+      ...(!isWrite && !opts.cache && { next: { revalidate: 30 } }),
       headers: {
         accept: 'application/json',
         ...(opts.headers || {}),
@@ -299,7 +300,8 @@ export async function fetchNotifications(params: {
   const { fid, limit = 25, cursor } = params;
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
-  return hypersnapFetch(`/v2/farcaster/notifications?${qs.toString()}`);
+  // Always fetch fresh — cron jobs need live notification data, not cached.
+  return hypersnapFetch(`/v2/farcaster/notifications?${qs.toString()}`, { cache: 'no-store' });
 }
 
 /**

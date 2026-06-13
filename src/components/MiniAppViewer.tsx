@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+
+interface PendingTx {
+  id: any;
+  isComlink: boolean;
+  tx: { to?: string; value?: string; data?: string; from?: string };
+}
 
 export function openMiniApp(url: string, title?: string) {
   window.dispatchEvent(new CustomEvent("hh:open-miniapp", { detail: { url, title } }));
@@ -49,8 +55,13 @@ function sendContext(target: Window, context: any, req?: any) {
 }
 
 // EIP-1193 wallet provider: handle JSON-RPC wallet calls from the mini-app.
-// Returns true if the message was handled as a wallet call.
-function handleWalletRpc(target: Window, msg: any): boolean {
+// Returns 'handled' | 'pending-tx' | false.
+// 'pending-tx' means the caller must show a confirmation modal.
+function handleWalletRpc(
+  target: Window,
+  msg: any,
+  onPendingTx: (p: PendingTx) => void,
+): boolean {
   const method: string | undefined = msg.method
     ?? (msg.type === 'fc-frame' || msg.type === 'fc-mini-app' ? msg.action : undefined);
 
@@ -107,16 +118,32 @@ function handleWalletRpc(target: Window, msg: any): boolean {
       result = null;
       break;
 
-    // Signing and transactions require a real signer — not supported inline.
-    // Return a user-rejection error so the app can show its own fallback.
+    case 'eth_sendTransaction': {
+      const txParams = Array.isArray(msg.params) ? msg.params[0] : msg.params ?? {};
+      onPendingTx({ id, isComlink: false, tx: txParams });
+      return true; // handled async — modal will respond
+    }
+
+    // Signing: forward to window.ethereum if present, else reject.
     case 'personal_sign':
     case 'eth_sign':
     case 'eth_signTypedData':
     case 'eth_signTypedData_v3':
-    case 'eth_signTypedData_v4':
-    case 'eth_sendTransaction':
+    case 'eth_signTypedData_v4': {
+      const eth = (window as any).ethereum;
+      if (eth) {
+        eth.request({ method, params: msg.params }).then(
+          (res: any) => { if (id !== undefined) target.postMessage({ id, result: res }, '*'); },
+          (err: any) => { if (id !== undefined) target.postMessage({ id, error: { code: err.code ?? 4001, message: err.message } }, '*'); },
+        );
+      } else {
+        error = { code: 4001, message: 'No wallet available' };
+      }
+      break;
+    }
+
     case 'eth_sendRawTransaction':
-      error = { code: 4001, message: 'HomieHouse does not support signing yet — open in browser to sign.' };
+      error = { code: 4200, message: 'eth_sendRawTransaction not supported' };
       break;
 
     default:
@@ -139,7 +166,55 @@ export default function MiniAppViewer() {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
+  const [pendingTx, setPendingTx] = useState<PendingTx | null>(null);
+  const [txLoading, setTxLoading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const handleConfirmTx = useCallback(async () => {
+    if (!pendingTx) return;
+    const { id, isComlink, tx } = pendingTx;
+    const target = iframeRef.current?.contentWindow;
+    if (!target) { setPendingTx(null); return; }
+    setTxLoading(true);
+    try {
+      const eth = (window as any).ethereum;
+      if (!eth) throw new Error('No wallet connected');
+      try { await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x2105' }] }); } catch {}
+      const accounts: string[] = await eth.request({ method: 'eth_requestAccounts' });
+      const txParams = { ...tx, from: accounts[0] };
+      const hash = await eth.request({ method: 'eth_sendTransaction', params: [txParams] });
+      if (isComlink) {
+        target.postMessage({ id, type: 'RAW', value: hash }, '*');
+      } else {
+        target.postMessage({ id, result: hash }, '*');
+      }
+    } catch (err: any) {
+      const error = { code: err.code ?? 4001, message: err.message ?? 'Transaction failed' };
+      if (isComlink) {
+        target.postMessage({ id, type: 'RAW', value: { error } }, '*');
+      } else {
+        target.postMessage({ id, error }, '*');
+      }
+    } finally {
+      setTxLoading(false);
+      setPendingTx(null);
+    }
+  }, [pendingTx]);
+
+  const handleRejectTx = useCallback(() => {
+    if (!pendingTx) return;
+    const { id, isComlink } = pendingTx;
+    const target = iframeRef.current?.contentWindow;
+    if (target) {
+      const error = { code: 4001, message: 'User rejected transaction' };
+      if (isComlink) {
+        target.postMessage({ id, type: 'RAW', value: { error } }, '*');
+      } else {
+        target.postMessage({ id, error }, '*');
+      }
+    }
+    setPendingTx(null);
+  }, [pendingTx]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -227,6 +302,30 @@ export default function MiniAppViewer() {
             comlinkRespond({ error: { type: 'rejected_by_user' } });
           } else if (prop === 'addFrame' || prop === 'addMiniApp') {
             comlinkRespond({ error: { type: 'rejected_by_user' } });
+          } else if (prop === 'sendTransaction') {
+            // sdk.wallet.sendTransaction({ chainId, ...txParams })
+            const txArg = rawArgs[0] ?? {};
+            const { chainId: _chainId, ...txParams } = txArg;
+            setPendingTx({ id: msg.id, isComlink: true, tx: txParams });
+            // response will be sent from confirm/reject handlers
+          } else if (prop === 'request') {
+            // sdk.wallet.ethProvider.request({ method, params })
+            const rpc = rawArgs[0] ?? {};
+            if (rpc.method === 'eth_sendTransaction') {
+              const txParams = Array.isArray(rpc.params) ? rpc.params[0] : {};
+              setPendingTx({ id: msg.id, isComlink: true, tx: txParams });
+            } else {
+              // Other RPC calls: forward to window.ethereum or respond with defaults
+              const eth = (window as any).ethereum;
+              if (eth && rpc.method) {
+                eth.request({ method: rpc.method, params: rpc.params }).then(
+                  (res: any) => comlinkRespond(res),
+                  () => comlinkRespond(undefined),
+                );
+              } else {
+                comlinkRespond(undefined);
+              }
+            }
           } else if (prop === 'impactOccurred' || prop === 'notificationOccurred' || prop === 'selectionChanged') {
             comlinkRespond(undefined);
           } else {
@@ -263,7 +362,7 @@ export default function MiniAppViewer() {
       }
 
       // --- EIP-1193 wallet provider ---
-      if (handleWalletRpc(target, msg)) return;
+      if (handleWalletRpc(target, msg, setPendingTx)) return;
 
       // --- close ---
       const isClose =
@@ -417,6 +516,55 @@ export default function MiniAppViewer() {
           title={title || hostname}
         />
       </div>
+
+      {/* Transaction confirmation modal */}
+      {pendingTx && (
+        <div
+          style={{
+            position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+            zIndex: 100,
+          }}
+          onClick={handleRejectTx}
+        >
+          <div
+            style={{
+              background: "var(--surface, #1a1a1a)", borderRadius: "20px 20px 0 0",
+              padding: "24px 20px calc(24px + env(safe-area-inset-bottom, 0px))",
+              width: "100%", maxWidth: 500,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-on-dark)", marginBottom: 12 }}>
+              {hostname} wants to send a transaction
+            </div>
+            <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 14px", marginBottom: 20, fontSize: 12, fontFamily: "monospace", wordBreak: "break-all", color: "var(--muted-on-dark)" }}>
+              {pendingTx.tx.to && <div><span style={{ color: "var(--text-on-dark)" }}>To:</span> {pendingTx.tx.to}</div>}
+              {pendingTx.tx.value && pendingTx.tx.value !== '0x0' && (
+                <div><span style={{ color: "var(--text-on-dark)" }}>Value:</span> {(parseInt(pendingTx.tx.value, 16) / 1e18).toFixed(6)} ETH</div>
+              )}
+              {pendingTx.tx.data && pendingTx.tx.data !== '0x' && (
+                <div style={{ marginTop: 4 }}><span style={{ color: "var(--text-on-dark)" }}>Data:</span> {pendingTx.tx.data.slice(0, 66)}{pendingTx.tx.data.length > 66 ? '…' : ''}</div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={handleRejectTx}
+                style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid var(--border)", background: "transparent", color: "var(--text-on-dark)", fontSize: 15, fontWeight: 600, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmTx}
+                disabled={txLoading}
+                style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: "var(--accent, #6366f1)", color: "#fff", fontSize: 15, fontWeight: 600, cursor: txLoading ? "not-allowed" : "pointer", opacity: txLoading ? 0.7 : 1 }}
+              >
+                {txLoading ? "Sending…" : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
