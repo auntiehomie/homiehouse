@@ -14,10 +14,11 @@
 import { HubRestAPIClient } from '@standard-crypto/farcaster-js';
 import { mnemonicToAccount } from 'viem/accounts';
 
-// Public Farcaster hub — can be replaced with a self-hosted hub
+// Hypersnap hub — nemes.farcaster.xyz was decommissioned when Farcaster migrated to Snapchain.
+// haatz.quilibrium.com supports the /v1/submitMessage REST endpoint used by farcaster-js.
 const HUB_URL =
   (typeof process !== 'undefined' && process.env.FARCASTER_HUB_URL) ||
-  'https://nemes.farcaster.xyz:2281';
+  'https://haatz.quilibrium.com';
 
 /**
  * Get the farcaster-js hub client.
