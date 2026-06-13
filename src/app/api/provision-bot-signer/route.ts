@@ -2,14 +2,12 @@
  * GET /api/provision-bot-signer
  *
  * Registers a deterministic Ed25519 signer key for the bot's FID on-chain
- * via KeyRegistry.addFor() — no Warpcast approval required.
+ * via KeyGateway.addFor() — no Warpcast approval required.
  *
  * The signer private key is derived deterministically from APP_MNEMONIC at
  * BIP32 path m/44'/60'/0'/0/1 (index 1 — separate from the custody key at
  * index 0), so re-running this endpoint is idempotent: the same key is always
  * generated. If the key is already registered the endpoint returns it anyway.
- *
- * Auth: Bearer <CRON_SECRET> (or open if CRON_SECRET is not set)
  *
  * Returns:
  *   { ok, txHash?, alreadyRegistered?, signerPrivateKey, signerPublicKey, instruction }
@@ -31,13 +29,14 @@ import {
 import { optimism } from 'viem/chains';
 import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts';
 
-const KEY_REGISTRY = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
+// KeyGateway is the entry point for signer key registration (KeyRegistry requires it as caller)
+const KEY_GATEWAY = '0x00000000fc56947c7e7183f8ca4b62398caadf0b' as const;
 const SKR_VALIDATOR = '0x00000000fc700472606ed4fa22623acf62c60553' as const;
 const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
 
-const keyRegistryAbi = parseAbi([
+const keyGatewayAbi = parseAbi([
   'function nonces(address owner) view returns (uint256)',
-  'function addFor(address fidOwner, uint32 keyType, bytes key, uint32 metadataType, bytes metadata, uint256 deadline, bytes sig) external',
+  'function addFor(address fidOwner, uint32 keyType, bytes key, uint8 metadataType, bytes metadata, uint256 deadline, bytes sig) external',
   'error InvalidAccountNonce(uint256 nonce, uint256 expectedNonce)',
   'error InvalidSignature()',
   'error ExceedsMaximum()',
@@ -88,12 +87,12 @@ export async function GET(req: NextRequest) {
 
   const publicClient = createPublicClient({ chain: optimism, transport: http(OP_RPC) });
 
-  // Fetch current nonce for custody address from KeyRegistry
+  // Fetch current nonce for custody address from KeyGateway
   let keyAddNonce: bigint;
   try {
     keyAddNonce = await publicClient.readContract({
-      address: KEY_REGISTRY,
-      abi: keyRegistryAbi,
+      address: KEY_GATEWAY,
+      abi: keyGatewayAbi,
       functionName: 'nonces',
       args: [custodyAddress],
     });
@@ -133,20 +132,21 @@ export async function GET(req: NextRequest) {
     [{ requestFid: appFid, requestSigner: custodyAddress, signature: signedKeyRequestSig, deadline }],
   );
 
-  // Custody key signs the KeyRegistry Add EIP-712 message
+  // Custody key signs the KeyGateway Add EIP-712 message
+  // KeyGateway uses uint8 for metadataType (not uint32 like KeyRegistry)
   const keyAddSig = await appAccount.signTypedData({
     domain: {
-      name: 'Farcaster KeyRegistry',
+      name: 'Farcaster KeyGateway',
       version: '1',
       chainId: 10,
-      verifyingContract: KEY_REGISTRY,
+      verifyingContract: KEY_GATEWAY,
     },
     types: {
       Add: [
         { name: 'owner',        type: 'address' },
         { name: 'keyType',      type: 'uint32'  },
         { name: 'key',          type: 'bytes'   },
-        { name: 'metadataType', type: 'uint32'  },
+        { name: 'metadataType', type: 'uint8'   },
         { name: 'metadata',     type: 'bytes'   },
         { name: 'nonce',        type: 'uint256' },
         { name: 'deadline',     type: 'uint256' },
@@ -164,7 +164,7 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // Submit KeyRegistry.addFor() — server wallet pays gas
+  // Submit KeyGateway.addFor() — server wallet pays gas
   const serverAccount = privateKeyToAccount(APP_WALLET_PRIVATE_KEY);
   const walletClient = createWalletClient({
     account: serverAccount,
@@ -185,8 +185,8 @@ export async function GET(req: NextRequest) {
   // Simulate first to get a typed revert reason before spending gas
   try {
     await publicClient.simulateContract({
-      address: KEY_REGISTRY,
-      abi: keyRegistryAbi,
+      address: KEY_GATEWAY,
+      abi: keyGatewayAbi,
       functionName: 'addFor',
       args: addForArgs,
       account: serverAccount,
@@ -215,14 +215,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       error: simErr.shortMessage || simErr.message || 'Simulation failed',
       details: fullMsg,
-      debug: { custodyAddress, signerPublicKey, appFid: APP_FID },
+      debug: { custodyAddress, signerPublicKey, appFid: APP_FID, nonce: keyAddNonce.toString() },
     }, { status: 500 });
   }
 
   try {
     const txHash = await walletClient.writeContract({
-      address: KEY_REGISTRY,
-      abi: keyRegistryAbi,
+      address: KEY_GATEWAY,
+      abi: keyGatewayAbi,
       functionName: 'addFor',
       args: addForArgs,
     });
