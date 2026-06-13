@@ -435,6 +435,7 @@ export async function GET(request: NextRequest) {
           text: reply,
           fid: BOT_FID,
           parentCastHash: castHash,
+          parentCastFid: cast.author?.fid,
         });
 
         logger.success(`Posted reply to ${castHash}`, { reply });

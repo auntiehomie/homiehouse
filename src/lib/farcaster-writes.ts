@@ -1,66 +1,88 @@
 /**
- * Farcaster write operations via @standard-crypto/farcaster-js.
+ * Farcaster write operations using @farcaster/core directly.
  *
- * Uses HubRestAPIClient pointed at a public Farcaster hub.
- * Server-side writes use an app-level Ed25519 signer derived from APP_MNEMONIC.
+ * Bypasses @standard-crypto/farcaster-js which bundles @farcaster/core@0.14.x —
+ * that old version produces "invalid hash" errors on Snapchain-era hubs.
+ * Instead we use the top-level @farcaster/core@0.18.x to sign messages and
+ * POST the encoded protobuf directly to /v1/submitMessage.
  *
- * The signer is a 32-byte Ed25519 private key passed as a hex string to
- * HubRestAPIClient — it internally wraps it in NobleEd25519Signer.
- *
- * For full decentralization, migrate clients to use Privy's embedded signer
- * (useFarcasterSigner hook) and submit directly from the browser.
+ * Server-side writes require HOMIEHOUSELOL_SIGNER_KEY — an Ed25519 private key
+ * (hex, no 0x prefix) that has been registered as an authorized signer for the
+ * bot's FID via /api/signer and approved in Warpcast.
  */
 
-import { HubRestAPIClient } from '@standard-crypto/farcaster-js';
+import {
+  makeCastAdd,
+  makeReactionAdd,
+  makeReactionRemove,
+  Message,
+  NobleEd25519Signer,
+  FarcasterNetwork,
+  ReactionType,
+  CastType,
+  hexStringToBytes,
+} from '@farcaster/core';
 import { mnemonicToAccount } from 'viem/accounts';
 
-// Hypersnap hub — nemes.farcaster.xyz was decommissioned when Farcaster migrated to Snapchain.
-// haatz.quilibrium.com supports the /v1/submitMessage REST endpoint used by farcaster-js.
+// Hypersnap hub — supports /v1/submitMessage REST endpoint.
 const HUB_URL =
   (typeof process !== 'undefined' && process.env.FARCASTER_HUB_URL) ||
   'https://haatz.quilibrium.com';
 
 /**
- * Get the farcaster-js hub client.
- */
-export function getHubClient(): HubRestAPIClient {
-  return new HubRestAPIClient({ hubUrl: HUB_URL });
-}
-
-/**
  * Derive a deterministic Ed25519 private key hex string from APP_MNEMONIC.
- *
- * Uses the viem mnemonicToAccount to derive the EVM account private key,
- * then uses those 32 bytes as the Ed25519 signing key.  This is the same
- * seed material already used by /api/signer for signing key-registration
- * payloads, so no new entropy is introduced.
- *
- * NOTE: For production, prefer per-user Privy embedded signers so each user
- * signs their own messages.
+ * This key is NOT registered on-chain; set HOMIEHOUSELOL_SIGNER_KEY to an
+ * approved signer key or the hub will reject with "invalid signer".
  */
 function getAppSignerKey(): { privateKeyHex: string; fid: number } {
   const mnemonic = process.env.APP_MNEMONIC;
   const appFid = parseInt(process.env.APP_FID || '0', 10);
 
   if (!mnemonic) {
-    throw new Error(
-      'APP_MNEMONIC environment variable is required for server-side Farcaster writes'
-    );
+    throw new Error('APP_MNEMONIC environment variable is required for server-side Farcaster writes');
   }
   if (!appFid) {
-    throw new Error(
-      'APP_FID environment variable is required for server-side Farcaster writes'
-    );
+    throw new Error('APP_FID environment variable is required for server-side Farcaster writes');
   }
 
-  // Derive EVM account from mnemonic — privateKey is a 32-byte hex string
   const account = mnemonicToAccount(mnemonic as `${string}`);
-  // mnemonicToAccount exposes the private key only when called via HDKey;
-  // use the address bytes (20 bytes) padded to 32 as a deterministic seed.
-  // For stronger derivation, replace with a proper HD key path to an Ed25519 leaf.
   const seed = account.address.slice(2).padStart(64, '0').slice(0, 64);
-
   return { privateKeyHex: seed, fid: appFid };
+}
+
+function buildSigner(privateKeyHex: string): NobleEd25519Signer {
+  const bytes = Buffer.from(privateKeyHex, 'hex');
+  return new NobleEd25519Signer(bytes);
+}
+
+/** POST encoded Message protobuf to the hub's /v1/submitMessage endpoint. */
+async function submitToHub(messageBytes: Uint8Array): Promise<{ hash: string }> {
+  const res = await fetch(`${HUB_URL}/v1/submitMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: Buffer.from(messageBytes),
+    // @ts-ignore — AbortSignal.timeout available in Node 18+
+    signal: AbortSignal.timeout(12000),
+  });
+
+  const body = await res.text();
+  if (!res.ok) {
+    throw new Error(`Hub ${res.status}: ${body.slice(0, 300)}`);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    throw new Error(`Hub returned non-JSON: ${body.slice(0, 200)}`);
+  }
+
+  // hash is base64-encoded in the JSON response; convert to hex
+  const hashB64: string = data.hash ?? '';
+  if (!hashB64) {
+    return { hash: '' };
+  }
+  return { hash: Buffer.from(hashB64, 'base64').toString('hex') };
 }
 
 /**
@@ -71,33 +93,43 @@ export async function publishCast(params: {
   fid: number;
   embeds?: { url: string }[];
   parentCastHash?: string;
+  parentCastFid?: number;
   parentUrl?: string;
   channelKey?: string;
   /** Ed25519 private key hex from the registered signer (preferred over APP_MNEMONIC derivation) */
   signerPrivateKey?: string;
 }): Promise<{ castHash: string }> {
-  const client = getHubClient();
   const { privateKeyHex: derivedKey, fid: appFid } = getAppSignerKey();
   const privateKeyHex = params.signerPrivateKey || derivedKey;
   const castFid = params.fid || appFid;
+  const signer = buildSigner(privateKeyHex);
 
-  const castParams: Parameters<HubRestAPIClient['submitCast']>[0] = {
+  const castBody: Parameters<typeof makeCastAdd>[0] = {
+    type: CastType.CAST,
     text: params.text,
+    embeds: params.embeds?.map((e) => ({ url: e.url })) ?? [],
+    embedsDeprecated: [],
+    mentions: [],
+    mentionsPositions: [],
   };
 
-  if (params.embeds?.length) {
-    castParams.embeds = params.embeds.map((e) => ({ url: e.url }));
-  }
-
   if (params.parentCastHash) {
-    // Parent cast FID is not known here; set to 0 — hub will resolve
-    castParams.parentCastId = { fid: 0, hash: params.parentCastHash };
+    const hashResult = hexStringToBytes(params.parentCastHash);
+    if (hashResult.isErr()) throw hashResult.error;
+    castBody.parentCastId = {
+      fid: params.parentCastFid ?? 0,
+      hash: hashResult.value,
+    };
   } else if (params.parentUrl) {
-    castParams.parentUrl = params.parentUrl;
+    castBody.parentUrl = params.parentUrl;
   }
 
-  const response = await client.submitCast(castParams, castFid, privateKeyHex);
-  return { castHash: response.hash };
+  const msg = await makeCastAdd(castBody, { fid: castFid, network: FarcasterNetwork.MAINNET }, signer);
+  if (msg.isErr()) throw msg.error;
+
+  const messageBytes = Message.encode(msg.value).finish();
+  const { hash } = await submitToHub(messageBytes);
+  return { castHash: hash };
 }
 
 /**
@@ -111,19 +143,26 @@ export async function publishReaction(params: {
   /** Ed25519 private key hex from the registered signer (preferred over APP_MNEMONIC derivation) */
   signerPrivateKey?: string;
 }): Promise<void> {
-  const client = getHubClient();
   const { privateKeyHex: derivedKey, fid: appFid } = getAppSignerKey();
   const privateKeyHex = params.signerPrivateKey || derivedKey;
   const castFid = params.fid || appFid;
+  const signer = buildSigner(privateKeyHex);
 
-  await client.submitReaction(
+  const hashResult = hexStringToBytes(params.targetCastHash);
+  if (hashResult.isErr()) throw hashResult.error;
+
+  const msg = await makeReactionAdd(
     {
-      type: params.reactionType,
-      target: { fid: params.targetCastFid, hash: params.targetCastHash },
+      type: params.reactionType === 'like' ? ReactionType.LIKE : ReactionType.RECAST,
+      targetCastId: { fid: params.targetCastFid, hash: hashResult.value },
     },
-    castFid,
-    privateKeyHex
+    { fid: castFid, network: FarcasterNetwork.MAINNET },
+    signer
   );
+  if (msg.isErr()) throw msg.error;
+
+  const messageBytes = Message.encode(msg.value).finish();
+  await submitToHub(messageBytes);
 }
 
 /**
@@ -137,17 +176,29 @@ export async function deleteReaction(params: {
   /** Ed25519 private key hex from the registered signer (preferred over APP_MNEMONIC derivation) */
   signerPrivateKey?: string;
 }): Promise<void> {
-  const client = getHubClient();
   const { privateKeyHex: derivedKey, fid: appFid } = getAppSignerKey();
   const privateKeyHex = params.signerPrivateKey || derivedKey;
   const castFid = params.fid || appFid;
+  const signer = buildSigner(privateKeyHex);
 
-  await client.removeReaction(
+  const hashResult = hexStringToBytes(params.targetCastHash);
+  if (hashResult.isErr()) throw hashResult.error;
+
+  const msg = await makeReactionRemove(
     {
-      type: params.reactionType,
-      target: { fid: params.targetCastFid, hash: params.targetCastHash },
+      type: params.reactionType === 'like' ? ReactionType.LIKE : ReactionType.RECAST,
+      targetCastId: { fid: params.targetCastFid, hash: hashResult.value },
     },
-    castFid,
-    privateKeyHex
+    { fid: castFid, network: FarcasterNetwork.MAINNET },
+    signer
   );
+  if (msg.isErr()) throw msg.error;
+
+  const messageBytes = Message.encode(msg.value).finish();
+  await submitToHub(messageBytes);
+}
+
+/** @deprecated No longer needed — call publishCast/publishReaction directly. */
+export function getHubClient() {
+  throw new Error('getHubClient: removed — use publishCast/publishReaction directly');
 }

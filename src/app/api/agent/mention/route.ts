@@ -246,6 +246,7 @@ export async function GET(request: NextRequest) {
           text: reply,
           fid: HOMIEHOUSELOL_FID,
           parentCastHash: castHash,
+          parentCastFid: cast.author?.fid,
           ...(signerKey ? { signerPrivateKey: signerKey } : {}),
         });
 
