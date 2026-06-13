@@ -106,15 +106,16 @@ export async function GET(req: NextRequest) {
       message: { requestFid: appFid, key: signerKey, deadline: deadlineBn },
     });
 
-    // ABI-encode SignedKeyRequestMetadata
+    // ABI-encode SignedKeyRequestMetadata as a TUPLE — validator does
+    // abi.decode(metadata, (SignedKeyRequestMetadata)) which needs the 0x20 wrapper.
     const signedKeyRequestMetadata = encodeAbiParameters(
-      [
+      [{ type: 'tuple', components: [
         { name: 'requestFid',    type: 'uint256' },
         { name: 'requestSigner', type: 'address' },
         { name: 'signature',     type: 'bytes'   },
         { name: 'deadline',      type: 'uint256' },
-      ],
-      [appFid, appAccount.address, signedKeyRequestSig, deadlineBn],
+      ]}],
+      [{ requestFid: appFid, requestSigner: appAccount.address, signature: signedKeyRequestSig, deadline: deadlineBn }],
     );
 
     return NextResponse.json({
