@@ -14,7 +14,7 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@farcaster/hub-nodejs": "^0.15.9",
     "@farcaster/miniapp-sdk": "^0.2.2",
-    "@langchain/anthropic": "^1.3.8",
+    "@langchain/anthropic": "^1.4.1",
     "@langchain/community": "^1.1.4",
     "@langchain/core": "^1.1.46",
     "@langchain/groq": "^1.2.1",
