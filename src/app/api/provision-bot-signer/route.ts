@@ -38,6 +38,14 @@ const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
 const keyRegistryAbi = parseAbi([
   'function nonces(address owner) view returns (uint256)',
   'function addFor(address fidOwner, uint32 keyType, bytes key, uint32 metadataType, bytes metadata, uint256 deadline, bytes sig) external',
+  'error InvalidAccountNonce(uint256 nonce, uint256 expectedNonce)',
+  'error InvalidSignature()',
+  'error ExceedsMaximum()',
+  'error InvalidState()',
+  'error Unauthorized()',
+  'error InvalidKeyType()',
+  'error InvalidMetadataType()',
+  'error SignatureExpired()',
 ]);
 
 function bytesToHex(b: Uint8Array): `0x${string}` {
