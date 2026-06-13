@@ -242,6 +242,7 @@ export async function GET(request: NextRequest) {
         const reply = await generateReply(cast.text || '', authorUsername, memoryContext);
 
         const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
+        console.error(`[agent/mention] ATTEMPTING reply to @${authorUsername} (cast ${castHash.slice(0, 10)}): "${reply.slice(0, 60)}"`);
         const { castHash: replyHash } = await publishCast({
           text: reply,
           fid: HOMIEHOUSELOL_FID,
@@ -259,7 +260,7 @@ export async function GET(request: NextRequest) {
           topic: `reply to @${authorUsername}`,
         });
 
-        console.log(`[agent/mention] Replied to @${authorUsername}: "${reply}"`);
+        console.error(`[agent/mention] SUCCESS reply to @${authorUsername} replyHash=${replyHash}`);
         await recordReplyBatch({
           trackingKeys,
           replyHash,
@@ -269,10 +270,11 @@ export async function GET(request: NextRequest) {
         repliedCount++;
       } catch (error: any) {
         // Don't blacklist on error — let next cron run retry
-        console.error(`[agent/mention] Failed to reply to ${castHash}:`, error?.message);
+        console.error(`[agent/mention] FAILED reply to ${castHash}:`, error?.message);
       }
     }
 
+    console.error(`[agent/mention] DONE: checked=${notifications.length} replied=${repliedCount} fid=${HOMIEHOUSELOL_FID}`);
     return NextResponse.json({
       ok: true,
       checked: notifications.length,
