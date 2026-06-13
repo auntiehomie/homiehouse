@@ -204,7 +204,7 @@ function CastCard({ cast }: { cast: Cast }) {
 function TradeCard({ trade }: { trade: Trade }) {
   const time = formatDistanceToNow(new Date(trade.timestamp), { addSuffix: true });
   const typeColor = trade.type === 'buy' ? '#22c55e' : trade.type === 'sell' ? '#f87171' : 'var(--muted-on-dark)';
-  const typeLabel = trade.type === 'buy' ? '↙ Buy' : trade.type === 'sell' ? '↗ Sell' : '⇄ Transfer';
+  const typeLabel = trade.type === 'buy' ? '↙ Received' : trade.type === 'sell' ? '↗ Sent' : '⇄ Transfer';
   const shortHash = `${trade.hash.slice(0, 6)}…${trade.hash.slice(-4)}`;
 
   return (
