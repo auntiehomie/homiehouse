@@ -163,20 +163,59 @@ export async function GET(req: NextRequest) {
     transport: http(OP_RPC),
   });
 
+  const addForArgs = [
+    custodyAddress,
+    1,
+    signerPublicKey,
+    1,
+    signedKeyRequestMetadata,
+    deadline,
+    keyAddSig,
+  ] as const;
+
+  // Simulate first to get a typed revert reason before spending gas
+  try {
+    await publicClient.simulateContract({
+      address: KEY_REGISTRY,
+      abi: keyRegistryAbi,
+      functionName: 'addFor',
+      args: addForArgs,
+      account: serverAccount,
+    });
+  } catch (simErr: any) {
+    const fullMsg = [simErr.shortMessage, simErr.message, simErr.details, simErr.cause?.data?.errorName].filter(Boolean).join(' | ');
+    console.error('[provision-bot-signer] simulate failed:', fullMsg);
+
+    // Key already registered — return it anyway
+    if (
+      fullMsg.toLowerCase().includes('already') ||
+      fullMsg.includes('InvalidState') ||
+      fullMsg.includes('KeyExists')
+    ) {
+      console.log(`[provision-bot-signer] Key already registered for FID ${APP_FID}`);
+      return NextResponse.json({
+        ok: true,
+        alreadyRegistered: true,
+        signerPublicKey: signerPublicKey.slice(2),
+        signerPrivateKey,
+        custodyAddress,
+        instruction: `Set HOMIEHOUSELOL_SIGNER_KEY=${signerPrivateKey} in Vercel environment variables`,
+      });
+    }
+
+    return NextResponse.json({
+      error: simErr.shortMessage || simErr.message || 'Simulation failed',
+      details: fullMsg,
+      debug: { custodyAddress, signerPublicKey, appFid: APP_FID },
+    }, { status: 500 });
+  }
+
   try {
     const txHash = await walletClient.writeContract({
       address: KEY_REGISTRY,
       abi: keyRegistryAbi,
       functionName: 'addFor',
-      args: [
-        custodyAddress,
-        1,
-        signerPublicKey,
-        1,
-        signedKeyRequestMetadata,
-        deadline,
-        keyAddSig,
-      ],
+      args: addForArgs,
     });
 
     console.log(`[provision-bot-signer] Registered signer for FID ${APP_FID}. tx=${txHash}`);
@@ -191,24 +230,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     const msg: string = err.shortMessage || err.message || '';
-
-    // Key already registered — still return it so the caller can set the env var
-    if (
-      msg.toLowerCase().includes('already') ||
-      msg.includes('InvalidState') ||
-      msg.includes('KeyExists')
-    ) {
-      console.log(`[provision-bot-signer] Key already registered for FID ${APP_FID}`);
-      return NextResponse.json({
-        ok: true,
-        alreadyRegistered: true,
-        signerPublicKey: signerPublicKey.slice(2),
-        signerPrivateKey,
-        custodyAddress,
-        instruction: `Set HOMIEHOUSELOL_SIGNER_KEY=${signerPrivateKey} in Vercel environment variables`,
-      });
-    }
-
     console.error('[provision-bot-signer] addFor failed:', msg);
     return NextResponse.json({ error: msg || 'Failed to register signer' }, { status: 500 });
   }
