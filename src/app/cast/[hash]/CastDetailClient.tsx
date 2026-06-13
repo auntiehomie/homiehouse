@@ -222,6 +222,7 @@ export default function CastDetailClient() {
   const text = cast.text || '';
   const embeds = cast.embeds || [];
   const replies = cast.replies?.casts || cast.direct_replies || [];
+  const parentChain: any[] = cast.parent_chain || [];
 
   let timeLabel = '';
   if (cast.timestamp) {
@@ -258,8 +259,49 @@ export default function CastDetailClient() {
           ← Back
         </Link>
 
+        {/* Parent thread context */}
+        {parentChain.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            {parentChain.map((p: any, idx: number) => {
+              const pAuthor = p.author;
+              const pName = pAuthor?.display_name || pAuthor?.username || 'Unknown';
+              const pUsername = pAuthor?.username || '';
+              const pPfp = pAuthor?.pfp_url;
+              const pText = p.text || '';
+              let pTime = '';
+              try { const d = new Date(p.timestamp); if (!isNaN(d.getTime())) pTime = formatDistanceToNow(d, { addSuffix: true }); } catch {}
+              return (
+                <div key={p.hash || idx} style={{ position: 'relative' }}>
+                  <div className="surface" style={{ marginBottom: 0, borderBottom: 'none', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, opacity: 0.75 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                        {pPfp ? (
+                          <Link href={`/profile?user=${pUsername}`}>
+                            <Image src={pPfp} alt={pName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover' }} />
+                          </Link>
+                        ) : (
+                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border)' }} />
+                        )}
+                        {/* Thread line */}
+                        <div style={{ width: 2, flex: 1, minHeight: 16, background: 'rgba(255,255,255,0.15)', marginTop: 4 }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, paddingBottom: 12 }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', marginBottom: 4 }}>
+                          <Link href={`/profile?user=${pUsername}`} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 13 }}>{pName}</Link>
+                          <span style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>· {pTime}</span>
+                        </div>
+                        <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-on-dark, #eee)' }}>{pText}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Main Cast */}
-        <div className="surface" style={{ marginBottom: 20 }}>
+        <div className="surface" style={{ marginBottom: 20, ...(parentChain.length > 0 ? { borderTopLeftRadius: 0, borderTopRightRadius: 0 } : {}) }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             {authorPfp && (
               <Link href={`/profile?user=${authorUsername}`}>
