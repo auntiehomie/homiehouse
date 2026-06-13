@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import type { Tool, MessageParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages';
 import { fetchNotifications, fetchCast, searchCasts } from '@/lib/hypersnap';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
@@ -95,53 +96,76 @@ async function generateReply(
   authorUsername: string,
   memoryContext: string
 ): Promise<string> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // Try Claude with tool-use first
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const messages: MessageParam[] = [
-    {
-      role: 'user',
-      content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`,
-    },
-  ];
+    const messages: MessageParam[] = [
+      {
+        role: 'user',
+        content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`,
+      },
+    ];
 
-  // Tool-use loop — cap at 3 rounds to bound latency
-  for (let round = 0; round < 3; round++) {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 300,
-      system: BOT_PERSONA + memoryContext,
-      tools: TOOLS,
-      messages,
-    });
+    // Tool-use loop — cap at 3 rounds to bound latency
+    for (let round = 0; round < 3; round++) {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 300,
+        system: BOT_PERSONA + memoryContext,
+        tools: TOOLS,
+        messages,
+      });
 
-    if (response.stop_reason === 'end_turn') {
-      const textBlock = response.content.find((b) => b.type === 'text');
-      if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
-      throw new Error('No text in final response');
-    }
-
-    if (response.stop_reason === 'tool_use') {
-      const toolCalls = response.content.filter((b) => b.type === 'tool_use');
-      const toolResults: ToolResultBlockParam[] = [];
-
-      for (const call of toolCalls) {
-        if (call.type !== 'tool_use') continue;
-        const result = await runTool(call.name, call.input as Record<string, any>);
-        toolResults.push({ type: 'tool_result', tool_use_id: call.id, content: result });
+      if (response.stop_reason === 'end_turn') {
+        const textBlock = response.content.find((b) => b.type === 'text');
+        if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
+        break;
       }
 
-      messages.push({ role: 'assistant', content: response.content });
-      messages.push({ role: 'user', content: toolResults });
-      continue;
-    }
+      if (response.stop_reason === 'tool_use') {
+        const toolCalls = response.content.filter((b) => b.type === 'tool_use');
+        const toolResults: ToolResultBlockParam[] = [];
 
-    // Unexpected stop reason — extract whatever text is there
-    const textBlock = response.content.find((b) => b.type === 'text');
-    if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
-    throw new Error(`Unexpected stop_reason: ${response.stop_reason}`);
+        for (const call of toolCalls) {
+          if (call.type !== 'tool_use') continue;
+          const result = await runTool(call.name, call.input as Record<string, any>);
+          toolResults.push({ type: 'tool_result', tool_use_id: call.id, content: result });
+        }
+
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: toolResults });
+        continue;
+      }
+
+      // Unexpected stop reason — extract whatever text is there
+      const textBlock = response.content.find((b) => b.type === 'text');
+      if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
+      break;
+    }
+  } catch (err: any) {
+    console.error('[agent/mention] Claude failed:', err?.message);
   }
 
-  throw new Error('Tool-use loop exceeded max rounds');
+  // Fallback to OpenAI
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: BOT_PERSONA },
+        { role: 'user', content: `@${authorUsername} says: ${castText.slice(0, 500)}` },
+      ],
+      max_tokens: 100,
+      temperature: 0.8,
+    });
+    const text = response.choices[0]?.message?.content?.trim();
+    if (text) return text.slice(0, 280);
+  } catch (err: any) {
+    console.error('[agent/mention] OpenAI fallback failed:', err?.message);
+  }
+
+  return 'hey! 🏠';
 }
 
 export async function GET(request: NextRequest) {
