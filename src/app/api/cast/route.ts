@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     // Walk up parent chain to show full thread context
     const parentChain: any[] = [];
     let current = cast;
-    for (let i = 0; i < 10 && current?.parent_hash; i++) {
+    for (let i = 0; i < 5 && current?.parent_hash; i++) {
       try {
         const parentData = await fetchCast(current.parent_hash);
         const parent = parentData?.cast ?? parentData;

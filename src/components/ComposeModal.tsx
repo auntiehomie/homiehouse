@@ -1,10 +1,19 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
+
+const FAB_HIDDEN_PATHS = ['/learn', '/compose', '/settings'];
+
+// Module-level cache so channels are fetched once per session, not on every modal open
+let cachedChannels: any[] | null = null;
 
 export default function ComposeModal() {
+  const pathname = usePathname();
+  const hideFab = FAB_HIDDEN_PATHS.some(p => pathname === p || pathname?.startsWith(p + '/'));
   const { user } = usePrivy();
   const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
@@ -60,44 +69,27 @@ export default function ComposeModal() {
     };
   }, []);
 
-  // Fetch channels when modal opens
+  const FALLBACK_CHANNELS = [
+    { id: 'base', name: 'Base' },
+    { id: 'farcaster', name: 'Farcaster' },
+    { id: 'dev', name: 'Dev' },
+    { id: 'art', name: 'Art' },
+    { id: 'music', name: 'Music' },
+  ];
+
+  // Fetch channels when modal first opens — cached in module scope for the session
   useEffect(() => {
-    if (open && userFid) {
-      fetchChannels();
-    }
+    if (!open || !userFid) return;
+    if (cachedChannels) { setChannels(cachedChannels); return; }
+    fetch('/api/channels?limit=50')
+      .then(r => r.json())
+      .then(data => {
+        const list = (data?.ok && Array.isArray(data?.channels)) ? data.channels : FALLBACK_CHANNELS;
+        cachedChannels = list;
+        setChannels(list);
+      })
+      .catch(() => setChannels(FALLBACK_CHANNELS));
   }, [open, userFid]);
-
-  async function fetchChannels() {
-    try {
-      // Fetch all available channels (not user-specific)
-      const response = await fetch('/api/channels?limit=50');
-      if (!response.ok) throw new Error(`Channels fetch failed: ${response.status}`);
-      const data = await response.json();
-
-      if (data?.ok && Array.isArray(data?.channels)) {
-        setChannels(data.channels);
-      } else {
-        // Fallback to popular channels
-        setChannels([
-          { id: 'base', name: 'Base' },
-          { id: 'farcaster', name: 'Farcaster' },
-          { id: 'dev', name: 'Dev' },
-          { id: 'art', name: 'Art' },
-          { id: 'music', name: 'Music' },
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching channels:', error);
-      // Fallback to popular channels
-      setChannels([
-        { id: 'base', name: 'Base' },
-        { id: 'farcaster', name: 'Farcaster' },
-        { id: 'dev', name: 'Dev' },
-        { id: 'art', name: 'Art' },
-        { id: 'music', name: 'Music' },
-      ]);
-    }
-  }
 
   // Search for users when typing @mentions
   useEffect(() => {
@@ -394,508 +386,211 @@ export default function ComposeModal() {
     }
   }
 
+  const toolBtn: React.CSSProperties = {
+    padding: '8px 10px', borderRadius: 8, background: 'none', border: 'none',
+    color: 'var(--muted-on-dark)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center',
+  };
+
+  function closeModal() {
+    setOpen(false);
+    setText('');
+    setImageUrl('');
+    setUploadedImage(null);
+    setScheduleTime('');
+    setIsScheduled(false);
+    setIsLongForm(false);
+    setReplyParentHash(null);
+    setReplyParentFid(null);
+    setReplyParentName(null);
+  }
+
+  const canPost = !loading && !uploadingImage && (!!text.trim() || !!imageUrl.trim()) && (!isScheduled || !!scheduleTime);
+
   return (
     <>
-      <button
-        aria-label="Open compose"
-        title="Compose"
-        onClick={() => setOpen(true)}
-        className="btn primary"
-        style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10 }}
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="white" />
-          <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="white" />
-        </svg>
-      </button>
+      {!hideFab && (
+        <button
+          aria-label="Open compose"
+          title="Compose"
+          onClick={() => setOpen(true)}
+          className="btn primary"
+          style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10 }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="white" />
+            <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="white" />
+          </svg>
+        </button>
+      )}
 
       {open && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>{replyParentName ? `Reply to ${replyParentName}` : 'New Cast'}</h3>
-              <div>
-                <button className="btn" onClick={() => { setOpen(false); setReplyParentHash(null); setReplyParentFid(null); setReplyParentName(null); }} aria-label="Close">Close</button>
-              </div>
-            </div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-on-dark)', display: 'flex' }}>
+              <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-on-dark)' }}>
+              {replyParentName ? `Reply to ${replyParentName}` : 'New Cast'}
+            </h1>
+            <div style={{ width: 22 }} />
+          </div>
+
+          {/* Scrollable body — minHeight:0 prevents iOS Safari flex overflow bug */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 16px 0' }}>
             {replyParentName && (
-              <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 8, padding: '4px 0' }}>
-                Replying to <strong>{replyParentName}</strong>
+              <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 10 }}>
+                Replying to <strong style={{ color: 'var(--text-on-dark)' }}>@{replyParentName}</strong>
               </div>
             )}
 
-            {
-              /* Normal compose interface */
-              <>
-                {/* Long-form toggle */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
-                  <button
-                    onClick={() => setIsLongForm(v => !v)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                      background: isLongForm ? 'rgba(99,102,241,0.15)' : 'var(--surface)',
-                      border: `1px solid ${isLongForm ? 'rgba(99,102,241,0.5)' : 'var(--border)'}`,
-                      color: isLongForm ? '#a5b4fc' : 'var(--muted-on-dark)',
-                      cursor: 'pointer', transition: 'all 0.15s',
-                    }}
-                  >
-                    ✨ Pro · Long Form
-                  </button>
-                  {isLongForm && (
-                    <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
-                      First 320 chars appear in timeline
-                    </span>
-                  )}
+            {/* Long-form toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <button
+                onClick={() => setIsLongForm(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: isLongForm ? 'rgba(99,102,241,0.15)' : 'var(--surface)', border: `1px solid ${isLongForm ? 'rgba(99,102,241,0.5)' : 'var(--border)'}`, color: isLongForm ? '#a5b4fc' : 'var(--muted-on-dark)', cursor: 'pointer' }}
+              >
+                ✨ Pro · Long Form
+              </button>
+              {isLongForm && <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>First 320 chars appear in timeline</span>}
+            </div>
+
+            {/* Textarea */}
+            <div style={{ position: 'relative' }}>
+              <textarea
+                value={text}
+                onChange={e => { if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT)) handleTextChange(e); }}
+                placeholder={isLongForm ? 'Write your long-form cast…' : "What's on your mind?"}
+                autoFocus
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 16, padding: '14px', lineHeight: 1.6, border: '1px solid var(--border)', borderRadius: 12, outline: 'none', resize: 'none', minHeight: isLongForm ? 180 : 130, fontFamily: 'inherit' }}
+                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+              />
+
+              {/* Char count — near limit only */}
+              {text.length > 260 && (
+                <div style={{ textAlign: 'right', marginTop: 4, fontSize: 12, color: text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40) ? (text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : '#f59e0b') : 'var(--muted-on-dark)' }}>
+                  {text.length}/{isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT}
                 </div>
+              )}
 
-                <div style={{ marginTop: 12, position: 'relative' }}>
-                  <textarea
-                    className="compose-textarea"
-                    value={text}
-                    onChange={e => {
-                      if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT)) {
-                        handleTextChange(e);
-                      }
-                    }}
-                    placeholder={isLongForm ? 'Write your long-form cast… (first 320 chars appear in timeline)' : 'Write a cast…'}
-                    autoFocus
-                    style={{ minHeight: isLongForm ? 180 : undefined }}
-                  />
-                  
-                  {/* Character counter */}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                    {isLongForm && text.length > 0 && (
-                      <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
-                        Timeline preview: {Math.min(text.length, CAST_LIMIT)}/{CAST_LIMIT}
-                      </span>
-                    )}
-                    <span style={{
-                      fontSize: 12, fontWeight: 600,
-                      color: text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40)
-                        ? text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : '#f59e0b'
-                        : 'var(--muted-on-dark)',
-                    }}>
-                      {text.length}/{isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT}
-                    </span>
-                  </div>
-
-                  {/* 320-char cutoff marker in long-form mode */}
-                  {isLongForm && text.length > CAST_LIMIT && (
-                    <div style={{
-                      marginTop: 8, padding: '6px 10px', borderRadius: 8,
-                      background: 'rgba(99,102,241,0.08)', border: '1px dashed rgba(99,102,241,0.3)',
-                      fontSize: 12, color: '#a5b4fc',
-                    }}>
-                      <strong>Timeline preview</strong> (first 320 chars):{' '}
-                      <span style={{ color: 'var(--muted-on-dark)' }}>
-                        {text.slice(0, CAST_LIMIT)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Mention autocomplete dropdown */}
-                  {showMentions && mentionResults.length > 0 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      maxHeight: '200px',
-                      overflowY: 'auto',
-                      background: 'var(--card-bg)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      marginTop: '4px',
-                      zIndex: 1000,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                    }}>
-                      {mentionResults.slice(0, 5).map((user) => (
-                        <button
-                          key={user.fid}
-                          onClick={() => insertMention(user)}
-                          style={{
-                            width: '100%',
-                            padding: '12px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            textAlign: 'left'
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          {user.pfp_url && (
-                            <img 
-                              src={user.pfp_url} 
-                              alt={user.username}
-                              style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                objectFit: 'cover'
-                              }}
-                            />
-                          )}
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: '14px' }}>
-                              {user.display_name}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--muted-on-dark)' }}>
-                              @{user.username}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+              {/* Long-form cutoff preview */}
+              {isLongForm && text.length > CAST_LIMIT && (
+                <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: 'rgba(99,102,241,0.08)', border: '1px dashed rgba(99,102,241,0.3)', fontSize: 12, color: '#a5b4fc' }}>
+                  <strong>Timeline preview</strong>: <span style={{ color: 'var(--muted-on-dark)' }}>{text.slice(0, CAST_LIMIT)}</span>
                 </div>
-                
-                {/* Image upload/URL section */}
-                <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                    <label
-                      htmlFor="image-upload"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '7px 14px',
-                        background: 'linear-gradient(180deg, #334155 0%, #1e293b 100%)',
-                        color: '#e2e8f0',
-                        borderRadius: '8px',
-                        cursor: uploadingImage ? 'not-allowed' : 'pointer',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        border: '1px solid #475569',
-                        opacity: uploadingImage ? 0.6 : 1,
-                      }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                      {uploadingImage ? 'Uploading…' : 'Add Image'}
-                    </label>
-                    <input
-                      id="image-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      disabled={uploadingImage}
-                      style={{ display: 'none' }}
-                    />
-                    <span style={{ fontSize: '12px', color: 'var(--muted-on-dark)' }}>
-                      or paste URL below
-                    </span>
-                  </div>
-                  
-                  {/* Image URL input */}
-                  <input
-                    type="text"
-                    value={imageUrl}
-                    onChange={(e) => {
-                      setImageUrl(e.target.value);
-                      setUploadedImage(null);
-                    }}
-                    placeholder="Or paste image URL here"
-                    disabled={uploadingImage}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      background: 'var(--surface)',
-                      color: 'var(--foreground)',
-                      fontSize: '14px'
-                    }}
-                  />
-                  
-                  {/* Image preview */}
-                  {imageUrl && (
-                    <div style={{ marginTop: 8, position: 'relative' }}>
-                      <img
-                        src={imageUrl}
-                        alt="Preview"
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '300px',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border)',
-                          display: 'block'
-                        }}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                      <button
-                        onClick={removeImage}
-                        style={{
-                          position: 'absolute',
-                          top: '8px',
-                          right: '8px',
-                          background: 'rgba(0, 0, 0, 0.7)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '50%',
-                          width: '28px',
-                          height: '28px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '16px'
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-                </div>
+              )}
 
-                {/* URL Preview */}
-                {loadingPreview && (
-                  <div style={{ marginTop: 12, padding: 12, background: 'var(--surface)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>
-                      Loading preview...
-                    </div>
-                  </div>
+              {/* Mention autocomplete */}
+              {showMentions && mentionResults.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                  {mentionResults.slice(0, 5).map(user => (
+                    <button key={user.fid} onClick={() => insertMention(user)} style={{ width: '100%', padding: 12, display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      {user.pfp_url && <Image src={user.pfp_url} alt={user.username} width={32} height={32} style={{ borderRadius: '50%', objectFit: 'cover' }} />}
+                      <div><div style={{ fontWeight: 600, fontSize: 14 }}>{user.display_name}</div><div style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>@{user.username}</div></div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Hidden file input */}
+            <input id="image-upload" type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
+
+            {/* Image preview */}
+            {imageUrl && (
+              <div style={{ marginTop: 10, position: 'relative', display: 'inline-block' }}>
+                <img src={imageUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
+                <button onClick={() => { setImageUrl(''); setUploadedImage(null); }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+              </div>
+            )}
+
+            {/* URL Preview */}
+            {(loadingPreview || urlPreview?.metadata) && (
+              <div style={{ marginTop: 10, padding: 12, background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                {loadingPreview ? (
+                  <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Loading preview…</div>
+                ) : urlPreview?.metadata && (
+                  <>
+                    {urlPreview.metadata.image && <img src={urlPreview.metadata.image} alt="" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 6, marginBottom: 8 }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
+                    {urlPreview.metadata.title && <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{urlPreview.metadata.title}</div>}
+                    {urlPreview.metadata.description && <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{urlPreview.metadata.description}</div>}
+                    <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', marginTop: 6 }}>{urlPreview.metadata.siteName || (detectedUrl ? new URL(detectedUrl).hostname : '')}</div>
+                  </>
                 )}
-                {urlPreview && urlPreview.metadata && (
-                  <div style={{ 
-                    marginTop: 12, 
-                    padding: 12, 
-                    background: 'var(--surface)', 
-                    borderRadius: 8,
-                    border: '1px solid var(--border)'
-                  }}>
-                    {urlPreview.metadata.image && (
-                      <img 
-                        src={urlPreview.metadata.image}
-                        alt={urlPreview.metadata.title}
-                        style={{
-                          width: '100%',
-                          height: 'auto',
-                          maxHeight: '200px',
-                          objectFit: 'cover',
-                          borderRadius: 6,
-                          marginBottom: 8
-                        }}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    )}
-                    {urlPreview.metadata.title && (
-                      <div style={{ 
-                        fontSize: 14, 
-                        fontWeight: 600, 
-                        marginBottom: 4,
-                        color: 'var(--foreground)'
-                      }}>
-                        {urlPreview.metadata.title}
-                      </div>
-                    )}
-                    {urlPreview.metadata.description && (
-                      <div style={{ 
-                        fontSize: 12, 
-                        color: 'var(--muted-on-dark)',
-                        marginBottom: 4,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden'
-                      }}>
-                        {urlPreview.metadata.description}
-                      </div>
-                    )}
-                    {urlPreview.isArticle && urlPreview.articleText && (
-                      <div style={{ 
-                        fontSize: 11, 
-                        color: 'var(--accent)',
-                        fontWeight: 500,
-                        marginTop: 6
-                      }}>
-                        📰 Article preview will be added to your cast
-                      </div>
-                    )}
-                    <div style={{ 
-                      fontSize: 11, 
-                      color: 'var(--muted-on-dark)',
-                      marginTop: 6
-                    }}>
-                      {urlPreview.metadata.siteName || new URL(detectedUrl!).hostname}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Channel Selection */}
-                <div style={{ marginTop: 16 }}>
-                  <label style={{ fontSize: '13px', fontWeight: 500, marginBottom: 6, display: 'block' }}>
-                    📺 Post to channel (optional)
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      value={channelSearch}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setChannelSearch(value);
-                        setShowChannelSuggestions(true);
-                        // If user types just the channel name (without /), set it as selected
-                        const cleanValue = value.replace(/^\//, '').split(' - ')[0].trim();
-                        if (cleanValue) {
-                          setSelectedChannel(cleanValue);
-                        } else {
-                          setSelectedChannel('');
-                        }
-                      }}
-                      onFocus={() => setShowChannelSuggestions(true)}
-                      placeholder="Type channel name (e.g., replyguys, base)"
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--foreground)',
-                        fontSize: '14px'
-                      }}
-                    />
-                    {showChannelSuggestions && channelSearch && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        maxHeight: '200px',
-                        overflowY: 'auto',
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '6px',
-                        marginTop: '4px',
-                        zIndex: 1000,
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                      }}>
-                        {channels
-                          .filter(ch => 
-                            ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) ||
-                            ch.name?.toLowerCase().includes(channelSearch.toLowerCase())
-                          )
-                          .slice(0, 10)
-                          .map((channel) => (
-                            <button
-                              key={channel.id}
-                              onClick={() => {
-                                setSelectedChannel(channel.id);
-                                setChannelSearch(`/${channel.id}${channel.name ? ` - ${channel.name}` : ''}`);
-                                setShowChannelSuggestions(false);
-                              }}
-                              style={{
-                                width: '100%',
-                                padding: '8px 12px',
-                                textAlign: 'left',
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--foreground)',
-                                cursor: 'pointer',
-                                fontSize: '14px'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            >
-                              /{channel.id} {channel.name && `- ${channel.name}`}
-                            </button>
-                          ))
-                        }
-                      </div>
-                    )}
-                  </div>
-                  {selectedChannel && (
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 4 }}>
-                      ✓ Posting to /{selectedChannel}
-                    </div>
-                  )}
+              </div>
+            )}
+
+            {/* Schedule picker (when active) */}
+            {isScheduled && (
+              <div style={{ marginTop: 10 }}>
+                <input type="datetime-local" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} min={new Date().toISOString().slice(0, 16)} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-on-dark)', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+              </div>
+            )}
+
+            {status && <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--muted-on-dark)' }}>{status}</div>}
+
+            {/* Bottom breathing room so toolbar doesn't cover content */}
+            <div style={{ height: 72 }} />
+          </div>
+
+          {/* Bottom toolbar — same pattern as compose page */}
+          <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
+            {/* Channel picker (opens upward) */}
+            {showChannelSuggestions && (
+              <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+                <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
+                  <input type="text" value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…" autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
                 </div>
-                
-                {/* Schedule Section */}
-                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <input
-                      type="checkbox"
-                      id="schedule-toggle"
-                      checked={isScheduled}
-                      onChange={(e) => setIsScheduled(e.target.checked)}
-                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                    />
-                    <label htmlFor="schedule-toggle" style={{ cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
-                      📅 Schedule for later
-                    </label>
-                  </div>
-                  
-                  {isScheduled && (
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="datetime-local"
-                        value={scheduleTime}
-                        onChange={(e) => setScheduleTime(e.target.value)}
-                        min={new Date().toISOString().slice(0, 16)}
-                        style={{
-                          width: '100%',
-                          padding: '10px 40px 10px 12px',
-                          borderRadius: '8px',
-                          border: '2px solid var(--border)',
-                          background: 'var(--surface)',
-                          color: 'var(--foreground)',
-                          fontSize: '15px',
-                          cursor: 'pointer',
-                          fontFamily: 'inherit'
-                        }}
-                      />
-                      <svg 
-                        style={{ 
-                          position: 'absolute', 
-                          right: '12px', 
-                          top: '50%', 
-                          transform: 'translateY(-50%)',
-                          pointerEvents: 'none',
-                          width: '20px',
-                          height: '20px',
-                          color: 'var(--muted)'
-                        }}
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-                  <button className="btn" onClick={() => {
-                    setOpen(false);
-                    setText('');
-                    setImageUrl('');
-                    setUploadedImage(null);
-                    setScheduleTime('');
-                    setIsScheduled(false);
-                    setIsLongForm(false);
-                  }}>Cancel</button>
-                  <button
-                    className="btn primary"
-                    disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
-                    onClick={async () => {
-                      await handlePost();
-                    }}
-                  >
-                    {loading ? (isScheduled ? "Scheduling…" : "Posting…") : (isScheduled ? "Schedule" : "Post")}
+                {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
+                  <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                    <span style={{ color: 'var(--muted-on-dark)' }}>/</span>{ch.id}{ch.name && <span style={{ color: 'var(--muted-on-dark)', marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
                   </button>
-                </div>
-                {status && <div style={{ marginTop: 8 }}>{status}</div>}
-              </>
-            }
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
+              {/* Left: scrollable tools */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
+                <label htmlFor="image-upload" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
+                  {uploadingImage
+                    ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
+                    : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  }
+                </label>
+
+                <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel" style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
+                  <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
+                  {selectedChannel && <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, color: 'var(--muted-on-dark)' }}>×</span>}
+                </button>
+
+                <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast" style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </button>
+              </div>
+
+              {/* Right: char count + Post/Schedule */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 8 }}>
+                {text.length > 260 && (
+                  <span style={{ fontSize: 12, color: text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40) ? '#f59e0b' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>
+                    {text.length}
+                  </span>
+                )}
+                <button
+                  onClick={async () => { await handlePost(); }}
+                  disabled={!canPost}
+                  style={{ padding: '7px 14px', borderRadius: 24, border: 'none', cursor: canPost ? 'pointer' : 'default', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 13, fontWeight: 700, opacity: canPost ? 1 : 0.35, whiteSpace: 'nowrap' }}
+                >
+                  {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

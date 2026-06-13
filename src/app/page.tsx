@@ -136,8 +136,14 @@ export default function Home() {
       .catch(() => {});
   }, [mounted]);
 
-  if (!mounted) return null;
-  if (isAuthenticated) return null;
+  if (!mounted || isAuthenticated) {
+    return (
+      <div style={{ minHeight: '100dvh', background: '#09090b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <style>{`@keyframes hhSpin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.08)', borderTopColor: '#34d399', animation: 'hhSpin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>

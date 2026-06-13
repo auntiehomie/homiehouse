@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 interface TokenInfo {
   id: string;
@@ -90,7 +91,7 @@ export default function TokenPriceWidget({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {tokenData.image && (
-              <img src={tokenData.image} alt={tokenData.symbol} className="w-6 h-6 rounded-full" />
+              <Image src={tokenData.image} alt={tokenData.symbol} width={24} height={24} className="rounded-full" style={{ objectFit: 'cover' }} />
             )}
             <div>
               <div className="font-semibold text-sm">{tokenData.symbol}</div>
@@ -117,7 +118,7 @@ export default function TokenPriceWidget({
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           {tokenData.image && (
-            <img src={tokenData.image} alt={tokenData.symbol} className="w-12 h-12 rounded-full" />
+            <Image src={tokenData.image} alt={tokenData.symbol} width={48} height={48} className="rounded-full" style={{ objectFit: 'cover' }} />
           )}
           <div>
             <h3 className="text-xl font-bold">{tokenData.name}</h3>

@@ -15,7 +15,14 @@ export default function FeedPage() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)' }}>
+        <style>{`@keyframes hhSpin{to{transform:rotate(360deg)}}`}</style>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'hhSpin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (

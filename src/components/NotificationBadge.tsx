@@ -12,8 +12,16 @@ export default function NotificationBadge({ className = '', onView }: Notificati
 
   useEffect(() => {
     loadUnreadCount();
-    const interval = setInterval(loadUnreadCount, 60000);
-    return () => clearInterval(interval);
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') loadUnreadCount();
+    };
+    const interval = setInterval(tick, 60000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
   }, []);
 
   const loadUnreadCount = async () => {

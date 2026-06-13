@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { TrendingSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import Image from "next/image";
 
 interface TrendingListProps {
   limit?: number;
@@ -77,11 +78,7 @@ export default function TrendingList({ limit = 10 }: TrendingListProps) {
             {/* Author info with avatar */}
             <div className="flex items-center gap-3 mb-3">
               {authorPfp && (
-                <img 
-                  src={authorPfp} 
-                  alt={authorName}
-                  className="w-10 h-10 rounded-full border-2 border-gray-300 dark:border-zinc-700"
-                />
+                <Image src={authorPfp} alt={authorName} width={40} height={40} className="rounded-full border-2 border-gray-300 dark:border-zinc-700" style={{ objectFit: 'cover' }} />
               )}
               <div className="flex-1 min-w-0">
                 <div className="font-bold truncate">{authorName}</div>

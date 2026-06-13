@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import Image from 'next/image';
 
 interface Props {
   hash: string;
@@ -51,7 +52,7 @@ export default function FarcasterCastEmbed({ hash, originalUrl }: Props) {
       className="block rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 hover:bg-zinc-900 transition-colors"
     >
       <div className="flex items-center gap-2 mb-2 min-w-0">
-        {pfp && <img src={pfp} alt={name} className="w-6 h-6 rounded-full shrink-0" />}
+        {pfp && <Image src={pfp} alt={name} width={24} height={24} className="rounded-full shrink-0" style={{ objectFit: 'cover' }} />}
         <span className="text-sm font-medium text-zinc-300 truncate">{name}</span>
         <span className="text-xs text-zinc-500 shrink-0">@{username}</span>
         {time && <span className="text-xs text-zinc-600 ml-auto shrink-0">{time}</span>}

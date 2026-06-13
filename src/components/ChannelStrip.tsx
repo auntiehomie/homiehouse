@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface Channel {
   id: string;
@@ -37,7 +38,7 @@ function useChannels() {
     const { fid } = JSON.parse(stored);
     if (!fid) { setLoaded(true); return; }
 
-    fetch(`/api/channels?fid=${fid}&limit=200`)
+    fetch(`/api/channels?fid=${fid}&limit=50`)
       .then(r => r.json())
       .then(data => {
         const list: Channel[] = (data.channels || [])
@@ -80,10 +81,10 @@ export default function ChannelStrip() {
           >
             <div
               className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center transition-opacity group-hover:opacity-80"
-              style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}
+              style={{ border: '1px solid var(--border)', background: 'var(--surface)', position: 'relative' }}
             >
               {ch.image_url ? (
-                <img src={ch.image_url} alt={ch.name} className="w-full h-full object-cover" />
+                <Image src={ch.image_url} alt={ch.name} fill style={{ objectFit: 'cover' }} />
               ) : (
                 <span className="text-xs font-bold uppercase" style={{ color: 'var(--text-on-dark)' }}>
                   {ch.name.slice(0, 2)}
@@ -140,10 +141,11 @@ export function ChannelSidebar() {
               width: 28, height: 28, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
               border: '1px solid var(--border)', background: 'var(--surface)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative',
             }}
           >
             {ch.image_url ? (
-              <img src={ch.image_url} alt={ch.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <Image src={ch.image_url} alt={ch.name} fill style={{ objectFit: 'cover' }} />
             ) : (
               <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-on-dark)' }}>
                 {ch.name.slice(0, 2)}

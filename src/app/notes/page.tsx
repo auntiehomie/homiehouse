@@ -13,6 +13,7 @@ interface Note {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  source?: string; // cast hash for saved-cast notes
 }
 
 const LS_KEY = 'hh_notes';
@@ -184,6 +185,7 @@ interface NoteCardProps {
 function NoteCard({ note, onEdit, onDelete, onShare }: NoteCardProps) {
   const [deleteStep, setDeleteStep] = useState<0 | 1>(0);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSavedCast = note.tags.includes('saved-cast');
 
   const handleDeleteClick = () => {
     if (deleteStep === 0) {
@@ -205,7 +207,7 @@ function NoteCard({ note, onEdit, onDelete, onShare }: NoteCardProps) {
     <div
       style={{
         background: 'var(--surface)',
-        border: '1px solid var(--border)',
+        border: `1px solid ${isSavedCast ? 'rgba(255,255,255,0.1)' : 'var(--border)'}`,
         borderRadius: 14,
         padding: '16px 18px',
         position: 'relative',
@@ -213,8 +215,8 @@ function NoteCard({ note, onEdit, onDelete, onShare }: NoteCardProps) {
         cursor: 'pointer',
       }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'; }}
-      onClick={() => onEdit(note)}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = isSavedCast ? 'rgba(255,255,255,0.1)' : 'var(--border)'; }}
+      onClick={() => isSavedCast && note.source ? (window.location.href = `/cast/${note.source}`) : onEdit(note)}
     >
       {/* Top-right actions */}
       <div
@@ -277,8 +279,26 @@ function NoteCard({ note, onEdit, onDelete, onShare }: NoteCardProps) {
         </button>
       </div>
 
-      {/* Title */}
-      {note.title && (
+      {/* Saved cast badge */}
+      {isSavedCast && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+          </svg>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+            Saved cast
+          </span>
+          {note.title && (
+            <>
+              <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>·</span>
+              <span style={{ fontSize: 12, color: 'var(--muted-on-dark)', fontWeight: 500 }}>{note.title}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Title (non-cast notes only) */}
+      {note.title && !isSavedCast && (
         <p style={{
           fontSize: 15,
           fontWeight: 600,
@@ -396,6 +416,7 @@ export default function NotesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [activeSection, setActiveSection] = useState<'all' | 'saved'>('all');
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -465,11 +486,18 @@ export default function NotesPage() {
     setShowForm(true);
   };
 
-  // All unique tags across all notes
-  const allTags = Array.from(new Set(notes.flatMap((n) => n.tags))).sort();
+  const savedCasts = notes.filter(n => n.tags.includes('saved-cast'));
+  const regularNotes = notes.filter(n => !n.tags.includes('saved-cast'));
+
+  // All unique tags (excluding saved-cast from manual tag filter)
+  const allTags = Array.from(new Set(
+    (activeSection === 'saved' ? savedCasts : regularNotes).flatMap((n) => n.tags.filter(t => t !== 'saved-cast'))
+  )).sort();
+
+  const sectionNotes = activeSection === 'saved' ? savedCasts : regularNotes;
 
   // Filtered notes
-  const filteredNotes = notes.filter((n) => {
+  const filteredNotes = sectionNotes.filter((n) => {
     const matchesTag = activeTag === null || n.tags.includes(activeTag);
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch =
@@ -499,31 +527,33 @@ export default function NotesPage() {
             Capture notes, ideas, and insights
           </p>
         </div>
-        <button
-          onClick={openAddForm}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '9px 16px',
-            borderRadius: 10,
-            border: 'none',
-            background: 'var(--btn-primary-bg)',
-            color: 'var(--btn-primary-color)',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: 'pointer',
-            flexShrink: 0,
-            transition: 'opacity 0.15s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-        >
-          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Note
-        </button>
+        {activeSection === 'all' && (
+          <button
+            onClick={openAddForm}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '9px 16px',
+              borderRadius: 10,
+              border: 'none',
+              background: 'var(--btn-primary-bg)',
+              color: 'var(--btn-primary-color)',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+          >
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Note
+          </button>
+        )}
       </header>
 
       {/* Body */}
@@ -546,8 +576,32 @@ export default function NotesPage() {
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 40 }}>
           <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px' }}>
 
+            {/* Section tabs: Notes / Saved Casts */}
+            <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--surface)', borderRadius: 10, padding: 4 }}>
+              {([['all', 'My Notes'], ['saved', `Saved Casts${savedCasts.length ? ` (${savedCasts.length})` : ''}`]] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => { setActiveSection(val); setActiveTag(null); setSearchQuery(''); }}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: activeSection === val ? 'var(--bg-dark)' : 'transparent',
+                    color: activeSection === val ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
+                    fontSize: 13,
+                    fontWeight: activeSection === val ? 600 : 400,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             {/* Add Note inline form */}
-            {showForm && (
+            {showForm && activeSection === 'all' && (
               <NoteForm
                 onSave={handleAdd}
                 onCancel={() => setShowForm(false)}
@@ -636,8 +690,18 @@ export default function NotesPage() {
             )}
 
             {/* Note list */}
-            {mounted && notes.length === 0 && !showForm ? (
-              <EmptyState onAdd={openAddForm} />
+            {mounted && sectionNotes.length === 0 && !showForm ? (
+              activeSection === 'saved' ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted-on-dark)' }}>
+                  <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ margin: '0 auto 12px', display: 'block', opacity: 0.4 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-on-dark)', margin: '0 0 6px' }}>No saved casts yet</p>
+                  <p style={{ fontSize: 13, margin: 0, lineHeight: 1.6 }}>Tap "Save" on any cast in your feed to bookmark it here.</p>
+                </div>
+              ) : (
+                <EmptyState onAdd={openAddForm} />
+              )
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {filteredNotes.map((note) =>

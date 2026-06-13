@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import dynamic from 'next/dynamic';
 import UrlPreview from './UrlPreview';
 import EmbedRenderer from './EmbedRenderer';
 import ParentCastBadge from './ParentCastBadge';
@@ -11,8 +12,46 @@ import { FeedType } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+
+// Heavy markdown libs loaded lazily — not needed until a cast with markdown renders
+const LazyMarkdown = dynamic(
+  async () => {
+    const [{ default: ReactMarkdown }, { default: remarkGfm }] = await Promise.all([
+      import('react-markdown'),
+      import('remark-gfm'),
+    ]);
+    const Md = ({ children, components }: { children: string; components?: any }) => (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{children}</ReactMarkdown>
+    );
+    Md.displayName = 'LazyMarkdown';
+    return Md;
+  },
+  { ssr: false }
+);
+
+// Module-level helpers — defined once, never recreated
+function getUserInterests(): string[] {
+  try {
+    const stored = localStorage.getItem('hh_feed_interests');
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return [];
+}
+
+function scoreCast(cast: any, interests: string[]): number {
+  if (!interests.length) return 0;
+  const text = (cast.text || '').toLowerCase();
+  const channelId = cast.channel?.id?.toLowerCase() || '';
+  let score = 0;
+  for (const interest of interests) {
+    const li = interest.toLowerCase();
+    if (text.includes(li)) score += 10;
+    if (channelId === li) score += 15;
+    const hashtags = text.match(/#\w+/g) || [];
+    if (hashtags.some((tag: string) => tag.toLowerCase().includes(li))) score += 12;
+  }
+  return score;
+}
 
 function renderCastText(text: string) {
   const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
@@ -101,6 +140,11 @@ export default function FeedList({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [pullDist, setPullDist] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const touchStartYRef = useRef(0);
+  const PULL_THRESHOLD = 72;
   const [showActions, setShowActions] = useState<string | null>(null);
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
   const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
@@ -120,6 +164,8 @@ export default function FeedList({
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [curateLoading, setCurateLoading] = useState(false);
   const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
+
+  const manualRefreshRef = useRef(false);
 
   const router = useRouter();
   const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
@@ -276,10 +322,35 @@ export default function FeedList({
 
   useEffect(() => {
     let mounted = true;
-    // Reset pagination state when feed changes
+    const cacheKey = `hh_feed_${feedType}_${selectedChannel ?? 'all'}`;
+    const isManualRefresh = manualRefreshRef.current;
+    manualRefreshRef.current = false;
+
+    // Reset pagination cursors
     setCursor(null);
     setHasMore(true);
-    setItems(null);
+
+    // Restore from sessionStorage cache immediately (skip skeleton) unless pull-to-refresh
+    if (!isManualRefresh) {
+      try {
+        const raw = sessionStorage.getItem(cacheKey);
+        if (raw) {
+          const { items: ci, cursor: cc, ts } = JSON.parse(raw);
+          if (Array.isArray(ci) && Date.now() - (ts ?? 0) < 5 * 60 * 1000) {
+            setItems(ci);
+            setCursor(cc ?? null);
+            setHasMore(!!cc);
+          } else {
+            setItems(null);
+          }
+        } else {
+          setItems(null);
+        }
+      } catch {
+        setItems(null);
+      }
+    }
+
     (async () => {
       let res;
       let nextCursor: string | null = null;
@@ -296,27 +367,20 @@ export default function FeedList({
           console.error('[FeedList] Error reading FID from localStorage:', e);
         }
 
-        const profile = getProfile();
-        console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, hasProfile: !!profile });
+        getProfile();
 
         // Build query params based on feed type and channel
         let url = `/api/feed?feed_type=${feedType}`;
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
 
-        console.log('[FeedList] API URL:', url);
-
         const feedRes = await fetch(url);
-        console.log('[FeedList] API response status:', feedRes.status);
 
         if (feedRes.ok) {
           const json = await feedRes.json();
-          console.log('[FeedList] API response data:', json);
           res = json?.data ?? json;
           nextCursor = json?.cursor || null;
         } else {
-          // fallback to host SDK if server can't provide feed
-          console.log('[FeedList] API failed, using fallback fetchFeed');
           res = await fetchFeed(20);
         }
       } catch (e) {
@@ -324,26 +388,24 @@ export default function FeedList({
         res = await fetchFeed(20);
       }
 
-      console.log('[FeedList] Final items count:', res?.length || 0);
-      if (Array.isArray(res) && res.length > 0) {
-        console.log('[FeedList] First cast structure:', JSON.stringify({
-          hash: res[0]?.hash,
-          hasEmbeds: !!res[0]?.embeds,
-          embedsLength: res[0]?.embeds?.length || 0,
-          embedsData: res[0]?.embeds,
-          firstEmbedKeys: res[0]?.embeds?.[0] ? Object.keys(res[0].embeds[0]) : 'no embeds'
-        }, null, 2));
-      }
       if (mounted) {
         setItems(res);
         setCursor(nextCursor);
         setHasMore(!!nextCursor);
+        // Cache for instant restore on next navigation
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({
+            items: Array.isArray(res) ? res.slice(0, 60) : res,
+            cursor: nextCursor,
+            ts: Date.now(),
+          }));
+        } catch {}
       }
     })();
     return () => {
       mounted = false;
     };
-  }, [feedType, selectedChannel]);
+  }, [feedType, selectedChannel, refreshKey]);
 
   // loadMore: fetch next page and append
   const loadMore = async () => {
@@ -398,6 +460,28 @@ export default function FeedList({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, loadingMore, cursor]);
 
+  // Must be before any early returns — hooks can't be called conditionally
+  const filteredItems = useMemo(() => {
+    const interests = getUserInterests();
+    let result = (items || []).filter((it, index) => {
+      const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
+      const rawUser = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
+      const authorUsername = rawUser && /^fid:\d+$/i.test(rawUser) ? null : rawUser;
+      const castHash = it.hash || it.id;
+      if (authorUsername && mutedUsers.has(authorUsername)) return false;
+      if (castHash && hiddenCasts.has(castHash)) return false;
+      if (authorUsername && seeLessAuthors.has(authorUsername)) return index % 4 === 0;
+      return true;
+    });
+    if (interests.length > 0) {
+      result = result
+        .map(cast => ({ ...cast, _interestScore: scoreCast(cast, interests) }))
+        .sort((a, b) => b._interestScore - a._interestScore);
+    }
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, mutedUsers, hiddenCasts, seeLessAuthors]);
+
   if (items === null)
     return (
       <div aria-busy="true" aria-live="polite">
@@ -414,90 +498,75 @@ export default function FeedList({
     </div>
   );
 
-  // Get user interests from localStorage
-  const getUserInterests = (): string[] => {
-    try {
-      const stored = localStorage.getItem('hh_feed_interests');
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error('Error loading interests:', e);
-    }
-    return [];
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY <= 0) touchStartYRef.current = e.touches[0].clientY;
   };
-
-  // Score a cast based on how well it matches user interests
-  const scoreCast = (cast: any, interests: string[]): number => {
-    if (!interests.length) return 0; // No interests = no scoring
-    
-    const text = (cast.text || '').toLowerCase();
-    const channelId = cast.channel?.id?.toLowerCase() || '';
-    
-    let score = 0;
-    for (const interest of interests) {
-      const lowerInterest = interest.toLowerCase();
-      // Check if interest appears in text
-      if (text.includes(lowerInterest)) score += 10;
-      // Check if interest matches channel
-      if (channelId === lowerInterest) score += 15;
-      // Check if interest is in hashtags
-      const hashtags = text.match(/#\w+/g) || [];
-      if (hashtags.some((tag: string) => tag.toLowerCase().includes(lowerInterest))) score += 12;
-    }
-    return score;
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (window.scrollY > 0) { setPullDist(0); return; }
+    const dist = e.touches[0].clientY - touchStartYRef.current;
+    if (dist > 0) setPullDist(Math.min(dist, PULL_THRESHOLD * 1.5));
   };
-
-  const userInterests = getUserInterests();
-
-  // Filter out muted users and hidden casts
-  // Reduce visibility of "see less" authors (show 1 in 4)
-  // Then sort by interest score if user has interests
-  let filteredItems = items.filter((it, index) => {
-    const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
-    const rawUser = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
-    const authorUsername = rawUser && /^fid:\d+$/i.test(rawUser) ? null : rawUser;
-    const castHash = it.hash || it.id;
-
-    if (authorUsername && mutedUsers.has(authorUsername)) return false;
-    if (castHash && hiddenCasts.has(castHash)) return false;
-    
-    // Reduce "see less" authors - only show 25% of their content
-    if (authorUsername && seeLessAuthors.has(authorUsername)) {
-      return index % 4 === 0; // Only show every 4th post
+  const handleTouchEnd = () => {
+    if (pullDist >= PULL_THRESHOLD) {
+      manualRefreshRef.current = true;
+      setIsRefreshing(true);
+      setItems(null);
+      setRefreshKey(k => k + 1);
+      setTimeout(() => { setIsRefreshing(false); }, 800);
     }
-    
-    return true;
-  });
-
-  // Apply interest-based sorting if user has set interests
-  if (userInterests.length > 0) {
-    filteredItems = filteredItems
-      .map(cast => ({
-        ...cast,
-        _interestScore: scoreCast(cast, userInterests)
-      }))
-      .sort((a, b) => b._interestScore - a._interestScore);
-  }
+    setPullDist(0);
+  };
 
   return (
     <>
     {/* Non-blocking toast for reply/post feedback */}
     {toast && (
-      <div style={{
-        position: 'fixed', bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
-        left: '50%', transform: 'translateX(-50%)',
-        background: toast.ok ? 'rgba(30,30,30,0.95)' : 'rgba(180,30,30,0.95)',
-        color: '#fff', padding: '10px 20px', borderRadius: 24,
-        fontSize: 14, fontWeight: 500, zIndex: 20000,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-        animation: 'hhFadeIn 0.15s ease-out',
-        whiteSpace: 'nowrap',
-      }}>
+      <div
+        onClick={() => { if (toast.msg === 'Saved to Notes') router.push('/notes'); }}
+        style={{
+          position: 'fixed', bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
+          left: '50%', transform: 'translateX(-50%)',
+          background: toast.ok ? 'rgba(30,30,30,0.95)' : 'rgba(180,30,30,0.95)',
+          color: '#fff', padding: '10px 20px', borderRadius: 24,
+          fontSize: 14, fontWeight: 500, zIndex: 20000,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          animation: 'hhFadeIn 0.15s ease-out',
+          whiteSpace: 'nowrap',
+          cursor: toast.msg === 'Saved to Notes' ? 'pointer' : 'default',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}
+      >
         {toast.msg}
+        {toast.msg === 'Saved to Notes' && (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        )}
       </div>
     )}
-    <div className="space-y-4">
+    <style>{`@keyframes ptr-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    {/* Pull-to-refresh indicator */}
+    <div style={{
+      overflow: 'hidden',
+      height: isRefreshing ? 48 : Math.max(0, pullDist * 0.45),
+      transition: pullDist === 0 ? 'height 0.3s ease' : 'none',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        width: 22, height: 22, borderRadius: '50%',
+        border: '2.5px solid var(--accent)',
+        borderTopColor: 'transparent',
+        transform: isRefreshing ? undefined : `rotate(${pullDist * 3}deg)`,
+        animation: isRefreshing ? 'ptr-spin 0.7s linear infinite' : 'none',
+        opacity: Math.min(1, pullDist / PULL_THRESHOLD),
+      }} />
+    </div>
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="space-y-4"
+    >
       {filteredItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
         const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
@@ -689,27 +758,21 @@ export default function FeedList({
                 cursor: 'pointer',
               }}
             >
-              {(() => {
-                  return (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
-                        code: ({ node, inline, ...props }: any) =>
-                          inline ?
-                            <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
-                            <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
-                      }}
-                    >
-                      {text}
-                    </ReactMarkdown>
-                  );
-              })()}            </div>
+              <LazyMarkdown
+                components={{
+                  a: ({ node: _node, ...props }: any) => <a {...props} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
+                  code: ({ node, inline, ...props }: any) =>
+                    inline ?
+                      <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
+                      <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
+                }}
+              >
+                {text}
+              </LazyMarkdown>            </div>
             
             {/* Display embeds (images, videos, links, etc.) */}
             {Array.isArray(it.embeds) && it.embeds.length > 0 && (
               <>
-                {console.log('[FeedList] Rendering embeds for cast:', { hash: it.hash, embedCount: it.embeds.length, embeds: it.embeds })}
                 <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {it.embeds.map((embed: any, idx: number) => (
                     <EmbedRenderer key={idx} embed={embed} index={idx} />
@@ -851,6 +914,7 @@ export default function FeedList({
                     };
                     localStorage.setItem('hh_notes', JSON.stringify([note, ...notes]));
                     setSavedNotes(prev => new Set([...prev, key]));
+                    showToast('Saved to Notes', true);
                     setTimeout(() => setSavedNotes(prev => { const n = new Set(prev); n.delete(key); return n; }), 2500);
                   } catch {}
                 }}
@@ -1127,7 +1191,6 @@ export default function FeedList({
             {/* Cast Preview */}
             {(() => {
               const cast = items?.find(item => item.hash === showQuoteModal);
-              console.log('Quote modal - showing cast:', cast?.hash, 'from', cast?.author?.username);
               if (cast) {
                 return (
                   <div style={{
@@ -1193,8 +1256,6 @@ export default function FeedList({
                     )}
                   </div>
                 );
-              } else {
-                console.log('No cast found for hash:', showQuoteModal, 'in items:', items?.length);
               }
               return null;
             })()}

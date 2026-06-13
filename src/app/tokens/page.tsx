@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface Token {
   id: string;
@@ -127,7 +128,7 @@ export default function TokensPage() {
                 }}
               >
                 {token.image
-                  ? <img src={token.image} alt={token.symbol} style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  ? <Image src={token.image} alt={token.symbol} width={38} height={38} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                   : <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--muted-on-dark)' }}>$</div>
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>

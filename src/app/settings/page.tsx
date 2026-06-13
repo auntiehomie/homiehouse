@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
 import AppShell from "@/components/AppShell";
+import { provisionSignerWithMnemonic } from "@/lib/fc-key-add";
 
 // ── Theme data ────────────────────────────────────────────────────────────────
 
@@ -198,7 +200,7 @@ interface FarcasterProfile {
   pfpUrl?: string;
 }
 
-function AccountPanel({ profile, onProfileUpdate }: { profile: FarcasterProfile | null; onProfileUpdate: (p: FarcasterProfile) => void }) {
+function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: FarcasterProfile | null; onProfileUpdate: (p: FarcasterProfile) => void; hideTitle?: boolean }) {
   const [fidInput, setFidInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -231,13 +233,13 @@ function AccountPanel({ profile, onProfileUpdate }: { profile: FarcasterProfile 
 
   return (
     <div>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Farcaster Account</div>
+      {!hideTitle && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Farcaster Account</div>}
 
       {/* Current profile card */}
       {profile?.fid ? (
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
           {profile.pfpUrl ? (
-            <img src={profile.pfpUrl} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+            <Image src={profile.pfpUrl} alt="" width={44} height={44} style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
           ) : (
             <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
               {(profile.displayName || profile.username || "?")[0].toUpperCase()}
@@ -298,6 +300,148 @@ function AccountPanel({ profile, onProfileUpdate }: { profile: FarcasterProfile 
           Your FID is the number in your Farcaster profile URL, or visible in any Farcaster client under account settings.
         </div>
       </div>
+
+      {/* Mnemonic import — full write access */}
+      <MnemonicImportSection existingFid={profile?.fid} onSuccess={onProfileUpdate} />
+    </div>
+  );
+}
+
+// ── Mnemonic / recovery-phrase signer import ───────────────────────────────────
+
+type MnemonicStep = "idle" | "confirm" | "working" | "done" | "error";
+
+function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: number; onSuccess: (p: FarcasterProfile) => void }) {
+  const [open, setOpen] = useState(false);
+  const [fidInput, setFidInput] = useState(existingFid ? String(existingFid) : "");
+  const [phrase, setPhrase] = useState("");
+  const [step, setStep] = useState<MnemonicStep>("idle");
+  const [statusMsg, setStatusMsg] = useState("");
+
+  async function handleImport() {
+    const fid = parseInt(fidInput.trim(), 10);
+    if (!fid || isNaN(fid) || fid <= 0) { setStatusMsg("Enter a valid FID."); setStep("error"); return; }
+    if (phrase.trim().split(/\s+/).length < 12) { setStatusMsg("Enter your full 12 or 24-word recovery phrase."); setStep("error"); return; }
+
+    setStep("working"); setStatusMsg("Generating signer key…");
+    try {
+      const result = await provisionSignerWithMnemonic(fid, phrase.trim());
+
+      setStatusMsg("Registering on Farcaster network…");
+      // Store the approved signer — shape that useFarcasterWrites expects
+      localStorage.setItem(`signer_${fid}`, JSON.stringify({ status: "approved", private_key: result.privateKeyHex }));
+      window.dispatchEvent(new CustomEvent("hh:signer:approved"));
+
+      // Fetch and store profile
+      const res = await fetch(`/api/profile?fid=${fid}`);
+      if (res.ok) {
+        const data = await res.json();
+        const updated: FarcasterProfile = { fid, username: data.username, displayName: data.display_name || data.username, pfpUrl: data.pfp_url };
+        localStorage.setItem("hh_profile", JSON.stringify(updated));
+        onSuccess(updated);
+      }
+
+      setPhrase(""); // clear phrase from memory
+      setStep("done");
+      setStatusMsg("Account imported. You can now cast, like, and reply as this account.");
+    } catch (err: any) {
+      setPhrase("");
+      setStep("error");
+      setStatusMsg(err?.message || "Import failed. Check your FID and recovery phrase.");
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 14, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ width: "100%", padding: "12px 16px", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left" }}
+      >
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-on-dark)" }}>Import with Recovery Phrase</div>
+          <div style={{ fontSize: 11, color: "var(--muted-on-dark)", marginTop: 2 }}>Optional — enables posting, liking & recasting</div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-on-dark)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{ padding: "0 16px 16px", borderTop: "1px solid var(--border)" }}>
+          {step !== "done" && (
+            <>
+              <div style={{ display: "flex", gap: 6, alignItems: "flex-start", padding: "10px 12px", background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.3)", borderRadius: 8, margin: "12px 0" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                <div style={{ fontSize: 11, color: "#eab308", lineHeight: 1.5 }}>
+                  Only use this on a private, trusted device. Your phrase is never stored or sent to any server — it is held in memory only while generating your signer key.
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-on-dark)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Your FID</div>
+              <input
+                type="number"
+                placeholder="e.g. 3103"
+                value={fidInput}
+                onChange={e => setFidInput(e.target.value)}
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, fontSize: 14, background: "var(--bg-dark)", border: "1px solid var(--border)", color: "var(--text-on-dark)", outline: "none", boxSizing: "border-box", marginBottom: 12 }}
+              />
+
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-on-dark)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Recovery Phrase</div>
+              <textarea
+                placeholder="word1 word2 word3 … (12 or 24 words)"
+                value={phrase}
+                onChange={e => setPhrase(e.target.value)}
+                rows={3}
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, fontSize: 13, fontFamily: "monospace", background: "var(--bg-dark)", border: "1px solid var(--border)", color: "var(--text-on-dark)", outline: "none", resize: "none", boxSizing: "border-box", marginBottom: 12 }}
+              />
+
+              {step === "idle" && (
+                <button
+                  onClick={() => setStep("confirm")}
+                  disabled={!fidInput.trim() || phrase.trim().split(/\s+/).length < 12}
+                  style={{ width: "100%", padding: "10px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", fontWeight: 600, fontSize: 13, cursor: "pointer", opacity: !fidInput.trim() || phrase.trim().split(/\s+/).length < 12 ? 0.5 : 1 }}
+                >
+                  Continue
+                </button>
+              )}
+
+              {step === "confirm" && (
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginBottom: 10, lineHeight: 1.5 }}>
+                    This will register a new signer key for FID <strong style={{ color: "var(--text-on-dark)" }}>{fidInput}</strong> on the Farcaster network. The server wallet will pay the gas fee. Ready to proceed?
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => setStep("idle")} style={{ flex: 1, padding: "9px", borderRadius: 8, background: "var(--bg-dark)", border: "1px solid var(--border)", color: "var(--text-on-dark)", fontSize: 13, cursor: "pointer" }}>Back</button>
+                    <button onClick={handleImport} style={{ flex: 2, padding: "9px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Import Account</button>
+                  </div>
+                </div>
+              )}
+
+              {step === "working" && (
+                <div style={{ fontSize: 12, color: "var(--muted-on-dark)", textAlign: "center", padding: "8px 0" }}>{statusMsg}</div>
+              )}
+
+              {step === "error" && (
+                <div>
+                  <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 10 }}>{statusMsg}</div>
+                  <button onClick={() => setStep("idle")} style={{ fontSize: 12, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Try again</button>
+                </div>
+              )}
+            </>
+          )}
+
+          {step === "done" && (
+            <div style={{ padding: "12px 0 4px", textAlign: "center" }}>
+              <div style={{ fontSize: 20, marginBottom: 8 }}>✓</div>
+              <div style={{ fontSize: 13, color: "#22c55e", fontWeight: 600, marginBottom: 4 }}>Account imported</div>
+              <div style={{ fontSize: 12, color: "var(--muted-on-dark)" }}>{statusMsg}</div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -393,26 +537,57 @@ export default function SettingsPage() {
     } catch { alert("No notes to export."); }
   }
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const showInstallPrompt = ios && !standalone;
   const notifEnabled = notifState === "granted";
   const notifDenied = notifState === "denied";
   const currentThemeName = ALL_THEMES.find(t => t.id === activeTheme)?.name ?? "HomieHouse";
   const togglePanel = (panel: ActivePanel) => setActivePanel(prev => prev === panel ? null : panel);
 
+  // On mobile, when a panel is open, render only the panel with a back button
+  const mobileShowingPanel = isMobile && activePanel !== null;
+
+  const panelBackButton = (
+    <button
+      onClick={() => setActivePanel(null)}
+      style={{ background: "none", border: "none", color: "var(--muted-on-dark)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}
+    >
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+    </button>
+  );
+
+  const panelTitles: Record<NonNullable<ActivePanel>, string> = {
+    account: "Farcaster Account",
+    themes: "Choose Theme",
+    notifications: "Push Notifications",
+    wallet: "Wallet",
+  };
+
   return (
     <AppShell>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "var(--muted-on-dark)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
-          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-        </button>
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Settings</h1>
+        {mobileShowingPanel ? panelBackButton : (
+          <button onClick={() => router.back()} style={{ background: "none", border: "none", color: "var(--muted-on-dark)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+        )}
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+          {mobileShowingPanel ? panelTitles[activePanel!] : "Settings"}
+        </h1>
       </div>
 
       <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-        {/* ── Left column ── */}
-        <div style={{ minWidth: 240, maxWidth: 300, flex: "0 0 260px" }}>
+        {/* ── Left column — hidden on mobile when a panel is open ── */}
+        <div style={{ minWidth: 240, maxWidth: 300, flex: "0 0 260px", display: mobileShowingPanel ? "none" : undefined }}>
 
           {/* Account */}
           <div style={{ marginBottom: 18 }}>
@@ -428,7 +603,7 @@ export default function SettingsPage() {
                 }}
               >
                 {profile?.pfpUrl ? (
-                  <img src={profile.pfpUrl} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                  <Image src={profile.pfpUrl} alt="" width={32} height={32} style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
                 ) : (
                   <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
                     {profile?.displayName?.[0]?.toUpperCase() || profile?.username?.[0]?.toUpperCase() || "?"}
@@ -528,6 +703,25 @@ export default function SettingsPage() {
             </Card>
           </div>
 
+          {/* Support */}
+          <div style={{ marginBottom: 18 }}>
+            <SectionLabel>Support</SectionLabel>
+            <div style={{ background: "var(--surface)", borderRadius: 12, border: "1px solid var(--border)", overflow: "hidden" }}>
+              <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-on-dark)", marginBottom: 3 }}>Enjoying HomieHouse?</div>
+                <div style={{ fontSize: 12, color: "var(--muted-on-dark)", lineHeight: 1.5 }}>
+                  HomieHouse is free and independent. If it's been useful, a small tip goes a long way toward keeping the lights on.
+                </div>
+              </div>
+              <SettingRow
+                onClick={() => router.push("/settings/themes")}
+                icon={<span style={{ fontSize: 15 }}>☕</span>}
+                label="Buy us a coffee"
+                sublabel="$0.50 USDC on Base · also unlocks premium themes"
+              />
+            </div>
+          </div>
+
           {/* About */}
           <div style={{ marginBottom: 18 }}>
             <SectionLabel>About</SectionLabel>
@@ -563,16 +757,16 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* ── Right panel ── */}
+        {/* ── Right panel — full width on mobile, flex col on desktop ── */}
         {activePanel === "account" && (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <AccountPanel profile={profile} onProfileUpdate={setProfile} />
+          <div style={{ flex: 1, minWidth: 0, width: mobileShowingPanel ? "100%" : undefined }}>
+            <AccountPanel profile={profile} onProfileUpdate={setProfile} hideTitle={isMobile} />
           </div>
         )}
 
         {activePanel === "themes" && (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Choose Theme</div>
+          <div style={{ flex: 1, minWidth: 0, width: mobileShowingPanel ? "100%" : undefined }}>
+            {!isMobile && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Choose Theme</div>}
             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-on-dark)", marginBottom: 10 }}>Free</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginBottom: 20 }}>
               {FREE_THEMES.map(theme => (
@@ -608,8 +802,8 @@ export default function SettingsPage() {
         )}
 
         {activePanel === "notifications" && showInstallPrompt && (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Push Notifications</div>
+          <div style={{ flex: 1, minWidth: 0, width: mobileShowingPanel ? "100%" : undefined }}>
+            {!isMobile && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Push Notifications</div>}
             <IOSInstallCard />
           </div>
         )}

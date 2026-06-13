@@ -68,10 +68,17 @@ function CardBody({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any,
-      padding: '8px 20px 20px',
-      display: 'flex', flexDirection: 'column', gap: 16,
+      display: 'flex', flexDirection: 'column',
     }}>
-      {children}
+      <div style={{
+        margin: 'auto 0',
+        padding: '20px 20px 24px',
+        display: 'flex', flexDirection: 'column', gap: 18,
+        maxWidth: 560, width: '100%', alignSelf: 'center',
+        boxSizing: 'border-box' as any,
+      }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -407,11 +414,9 @@ function ModuleLessonContent() {
     const next = direction === 'forward' ? cardIndex + 1 : cardIndex - 1;
     if (next < 0 || next >= totalCards) return;
     setDir(direction);
+    setCardIndex(next);
     setAnimating(true);
-    setTimeout(() => {
-      setCardIndex(next);
-      setAnimating(false);
-    }, 180);
+    setTimeout(() => setAnimating(false), 260);
   }, [animating, cardIndex, totalCards]);
 
   const canContinue = (): boolean => {
@@ -473,6 +478,8 @@ function ModuleLessonContent() {
   return (
     <div style={{
       height: '100dvh',
+      paddingTop: 'env(safe-area-inset-top, 0px)',
+      boxSizing: 'border-box',
       display: 'flex', flexDirection: 'column',
       background: 'var(--bg-dark)', color: 'var(--text-on-dark)',
       overscrollBehavior: 'none',
@@ -518,16 +525,19 @@ function ModuleLessonContent() {
       </div>
 
       {/* Card content */}
+      <style>{`
+        @keyframes cardSlideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes cardSlideInLeft  { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
+      `}</style>
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
-        <div style={{
-          height: '100%',
-          transform: animating
-            ? (dir === 'forward' ? 'translateX(-6%)' : 'translateX(6%)')
-            : 'translateX(0)',
-          opacity: animating ? 0 : 1,
-          transition: 'transform 0.18s ease, opacity 0.18s ease',
-          display: 'flex', flexDirection: 'column',
-        }}>
+        <div
+          key={cardIndex}
+          style={{
+            height: '100%',
+            display: 'flex', flexDirection: 'column',
+            animation: `${dir === 'forward' ? 'cardSlideInRight' : 'cardSlideInLeft'} 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)`,
+          }}
+        >
           {loading ? (
             <Skeleton />
           ) : currentCard ? (

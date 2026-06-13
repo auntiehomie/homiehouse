@@ -12,7 +12,10 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
 }
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    // Farcaster avatars and token logos can come from any domain — allow all HTTPS sources
+    remotePatterns: [{ protocol: 'https', hostname: '**' }],
+  },
   async rewrites() {
     return [
       // Serve SW dynamically so the deployment timestamp changes on each deploy,

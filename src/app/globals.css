@@ -441,7 +441,17 @@ main { margin-top: 1rem; }
 /* Links — exclude hh-bottom-nav so tap styles aren't broken */
 nav a:not(.no-underline) { color: var(--muted-on-dark); text-decoration: underline; }
 nav a:not(.no-underline):hover { color: var(--accent); }
-.hh-bottom-nav a { text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.hh-bottom-nav a {
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.06);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hh-bottom-nav a:active {
+  opacity: 0.55;
+  transform: scale(0.9);
+}
 
 /* Modal animations and styling */
 .modal-overlay {
@@ -656,6 +666,23 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   /* Ensure nav sits above Privy wallet iframe and any other SDK overlays */
   z-index: 9500;
   pointer-events: all;
+  /* Android: ensure touch targets clear system gesture zone */
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+/* Page transition — fade up from slight offset for a fluid mobile feel */
+@keyframes hhPageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hh-page-transition {
+  animation: hhPageIn 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Toast fade-in */
+@keyframes hhFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* Page transition — quick fade only; no translate (causes layout shift) */
