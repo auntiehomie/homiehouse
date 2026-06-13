@@ -432,20 +432,22 @@ export async function GET(request: NextRequest) {
 
         // Post reply via farcaster-writes (app-managed signer)
         const botSignerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
-        await publishCast({
+        console.error(`[bot/check] ATTEMPTING reply fid=${BOT_FID} parent=${castHash.slice(0,10)} hasKey=${!!botSignerKey}`);
+        const { castHash: replyHash } = await publishCast({
           text: reply,
           fid: BOT_FID,
           parentCastHash: castHash,
           parentCastFid: cast.author?.fid,
           ...(botSignerKey ? { signerPrivateKey: botSignerKey } : {}),
         });
+        console.error(`[bot/check] SUCCESS replyHash=${replyHash}`);
 
         logger.success(`Posted reply to ${castHash}`, { reply });
         
         // Record in DB after successful reply to prevent duplicates across instances
         await recordReplyBatch({
           trackingKeys,
-          replyHash: castHash, // will be replaced with actual reply hash if available
+          replyHash: replyHash || castHash,
           commandType: 'mention',
           replyText: reply,
         });
