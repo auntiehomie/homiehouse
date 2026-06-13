@@ -5,8 +5,8 @@ import { fetchCast } from '@/lib/hypersnap';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
-export async function generateMetadata({ params }: { params: { hash: string } }): Promise<Metadata> {
-  const { hash } = params;
+export async function generateMetadata({ params }: { params: Promise<{ hash: string }> }): Promise<Metadata> {
+  const { hash } = await params;
   try {
     const data = await fetchCast(hash);
     const cast = data?.cast ?? data;

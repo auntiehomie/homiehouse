@@ -5,8 +5,8 @@ import { fetchUserByUsername } from '@/lib/hypersnap';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
-export async function generateMetadata({ searchParams }: { searchParams: { user?: string } }): Promise<Metadata> {
-  const username = searchParams?.user;
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ user?: string }> }): Promise<Metadata> {
+  const { user: username } = await searchParams;
   if (!username) return { title: 'Profile | HomieHouse' };
 
   try {
