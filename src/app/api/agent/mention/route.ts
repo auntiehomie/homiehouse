@@ -161,19 +161,47 @@ export async function GET(request: NextRequest) {
     let repliedCount = 0;
 
     const notifData = await fetchNotifications({ fid: HOMIEHOUSELOL_FID, limit: 50 });
-    const notifications: any[] =
+    const rawNotifications: any[] =
       notifData?.data?.notifications ?? notifData?.notifications ?? [];
 
-    console.log(`[agent/mention] ${notifications.length} notifications for FID ${HOMIEHOUSELOL_FID}`);
+    console.log(`[agent/mention] ${rawNotifications.length} notifications for FID ${HOMIEHOUSELOL_FID}`);
+
+    // Also search for recent casts mentioning @homiehouselol.
+    // The notification index can lag by hours; cast search is usually fresh.
+    let searchMentions: any[] = [];
+    try {
+      const searchData = await searchCasts('@homiehouselol', 15);
+      const searchCastList: any[] = searchData?.casts ?? [];
+      const notifHashes = new Set(
+        rawNotifications.map((n: any) => (n.cast ?? n)?.hash).filter(Boolean)
+      );
+      searchMentions = searchCastList
+        .filter((c: any) => c.hash && !notifHashes.has(c.hash))
+        .filter((c: any) => c.author?.fid !== HOMIEHOUSELOL_FID)
+        .map((c: any) => ({ type: 'mention', cast: c }));
+      if (searchMentions.length > 0) {
+        console.log(`[agent/mention] ${searchMentions.length} additional mention(s) via cast search`);
+      }
+    } catch (err: any) {
+      console.warn('[agent/mention] Cast search fallback failed:', err?.message);
+    }
+
+    const notifications = [...rawNotifications, ...searchMentions];
 
     for (const notification of notifications) {
       if (repliedCount >= 1) break; // One reply per cron run
 
       const cast = notification.cast ?? notification;
+      const notifType = notification.type ?? notification.notification_type;
+      const hash = cast?.hash ?? '(no hash)';
+      console.log(`[agent/mention] notif type=${notifType} hash=${hash} author=@${cast?.author?.username ?? '?'}`);
+
       if (!cast?.hash) continue;
 
-      const notifType = notification.type ?? notification.notification_type;
-      if (notifType && !['mention', 'reply'].includes(notifType)) continue;
+      if (notifType && !['mention', 'reply'].includes(notifType)) {
+        console.log(`[agent/mention] skip: type "${notifType}" not mention/reply`);
+        continue;
+      }
 
       const castHash = cast.hash;
       const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
@@ -186,7 +214,10 @@ export async function GET(request: NextRequest) {
       ];
 
       const alreadyReplied = await hasRepliedToAny(trackingKeys);
-      if (alreadyReplied) continue;
+      if (alreadyReplied) {
+        console.log(`[agent/mention] skip: already replied (matched key: ${alreadyReplied})`);
+        continue;
+      }
 
       // Confirm no existing in-thread reply
       try {
