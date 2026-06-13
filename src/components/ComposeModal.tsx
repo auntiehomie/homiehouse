@@ -7,6 +7,9 @@ import { usePrivy } from "@privy-io/react-auth";
 
 const FAB_HIDDEN_PATHS = ['/learn', '/compose', '/settings'];
 
+// Module-level cache so channels are fetched once per session, not on every modal open
+let cachedChannels: any[] | null = null;
+
 export default function ComposeModal() {
   const pathname = usePathname();
   const hideFab = FAB_HIDDEN_PATHS.some(p => pathname === p || pathname?.startsWith(p + '/'));
@@ -65,44 +68,27 @@ export default function ComposeModal() {
     };
   }, []);
 
-  // Fetch channels when modal opens
+  const FALLBACK_CHANNELS = [
+    { id: 'base', name: 'Base' },
+    { id: 'farcaster', name: 'Farcaster' },
+    { id: 'dev', name: 'Dev' },
+    { id: 'art', name: 'Art' },
+    { id: 'music', name: 'Music' },
+  ];
+
+  // Fetch channels when modal first opens — cached in module scope for the session
   useEffect(() => {
-    if (open && userFid) {
-      fetchChannels();
-    }
+    if (!open || !userFid) return;
+    if (cachedChannels) { setChannels(cachedChannels); return; }
+    fetch('/api/channels?limit=50')
+      .then(r => r.json())
+      .then(data => {
+        const list = (data?.ok && Array.isArray(data?.channels)) ? data.channels : FALLBACK_CHANNELS;
+        cachedChannels = list;
+        setChannels(list);
+      })
+      .catch(() => setChannels(FALLBACK_CHANNELS));
   }, [open, userFid]);
-
-  async function fetchChannels() {
-    try {
-      // Fetch all available channels (not user-specific)
-      const response = await fetch('/api/channels?limit=50');
-      if (!response.ok) throw new Error(`Channels fetch failed: ${response.status}`);
-      const data = await response.json();
-
-      if (data?.ok && Array.isArray(data?.channels)) {
-        setChannels(data.channels);
-      } else {
-        // Fallback to popular channels
-        setChannels([
-          { id: 'base', name: 'Base' },
-          { id: 'farcaster', name: 'Farcaster' },
-          { id: 'dev', name: 'Dev' },
-          { id: 'art', name: 'Art' },
-          { id: 'music', name: 'Music' },
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching channels:', error);
-      // Fallback to popular channels
-      setChannels([
-        { id: 'base', name: 'Base' },
-        { id: 'farcaster', name: 'Farcaster' },
-        { id: 'dev', name: 'Dev' },
-        { id: 'art', name: 'Art' },
-        { id: 'music', name: 'Music' },
-      ]);
-    }
-  }
 
   // Search for users when typing @mentions
   useEffect(() => {

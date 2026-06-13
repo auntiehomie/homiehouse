@@ -37,7 +37,7 @@ function useChannels() {
     const { fid } = JSON.parse(stored);
     if (!fid) { setLoaded(true); return; }
 
-    fetch(`/api/channels?fid=${fid}&limit=200`)
+    fetch(`/api/channels?fid=${fid}&limit=50`)
       .then(r => r.json())
       .then(data => {
         const list: Channel[] = (data.channels || [])

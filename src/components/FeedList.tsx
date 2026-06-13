@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import dynamic from 'next/dynamic';
 import UrlPreview from './UrlPreview';
 import EmbedRenderer from './EmbedRenderer';
 import ParentCastBadge from './ParentCastBadge';
@@ -11,8 +12,46 @@ import { FeedType } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+
+// Heavy markdown libs loaded lazily — not needed until a cast with markdown renders
+const LazyMarkdown = dynamic(
+  async () => {
+    const [{ default: ReactMarkdown }, { default: remarkGfm }] = await Promise.all([
+      import('react-markdown'),
+      import('remark-gfm'),
+    ]);
+    const Md = ({ children, components }: { children: string; components?: any }) => (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{children}</ReactMarkdown>
+    );
+    Md.displayName = 'LazyMarkdown';
+    return Md;
+  },
+  { ssr: false }
+);
+
+// Module-level helpers — defined once, never recreated
+function getUserInterests(): string[] {
+  try {
+    const stored = localStorage.getItem('hh_feed_interests');
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return [];
+}
+
+function scoreCast(cast: any, interests: string[]): number {
+  if (!interests.length) return 0;
+  const text = (cast.text || '').toLowerCase();
+  const channelId = cast.channel?.id?.toLowerCase() || '';
+  let score = 0;
+  for (const interest of interests) {
+    const li = interest.toLowerCase();
+    if (text.includes(li)) score += 10;
+    if (channelId === li) score += 15;
+    const hashtags = text.match(/#\w+/g) || [];
+    if (hashtags.some((tag: string) => tag.toLowerCase().includes(li))) score += 12;
+  }
+  return score;
+}
 
 function renderCastText(text: string) {
   const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
@@ -328,27 +367,20 @@ export default function FeedList({
           console.error('[FeedList] Error reading FID from localStorage:', e);
         }
 
-        const profile = getProfile();
-        console.log('[FeedList] Fetching feed:', { feedType, fid, selectedChannel, hasProfile: !!profile });
+        getProfile();
 
         // Build query params based on feed type and channel
         let url = `/api/feed?feed_type=${feedType}`;
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
 
-        console.log('[FeedList] API URL:', url);
-
         const feedRes = await fetch(url);
-        console.log('[FeedList] API response status:', feedRes.status);
 
         if (feedRes.ok) {
           const json = await feedRes.json();
-          console.log('[FeedList] API response data:', json);
           res = json?.data ?? json;
           nextCursor = json?.cursor || null;
         } else {
-          // fallback to host SDK if server can't provide feed
-          console.log('[FeedList] API failed, using fallback fetchFeed');
           res = await fetchFeed(20);
         }
       } catch (e) {
@@ -356,16 +388,6 @@ export default function FeedList({
         res = await fetchFeed(20);
       }
 
-      console.log('[FeedList] Final items count:', res?.length || 0);
-      if (Array.isArray(res) && res.length > 0) {
-        console.log('[FeedList] First cast structure:', JSON.stringify({
-          hash: res[0]?.hash,
-          hasEmbeds: !!res[0]?.embeds,
-          embedsLength: res[0]?.embeds?.length || 0,
-          embedsData: res[0]?.embeds,
-          firstEmbedKeys: res[0]?.embeds?.[0] ? Object.keys(res[0].embeds[0]) : 'no embeds'
-        }, null, 2));
-      }
       if (mounted) {
         setItems(res);
         setCursor(nextCursor);
@@ -454,71 +476,26 @@ export default function FeedList({
     </div>
   );
 
-  // Get user interests from localStorage
-  const getUserInterests = (): string[] => {
-    try {
-      const stored = localStorage.getItem('hh_feed_interests');
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error('Error loading interests:', e);
+  const filteredItems = useMemo(() => {
+    const interests = getUserInterests();
+    let result = (items || []).filter((it, index) => {
+      const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
+      const rawUser = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
+      const authorUsername = rawUser && /^fid:\d+$/i.test(rawUser) ? null : rawUser;
+      const castHash = it.hash || it.id;
+      if (authorUsername && mutedUsers.has(authorUsername)) return false;
+      if (castHash && hiddenCasts.has(castHash)) return false;
+      if (authorUsername && seeLessAuthors.has(authorUsername)) return index % 4 === 0;
+      return true;
+    });
+    if (interests.length > 0) {
+      result = result
+        .map(cast => ({ ...cast, _interestScore: scoreCast(cast, interests) }))
+        .sort((a, b) => b._interestScore - a._interestScore);
     }
-    return [];
-  };
-
-  // Score a cast based on how well it matches user interests
-  const scoreCast = (cast: any, interests: string[]): number => {
-    if (!interests.length) return 0; // No interests = no scoring
-    
-    const text = (cast.text || '').toLowerCase();
-    const channelId = cast.channel?.id?.toLowerCase() || '';
-    
-    let score = 0;
-    for (const interest of interests) {
-      const lowerInterest = interest.toLowerCase();
-      // Check if interest appears in text
-      if (text.includes(lowerInterest)) score += 10;
-      // Check if interest matches channel
-      if (channelId === lowerInterest) score += 15;
-      // Check if interest is in hashtags
-      const hashtags = text.match(/#\w+/g) || [];
-      if (hashtags.some((tag: string) => tag.toLowerCase().includes(lowerInterest))) score += 12;
-    }
-    return score;
-  };
-
-  const userInterests = getUserInterests();
-
-  // Filter out muted users and hidden casts
-  // Reduce visibility of "see less" authors (show 1 in 4)
-  // Then sort by interest score if user has interests
-  let filteredItems = items.filter((it, index) => {
-    const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
-    const rawUser = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
-    const authorUsername = rawUser && /^fid:\d+$/i.test(rawUser) ? null : rawUser;
-    const castHash = it.hash || it.id;
-
-    if (authorUsername && mutedUsers.has(authorUsername)) return false;
-    if (castHash && hiddenCasts.has(castHash)) return false;
-    
-    // Reduce "see less" authors - only show 25% of their content
-    if (authorUsername && seeLessAuthors.has(authorUsername)) {
-      return index % 4 === 0; // Only show every 4th post
-    }
-    
-    return true;
-  });
-
-  // Apply interest-based sorting if user has set interests
-  if (userInterests.length > 0) {
-    filteredItems = filteredItems
-      .map(cast => ({
-        ...cast,
-        _interestScore: scoreCast(cast, userInterests)
-      }))
-      .sort((a, b) => b._interestScore - a._interestScore);
-  }
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, mutedUsers, hiddenCasts, seeLessAuthors]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (window.scrollY <= 0) touchStartYRef.current = e.touches[0].clientY;
@@ -780,27 +757,21 @@ export default function FeedList({
                 cursor: 'pointer',
               }}
             >
-              {(() => {
-                  return (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
-                        code: ({ node, inline, ...props }: any) =>
-                          inline ?
-                            <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
-                            <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
-                      }}
-                    >
-                      {text}
-                    </ReactMarkdown>
-                  );
-              })()}            </div>
+              <LazyMarkdown
+                components={{
+                  a: ({ node: _node, ...props }: any) => <a {...props} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
+                  code: ({ node, inline, ...props }: any) =>
+                    inline ?
+                      <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
+                      <code {...props} style={{ display: 'block', background: 'rgba(255,255,255,0.1)', padding: '12px', borderRadius: '6px', overflowX: 'auto', fontSize: '0.9em', margin: '8px 0' }} />
+                }}
+              >
+                {text}
+              </LazyMarkdown>            </div>
             
             {/* Display embeds (images, videos, links, etc.) */}
             {Array.isArray(it.embeds) && it.embeds.length > 0 && (
               <>
-                {console.log('[FeedList] Rendering embeds for cast:', { hash: it.hash, embedCount: it.embeds.length, embeds: it.embeds })}
                 <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {it.embeds.map((embed: any, idx: number) => (
                     <EmbedRenderer key={idx} embed={embed} index={idx} />
@@ -1219,7 +1190,6 @@ export default function FeedList({
             {/* Cast Preview */}
             {(() => {
               const cast = items?.find(item => item.hash === showQuoteModal);
-              console.log('Quote modal - showing cast:', cast?.hash, 'from', cast?.author?.username);
               if (cast) {
                 return (
                   <div style={{
@@ -1285,8 +1255,6 @@ export default function FeedList({
                     )}
                   </div>
                 );
-              } else {
-                console.log('No cast found for hash:', showQuoteModal, 'in items:', items?.length);
               }
               return null;
             })()}
