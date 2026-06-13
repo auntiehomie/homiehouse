@@ -45,11 +45,6 @@ function bytesToHex(b: Uint8Array): `0x${string}` {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const APP_MNEMONIC = process.env.APP_MNEMONIC;
   const APP_FID = process.env.APP_FID;
   const APP_WALLET_PRIVATE_KEY = process.env.APP_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
