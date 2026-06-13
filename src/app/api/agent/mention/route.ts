@@ -201,7 +201,8 @@ export async function GET(request: NextRequest) {
           continue;
         }
       } catch {
-        await recordReplyBatch({ trackingKeys, replyHash: 'check-error', commandType: 'mention' });
+        // Transient error — don't blacklist, retry next run
+        console.warn(`[agent/mention] Could not fetch cast ${parentHash} to check replies — will retry`);
         continue;
       }
 
@@ -235,8 +236,8 @@ export async function GET(request: NextRequest) {
         });
         repliedCount++;
       } catch (error: any) {
+        // Don't blacklist on error — let next cron run retry
         console.error(`[agent/mention] Failed to reply to ${castHash}:`, error?.message);
-        await recordReplyBatch({ trackingKeys, replyHash: 'error', commandType: 'mention' });
       }
     }
 
