@@ -7,13 +7,7 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
-
-function getGroq() {
-  return new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: 'https://api.groq.com/openai/v1',
-  });
-}
+import { llmChat } from '@/lib/llm';
 
 const BOT_FID = parseInt(process.env.APP_FID || '1349780');;
 
@@ -218,16 +212,15 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
   }
 
   try {
-    const model = hasImage ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile';
-    const response = await getGroq().chat.completions.create({
-      model,
+    const { message } = await llmChat({
       messages,
-      max_tokens: 150,
+      maxTokens: 150,
       temperature: 0.8,
+      vision: hasImage,
     });
-    return response.choices[0]?.message?.content?.trim() || 'Hey! 🏠';
+    return message.content?.trim() || 'Hey! 🏠';
   } catch (err: any) {
-    console.error('[bot/check] Groq failed:', err?.message);
+    console.error('[bot/check] All AI providers failed:', err?.message);
     return 'Hey! 🏠';
   }
 }
