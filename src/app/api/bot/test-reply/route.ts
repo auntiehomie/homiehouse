@@ -111,6 +111,11 @@ export async function GET(_req: NextRequest) {
 
     // 3. Attempt publishCast — DRY_RUN by default, add ?post=1 to actually post
     const dryRun = url.searchParams.get('post') !== '1';
+    const overrideHub = url.searchParams.get('hubUrl');
+    if (overrideHub) {
+      process.env.FARCASTER_HUB_URL = overrideHub;
+      result.steps.push(`hub override: ${overrideHub}`);
+    }
     result.dryRun = dryRun;
 
     if (!dryRun) {

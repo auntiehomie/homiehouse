@@ -25,7 +25,13 @@ import {
 // Hypersnap hub — supports /v1/submitMessage REST endpoint.
 const HUB_URL =
   (typeof process !== 'undefined' && process.env.FARCASTER_HUB_URL) ||
-  'https://haatz.quilibrium.com';
+  'https://snapchain.farcaster.xyz';
+
+// Fallback hubs tried in order if the primary hub rejects with unknown fid
+const HUB_FALLBACKS = [
+  'https://hoyt.farcaster.xyz',
+  'https://haatz.quilibrium.com',
+];
 
 /** Return the registered Ed25519 signer key for the bot FID. */
 function getAppSignerKey(): { privateKeyHex: string; fid: number } {
@@ -44,34 +50,46 @@ function buildSigner(privateKeyHex: string): NobleEd25519Signer {
   return new NobleEd25519Signer(bytes);
 }
 
+/** POST encoded Message protobuf to a single hub URL. Returns null if the hub is unreachable. */
+async function trySubmitToHub(hubUrl: string, messageBytes: Uint8Array): Promise<{ hash: string } | null> {
+  try {
+    const res = await fetch(`${hubUrl}/v1/submitMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: Buffer.from(messageBytes),
+      // @ts-ignore — AbortSignal.timeout available in Node 18+
+      signal: AbortSignal.timeout(12000),
+    });
+    const body = await res.text();
+    if (!res.ok) {
+      console.error(`[farcaster-writes] Hub ${hubUrl} rejected: ${res.status} ${body.slice(0, 200)}`);
+      return null;
+    }
+    let data: any;
+    try { data = JSON.parse(body); } catch { return { hash: '' }; }
+    const hashB64: string = data.hash ?? '';
+    return { hash: hashB64 ? Buffer.from(hashB64, 'base64').toString('hex') : '' };
+  } catch (err: any) {
+    console.error(`[farcaster-writes] Hub ${hubUrl} error: ${err?.message}`);
+    return null;
+  }
+}
+
 /** POST encoded Message protobuf to the hub's /v1/submitMessage endpoint. */
 async function submitToHub(messageBytes: Uint8Array): Promise<{ hash: string }> {
-  const res = await fetch(`${HUB_URL}/v1/submitMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: Buffer.from(messageBytes),
-    // @ts-ignore — AbortSignal.timeout available in Node 18+
-    signal: AbortSignal.timeout(12000),
-  });
+  // Try primary hub first, then fallbacks
+  const allHubs = [HUB_URL, ...HUB_FALLBACKS.filter(h => h !== HUB_URL)];
+  let lastError = 'All hubs failed';
 
-  const body = await res.text();
-  if (!res.ok) {
-    throw new Error(`Hub ${res.status}: ${body.slice(0, 300)}`);
+  for (const hub of allHubs) {
+    const result = await trySubmitToHub(hub, messageBytes);
+    if (result) {
+      if (hub !== HUB_URL) console.error(`[farcaster-writes] Used fallback hub: ${hub}`);
+      return result;
+    }
   }
 
-  let data: any;
-  try {
-    data = JSON.parse(body);
-  } catch {
-    throw new Error(`Hub returned non-JSON: ${body.slice(0, 200)}`);
-  }
-
-  // hash is base64-encoded in the JSON response; convert to hex
-  const hashB64: string = data.hash ?? '';
-  if (!hashB64) {
-    return { hash: '' };
-  }
-  return { hash: Buffer.from(hashB64, 'base64').toString('hex') };
+  throw new Error(lastError);
 }
 
 /**
