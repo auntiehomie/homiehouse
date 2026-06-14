@@ -102,19 +102,45 @@ async function runTool(name: string, input: Record<string, any>): Promise<string
   return 'Unknown tool.';
 }
 
+/** Walk up the parent chain and return a formatted conversation thread (oldest first). */
+async function fetchThreadChain(parentHash: string | null | undefined): Promise<string> {
+  if (!parentHash) return '';
+  const MAX_DEPTH = 4;
+  const ancestors: Array<{ username: string; text: string }> = [];
+  let currentHash: string | null = parentHash;
+
+  for (let depth = 0; depth < MAX_DEPTH && currentHash; depth++) {
+    try {
+      const data = await fetchCast(currentHash);
+      const c = data?.data?.cast ?? data?.cast;
+      if (!c) break;
+      ancestors.unshift({
+        username: c.author?.username || 'unknown',
+        text: (c.text || '').slice(0, 200),
+      });
+      currentHash = c.parent_hash || null;
+    } catch {
+      break;
+    }
+  }
+
+  return ancestors.map(a => `@${a.username}: "${a.text}"`).join('\n');
+}
+
 async function generateReply(
   castText: string,
   authorUsername: string,
-  memoryContext: string
+  memoryContext: string,
+  threadContext: string,
 ): Promise<string> {
   try {
     const groq = getGroq();
+    const userContent = threadContext
+      ? `Thread context (oldest → newest):\n${threadContext}\n\n@${authorUsername} then mentioned you: "${castText.slice(0, 400)}"\n\nWrite a helpful reply under 280 chars that fits this conversation. Use a tool if you need real-time data.`
+      : `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`;
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: BOT_PERSONA + memoryContext },
-      {
-        role: 'user',
-        content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`,
-      },
+      { role: 'user', content: userContent },
     ];
 
     // Tool-use loop — cap at 3 rounds to bound latency
@@ -262,7 +288,9 @@ export async function GET(request: NextRequest) {
       try {
         attempted++;
         const authorUsername = cast.author?.username || 'friend';
-        const reply = await generateReply(cast.text || '', authorUsername, memoryContext);
+        const threadContext = await fetchThreadChain(cast.parent_hash);
+        if (threadContext) console.log(`[agent/mention] thread context (${threadContext.split('\n').length} turns)`);
+        const reply = await generateReply(cast.text || '', authorUsername, memoryContext, threadContext);
 
         const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
         console.error(`[agent/mention] ATTEMPTING reply to @${authorUsername} (cast ${castHash.slice(0, 10)}): "${reply.slice(0, 60)}"`);
