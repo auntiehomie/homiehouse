@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { llmChat, getLLMProviders } from '@/lib/llm';
 
 export const maxDuration = 30;
-
-function getGroq() {
-  if (!process.env.GROQ_API_KEY) return null;
-  return new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: 'https://api.groq.com/openai/v1',
-  });
-}
 
 interface QuizQuestion {
   question: string;
@@ -93,9 +85,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }
 
-    const groq = getGroq();
-
-    if (!groq) {
+    if (getLLMProviders().length === 0) {
       console.warn('[lesson] No AI provider configured, returning fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives));
     }
@@ -166,15 +156,15 @@ Requirements:
 
     let content: string;
     try {
-      const response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 2000,
-        temperature: 0.7,
+      const { message, provider } = await llmChat({
         messages: [{ role: 'user', content: prompt }],
+        maxTokens: 2000,
+        temperature: 0.7,
       });
-      content = response.choices[0]?.message?.content?.trim() ?? '';
+      content = message.content?.trim() ?? '';
+      console.log(`[lesson] generated via ${provider}`);
     } catch (aiErr: any) {
-      console.error('[lesson] AI call failed, using fallback:', aiErr?.message);
+      console.error('[lesson] All AI providers failed, using fallback:', aiErr?.message);
       return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
     }
 

@@ -7,18 +7,12 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 import { buildFullMemoryContext, savePost } from '@/lib/agent-memory';
+import { llmChat } from '@/lib/llm';
 
 const HOMIEHOUSELOL_FID = parseInt(
   process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
   10
 );
-
-function getGroq() {
-  return new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: 'https://api.groq.com/openai/v1',
-  });
-}
 
 const BOT_PERSONA = `You are @homiehouselol on Farcaster — a helpful friend for anyone learning about crypto, AI, and web3.
 
@@ -134,7 +128,6 @@ async function generateReply(
   threadContext: string,
 ): Promise<string> {
   try {
-    const groq = getGroq();
     const userContent = threadContext
       ? `Thread context (oldest → newest):\n${threadContext}\n\n@${authorUsername} then mentioned you: "${castText.slice(0, 400)}"\n\nWrite a helpful reply under 280 chars that fits this conversation. Use a tool if you need real-time data.`
       : `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`;
@@ -143,17 +136,14 @@ async function generateReply(
       { role: 'user', content: userContent },
     ];
 
-    // Tool-use loop — cap at 3 rounds to bound latency
+    // Tool-use loop — cap at 3 rounds to bound latency. llmChat falls back
+    // across providers (Groq → Gemini → OpenRouter) if one is rate-limited.
     for (let round = 0; round < 3; round++) {
-      const response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 300,
+      const { message: msg } = await llmChat({
         messages,
+        maxTokens: 300,
         tools: TOOLS,
-        tool_choice: 'auto',
       });
-
-      const msg = response.choices[0]?.message;
       if (!msg) break;
 
       if (!msg.tool_calls || msg.tool_calls.length === 0) {
