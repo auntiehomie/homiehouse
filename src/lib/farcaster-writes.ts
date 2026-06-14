@@ -22,15 +22,15 @@ import {
   CastType,
   hexStringToBytes,
 } from '@farcaster/core';
-// Hypersnap hub — supports /v1/submitMessage REST endpoint.
+// Primary hub — supports /v1/submitMessage REST endpoint.
 const HUB_URL =
   (typeof process !== 'undefined' && process.env.FARCASTER_HUB_URL) ||
-  'https://snapchain.farcaster.xyz';
+  'https://haatz.quilibrium.com';
 
-// Fallback hubs tried in order if the primary hub rejects with unknown fid
+// Fallback hubs tried in order if the primary hub rejects
 const HUB_FALLBACKS = [
-  'https://hoyt.farcaster.xyz',
-  'https://haatz.quilibrium.com',
+  'https://ardea.arcabot.ai',
+  'https://snapchain.farcaster.xyz',
 ];
 
 /** Return the registered Ed25519 signer key for the bot FID. */
