@@ -11,6 +11,34 @@ const FAB_HIDDEN_PATHS = ['/learn', '/compose', '/settings'];
 // Module-level cache so channels are fetched once per session, not on every modal open
 let cachedChannels: any[] | null = null;
 
+/** Split long text into thread-sized chunks at natural break points. */
+function splitIntoThread(text: string, limit: number): string[] {
+  if (text.length <= limit) return [text];
+  const parts: string[] = [];
+  let remaining = text.trim();
+
+  while (remaining.length > limit) {
+    const half = Math.floor(limit / 2);
+    // Prefer paragraph → line → sentence → word boundary
+    const candidates = [
+      remaining.lastIndexOf('\n\n', limit),
+      remaining.lastIndexOf('\n', limit),
+      Math.max(
+        remaining.lastIndexOf('. ', limit),
+        remaining.lastIndexOf('! ', limit),
+        remaining.lastIndexOf('? ', limit),
+      ),
+      remaining.lastIndexOf(' ', limit),
+    ];
+    const splitAt = candidates.find(i => i > half) ?? limit;
+    parts.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+
 export default function ComposeModal() {
   const pathname = usePathname();
   const hideFab = FAB_HIDDEN_PATHS.some(p => pathname === p || pathname?.startsWith(p + '/'));
@@ -47,6 +75,7 @@ export default function ComposeModal() {
 
   const CAST_LIMIT = 320;
   const LONG_FORM_LIMIT = 10000;
+  const THREAD_MAX = CAST_LIMIT * 10; // up to ~10 casts per thread
 
   // Legacy stub — no longer needed, writes go direct via useFarcasterWrites
   const getStoredSignerUuid = (): string | undefined => undefined;
@@ -261,8 +290,11 @@ export default function ComposeModal() {
 
       console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
 
-      // In long-form mode only the first 320 chars go to the Farcaster timeline
-      const castText = isLongForm ? text.slice(0, CAST_LIMIT) : text;
+      // Split into thread parts (long-form truncates to one cast)
+      const threadParts = isLongForm
+        ? [text.slice(0, CAST_LIMIT)]
+        : splitIntoThread(text.trim(), CAST_LIMIT);
+      const castText = threadParts[0];
 
       // Prepare cast data (for scheduled path)
       const body: any = { text: castText, fid: userFid };
@@ -348,23 +380,42 @@ export default function ComposeModal() {
           setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
             } else {
-        // Post immediately
+        // Post immediately — single cast or auto-thread
+        const isThread = threadParts.length > 1;
+        if (isThread) setStatus(`Posting thread (1/${threadParts.length})…`);
+
+        // Post first part
+        let prevHash: string;
         if (replyParentHash && replyParentFid) {
-          await reply({
-            text: body.text,
+          const { castHash } = await reply({
+            text: threadParts[0],
             parentCastHash: replyParentHash,
             parentCastFid: replyParentFid,
             embeds: body.embeds,
           });
+          prevHash = castHash;
         } else {
-          await submitCast({
-            text: body.text,
+          const { castHash } = await submitCast({
+            text: threadParts[0],
             embeds: body.embeds,
             channelKey: body.channelKey,
             parentUrl: body.parentUrl,
           });
+          prevHash = castHash;
         }
-        setStatus("✓ Posted successfully!");
+
+        // Chain remaining parts as self-replies
+        for (let i = 1; i < threadParts.length; i++) {
+          setStatus(`Posting thread (${i + 1}/${threadParts.length})…`);
+          const { castHash } = await reply({
+            text: threadParts[i],
+            parentCastHash: prevHash,
+            parentCastFid: userFid!,
+          });
+          prevHash = castHash;
+        }
+
+        setStatus(isThread ? `✓ Thread posted (${threadParts.length} casts)!` : "✓ Posted successfully!");
         setText("");
         setImageUrl("");
         setUploadedImage(null);
@@ -463,7 +514,7 @@ export default function ComposeModal() {
             <div style={{ position: 'relative' }}>
               <textarea
                 value={text}
-                onChange={e => { if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT)) handleTextChange(e); }}
+                onChange={e => { if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : THREAD_MAX)) handleTextChange(e); }}
                 placeholder={isLongForm ? 'Write your long-form cast…' : "What's on your mind?"}
                 autoFocus
                 style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 16, padding: '14px', lineHeight: 1.6, border: '1px solid var(--border)', borderRadius: 12, outline: 'none', resize: 'none', minHeight: isLongForm ? 180 : 130, fontFamily: 'inherit' }}
@@ -575,9 +626,13 @@ export default function ComposeModal() {
                 </button>
               </div>
 
-              {/* Right: char count + Post/Schedule */}
+              {/* Right: char count + thread indicator + Post/Schedule */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 8 }}>
-                {text.length > 260 && (
+                {!isLongForm && text.length > CAST_LIMIT ? (
+                  <span style={{ fontSize: 12, color: '#a78bfa', whiteSpace: 'nowrap' }}>
+                    🧵 {splitIntoThread(text.trim(), CAST_LIMIT).length} casts
+                  </span>
+                ) : text.length > 260 && (
                   <span style={{ fontSize: 12, color: text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40) ? '#f59e0b' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>
                     {text.length}
                   </span>
@@ -587,7 +642,7 @@ export default function ComposeModal() {
                   disabled={!canPost}
                   style={{ padding: '7px 14px', borderRadius: 24, border: 'none', cursor: canPost ? 'pointer' : 'default', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 13, fontWeight: 700, opacity: canPost ? 1 : 0.35, whiteSpace: 'nowrap' }}
                 >
-                  {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}
+                  {loading ? '…' : isScheduled ? 'Schedule' : (!isLongForm && text.length > CAST_LIMIT ? 'Post thread' : 'Post')}
                 </button>
               </div>
             </div>
