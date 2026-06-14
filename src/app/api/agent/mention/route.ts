@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import type { Tool, MessageParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages';
 import { fetchNotifications, fetchCast, searchCasts } from '@/lib/hypersnap';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
 import { publishCast } from '@/lib/farcaster-writes';
@@ -14,6 +12,13 @@ const HOMIEHOUSELOL_FID = parseInt(
   process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
   10
 );
+
+function getGroq() {
+  return new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
+  });
+}
 
 const BOT_PERSONA = `You are @homiehouselol on Farcaster — a helpful friend for anyone learning about crypto, AI, and web3.
 
@@ -29,33 +34,39 @@ Topics you know well: crypto wallets, DeFi, Layer 2, AI in web3, smart contract 
 
 Never start with "Great question!" or use: "fascinating", "incredible", "as an AI language model", "I'd be happy to"`;
 
-const TOOLS: Tool[] = [
+const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
-    name: 'get_token_info',
-    description:
-      'Get current price, market cap, volume, and other details about a cryptocurrency token. Use this when someone asks about a specific token, its price, or market data.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        identifier: {
-          type: 'string',
-          description: 'Token name, symbol (e.g. "ETH"), or contract address',
+    type: 'function',
+    function: {
+      name: 'get_token_info',
+      description:
+        'Get current price, market cap, volume, and other details about a cryptocurrency token. Use this when someone asks about a specific token, its price, or market data.',
+      parameters: {
+        type: 'object',
+        properties: {
+          identifier: {
+            type: 'string',
+            description: 'Token name, symbol (e.g. "ETH"), or contract address',
+          },
         },
+        required: ['identifier'],
       },
-      required: ['identifier'],
     },
   },
   {
-    name: 'search_farcaster_casts',
-    description:
-      'Search recent Farcaster posts about a topic. Use this to find what the community is saying about something before responding.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Search query' },
-        limit: { type: 'number', description: 'Number of results, max 8' },
+    type: 'function',
+    function: {
+      name: 'search_farcaster_casts',
+      description:
+        'Search recent Farcaster posts about a topic. Use this to find what the community is saying about something before responding.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query' },
+          limit: { type: 'number', description: 'Number of results, max 8' },
+        },
+        required: ['query'],
       },
-      required: ['query'],
     },
   },
 ];
@@ -96,11 +107,10 @@ async function generateReply(
   authorUsername: string,
   memoryContext: string
 ): Promise<string> {
-  // Try Claude with tool-use first
   try {
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const messages: MessageParam[] = [
+    const groq = getGroq();
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: 'system', content: BOT_PERSONA + memoryContext },
       {
         role: 'user',
         content: `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`,
@@ -109,60 +119,31 @@ async function generateReply(
 
     // Tool-use loop — cap at 3 rounds to bound latency
     for (let round = 0; round < 3; round++) {
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
         max_tokens: 300,
-        system: BOT_PERSONA + memoryContext,
-        tools: TOOLS,
         messages,
+        tools: TOOLS,
+        tool_choice: 'auto',
       });
 
-      if (response.stop_reason === 'end_turn') {
-        const textBlock = response.content.find((b) => b.type === 'text');
-        if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
-        break;
+      const msg = response.choices[0]?.message;
+      if (!msg) break;
+
+      if (!msg.tool_calls || msg.tool_calls.length === 0) {
+        return (msg.content || '').trim().slice(0, 280) || 'hey! 🏠';
       }
 
-      if (response.stop_reason === 'tool_use') {
-        const toolCalls = response.content.filter((b) => b.type === 'tool_use');
-        const toolResults: ToolResultBlockParam[] = [];
-
-        for (const call of toolCalls) {
-          if (call.type !== 'tool_use') continue;
-          const result = await runTool(call.name, call.input as Record<string, any>);
-          toolResults.push({ type: 'tool_result', tool_use_id: call.id, content: result });
-        }
-
-        messages.push({ role: 'assistant', content: response.content });
-        messages.push({ role: 'user', content: toolResults });
-        continue;
+      // Execute tool calls and feed results back
+      messages.push(msg);
+      for (const call of msg.tool_calls) {
+        const input = JSON.parse(call.function.arguments || '{}');
+        const result = await runTool(call.function.name, input);
+        messages.push({ role: 'tool', tool_call_id: call.id, content: result });
       }
-
-      // Unexpected stop reason — extract whatever text is there
-      const textBlock = response.content.find((b) => b.type === 'text');
-      if (textBlock?.type === 'text') return textBlock.text.trim().slice(0, 280);
-      break;
     }
   } catch (err: any) {
-    console.error('[agent/mention] Claude failed:', err?.message);
-  }
-
-  // Fallback to OpenAI
-  try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: BOT_PERSONA },
-        { role: 'user', content: `@${authorUsername} says: ${castText.slice(0, 500)}` },
-      ],
-      max_tokens: 100,
-      temperature: 0.8,
-    });
-    const text = response.choices[0]?.message?.content?.trim();
-    if (text) return text.slice(0, 280);
-  } catch (err: any) {
-    console.error('[agent/mention] OpenAI fallback failed:', err?.message);
+    console.error('[agent/mention] Groq failed:', err?.message);
   }
 
   return 'hey! 🏠';

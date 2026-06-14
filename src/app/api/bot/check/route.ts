@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import { getDb } from '@/lib/db';
 import { fetchNotifications, fetchCast } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
@@ -9,11 +8,11 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 
-function getBotOpenAI() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-}
-function getBotAnthropic() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getGroq() {
+  return new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
+  });
 }
 
 const BOT_FID = parseInt(process.env.APP_FID || '1349780');;
@@ -194,119 +193,42 @@ async function handleCuration(
 async function generateReply(cast: any, conversationHistory: any[]): Promise<string> {
   const castText = cast.text || '';
   const authorUsername = cast.author?.username || 'unknown';
-  
+
   const { hasImage, imageUrl } = hasImageUrl(castText, cast.embeds);
 
-  // Use GPT-4 Vision for images
+  const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    { role: 'system', content: BOT_PERSONALITY },
+    ...conversationHistory.map((msg: any) => ({
+      role: (msg.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',
+      content: msg.content as string,
+    })),
+  ];
+
+  // Use vision-capable model for images
   if (hasImage && imageUrl) {
-    try {
-      const messages: any[] = [
-        {
-          role: 'system',
-          content: BOT_PERSONALITY
-        }
-      ];
-
-      if (conversationHistory.length > 0) {
-        conversationHistory.forEach(msg => {
-          messages.push({
-            role: msg.role === 'bot' ? 'assistant' : 'user',
-            content: msg.content
-          });
-        });
-      }
-
-      messages.push({
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: `@${authorUsername} says: ${castText}`
-          },
-          {
-            type: 'image_url',
-            image_url: { url: imageUrl }
-          }
-        ]
-      });
-
-      const response = await getBotOpenAI().chat.completions.create({
-        model: 'gpt-4o',
-        messages,
-        max_tokens: 150,
-        temperature: 0.8
-      });
-
-      return response.choices[0]?.message?.content?.trim() || "Hey! 🏠";
-    } catch (error) {
-      console.error('Error with GPT-4 Vision:', error);
-    }
-  }
-
-  // Use Claude for text-only
-  try {
-    const messages: any[] = [];
-    
-    if (conversationHistory.length > 0) {
-      conversationHistory.forEach(msg => {
-        messages.push({
-          role: msg.role === 'bot' ? 'assistant' : 'user',
-          content: msg.content
-        });
-      });
-    }
-
     messages.push({
       role: 'user',
-      content: `@${authorUsername} says: ${castText}`
+      content: [
+        { type: 'text', text: `@${authorUsername} says: ${castText}` },
+        { type: 'image_url', image_url: { url: imageUrl } },
+      ],
     });
-
-    const response = await getBotAnthropic().messages.create({
-      model: 'claude-3-5-sonnet-latest',
-      max_tokens: 150,
-      system: BOT_PERSONALITY,
-      messages
-    });
-
-    const content = response.content[0];
-    if (content.type === 'text') {
-      return content.text.trim();
-    }
-  } catch (error: any) {
-    console.error('Error with Claude:', error?.message);
+  } else {
+    messages.push({ role: 'user', content: `@${authorUsername} says: ${castText}` });
   }
 
-  // Fallback to OpenAI
   try {
-    const messages: any[] = [
-      { role: 'system', content: BOT_PERSONALITY }
-    ];
-
-    if (conversationHistory.length > 0) {
-      conversationHistory.forEach(msg => {
-        messages.push({
-          role: msg.role === 'bot' ? 'assistant' : 'user',
-          content: msg.content
-        });
-      });
-    }
-
-    messages.push({
-      role: 'user',
-      content: `@${authorUsername} says: ${castText}`
-    });
-
-    const response = await getBotOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
+    const model = hasImage ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile';
+    const response = await getGroq().chat.completions.create({
+      model,
       messages,
-      max_tokens: 80,
-      temperature: 0.8
+      max_tokens: 150,
+      temperature: 0.8,
     });
-
-    return response.choices[0]?.message?.content?.trim() || "Hey! 🏠";
-  } catch (error) {
-    console.error('Error with OpenAI fallback:', error);
-    return "Hey! 🏠";
+    return response.choices[0]?.message?.content?.trim() || 'Hey! 🏠';
+  } catch (err: any) {
+    console.error('[bot/check] Groq failed:', err?.message);
+    return 'Hey! 🏠';
   }
 }
 
