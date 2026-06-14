@@ -9,8 +9,7 @@ const HOMIEHOUSELOL_FID = parseInt(
   10
 );
 
-export async function GET(request: NextRequest) {
-  verifyCronSecret(request, process.env.CRON_SECRET);
+export async function GET(_request: NextRequest) {
 
   const results: any = {
     botFid: BOT_FID,

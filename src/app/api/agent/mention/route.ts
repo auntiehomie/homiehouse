@@ -171,7 +171,12 @@ export async function GET(request: NextRequest) {
     const rawNotifications: any[] =
       notifData?.data?.notifications ?? notifData?.notifications ?? [];
 
-    console.log(`[agent/mention] ${rawNotifications.length} notifications for FID ${HOMIEHOUSELOL_FID}`);
+    const notifSummary = rawNotifications.map((n: any) => {
+      const t = n.type ?? n.notification_type ?? '?';
+      const h = ((n.cast ?? n)?.hash ?? '?').slice(0, 10);
+      return `${t}:${h}`;
+    }).join(' | ');
+    console.error(`[agent/mention] DIAG fid=${HOMIEHOUSELOL_FID} count=${rawNotifications.length} types=[${notifSummary}]`);
 
     // Also search for recent casts mentioning @homiehouselol.
     // The notification index can lag by hours; cast search is usually fresh.
