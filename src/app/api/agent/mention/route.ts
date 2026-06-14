@@ -137,8 +137,10 @@ async function generateReply(
       // Execute tool calls and feed results back
       messages.push(msg);
       for (const call of msg.tool_calls) {
-        const input = JSON.parse(call.function.arguments || '{}');
-        const result = await runTool(call.function.name, input);
+        if (call.type !== 'function') continue;
+        const fn = (call as OpenAI.Chat.Completions.ChatCompletionMessageToolCall).function;
+        const input = JSON.parse(fn.arguments || '{}');
+        const result = await runTool(fn.name, input);
         messages.push({ role: 'tool', tool_call_id: call.id, content: result });
       }
     }
