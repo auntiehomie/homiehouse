@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ChatAnthropic } from '@langchain/anthropic';
-import { ChatOpenAI } from '@langchain/openai';
-import { ChatGroq } from '@langchain/groq';
+import OpenAI from 'openai';
 
 export const maxDuration = 30;
+
+function getGroq() {
+  if (!process.env.GROQ_API_KEY) return null;
+  return new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1',
+  });
+}
 
 interface QuizQuestion {
   question: string;
@@ -25,15 +31,6 @@ interface LessonContent {
   quiz: QuizQuestion[];
 }
 
-function getModel() {
-  if (process.env.ANTHROPIC_API_KEY)
-    return new ChatAnthropic({ model: 'claude-sonnet-4-6', temperature: 0.7 });
-  if (process.env.GROQ_API_KEY)
-    return new ChatGroq({ model: 'llama-3.3-70b-versatile', temperature: 0.7 });
-  if (process.env.OPENAI_API_KEY)
-    return new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0.7 });
-  return null;
-}
 
 function fallbackLesson(title: string, description: string, objectives: string[]): LessonContent {
   return {
@@ -95,9 +92,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }
 
-    const model = getModel();
+    const groq = getGroq();
 
-    if (!model) {
+    if (!groq) {
       console.warn('[lesson] No AI provider configured, returning fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives));
     }
@@ -166,10 +163,19 @@ Requirements:
 - Accessible to someone at the ${difficulty} level
 - Quiz should feel like a checkpoint, not a trick test`;
 
-    const response = await model.invoke(prompt);
-    const content = typeof response.content === 'string'
-      ? response.content
-      : JSON.stringify(response.content);
+    let content: string;
+    try {
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 2000,
+        temperature: 0.7,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      content = response.choices[0]?.message?.content?.trim() ?? '';
+    } catch (aiErr: any) {
+      console.error('[lesson] AI call failed, using fallback:', aiErr?.message);
+      return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
+    }
 
     const cleaned = content
       .replace(/^```(?:json)?\s*/i, '')
@@ -187,6 +193,6 @@ Requirements:
     return NextResponse.json(lesson);
   } catch (error: any) {
     console.error('[lesson] Error:', error?.message || error);
-    return NextResponse.json({ error: 'Failed to generate lesson' }, { status: 500 });
+    return NextResponse.json(fallbackLesson('', '', []));
   }
 }
