@@ -36,16 +36,17 @@ function fallbackLesson(title: string, description: string, objectives: string[]
   return {
     intro: `This module covers ${title.toLowerCase()}. ${description}`,
     concepts: objectives.slice(0, 3).map((obj, i) => ({
-      title: `Concept ${i + 1}`,
-      explanation: obj,
+      title: obj.replace(/^(understand|explain|learn|identify|describe|explore)\s+/i, '').replace(/^\w/, (c: string) => c.toUpperCase()),
+      explanation: `This concept covers: ${obj.charAt(0).toLowerCase() + obj.slice(1)}. Take your time here — understanding this building block will make the rest of the module click into place.`,
+      analogy: i === 0 ? `Think of ${title} like learning a new city: you start with a map (the overview), then explore each neighborhood (the concepts) one at a time.` : undefined,
     })),
-    practicalExample: `As you work through ${title}, look for real-world applications in the projects and communities you already follow.`,
+    practicalExample: `Try searching Farcaster or Google for "${title}" to see how practitioners talk about it in the real world. Look for specific tools, projects, or use cases that match what you're learning here.`,
     quickActions: [
-      'Read through the objectives above carefully',
-      'Search Farcaster for conversations about this topic',
-      'Take notes on 3 things you want to remember',
+      `Search Farcaster for "${title}" and read 3 recent posts`,
+      'Write down one question this module raised that you want to dig into later',
+      `Find one project or app that uses ${title.split(' ')[0]} in the wild and bookmark it`,
     ],
-    summary: `Completing this module will give you a solid foundation in ${title.toLowerCase()} and prepare you for the next step in your learning journey.`,
+    summary: `${title} is a core piece of the Web3 stack. Understanding it gives you a foundation for evaluating real projects and making better decisions as a participant in decentralized systems.`,
     quiz: [
       {
         question: `What is the main purpose of this module on ${title}?`,
