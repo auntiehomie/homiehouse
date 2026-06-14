@@ -328,15 +328,7 @@ export async function GET(request: NextRequest) {
         
         logger.info(`No existing reply found for parent ${parentHash}, proceeding to reply`);
       } catch (error) {
-        logger.error(`Error checking replies for parent ${parentHash}`, error);
-        // If we can't check reliably, assume we've replied to be safe
-        logger.warn('Skipping cast due to check error (being conservative)');
-        await recordReplyBatch({
-          trackingKeys,
-          replyHash: 'check-error',
-          commandType: 'mention',
-        });
-        continue;
+        logger.warn(`Could not fetch cast ${parentHash} to check for existing replies — proceeding`);
       }
 
       try {

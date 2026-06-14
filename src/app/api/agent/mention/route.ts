@@ -239,9 +239,8 @@ export async function GET(request: NextRequest) {
           continue;
         }
       } catch {
-        // Transient error — don't blacklist, retry next run
-        console.warn(`[agent/mention] Could not fetch cast ${parentHash} to check replies — will retry`);
-        continue;
+        // fetchCast failed — proceed to reply anyway rather than silently skipping
+        console.warn(`[agent/mention] Could not fetch cast ${parentHash} to check for existing replies — proceeding`);
       }
 
       try {
