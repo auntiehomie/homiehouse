@@ -140,8 +140,8 @@ export function validateUsername(username: string): string {
     throw new ValidationError('Username cannot be empty', 'username');
   }
 
-  // Username should be alphanumeric with hyphens and underscores
-  const usernameRegex = /^[a-z0-9_-]+$/i;
+  // Allow dots for .eth / .farcaster ENS-style usernames
+  const usernameRegex = /^[a-z0-9_.-]+$/i;
   
   if (!usernameRegex.test(cleanUsername)) {
     throw new ValidationError('Invalid username format', 'username');
