@@ -200,8 +200,9 @@ export async function GET(request: NextRequest) {
 
     const notifications = [...rawNotifications, ...searchMentions];
 
+    let attempted = 0;
     for (const notification of notifications) {
-      if (repliedCount >= 1) break; // One reply per cron run
+      if (attempted >= 1) break; // One Groq call per cron run regardless of outcome
 
       const cast = notification.cast ?? notification;
       const notifType = notification.type ?? notification.notification_type;
@@ -249,6 +250,7 @@ export async function GET(request: NextRequest) {
       }
 
       try {
+        attempted++;
         const authorUsername = cast.author?.username || 'friend';
         const reply = await generateReply(cast.text || '', authorUsername, memoryContext);
 

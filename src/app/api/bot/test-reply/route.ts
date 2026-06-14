@@ -24,6 +24,7 @@ function getGroq() {
 }
 
 export async function GET(_req: NextRequest) {
+  const url = new URL(_req.url);
   const result: any = {
     fid: HOMIEHOUSELOL_FID,
     groqKeySet: !!process.env.GROQ_API_KEY,
@@ -81,29 +82,34 @@ export async function GET(_req: NextRequest) {
     };
     result.steps.push(`candidate: @${candidate.cast.author?.username} "${(candidate.cast.text||'').slice(0,50)}"`);
 
-    // 2. Generate reply via Groq
+    // 2. Generate reply (skip Groq if ?skipGroq=1)
+    const skipGroq = url.searchParams.get('skipGroq') === '1';
     let reply: string;
-    try {
-      const groq = getGroq();
-      const response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 150,
-        messages: [
-          { role: 'system', content: 'You are @homiehouselol, a helpful crypto/web3 friend on Farcaster. Reply in under 280 chars. Be warm and direct.' },
-          { role: 'user', content: `@${candidate.cast.author?.username} said: "${(candidate.cast.text || '').slice(0, 300)}"` },
-        ],
-      });
-      reply = response.choices[0]?.message?.content?.trim() || 'hey! 🏠';
-      result.groqReply = reply;
-      result.steps.push(`groq: generated "${reply.slice(0, 60)}"`);
-    } catch (groqErr: any) {
-      result.groqError = groqErr?.message;
-      result.steps.push(`groq FAILED: ${groqErr?.message}`);
-      return NextResponse.json(result);
+    if (skipGroq) {
+      reply = 'hey! 🏠';
+      result.steps.push('groq: skipped (skipGroq=1), using fallback text');
+    } else {
+      try {
+        const groq = getGroq();
+        const response = await groq.chat.completions.create({
+          model: 'llama-3.3-70b-versatile',
+          max_tokens: 150,
+          messages: [
+            { role: 'system', content: 'You are @homiehouselol, a helpful crypto/web3 friend on Farcaster. Reply in under 280 chars. Be warm and direct.' },
+            { role: 'user', content: `@${candidate.cast.author?.username} said: "${(candidate.cast.text || '').slice(0, 300)}"` },
+          ],
+        });
+        reply = response.choices[0]?.message?.content?.trim() || 'hey! 🏠';
+        result.groqReply = reply;
+        result.steps.push(`groq: generated "${reply.slice(0, 60)}"`);
+      } catch (groqErr: any) {
+        result.groqError = groqErr?.message;
+        result.steps.push(`groq FAILED: ${groqErr?.message} — retry with ?skipGroq=1&post=1`);
+        return NextResponse.json(result);
+      }
     }
 
-    // 3. Attempt publishCast — DRY_RUN: set dryRun=false in URL to actually post
-    const url = new URL(_req.url);
+    // 3. Attempt publishCast — DRY_RUN by default, add ?post=1 to actually post
     const dryRun = url.searchParams.get('post') !== '1';
     result.dryRun = dryRun;
 
