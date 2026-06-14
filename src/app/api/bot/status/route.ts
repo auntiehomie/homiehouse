@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchNotifications, fetchCast, searchCasts } from '@/lib/hypersnap';
+import { fetchNotifications, fetchCast, searchCasts, hypersnapFetch } from '@/lib/hypersnap';
 import { hasRepliedToAny } from '@/lib/bot-reply-storage';
-import { verifyCronSecret } from '@/lib/auth';
+import { ed25519 } from '@noble/curves/ed25519';
 
 const BOT_FID = parseInt(process.env.APP_FID || '0');
 const HOMIEHOUSELOL_FID = parseInt(
@@ -101,6 +101,32 @@ export async function GET(_request: NextRequest) {
     }
   } catch (err: any) {
     results.errors.push({ step: 'searchCasts', error: err?.message });
+  }
+
+  // Check if the current signer key is registered on-chain for this FID
+  try {
+    const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
+    if (signerKey) {
+      const pubKeyBytes = ed25519.getPublicKey(Buffer.from(signerKey, 'hex'));
+      const pubKeyHex = `0x${Buffer.from(pubKeyBytes).toString('hex')}`;
+      results.signerPublicKeyPrefix = pubKeyHex.slice(2, 18) + '...';
+
+      const signerData = await hypersnapFetch(`/v1/signersByFid?fid=${HOMIEHOUSELOL_FID}`);
+      const signers: any[] = signerData?.signers ?? [];
+      const registeredKeys = signers.map((s: any) =>
+        (s.signerEventBody?.key ?? s.key ?? '').toLowerCase()
+      );
+      results.signerRegistered = registeredKeys.some(
+        k => k === pubKeyHex.toLowerCase() || k === pubKeyHex.slice(2).toLowerCase()
+      );
+      results.registeredSignerCount = signers.length;
+    } else {
+      results.signerRegistered = false;
+      results.signerKeyMissing = true;
+    }
+  } catch (err: any) {
+    results.errors.push({ step: 'signerCheck', error: err?.message });
+    results.signerRegistered = null;
   }
 
   return NextResponse.json(results);
