@@ -11,6 +11,34 @@ const FAB_HIDDEN_PATHS = ['/learn', '/compose', '/settings'];
 // Module-level cache so channels are fetched once per session, not on every modal open
 let cachedChannels: any[] | null = null;
 
+/** Split long text into thread-sized chunks at natural break points. */
+function splitIntoThread(text: string, limit: number): string[] {
+  if (text.length <= limit) return [text];
+  const parts: string[] = [];
+  let remaining = text.trim();
+
+  while (remaining.length > limit) {
+    const half = Math.floor(limit / 2);
+    // Prefer paragraph → line → sentence → word boundary
+    const candidates = [
+      remaining.lastIndexOf('\n\n', limit),
+      remaining.lastIndexOf('\n', limit),
+      Math.max(
+        remaining.lastIndexOf('. ', limit),
+        remaining.lastIndexOf('! ', limit),
+        remaining.lastIndexOf('? ', limit),
+      ),
+      remaining.lastIndexOf(' ', limit),
+    ];
+    const splitAt = candidates.find(i => i > half) ?? limit;
+    parts.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+
 export default function ComposeModal() {
   const pathname = usePathname();
   const hideFab = FAB_HIDDEN_PATHS.some(p => pathname === p || pathname?.startsWith(p + '/'));
@@ -44,9 +72,12 @@ export default function ComposeModal() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [isLongForm, setIsLongForm] = useState(false);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
 
   const CAST_LIMIT = 320;
   const LONG_FORM_LIMIT = 10000;
+  const THREAD_MAX = CAST_LIMIT * 10; // up to ~10 casts per thread
 
   // Legacy stub — no longer needed, writes go direct via useFarcasterWrites
   const getStoredSignerUuid = (): string | undefined => undefined;
@@ -76,6 +107,18 @@ export default function ComposeModal() {
     { id: 'art', name: 'Art' },
     { id: 'music', name: 'Music' },
   ];
+
+  // Check for saved draft when modal opens with no pre-filled text
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem('hh_compose_draft');
+      if (raw && !text) {
+        const draft = JSON.parse(raw);
+        if (draft.text) setHasDraft(true);
+      }
+    } catch {}
+  }, [open]);
 
   // Fetch channels when modal first opens — cached in module scope for the session
   useEffect(() => {
@@ -261,8 +304,11 @@ export default function ComposeModal() {
 
       console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
 
-      // In long-form mode only the first 320 chars go to the Farcaster timeline
-      const castText = isLongForm ? text.slice(0, CAST_LIMIT) : text;
+      // Split into thread parts (long-form truncates to one cast)
+      const threadParts = isLongForm
+        ? [text.slice(0, CAST_LIMIT)]
+        : splitIntoThread(text.trim(), CAST_LIMIT);
+      const castText = threadParts[0];
 
       // Prepare cast data (for scheduled path)
       const body: any = { text: castText, fid: userFid };
@@ -348,23 +394,42 @@ export default function ComposeModal() {
           setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
             } else {
-        // Post immediately
+        // Post immediately — single cast or auto-thread
+        const isThread = threadParts.length > 1;
+        if (isThread) setStatus(`Posting thread (1/${threadParts.length})…`);
+
+        // Post first part
+        let prevHash: string;
         if (replyParentHash && replyParentFid) {
-          await reply({
-            text: body.text,
+          const { castHash } = await reply({
+            text: threadParts[0],
             parentCastHash: replyParentHash,
             parentCastFid: replyParentFid,
             embeds: body.embeds,
           });
+          prevHash = castHash;
         } else {
-          await submitCast({
-            text: body.text,
+          const { castHash } = await submitCast({
+            text: threadParts[0],
             embeds: body.embeds,
             channelKey: body.channelKey,
             parentUrl: body.parentUrl,
           });
+          prevHash = castHash;
         }
-        setStatus("✓ Posted successfully!");
+
+        // Chain remaining parts as self-replies
+        for (let i = 1; i < threadParts.length; i++) {
+          setStatus(`Posting thread (${i + 1}/${threadParts.length})…`);
+          const { castHash } = await reply({
+            text: threadParts[i],
+            parentCastHash: prevHash,
+            parentCastFid: userFid!,
+          });
+          prevHash = castHash;
+        }
+
+        setStatus(isThread ? `✓ Thread posted (${threadParts.length} casts)!` : "✓ Posted successfully!");
         setText("");
         setImageUrl("");
         setUploadedImage(null);
@@ -391,7 +456,36 @@ export default function ComposeModal() {
     color: 'var(--muted-on-dark)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center',
   };
 
-  function closeModal() {
+  function saveDraft() {
+    if (!text.trim()) return;
+    localStorage.setItem('hh_compose_draft', JSON.stringify({
+      text,
+      imageUrl,
+      selectedChannel,
+      timestamp: Date.now(),
+    }));
+  }
+
+  function restoreDraft() {
+    try {
+      const raw = localStorage.getItem('hh_compose_draft');
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.text) setText(draft.text);
+      if (draft.imageUrl) setImageUrl(draft.imageUrl);
+      if (draft.selectedChannel) setSelectedChannel(draft.selectedChannel);
+    } catch {}
+    setHasDraft(false);
+  }
+
+  function dismissDraft() {
+    localStorage.removeItem('hh_compose_draft');
+    setHasDraft(false);
+  }
+
+  function doClose() {
+    setShowDraftDialog(false);
+    setHasDraft(false);
     setOpen(false);
     setText('');
     setImageUrl('');
@@ -402,6 +496,14 @@ export default function ComposeModal() {
     setReplyParentHash(null);
     setReplyParentFid(null);
     setReplyParentName(null);
+  }
+
+  function closeModal() {
+    if (text.trim() && !showDraftDialog) {
+      setShowDraftDialog(true);
+      return;
+    }
+    doClose();
   }
 
   const canPost = !loading && !uploadingImage && (!!text.trim() || !!imageUrl.trim()) && (!isScheduled || !!scheduleTime);
@@ -448,6 +550,17 @@ export default function ComposeModal() {
               </div>
             )}
 
+            {/* Draft restore banner */}
+            {hasDraft && !text && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', marginBottom: 10, background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 10 }}>
+                <span style={{ fontSize: 13, color: '#a78bfa' }}>You have a saved draft</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={restoreDraft} style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Restore</button>
+                  <button onClick={dismissDraft} style={{ fontSize: 12, color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Discard</button>
+                </div>
+              </div>
+            )}
+
             {/* Long-form toggle */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <button
@@ -463,7 +576,7 @@ export default function ComposeModal() {
             <div style={{ position: 'relative' }}>
               <textarea
                 value={text}
-                onChange={e => { if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT)) handleTextChange(e); }}
+                onChange={e => { if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : THREAD_MAX)) handleTextChange(e); }}
                 placeholder={isLongForm ? 'Write your long-form cast…' : "What's on your mind?"}
                 autoFocus
                 style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 16, padding: '14px', lineHeight: 1.6, border: '1px solid var(--border)', borderRadius: 12, outline: 'none', resize: 'none', minHeight: isLongForm ? 180 : 130, fontFamily: 'inherit' }}
@@ -538,6 +651,21 @@ export default function ComposeModal() {
             <div style={{ height: 72 }} />
           </div>
 
+          {/* Save draft dialog */}
+          {showDraftDialog && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.6)' }}>
+              <div style={{ width: '100%', background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', borderRadius: '16px 16px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
+                <p style={{ margin: '0 0 16px', fontWeight: 700, fontSize: 16, textAlign: 'center' }}>Save draft?</p>
+                <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--muted-on-dark)', textAlign: 'center' }}>Your cast will be saved so you can finish it later.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button onClick={() => { saveDraft(); doClose(); }} style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Save draft</button>
+                  <button onClick={doClose} style={{ width: '100%', padding: '13px', borderRadius: 12, border: '1px solid var(--border)', background: 'none', color: '#ef4444', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Discard</button>
+                  <button onClick={() => setShowDraftDialog(false)} style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'none', color: 'var(--muted-on-dark)', fontSize: 15, cursor: 'pointer' }}>Keep editing</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Bottom toolbar — same pattern as compose page */}
           <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
             {/* Channel picker (opens upward) */}
@@ -575,9 +703,13 @@ export default function ComposeModal() {
                 </button>
               </div>
 
-              {/* Right: char count + Post/Schedule */}
+              {/* Right: char count + thread indicator + Post/Schedule */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 8 }}>
-                {text.length > 260 && (
+                {!isLongForm && text.length > CAST_LIMIT ? (
+                  <span style={{ fontSize: 12, color: '#a78bfa', whiteSpace: 'nowrap' }}>
+                    🧵 {splitIntoThread(text.trim(), CAST_LIMIT).length} casts
+                  </span>
+                ) : text.length > 260 && (
                   <span style={{ fontSize: 12, color: text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40) ? '#f59e0b' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>
                     {text.length}
                   </span>
@@ -587,7 +719,7 @@ export default function ComposeModal() {
                   disabled={!canPost}
                   style={{ padding: '7px 14px', borderRadius: 24, border: 'none', cursor: canPost ? 'pointer' : 'default', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 13, fontWeight: 700, opacity: canPost ? 1 : 0.35, whiteSpace: 'nowrap' }}
                 >
-                  {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}
+                  {loading ? '…' : isScheduled ? 'Schedule' : (!isLongForm && text.length > CAST_LIMIT ? 'Post thread' : 'Post')}
                 </button>
               </div>
             </div>
