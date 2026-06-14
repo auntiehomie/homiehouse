@@ -216,6 +216,16 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
+      // Skip mentions older than 24 hours to avoid processing the backlog
+      const FARCASTER_EPOCH_MS = 1609459200000;
+      const ts: number = cast.timestamp ?? 0;
+      const castMs = ts > 1_000_000_000_000 ? ts : ts > 1_000_000_000 ? ts * 1000 : FARCASTER_EPOCH_MS + ts * 1000;
+      const ageHours = (Date.now() - castMs) / 3_600_000;
+      if (ts && ageHours > 24) {
+        console.log(`[agent/mention] skip: ${cast.hash?.slice(0, 10)} is ${ageHours.toFixed(1)}h old`);
+        continue;
+      }
+
       const castHash = cast.hash;
       const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
       const rootParentHash = cast.root_parent_url || parentHash;
