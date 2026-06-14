@@ -72,6 +72,8 @@ export default function ComposeModal() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const [isLongForm, setIsLongForm] = useState(false);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
 
   const CAST_LIMIT = 320;
   const LONG_FORM_LIMIT = 10000;
@@ -105,6 +107,18 @@ export default function ComposeModal() {
     { id: 'art', name: 'Art' },
     { id: 'music', name: 'Music' },
   ];
+
+  // Check for saved draft when modal opens with no pre-filled text
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem('hh_compose_draft');
+      if (raw && !text) {
+        const draft = JSON.parse(raw);
+        if (draft.text) setHasDraft(true);
+      }
+    } catch {}
+  }, [open]);
 
   // Fetch channels when modal first opens — cached in module scope for the session
   useEffect(() => {
@@ -442,7 +456,36 @@ export default function ComposeModal() {
     color: 'var(--muted-on-dark)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center',
   };
 
-  function closeModal() {
+  function saveDraft() {
+    if (!text.trim()) return;
+    localStorage.setItem('hh_compose_draft', JSON.stringify({
+      text,
+      imageUrl,
+      selectedChannel,
+      timestamp: Date.now(),
+    }));
+  }
+
+  function restoreDraft() {
+    try {
+      const raw = localStorage.getItem('hh_compose_draft');
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.text) setText(draft.text);
+      if (draft.imageUrl) setImageUrl(draft.imageUrl);
+      if (draft.selectedChannel) setSelectedChannel(draft.selectedChannel);
+    } catch {}
+    setHasDraft(false);
+  }
+
+  function dismissDraft() {
+    localStorage.removeItem('hh_compose_draft');
+    setHasDraft(false);
+  }
+
+  function doClose() {
+    setShowDraftDialog(false);
+    setHasDraft(false);
     setOpen(false);
     setText('');
     setImageUrl('');
@@ -453,6 +496,14 @@ export default function ComposeModal() {
     setReplyParentHash(null);
     setReplyParentFid(null);
     setReplyParentName(null);
+  }
+
+  function closeModal() {
+    if (text.trim() && !showDraftDialog) {
+      setShowDraftDialog(true);
+      return;
+    }
+    doClose();
   }
 
   const canPost = !loading && !uploadingImage && (!!text.trim() || !!imageUrl.trim()) && (!isScheduled || !!scheduleTime);
@@ -496,6 +547,17 @@ export default function ComposeModal() {
             {replyParentName && (
               <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 10 }}>
                 Replying to <strong style={{ color: 'var(--text-on-dark)' }}>@{replyParentName}</strong>
+              </div>
+            )}
+
+            {/* Draft restore banner */}
+            {hasDraft && !text && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', marginBottom: 10, background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 10 }}>
+                <span style={{ fontSize: 13, color: '#a78bfa' }}>You have a saved draft</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={restoreDraft} style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Restore</button>
+                  <button onClick={dismissDraft} style={{ fontSize: 12, color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Discard</button>
+                </div>
               </div>
             )}
 
@@ -588,6 +650,21 @@ export default function ComposeModal() {
             {/* Bottom breathing room so toolbar doesn't cover content */}
             <div style={{ height: 72 }} />
           </div>
+
+          {/* Save draft dialog */}
+          {showDraftDialog && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.6)' }}>
+              <div style={{ width: '100%', background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', borderRadius: '16px 16px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
+                <p style={{ margin: '0 0 16px', fontWeight: 700, fontSize: 16, textAlign: 'center' }}>Save draft?</p>
+                <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--muted-on-dark)', textAlign: 'center' }}>Your cast will be saved so you can finish it later.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button onClick={() => { saveDraft(); doClose(); }} style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Save draft</button>
+                  <button onClick={doClose} style={{ width: '100%', padding: '13px', borderRadius: 12, border: '1px solid var(--border)', background: 'none', color: '#ef4444', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Discard</button>
+                  <button onClick={() => setShowDraftDialog(false)} style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'none', color: 'var(--muted-on-dark)', fontSize: 15, cursor: 'pointer' }}>Keep editing</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Bottom toolbar — same pattern as compose page */}
           <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
