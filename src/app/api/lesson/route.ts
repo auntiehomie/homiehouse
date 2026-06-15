@@ -240,7 +240,7 @@ FACTUAL CONTEXT — Web3 Security & Opsec:
 - Seed phrase attacks: legitimate services NEVER ask for your seed phrase. Anyone who does is a scammer
 - Hardware wallets (Ledger, Trezor): keys never touch the internet; best for funds you don't trade daily
 - Multisig (Gnosis Safe): requires M-of-N signatures to execute a transaction — best for DAO treasuries and large holdings
-- "Approval phishing" is now the #1 attack vector: you sign a `setApprovalForAll` and the attacker drains your NFTs/tokens
+- "Approval phishing" is now the #1 attack vector: you sign a setApprovalForAll transaction and the attacker drains your NFTs/tokens
 - SIM swap: attackers bribe phone carriers to redirect your number, breaking SMS 2FA. Use authenticator apps (not SMS) for all crypto exchange accounts`,
 
       isFarcasterHistory && `
