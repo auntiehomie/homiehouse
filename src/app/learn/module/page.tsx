@@ -38,20 +38,31 @@ interface LessonContent {
 type CardDef =
   | { type: 'intro'; label: string; content: string }
   | { type: 'why'; label: string; content: string }
-  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string }
+  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: 1 | 2 | 3 }
   | { type: 'example'; label: string; content: string }
   | { type: 'actions'; label: string; items: string[] }
   | { type: 'summary'; label: string; content: string }
   | { type: 'quiz'; label: string; question: QuizQuestion; qIndex: number; total: number }
   | { type: 'complete'; label: string };
 
+function splitConceptText(text: string): [string, string] {
+  const sentences = text.replace(/([.!?])\s+/g, '$1|||').split('|||').filter(Boolean);
+  if (sentences.length <= 2) return [text, ''];
+  const mid = Math.ceil(sentences.length / 2);
+  return [sentences.slice(0, mid).join(' '), sentences.slice(mid).join(' ')];
+}
+
 function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
   const cards: CardDef[] = [];
   cards.push({ type: 'intro', label: 'Introduction', content: lesson.intro });
   cards.push({ type: 'why', label: 'Why It Matters', content: mod.whyItMatters });
-  lesson.concepts.forEach((c, i) =>
-    cards.push({ type: 'concept', label: `Concept ${i + 1} of ${lesson.concepts.length}`, ...c })
-  );
+  lesson.concepts.forEach((c, i) => {
+    const base = `Concept ${i + 1} of ${lesson.concepts.length}`;
+    const [p1, p2] = splitConceptText(c.explanation);
+    cards.push({ type: 'concept', label: `${base} · 1/3`, title: c.title, explanation: p1, part: 1 });
+    cards.push({ type: 'concept', label: `${base} · 2/3`, title: c.title, explanation: p2 || p1, part: 2 });
+    cards.push({ type: 'concept', label: `${base} · 3/3`, title: c.title, explanation: '', analogy: c.analogy, part: 3 });
+  });
   cards.push({ type: 'example', label: 'Real-World Example', content: lesson.practicalExample });
   cards.push({ type: 'actions', label: 'Try It Now', items: lesson.quickActions });
   cards.push({ type: 'summary', label: 'Key Takeaway', content: lesson.summary });
@@ -112,25 +123,44 @@ function WhyCard({ content }: { content: string }) {
   );
 }
 
-function ConceptCard({ title, explanation, analogy }: { title: string; explanation: string; analogy?: string }) {
+function ConceptCard({ title, explanation, analogy, part }: { title: string; explanation: string; analogy?: string; part: 1 | 2 | 3 }) {
+  if (part === 3) {
+    return (
+      <CardBody>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          {title}
+        </p>
+        <div style={{ padding: '20px', borderRadius: 16, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)' }}>
+          <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: '0 0 10px', fontWeight: 600 }}>Think of it this way…</p>
+          <p style={{ fontSize: 17, color: '#c7d2fe', margin: 0, lineHeight: 1.75, fontStyle: 'italic' }}>
+            🔁 {analogy ?? 'No analogy provided.'}
+          </p>
+        </div>
+      </CardBody>
+    );
+  }
+
+  if (part === 2) {
+    return (
+      <CardBody>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          {title} — continued
+        </p>
+        <p style={{ fontSize: 17, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.85 }}>
+          {explanation}
+        </p>
+      </CardBody>
+    );
+  }
+
   return (
     <CardBody>
       <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.3 }}>
         {title}
       </h2>
-      <p style={{ fontSize: 16, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.8 }}>
+      <p style={{ fontSize: 17, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.85 }}>
         {explanation}
       </p>
-      {analogy && (
-        <div style={{
-          padding: '14px 16px', borderRadius: 12,
-          background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
-        }}>
-          <p style={{ fontSize: 15, color: '#a5b4fc', margin: 0, lineHeight: 1.7, fontStyle: 'italic' }}>
-            🔁 {analogy}
-          </p>
-        </div>
-      )}
     </CardBody>
   );
 }
@@ -567,7 +597,7 @@ function ModuleLessonContent() {
               {currentCard.type === 'intro' && <IntroCard content={currentCard.content} />}
               {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
               {currentCard.type === 'concept' && (
-                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} />
+                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} />
               )}
               {currentCard.type === 'example' && <ExampleCard content={currentCard.content} />}
               {currentCard.type === 'actions' && <ActionsCard items={currentCard.items} />}

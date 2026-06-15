@@ -358,8 +358,8 @@ function ComposePageInner() {
           setUrlPreview(null);
           setDetectedUrl(null);
           setTimeout(() => {
-            router.push('/');
-          }, 800);
+            router.back();
+          }, 1500);
         } else {
           const errorMsg = data.error || data.message || "unknown error";
           const errorCode = data.code || '';
@@ -381,8 +381,8 @@ function ComposePageInner() {
         setUrlPreview(null);
         setDetectedUrl(null);
         setTimeout(() => {
-          router.push('/');
-        }, 800);
+          router.back();
+        }, 1500);
       }
     } catch (err: any) {
       setStatus(String(err?.message || err));
