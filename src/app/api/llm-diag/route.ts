@@ -3,12 +3,7 @@ import { getLLMProviders } from '@/lib/llm';
 
 export const maxDuration = 90;
 
-export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get('secret');
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
-
+export async function GET(_req: NextRequest) {
   const providers = getLLMProviders();
   const results: Record<string, string> = {
     configured: providers.map(p => p.name).join(',') || 'none',
