@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import OpenAI from 'openai';
 import { llmChat, getLLMProviders } from '@/lib/llm';
 
 export const maxDuration = 60;
@@ -314,19 +315,73 @@ Requirements:
 - Authoritative but accessible tone — treat the reader as smart, not as a beginner who needs hand-holding
 - NEVER use placeholder text or generic statements. Every sentence must teach something specific.`;
 
-    let content: string;
-    try {
-      const { message, provider } = await llmChat({
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: 2500,
-        temperature: 0.7,
+    let content = '';
+    let usedProvider = '';
+
+    // ── Tier 1: Perplexity Sonar — real-time web search baked in ──────────────
+    if (process.env.PERPLEXITY_API_KEY) {
+      const perplexityClient = new OpenAI({
+        apiKey: process.env.PERPLEXITY_API_KEY,
+        baseURL: 'https://api.perplexity.ai',
       });
-      content = message.content?.trim() ?? '';
-      console.error(`[lesson] generated via ${provider} (${content.length} chars)`);
-    } catch (aiErr: any) {
-      console.error('[lesson] All AI providers failed, using fallback:', aiErr?.message);
-      return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 25000);
+      try {
+        const res = await perplexityClient.chat.completions.create(
+          { model: 'llama-3.1-sonar-small-128k-online', messages: [{ role: 'user', content: prompt }], max_tokens: 2500, temperature: 0.7 },
+          { signal: ctrl.signal },
+        );
+        clearTimeout(t);
+        content = res.choices[0]?.message?.content?.trim() ?? '';
+        if (content) usedProvider = 'perplexity-sonar';
+      } catch {
+        clearTimeout(t);
+      }
     }
+
+    // ── Tier 2: Tavily web search → inject context → existing LLM providers ──
+    if (!content) {
+      let enrichedPrompt = prompt;
+      if (process.env.TAVILY_API_KEY) {
+        const searchQuery = [title, ...(tags ?? []).slice(0, 2), 'blockchain cryptocurrency 2026'].join(' ');
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 8000);
+        try {
+          const r = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query: searchQuery, max_results: 4, search_depth: 'basic' }),
+            signal: ctrl.signal,
+          });
+          clearTimeout(t);
+          if (r.ok) {
+            const data = await r.json();
+            const hits: any[] = (data.results ?? []).slice(0, 4);
+            if (hits.length > 0) {
+              enrichedPrompt = prompt + '\n\nCURRENT WEB SEARCH RESULTS (use these for the latest facts and figures — they are more recent than your training data):\n' +
+                hits.map((h, i) => `[${i + 1}] ${h.title} — ${h.url}\n${(h.content ?? '').slice(0, 400)}`).join('\n\n');
+            }
+          }
+        } catch {
+          clearTimeout(t);
+        }
+      }
+
+      try {
+        const { message, provider } = await llmChat({
+          messages: [{ role: 'user', content: enrichedPrompt }],
+          maxTokens: 2500,
+          temperature: 0.7,
+        });
+        content = message.content?.trim() ?? '';
+        usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
+      } catch (aiErr: any) {
+        console.error('[lesson] All AI providers failed, using fallback:', aiErr?.message);
+        return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
+      }
+    }
+
+    console.error(`[lesson] generated via ${usedProvider} (${content.length} chars)`);
 
     const cleaned = content
       .replace(/^```(?:json)?\s*/i, '')
