@@ -31,36 +31,40 @@ export function getLLMProviders(): LLMProvider[] {
   const providers: LLMProvider[] = [];
 
   if (process.env.GROQ_API_KEY) {
+    const client = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
+    // 8b-instant: 131k TPM (separate limit from 70b) — better for concurrent use
+    providers.push({ name: 'groq-fast', client, model: 'llama-3.1-8b-instant' });
+    // 70b as second groq slot for higher quality when fast slot is exhausted
     providers.push({
       name: 'groq',
-      client: new OpenAI({
-        apiKey: process.env.GROQ_API_KEY,
-        baseURL: 'https://api.groq.com/openai/v1',
-      }),
+      client,
       model: 'llama-3.3-70b-versatile',
       visionModel: 'meta-llama/llama-4-scout-17b-16e-instruct',
     });
   }
 
   if (process.env.GEMINI_API_KEY) {
-    providers.push({
-      name: 'gemini',
-      client: new OpenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-      }),
-      model: 'gemini-2.0-flash',
-      visionModel: 'gemini-2.0-flash',
+    const client = new OpenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
     });
+    providers.push({ name: 'gemini-flash', client, model: 'gemini-1.5-flash', visionModel: 'gemini-1.5-flash' });
+    providers.push({ name: 'gemini', client, model: 'gemini-2.0-flash', visionModel: 'gemini-2.0-flash' });
   }
 
   if (process.env.OPENROUTER_API_KEY) {
+    const client = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+    });
+    // mistral-7b is much faster than llama-70b on OpenRouter free tier
+    providers.push({ name: 'openrouter-mistral', client, model: 'mistralai/mistral-7b-instruct:free' });
     providers.push({
       name: 'openrouter',
-      client: new OpenAI({
-        apiKey: process.env.OPENROUTER_API_KEY,
-        baseURL: 'https://openrouter.ai/api/v1',
-      }),
+      client,
       model: 'meta-llama/llama-3.3-70b-instruct:free',
       visionModel: 'meta-llama/llama-3.2-11b-vision-instruct:free',
     });
