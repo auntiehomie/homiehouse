@@ -372,6 +372,7 @@ function ModuleLessonContent() {
   // Quiz state: per question index → selected answer
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizChecked, setQuizChecked] = useState<Record<number, boolean>>({});
+  const [quizFailed, setQuizFailed] = useState(false);
 
   // Completion
   const [alreadyDone, setAlreadyDone] = useState(false);
@@ -452,6 +453,27 @@ function ModuleLessonContent() {
       setAlreadyDone(true);
     }
   }, [currentCard, alreadyDone, handleComplete]);
+
+  const quizCards = cards.filter((c): c is Extract<CardDef, { type: 'quiz' }> => c.type === 'quiz');
+  const totalQuestions = quizCards.length;
+  const correctAnswers = quizCards.filter(
+    c => quizChecked[c.qIndex] && quizAnswers[c.qIndex] === c.question.correctIndex
+  ).length;
+  const scorePercent = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+  const quizPassed = scorePercent >= 75;
+
+  const handleRetryQuiz = useCallback(() => {
+    setQuizAnswers({});
+    setQuizChecked({});
+    setQuizFailed(false);
+    const firstQuizIndex = cards.findIndex(c => c.type === 'quiz');
+    if (firstQuizIndex >= 0) {
+      setDir('back');
+      setCardIndex(firstQuizIndex);
+      setAnimating(true);
+      setTimeout(() => setAnimating(false), 260);
+    }
+  }, [cards]);
 
   const handleShare = () => {
     if (!mod) return;
@@ -592,18 +614,55 @@ function ModuleLessonContent() {
       {/* Quiz continue (only after checked) */}
       {currentCard?.type === 'quiz' && quizChecked[currentCard.qIndex] && (
         <div style={{ padding: '12px 20px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', flexShrink: 0 }}>
-          <button
-            onClick={handleContinue}
-            disabled={animating}
-            style={{
-              width: '100%', padding: '16px', borderRadius: 14, border: 'none',
-              background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
-              color: '#fff', fontSize: 16, fontWeight: 700,
-              cursor: 'pointer', opacity: animating ? 0.7 : 1, transition: 'opacity 0.15s',
-            }}
-          >
-            {cardIndex < totalCards - 2 ? 'Next →' : 'Finish →'}
-          </button>
+          {cardIndex < totalCards - 2 ? (
+            <button
+              onClick={handleContinue}
+              disabled={animating}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+                background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+                color: '#fff', fontSize: 16, fontWeight: 700,
+                cursor: 'pointer', opacity: animating ? 0.7 : 1, transition: 'opacity 0.15s',
+              }}
+            >
+              Next →
+            </button>
+          ) : quizPassed ? (
+            <button
+              onClick={handleContinue}
+              disabled={animating}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+                background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+                color: '#fff', fontSize: 16, fontWeight: 700,
+                cursor: 'pointer', opacity: animating ? 0.7 : 1, transition: 'opacity 0.15s',
+              }}
+            >
+              Finish →
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{
+                textAlign: 'center', padding: '14px', borderRadius: 12,
+                background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#f87171' }}>{scorePercent}%</div>
+                <div style={{ fontSize: 14, color: '#fca5a5', marginTop: 2 }}>Need 75% to pass — give it another shot!</div>
+              </div>
+              <button
+                onClick={handleRetryQuiz}
+                disabled={animating}
+                style={{
+                  width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+                  background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
+                  color: '#fff', fontSize: 16, fontWeight: 700,
+                  cursor: 'pointer', opacity: animating ? 0.7 : 1, transition: 'opacity 0.15s',
+                }}
+              >
+                Retry Quiz ↺
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

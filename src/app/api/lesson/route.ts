@@ -237,7 +237,7 @@ Requirements:
 - 3-4 concepts, each with a REAL example (name actual protocols, tokens, events, or companies)
 - Concepts should build on each other — start with the foundation, end with the implications
 - 3 quick actions (each must name a specific website, tool, or resource)
-- 4 quiz questions, each testing a different concept
+- 6 quiz questions, each testing a different concept or detail from the lesson
 - Quiz questions must have exactly 4 options
 - correctIndex is 0-based (0=A, 1=B, 2=C, 3=D)
 - Authoritative but accessible tone — treat the reader as smart, not as a beginner who needs hand-holding
@@ -247,7 +247,7 @@ Requirements:
     try {
       const { message, provider } = await llmChat({
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 2000,
+        maxTokens: 2500,
         temperature: 0.7,
       });
       content = message.content?.trim() ?? '';
