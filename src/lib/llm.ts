@@ -96,18 +96,25 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
 
   let lastError: any;
   for (const p of providers) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25000);
     try {
-      const response = await p.client.chat.completions.create({
-        model: params.vision ? (p.visionModel ?? p.model) : p.model,
-        messages: params.messages,
-        max_tokens: params.maxTokens,
-        temperature: params.temperature,
-        ...(params.tools ? { tools: params.tools, tool_choice: params.toolChoice ?? 'auto' } : {}),
-      });
+      const response = await p.client.chat.completions.create(
+        {
+          model: params.vision ? (p.visionModel ?? p.model) : p.model,
+          messages: params.messages,
+          max_tokens: params.maxTokens,
+          temperature: params.temperature,
+          ...(params.tools ? { tools: params.tools, tool_choice: params.toolChoice ?? 'auto' } : {}),
+        },
+        { signal: controller.signal },
+      );
+      clearTimeout(timer);
       const message = response.choices[0]?.message;
       if (!message) throw new Error('empty response');
       return { message, provider: p.name };
     } catch (err: any) {
+      clearTimeout(timer);
       console.error(`[llm] provider ${p.name} failed: ${err?.message}`);
       lastError = err;
     }

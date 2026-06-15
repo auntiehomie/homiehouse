@@ -250,7 +250,7 @@ Requirements:
     try {
       const { message, provider } = await llmChat({
         messages: [{ role: 'user', content: prompt }],
-        maxTokens: 3500,
+        maxTokens: 2000,
         temperature: 0.7,
       });
       content = message.content?.trim() ?? '';
