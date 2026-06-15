@@ -94,7 +94,7 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
     throw new Error('No LLM provider configured (set GROQ_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY)');
   }
 
-  let lastError: any;
+  const errors: string[] = [];
   for (const p of providers) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 25000);
@@ -115,10 +115,9 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
       return { message, provider: p.name };
     } catch (err: any) {
       clearTimeout(timer);
-      console.error(`[llm] provider ${p.name} failed: ${err?.message}`);
-      lastError = err;
+      errors.push(`${p.name}: ${err?.message ?? 'unknown'}`);
     }
   }
 
-  throw lastError ?? new Error('All LLM providers failed');
+  throw new Error(`All providers failed — ${errors.join(' | ')}`);
 }
