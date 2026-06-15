@@ -325,11 +325,13 @@ function CompleteCard({ mod, onShare, onBack }: { mod: LearningModule; onShare: 
         <div style={{ fontSize: 64 }}>🎉</div>
         <div>
           <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-on-dark)', margin: '0 0 8px' }}>
-            Module Complete!
+            Give yourself a pat on the back!
           </p>
-          <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
-            You finished <strong style={{ color: 'var(--text-on-dark)' }}>{mod.title}</strong>.
-            Progress saved.
+          <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: '0 0 6px', lineHeight: 1.6 }}>
+            You've completed <strong style={{ color: 'var(--text-on-dark)' }}>{mod.title}</strong>.
+          </p>
+          <p style={{ fontSize: 15, color: 'var(--accent)', fontWeight: 600, margin: 0 }}>
+            Ready to go deeper?
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
