@@ -85,9 +85,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }
 
-    const configuredProviders = getLLMProviders().map(p => p.name).join(',') || 'none';
-    console.error(`[lesson] START title="${title}" providers=${configuredProviders}`);
-
     if (getLLMProviders().length === 0) {
       console.error('[lesson] No AI provider configured, returning fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives));
