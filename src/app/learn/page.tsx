@@ -840,9 +840,14 @@ function LearnPageContent() {
             </p>
           )}
           {pct === 100 && (
-            <p style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginTop: 8, marginBottom: 0 }}>
-              🎉 Plan complete! You're a decentralization expert.
-            </p>
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontSize: 15, color: '#fbbf24', fontWeight: 700, margin: '0 0 4px' }}>
+                🎉 Congratulations! Give yourself a pat on the back!
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.5 }}>
+                You've completed your learning path. Ready to go deeper? Hit "Start New Plan" below to continue your journey.
+              </p>
+            </div>
           )}
           {/* Ask Homie nudge */}
           {pct > 0 && pct < 100 && (
@@ -885,7 +890,7 @@ function LearnPageContent() {
               color: 'var(--muted-on-dark)', fontSize: 14, fontWeight: 500, cursor: 'pointer',
             }}
           >
-            Start Over
+            {pct === 100 ? 'Start New Plan' : 'Start Over'}
           </button>
         </div>
       </div>,

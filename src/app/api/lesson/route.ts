@@ -102,6 +102,12 @@ export async function POST(req: NextRequest) {
     const isDAO = titleLower.includes('dao') || tagSet.includes('dao');
     const isWallet = titleLower.includes('wallet') || titleLower.includes('key') || tagSet.includes('wallet');
     const isOnChainData = titleLower.includes('on-chain') || titleLower.includes('onchain') || titleLower.includes('data storage') || tagSet.includes('storage');
+    const isEthHistory = (titleLower.includes('history') && isEthereum) || titleLower.includes('ethereum history') || titleLower.includes('history of ethereum');
+    const isDeFiHacks = titleLower.includes('hack') || titleLower.includes('exploit') || (titleLower.includes('security') && isDeFi) || tagSet.includes('hacks');
+    const isSecurity = titleLower.includes('security') || titleLower.includes('opsec') || titleLower.includes('phishing') || tagSet.includes('security') || tagSet.includes('safety');
+    const isFarcasterHistory = titleLower.includes('farcaster') || tagSet.includes('farcaster') || tagSet.includes('protocol');
+    const isVenice = titleLower.includes('venice') || tagSet.includes('venice');
+    const isDAOHistory = isDAO && (titleLower.includes('history') || titleLower.includes('origin') || titleLower.includes('hack'));
 
     const topicContext = [
       isHyperliquid && `
@@ -193,6 +199,71 @@ FACTUAL CONTEXT — On-Chain Data Storage:
 - Most NFT images, dapp frontends, and large datasets live off-chain with only a hash or URI stored on-chain
 - The Graph Protocol indexes on-chain data and makes it queryable via GraphQL — the "Google of Web3"
 - Ceramic, Lens Protocol, and Farcaster use hybrid models: identity/social graph on-chain, content in decentralized off-chain stores`,
+
+      isEthHistory && `
+FACTUAL CONTEXT — History of Ethereum:
+- Vitalik Buterin published the Ethereum whitepaper in November 2013, aged 19, proposing a "world computer" beyond Bitcoin
+- The Ethereum genesis block was mined on July 30, 2015 — the network went live with an initial supply from the 2014 crowdsale
+- The DAO hack (June 2016): ~$60M in ETH drained via reentrancy attack; community split over whether to hard fork to recover funds. Fork happened → Ethereum (ETH) continued; Ethereum Classic (ETC) preserved the original chain
+- EIP-1559 (August 2021): replaced unpredictable gas auctions with a base fee that gets burned, making ETH deflationary under high usage
+- The Merge (September 15, 2022): Ethereum switched from Proof of Work to Proof of Stake, cutting energy usage ~99.95% — no new mining hardware needed
+- Shanghai upgrade (April 2023): enabled ETH withdrawals from staking for the first time — ~18M ETH unlocked
+- Dencun upgrade (March 2024): introduced EIP-4844 "proto-danksharding" — blob transactions that cut L2 transaction costs by 10-100x
+- Ethereum's roadmap (The Surge, Verge, Purge, Splurge) targets 100,000+ TPS through full danksharding`,
+
+      isDAOHistory && `
+FACTUAL CONTEXT — History of DAOs:
+- "The DAO" (April 2016): the first famous DAO raised 12.7M ETH (~$150M) as a decentralized venture fund; hacked for 3.6M ETH ($60M) via reentrancy bug, triggering the ETH/ETC hard fork
+- MolochDAO (February 2019): a minimalist, rage-quit-enabled DAO designed for Ethereum grant-giving; inspired hundreds of forks
+- "DeFi Summer" 2020: Compound launched COMP governance tokens, kickstarting DAO governance for DeFi protocols
+- ConstitutionDAO (November 2021): raised $47M in ETH in one week to bid on a US Constitution copy; lost the Sotheby's auction to Ken Griffin; returned funds. Showed DAOs could mobilize massive capital fast
+- Nouns DAO (August 2021–present): one NFT auctioned daily, all proceeds go to treasury; holders vote on proposals — a model for sustainable DAO funding
+- Uniswap DAO governs the largest DEX with a treasury in the billions; UNI holders vote on protocol fee switches
+- Wyoming (2021) and Marshall Islands became first jurisdictions to recognize DAOs as legal entities
+- Key challenge: voter apathy — in most DAOs, <10% of governance tokens ever vote`,
+
+      isDeFiHacks && `
+FACTUAL CONTEXT — History of DeFi Hacks:
+- The DAO (2016): $60M ETH via reentrancy — the attack that split Ethereum. Root cause: a contract called an external address before updating its own balance
+- Poly Network (August 2021): $611M drained across Ethereum, BSC, Polygon — largest DeFi hack ever. The attacker returned all funds, claiming it was a "white hat" demonstration
+- Wormhole bridge (February 2022): $320M — attacker forged a validator signature on a cross-chain bridge between Solana and Ethereum. Jump Crypto covered the loss to keep Wormhole alive
+- Ronin bridge (March 2022): $625M in ETH + USDC — hackers (later attributed to North Korea's Lazarus Group) compromised 5 of 9 validator keys. Axie Infinity's Ronin sidechain was drained
+- Euler Finance (March 2023): $197M flash loan attack exploiting a logic flaw in a lending function. The attacker returned 90%+ after on-chain negotiations
+- Common attack vectors: reentrancy, flash loan price manipulation, oracle manipulation, bridge key compromise, logic errors in upgrade functions
+- How to assess protocol safety: look for audits (Certik, Trail of Bits, OpenZeppelin), bug bounties, how long code has been live, insurance coverage (Nexus Mutual)`,
+
+      isSecurity && !isDeFiHacks && `
+FACTUAL CONTEXT — Web3 Security & Opsec:
+- The most common losses are NOT protocol hacks — they're phishing, social engineering, and bad opsec by individual users
+- Wallet drainers: malicious smart contract approvals (you sign a transaction that lets a contract transfer all your tokens). Always check what you're approving on Etherscan before signing
+- Revoke.cash and Revoke.wtf let you see and revoke all open token approvals — do this regularly
+- Seed phrase attacks: legitimate services NEVER ask for your seed phrase. Anyone who does is a scammer
+- Hardware wallets (Ledger, Trezor): keys never touch the internet; best for funds you don't trade daily
+- Multisig (Gnosis Safe): requires M-of-N signatures to execute a transaction — best for DAO treasuries and large holdings
+- "Approval phishing" is now the #1 attack vector: you sign a `setApprovalForAll` and the attacker drains your NFTs/tokens
+- SIM swap: attackers bribe phone carriers to redirect your number, breaking SMS 2FA. Use authenticator apps (not SMS) for all crypto exchange accounts`,
+
+      isFarcasterHistory && `
+FACTUAL CONTEXT — Farcaster Protocol & History:
+- Founded by Dan Romero and Varun Srinivasan (both former Coinbase executives) in 2020; public beta launched 2022
+- Key design philosophy: "sufficiently decentralized" — Farcaster stores identity on-chain (Ethereum/Optimism) but content off-chain via Hubs, enabling low-cost posting while maintaining censorship resistance
+- FID (Farcaster ID): an on-chain integer (e.g. FID 3 = Dan Romero) registered on the Farcaster ID Registry contract on Optimism
+- Hubs: a network of off-chain servers that sync and store all casts (posts), reactions, and links. Anyone can run a Hub (Neynar, Pinata, and others provide managed hubs)
+- Signers: each app (Warpcast, HomieHouse) has a registered signer key authorized to act on behalf of your FID — this is how you post without signing every transaction with your wallet
+- Channels (launched late 2023): topic-based feeds (like /defi, /web3) where casts are organized by shared interest
+- Frames (January 2024): interactive mini-apps embedded in casts — polls, NFT mints, games, swap interfaces — powered by a simple open standard
+- Warpcast is the primary client built by Farcaster's team; HomieHouse, Supercast, Yup, and others are third-party clients on the same protocol`,
+
+      isVenice && `
+FACTUAL CONTEXT — Venice.ai:
+- Venice.ai is a privacy-first AI platform launched in 2024 that runs open-source models on decentralized infrastructure
+- Core value proposition: your conversations are not stored, not logged, and not used to train models — unlike ChatGPT (OpenAI) or Claude (Anthropic), which retain conversation data
+- Venice uses open-source models including Llama, Mistral, and other community models — not proprietary closed models
+- Model inference runs on distributed GPU infrastructure; your prompts are processed without Venice seeing them
+- Users can pay with crypto (including stablecoins), maintaining financial privacy alongside conversational privacy
+- Venice represents the convergence of Web3 and AI: applying decentralization principles (user sovereignty, permissionless access, no single company in control) to AI inference
+- Contrast with centralized AI: OpenAI can read your conversations, train on them, and comply with government requests for data. Venice's architecture makes this structurally impossible
+- The platform also supports image generation and code assistance with the same privacy guarantees`,
     ].filter(Boolean).join('\n');
 
     const prompt = `You are a knowledgeable, direct Web3 and decentralization educator writing for curious people who want real understanding — not hype. Generate a thorough, in-depth lesson for this learning module.

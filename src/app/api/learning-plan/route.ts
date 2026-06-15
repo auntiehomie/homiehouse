@@ -144,6 +144,99 @@ const FALLBACK_FINANCIAL_PLAN: LearningPlan = {
   ],
 };
 
+const EXTRA_MODULES: Record<string, LearningModule> = {
+  'ethereum-history': {
+    id: 'ethereum-history',
+    title: 'The History of Ethereum',
+    description: 'Trace Ethereum from Vitalik\'s 2013 whitepaper through the genesis block, The DAO hack, The Merge, and the upgrades reshaping the chain today.',
+    whyItMatters: 'Understanding Ethereum\'s history explains every design decision the ecosystem has made — and why they matter for the future.',
+    objectives: [
+      'Explain why Vitalik Buterin created Ethereum and what gap it filled beyond Bitcoin',
+      'Describe The Merge (2022) and what changing to Proof of Stake meant for the network',
+      'Name the major hard forks and upgrades: Constantinople, EIP-1559, Shanghai, Dencun',
+      'Understand how The DAO hack of 2016 led to the ETH/ETC split',
+    ],
+    estimatedMinutes: 30,
+    difficulty: 'beginner',
+    tags: ['ethereum', 'history', 'fundamentals'],
+  },
+  'dao-history': {
+    id: 'dao-history',
+    title: 'The History of DAOs',
+    description: 'From the infamous DAO hack of 2016 to Nouns, ConstitutionDAO, and on-chain treasuries managing billions — trace how decentralized autonomous organizations evolved.',
+    whyItMatters: 'DAOs represent a new model for human coordination. Understanding their history — including the failures — is essential for evaluating any governance system.',
+    objectives: [
+      'Explain what The DAO was, why it was hacked for $60M ETH, and how it forced an Ethereum hard fork',
+      'Understand how MolochDAO introduced minimalist grant-giving DAOs in 2019',
+      'Describe ConstitutionDAO and what it revealed about DAO coordination at scale',
+      'Identify the key tools DAOs use today: Snapshot, Tally, Gnosis Safe',
+    ],
+    estimatedMinutes: 30,
+    difficulty: 'beginner',
+    tags: ['dao', 'history', 'governance'],
+  },
+  'defi-hacks': {
+    id: 'defi-hacks',
+    title: 'A History of DeFi Hacks',
+    description: 'Walk through the biggest DeFi exploits — Ronin bridge ($625M), Wormhole ($320M), Euler Finance ($197M) — and understand the attack vectors that made them possible.',
+    whyItMatters: 'Every major DeFi hack teaches something about system design. Knowing this history makes you a better evaluator of protocols and a safer participant.',
+    objectives: [
+      'Name the top 5 DeFi hacks by size and describe how each happened',
+      'Explain the difference between reentrancy attacks, oracle manipulation, and bridge vulnerabilities',
+      'Understand what a flash loan attack is and why it\'s unique to DeFi',
+      'Apply a checklist for assessing protocol safety before depositing funds',
+    ],
+    estimatedMinutes: 35,
+    difficulty: 'intermediate',
+    tags: ['security', 'hacks', 'DeFi', 'risk'],
+  },
+  'farcaster-history': {
+    id: 'farcaster-history',
+    title: 'Farcaster: History & Protocol',
+    description: 'Learn how Dan Romero and Varun Srinivasan built a "sufficiently decentralized" social protocol from scratch — and how it evolved from invite-only to Frames and beyond.',
+    whyItMatters: 'Farcaster is the infrastructure for crypto-native social. Understanding its design decisions explains why it works differently from every other platform you\'ve used.',
+    objectives: [
+      'Describe how Farcaster stores identity on-chain (FIDs on Optimism) while keeping content off-chain (Hubs)',
+      'Explain what a Farcaster Hub is and why the network requires multiple hubs for decentralization',
+      'Understand the timeline: 2022 beta → channels → Frames → open protocol',
+      'Identify the key clients (Warpcast, HomieHouse, Supercast) and why multiple clients matter',
+    ],
+    estimatedMinutes: 25,
+    difficulty: 'beginner',
+    tags: ['farcaster', 'history', 'social', 'protocol'],
+  },
+  'security-decentralization': {
+    id: 'security-decentralization',
+    title: 'Security in Decentralization',
+    description: 'Master the threat model for Web3: phishing, fake mints, wallet drainers, rug pulls, and how to protect yourself without sacrificing your ability to participate.',
+    whyItMatters: 'In Web3, you are your own bank — which means you\'re also your own security team. Most losses are preventable with the right habits.',
+    objectives: [
+      'Identify the most common Web3 scams: fake airdrops, approval drainers, phishing sites',
+      'Understand what a token approval is and how to revoke unnecessary ones',
+      'Set up a hardware wallet and understand when cold storage is worth it',
+      'Apply a simple rule: never share your seed phrase, never approve contracts you don\'t understand',
+    ],
+    estimatedMinutes: 30,
+    difficulty: 'beginner',
+    tags: ['security', 'opsec', 'wallet', 'safety'],
+  },
+  'venice-ai': {
+    id: 'venice-ai',
+    title: 'Venice.ai: Private AI on Web3',
+    description: 'Explore Venice.ai — a privacy-first AI platform built on decentralized infrastructure where your conversations are never stored, logged, or used for training.',
+    whyItMatters: 'As AI becomes central to daily life, the question of who controls your data becomes critical. Venice shows how Web3 principles apply to AI infrastructure.',
+    objectives: [
+      'Explain how Venice.ai differs from ChatGPT and Claude in terms of data privacy',
+      'Understand how decentralized inference keeps your prompts private',
+      'Explore Venice\'s model selection and how open-source models power it',
+      'Connect Venice\'s model to the broader Web3 principle of user-owned data and permissionless access',
+    ],
+    estimatedMinutes: 20,
+    difficulty: 'beginner',
+    tags: ['venice', 'AI', 'privacy', 'web3'],
+  },
+};
+
 const FALLBACK_PLAN: LearningPlan = {
   track: 'learner',
   level: 'beginner',
@@ -272,6 +365,21 @@ User profile:
 - Level: ${level}
 - Specific goals: ${specificGoals || 'not provided'}
 ${financialTrackGuidance}
+Available topic areas to draw from (pick the most relevant for this user's track and goals):
+- Wallet basics: seed phrases, hot/cold wallets, hardware wallets, MetaMask, multisig
+- Ethereum history: Vitalik whitepaper (2013), genesis block (2015), The Merge (2022), EIP-1559, Dencun upgrade
+- How Ethereum works: EVM, gas, smart contracts, L2s (Arbitrum, Optimism, Base)
+- Smart contract development: Solidity, deployment, audits, security, real examples
+- DAO history: The DAO hack (2016), MolochDAO, Nouns, ConstitutionDAO, governance evolution
+- DeFi security & hacks: major hacks timeline (DAO hack, Ronin bridge, Wormhole), attack vectors, opsec
+- Security in decentralization: smart contract audits, rug pulls, phishing, how to stay safe
+- Farcaster history: Dan Romero + Varun Srinivasan, protocol evolution, FIDs, Hubs, Frames
+- Venice.ai: privacy-first AI on Web3 infrastructure, decentralized model inference, data ownership
+- On-chain data & storage: IPFS, Arweave, Filecoin, The Graph, calldata, EIP-4844
+- Web3 philosophy: decentralization principles, censorship resistance, permissionless systems, ownership
+- NFTs: ERC-721, use cases beyond art, gaming, ticketing, music royalties
+- DAOs: governance tokens, voting, Snapshot, Tally, Gnosis Safe, real examples
+
 Return ONLY valid JSON — no markdown, no code fences, no explanation. Match this TypeScript type exactly:
 
 {
