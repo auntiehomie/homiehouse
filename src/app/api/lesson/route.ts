@@ -284,7 +284,7 @@ Return ONLY valid JSON — no markdown, no code fences. Use this exact structure
   "concepts": [
     {
       "title": "Short, memorable concept name (3-5 words)",
-      "explanation": "4-6 sentences. Define the concept clearly, explain HOW it works mechanically, give a specific real-world example (name an actual protocol, token, or event), and explain why it matters. No vague generalities — be specific and concrete.",
+      "explanation": "6-8 sentences. (1) Define the concept clearly. (2) Explain HOW it works mechanically. (3) Describe a specific real-world example naming an actual protocol, token, or event. (4) Explain why it matters and what changes when you understand it. Write each point as its own sentence so the explanation can be read one step at a time. No vague generalities — be specific and concrete.",
       "analogy": "One vivid sentence comparing this to something from everyday life (banking, real estate, restaurant, sports, etc.)"
     }
   ],
