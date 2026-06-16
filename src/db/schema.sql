@@ -34,6 +34,15 @@ CREATE TABLE IF NOT EXISTS cast_notes (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Learning progress (FID-keyed, cross-device sync)
+CREATE TABLE IF NOT EXISTS learning_progress (
+  fid INTEGER PRIMARY KEY,
+  plan JSONB,
+  completed_ids JSONB DEFAULT '[]',
+  completions JSONB DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_saved_casts_user_id ON saved_casts(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_casts_cast_hash ON saved_casts(cast_hash);

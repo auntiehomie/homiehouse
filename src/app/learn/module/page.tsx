@@ -481,8 +481,41 @@ function ModuleLessonContent() {
     try {
       const raw = localStorage.getItem(LS_PROGRESS_KEY);
       const progress: string[] = raw ? JSON.parse(raw) : [];
+      const updatedProgress = progress.includes(moduleId) ? progress : [...progress, moduleId];
       if (!progress.includes(moduleId)) {
-        localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...progress, moduleId]));
+        localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(updatedProgress));
+      }
+      if (mod) {
+        const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
+        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number }> =
+          compRaw ? JSON.parse(compRaw) : {};
+        if (!completions[moduleId]) {
+          completions[moduleId] = {
+            completedAt: new Date().toISOString(),
+            title: mod.title,
+            description: mod.description,
+            difficulty: mod.difficulty,
+            estimatedMinutes: mod.estimatedMinutes,
+          };
+          localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
+        }
+        // Sync to Neon for cross-device persistence
+        try {
+          const fid = (() => {
+            const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
+            return p?.fid ? Number(p.fid) : null;
+          })();
+          if (fid) {
+            const plan = (() => {
+              try { return JSON.parse(localStorage.getItem('hh_learning_plan') ?? 'null'); } catch { return null; }
+            })();
+            fetch('/api/learning-progress', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fid, plan, completed_ids: updatedProgress, completions }),
+            }).catch(() => {});
+          }
+        } catch {}
       }
       if (mod) {
         const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
