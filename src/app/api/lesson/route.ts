@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
+
+function getRedis(): Redis | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  try { return new Redis({ url, token }); } catch { return null; }
+}
 
 export const maxDuration = 60;
 
@@ -86,9 +94,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }
 
-    if (getLLMProviders().length === 0) {
+    if (getLLMProviders().length === 0 && !process.env.PERPLEXITY_API_KEY) {
       console.error('[lesson] No AI provider configured, returning fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives));
+    }
+
+    // ── Cache check — return stored lesson if available ──────────────────────
+    const redis = getRedis();
+    const cacheKey = moduleId ? `lesson:v1:${moduleId}` : null;
+    if (redis && cacheKey) {
+      try {
+        const cached = await redis.get<LessonContent>(cacheKey);
+        if (cached) {
+          console.error(`[lesson] cache hit: ${moduleId}`);
+          return NextResponse.json(cached);
+        }
+      } catch {}
     }
 
     const titleLower = title?.toLowerCase() ?? '';
@@ -394,6 +415,11 @@ Requirements:
     } catch {
       console.error('[lesson] Failed to parse AI response, using fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
+    }
+
+    // ── Cache the generated lesson for 30 days ──────────────────────────────
+    if (redis && cacheKey) {
+      try { await redis.set(cacheKey, lesson, { ex: 60 * 60 * 24 * 30 }); } catch {}
     }
 
     return NextResponse.json(lesson);

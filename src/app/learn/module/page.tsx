@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
+const LS_COMPLETIONS_KEY = 'hh_learning_completions';
 
 interface LearningModule {
   id: string;
@@ -483,8 +484,23 @@ function ModuleLessonContent() {
       if (!progress.includes(moduleId)) {
         localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...progress, moduleId]));
       }
+      if (mod) {
+        const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
+        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number }> =
+          compRaw ? JSON.parse(compRaw) : {};
+        if (!completions[moduleId]) {
+          completions[moduleId] = {
+            completedAt: new Date().toISOString(),
+            title: mod.title,
+            description: mod.description,
+            difficulty: mod.difficulty,
+            estimatedMinutes: mod.estimatedMinutes,
+          };
+          localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
+        }
+      }
     } catch {}
-  }, [moduleId]);
+  }, [moduleId, mod]);
 
   // Mark complete when reaching the complete card
   useEffect(() => {

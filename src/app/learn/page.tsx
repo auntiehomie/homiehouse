@@ -31,10 +31,104 @@ interface LearningPlan {
 type PageState = 'quiz' | 'generating' | 'plan';
 type Track = 'learner' | 'creator' | 'financial' | 'all';
 type Level = 'beginner' | 'intermediate' | 'advanced';
-type LearnTab = 'plan' | 'homie' | 'feed';
+type LearnTab = 'plan' | 'completed' | 'homie' | 'feed';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
+const LS_COMPLETIONS_KEY = 'hh_learning_completions';
+
+// ─── Completed Lessons Tab ────────────────────────────────────────────────────
+
+interface CompletionRecord {
+  completedAt: string;
+  title: string;
+  description: string;
+  difficulty: string;
+  estimatedMinutes: number;
+}
+
+function CompletedTab() {
+  const router = useRouter();
+  const [completions, setCompletions] = useState<Record<string, CompletionRecord>>({});
+  const plan = (() => {
+    try { return JSON.parse(localStorage.getItem(LS_PLAN_KEY) ?? 'null'); } catch { return null; }
+  })();
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_COMPLETIONS_KEY);
+      if (raw) setCompletions(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  const entries = Object.entries(completions).sort(
+    (a, b) => new Date(b[1].completedAt).getTime() - new Date(a[1].completedAt).getTime()
+  );
+
+  const diffColor: Record<string, string> = { beginner: '#22c55e', intermediate: '#f97316', advanced: '#a855f7' };
+
+  if (entries.length === 0) {
+    return (
+      <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>📖</div>
+        <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-on-dark)', margin: '0 0 6px' }}>No completed lessons yet</p>
+        <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: 0 }}>Finish a module and it'll show up here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px' }}>
+      <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 16 }}>
+        {entries.length} lesson{entries.length !== 1 ? 's' : ''} completed
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {entries.map(([moduleId, rec]) => {
+          const formattedDate = new Date(rec.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          return (
+            <div key={moduleId} style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: 14, padding: '16px 18px',
+              display: 'flex', flexDirection: 'column', gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: diffColor[rec.difficulty] ?? 'var(--accent)', letterSpacing: '0.05em', textTransform: 'capitalize' }}>
+                      {rec.difficulty}
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>· {rec.estimatedMinutes} min</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>· ✓ {formattedDate}</span>
+                  </div>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 4px', lineHeight: 1.3 }}>{rec.title}</p>
+                  <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.5,
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>
+                    {rec.description}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (plan) {
+                    const mod = plan.modules?.find((m: any) => m.id === moduleId);
+                    if (mod) router.push(`/learn/module?id=${moduleId}`);
+                  }
+                }}
+                style={{
+                  alignSelf: 'flex-start', padding: '8px 16px', borderRadius: 8,
+                  background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+                  color: '#a5b4fc', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                Review Lesson →
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ─── Learning Community Feed ──────────────────────────────────────────────────
 
@@ -743,9 +837,10 @@ function LearnPageContent() {
         </div>
 
         {/* Tab nav — always visible */}
-        <div style={{ display: 'flex', gap: 0, padding: '0 16px' }}>
+        <div style={{ display: 'flex', gap: 0, padding: '0 16px', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {([
             { id: 'plan' as LearnTab, label: 'My Plan', icon: '📚' },
+            { id: 'completed' as LearnTab, label: 'Completed', icon: '✅' },
             { id: 'homie' as LearnTab, label: 'Ask Homie', icon: '🤖' },
             { id: 'feed' as LearnTab, label: 'Feed', icon: '📰' },
           ]).map((tab) => (
@@ -775,6 +870,8 @@ function LearnPageContent() {
             ? <HomieReadPanel currentPlan={plan} />
             : activeTab === 'feed'
             ? <LearningFeed />
+            : activeTab === 'completed'
+            ? <CompletedTab />
             : children
           }
         </main>
