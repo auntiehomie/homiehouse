@@ -32,7 +32,7 @@ Farcaster is a sufficiently decentralized social network protocol built by Dan R
 - **Key Registry**: An Optimism smart contract that tracks which signers are valid for each FID.
 
 ## Content
-- **Casts**: Posts up to 320 characters. Can include text, images, links, and embeds. Stored on Farcaster Hubs.
+- **Casts**: Posts up to 320 characters (standard) or up to 10,000 characters (long-form, using CastType.LONG_CAST). Can include text, images, links, and embeds. Stored on Farcaster Hubs.
 - **Reactions**: Likes and recasts. Stored on hubs, not on-chain.
 - **Threads**: Casts replying to other casts form conversation threads via parent_hash references.
 - **Embeds**: URLs or cast hashes embedded in a cast. Clients render previews for images, links, and frames.

@@ -65,11 +65,13 @@ function ShareContent() {
                 rows={5}
                 value={castText}
                 onChange={(e) => setCastText(e.target.value)}
-                maxLength={320}
+                maxLength={10000}
                 placeholder="What's on your mind?"
               />
               <p className="text-xs text-text-secondary mt-1 text-right">
-                {castText.length}/320
+                {castText.length > 320
+                  ? `${castText.length.toLocaleString()} / 10,000`
+                  : `${castText.length} / 320`}
               </p>
 
               <div className="flex gap-3 mt-4">

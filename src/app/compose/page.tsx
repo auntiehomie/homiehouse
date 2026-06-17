@@ -656,10 +656,28 @@ function ComposePageInner() {
             </button>
           </div>
 
-          {/* Right: char count (near-limit only) + Post/Schedule button */}
+          {/* Right: char count + Post/Schedule button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto', paddingLeft: 8 }}>
             {text.length > 260 && (
-              <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>{text.length}</span>
+              <span style={{
+                fontSize: 12,
+                color: text.length > 10000
+                  ? '#f87171'
+                  : text.length > 9900
+                  ? '#f87171'
+                  : text.length > 9700
+                  ? '#fb923c'
+                  : text.length > 320
+                  ? 'var(--muted-on-dark)'
+                  : text.length > 300
+                  ? '#fb923c'
+                  : text.length > 280
+                  ? '#f87171'
+                  : 'var(--muted-on-dark)',
+                minWidth: 28, textAlign: 'right',
+              }}>
+                {text.length > 320 ? `${text.length.toLocaleString()} / 10,000` : text.length}
+              </span>
             )}
             <button
               onClick={handlePost}

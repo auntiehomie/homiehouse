@@ -406,7 +406,7 @@ User Profile:
 - Topics of Interest: ${userProfile.topics.join(', ') || 'Various'}
 
 Guidelines:
-1. Keep casts under 320 characters (Farcaster limit)
+1. Keep casts under 320 characters for standard posts; up to 10,000 characters for long-form casts
 2. Match the user's style and tone
 3. Make it authentic and engaging
 4. Suggest improvements, don't rewrite completely
@@ -461,7 +461,7 @@ When helping:
       // Look for numbered suggestions or quotes
       if (/^\d+[\.\)]/.test(line) || line.startsWith('"') || line.startsWith('•')) {
         const cleaned = line.replace(/^\d+[\.\)]\s*/, '').replace(/^["•]\s*/, '').replace(/"$/, '').trim();
-        if (cleaned.length > 0 && cleaned.length <= 320) {
+        if (cleaned.length > 0 && cleaned.length <= 10000) {
           suggestions.push(cleaned);
         }
       } else if (line.toLowerCase().includes('tip') || line.toLowerCase().includes('suggestion')) {
