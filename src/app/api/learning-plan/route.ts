@@ -331,6 +331,14 @@ const FALLBACK_PLAN: LearningPlan = {
   ],
 };
 
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const track = searchParams.get('track') ?? 'learner';
+  const level = searchParams.get('level') ?? 'beginner';
+  const fallback = track === 'financial' ? FALLBACK_FINANCIAL_PLAN : FALLBACK_PLAN;
+  return NextResponse.json({ ...fallback, track, level });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { track, level, specificGoals } = await req.json();

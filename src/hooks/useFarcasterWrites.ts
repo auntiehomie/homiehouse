@@ -18,6 +18,7 @@ import {
   hexToBytes,
   MessageType,
   ReactionType,
+  CastType,
   type FarcasterSigner,
   type CastEmbed,
 } from '@/lib/fc-message-builder';
@@ -143,11 +144,14 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
     const resolvedParentUrl = params.parentUrl || (params.channelKey ? channelKeyToParentUrl(params.channelKey) : undefined);
+    // Use LONG_CAST type for text longer than 320 characters (FIP-8 / Snapchain)
+    const castType = params.text.length > 320 ? CastType.LONG_CAST : CastType.CAST;
     const message = await buildSignedMessage(
       { type: MessageType.CAST_ADD, fid, body: { castAddBody: {
         text: params.text,
         embeds: embeds.length ? embeds : undefined,
         parent: resolvedParentUrl ? { url: resolvedParentUrl } : undefined,
+        type: castType,
       } } },
       signer,
     );

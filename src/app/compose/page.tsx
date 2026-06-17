@@ -16,9 +16,8 @@ function ComposePageInner() {
   const [text, setText] = useState(searchParams.get('text') || "");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState('');
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
@@ -186,57 +185,50 @@ function ComposePageInner() {
   };
 
 
+  // Farcaster supports max 2 embeds per cast. A URL preview occupies one slot,
+  // so the image limit is 1 when a URL is detected, otherwise 2.
+  const maxImages = urlPreview && detectedUrl ? 1 : 2;
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ''; // reset so same file can be re-selected
+    if (!files.length) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setStatus("Image too large. Maximum size is 10MB.");
-      return;
-    }
+    const slots = maxImages - uploadedImages.length;
+    if (slots <= 0) return;
 
-    if (!file.type.startsWith('image/')) {
-      setStatus("Please select an image file.");
-      return;
-    }
-
+    const toUpload = files.slice(0, slots);
     setUploadingImage(true);
-    setStatus("Uploading image...");
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      // Include Privy signer public key for authenticated upload
-      const signerKey = farcasterAccount?.signerPublicKey;
-      if (signerKey) {
-        formData.append('signerUuid', signerKey);
-      }
+    const uploaded: string[] = [];
+    for (let i = 0; i < toUpload.length; i++) {
+      const file = toUpload[i];
+      if (file.size > 10 * 1024 * 1024) { setStatus(`${file.name}: over 10 MB, skipped`); continue; }
+      if (!file.type.startsWith('image/')) continue;
 
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (data.ok && data.url) {
-        setUploadedImage(data.url);
-        setImageUrl(data.url);
-        setStatus("✓ Image uploaded!");
-        setTimeout(() => setStatus(null), 2000);
-      } else {
-        setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (error: any) {
-      setStatus(`Upload error: ${error.message}`);
-    } finally {
-      setUploadingImage(false);
+      setStatus(toUpload.length > 1 ? `Uploading ${i + 1} of ${toUpload.length}…` : 'Uploading image…');
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const signerKey = farcasterAccount?.signerPublicKey;
+        if (signerKey) formData.append('signerUuid', signerKey);
+        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (data.ok && data.url) { uploaded.push(data.url); }
+        else { setStatus(`Upload failed: ${data.error || 'Unknown error'}`); }
+      } catch (err: any) { setStatus(`Upload error: ${err.message}`); }
     }
+
+    if (uploaded.length) {
+      setUploadedImages(prev => [...prev, ...uploaded]);
+      setStatus(uploaded.length > 1 ? `✓ ${uploaded.length} images added` : '✓ Image added');
+      setTimeout(() => setStatus(null), 2000);
+    }
+    setUploadingImage(false);
   };
 
-  const removeImage = () => {
-    setImageUrl('');
-    setUploadedImage(null);
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
   };
 
   async function handleEnablePosting() {
@@ -279,19 +271,12 @@ function ComposePageInner() {
 
       const body: any = { text, fid: userFid };
 
-      // Build embeds array
-      const embeds: any[] = [];
-
-      // Add image embed if provided
-      if (imageUrl.trim()) {
-        embeds.push({ url: imageUrl.trim() });
-      }
-
-      // Add URL embed if we have a preview (URL is already in the text; just attach as embed)
-      if (urlPreview && detectedUrl) {
+      // Build embeds — max 2 per Farcaster protocol
+      const embeds: any[] = uploadedImages.map(url => ({ url }));
+      // URL preview takes the remaining slot (if any)
+      if (urlPreview && detectedUrl && embeds.length < 2) {
         embeds.push({ url: detectedUrl });
       }
-
       if (embeds.length > 0) {
         body.embeds = embeds;
       }
@@ -351,8 +336,7 @@ function ComposePageInner() {
         if (data.ok) {
           setStatus("✓ Cast scheduled successfully!");
           setText("");
-          setImageUrl("");
-          setUploadedImage(null);
+          setUploadedImages([]);
           setScheduleTime("");
           setIsScheduled(false);
           setUrlPreview(null);
@@ -376,8 +360,7 @@ function ComposePageInner() {
         });
         setStatus("✓ Posted successfully!");
         setText("");
-        setImageUrl("");
-        setUploadedImage(null);
+        setUploadedImages([]);
         setUrlPreview(null);
         setDetectedUrl(null);
         setTimeout(() => {
@@ -550,11 +533,26 @@ function ComposePageInner() {
               )}
             </div>
 
-            {/* Image preview */}
-            {imageUrl && (
-              <div style={{ position: 'relative', marginTop: 10 }}>
-                <img src={imageUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: 192, borderRadius: 12, border: '1px solid var(--border)', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                <button onClick={removeImage} style={{ position: 'absolute', top: 8, right: 8, width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>✕</button>
+            {/* Image previews */}
+            {uploadedImages.length > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: uploadedImages.length === 1 ? '1fr' : '1fr 1fr',
+                gap: 8, marginTop: 10,
+              }}>
+                {uploadedImages.map((url, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img
+                      src={url} alt={`Image ${i + 1}`}
+                      style={{ width: '100%', height: uploadedImages.length === 1 ? 192 : 140, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <button
+                      onClick={() => removeImage(i)}
+                      style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,0.72)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}
+                    >✕</button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -633,12 +631,21 @@ function ComposePageInner() {
         <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
           {/* Left scrollable actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
-            <label htmlFor="image-upload-compose" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
+            <label
+              htmlFor="image-upload-compose"
+              style={{ ...toolBtn, cursor: (uploadingImage || uploadedImages.length >= maxImages) ? 'not-allowed' : 'pointer', opacity: (uploadingImage || uploadedImages.length >= maxImages) ? 0.4 : 1 }}
+              title={uploadedImages.length >= maxImages ? `Max ${maxImages} image${maxImages > 1 ? 's' : ''}` : 'Add photo'}
+            >
               {uploadingImage
                 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
                 : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               }
-              <input id="image-upload-compose" type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
+              {uploadedImages.length > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 3, color: uploadedImages.length >= maxImages ? '#f87171' : 'var(--muted-on-dark)' }}>
+                  {uploadedImages.length}/{maxImages}
+                </span>
+              )}
+              <input id="image-upload-compose" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || uploadedImages.length >= maxImages} style={{ display: 'none' }} />
             </label>
 
             <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel"
@@ -656,19 +663,37 @@ function ComposePageInner() {
             </button>
           </div>
 
-          {/* Right: char count (near-limit only) + Post/Schedule button */}
+          {/* Right: char count + Post/Schedule button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto', paddingLeft: 8 }}>
             {text.length > 260 && (
-              <span style={{ fontSize: 12, color: text.length > 280 ? '#f87171' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>{text.length}</span>
+              <span style={{
+                fontSize: 12,
+                color: text.length > 10000
+                  ? '#f87171'
+                  : text.length > 9900
+                  ? '#f87171'
+                  : text.length > 9700
+                  ? '#fb923c'
+                  : text.length > 320
+                  ? 'var(--muted-on-dark)'
+                  : text.length > 300
+                  ? '#fb923c'
+                  : text.length > 280
+                  ? '#f87171'
+                  : 'var(--muted-on-dark)',
+                minWidth: 28, textAlign: 'right',
+              }}>
+                {text.length > 320 ? `${text.length.toLocaleString()} / 10,000` : text.length}
+              </span>
             )}
             <button
               onClick={handlePost}
-              disabled={loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)}
+              disabled={loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)}
               style={{
                 padding: '7px 14px', borderRadius: 24, border: 'none', cursor: 'pointer',
                 background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
                 fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
-                opacity: (loading || uploadingImage || (!text.trim() && !imageUrl.trim()) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
+                opacity: (loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
               }}
             >
               {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}

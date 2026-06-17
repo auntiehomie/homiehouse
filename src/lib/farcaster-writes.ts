@@ -111,8 +111,12 @@ export async function publishCast(params: {
   const castFid = params.fid || appFid;
   const signer = buildSigner(privateKeyHex);
 
+  // Automatically select cast type based on length.
+  // Text > 320 bytes uses CastType.LONG_CAST (up to 10,000 chars) per FIP-8 / Snapchain support.
+  const castType = Buffer.byteLength(params.text, 'utf8') > 320 ? CastType.LONG_CAST : CastType.CAST;
+
   const castBody: Parameters<typeof makeCastAdd>[0] = {
-    type: CastType.CAST,
+    type: castType,
     text: params.text,
     embeds: params.embeds?.map((e) => ({ url: e.url })) ?? [],
     embedsDeprecated: [],

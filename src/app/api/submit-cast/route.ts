@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
 
     if (!hubRes.ok) {
       const errMsg = data?.message || data?.errMsg || data?.error || rawText.slice(0, 300) || `Hub error ${hubRes.status}`;
+      console.error(`[submit-cast] hub ${hubRes.status}: ${errMsg}`, JSON.stringify(data));
       return NextResponse.json(
         { ok: false, error: errMsg, hub: data },
         { status: hubRes.status }

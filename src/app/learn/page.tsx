@@ -725,6 +725,8 @@ function LearnPageContent() {
   const [learnerCount, setLearnerCount] = useState(0);
   const [contentVisible, setContentVisible] = useState(false);
   const [navigating, setNavigating] = useState(false);
+  const [planPersonalizing, setPlanPersonalizing] = useState(false);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Deep-link pre-selection
   useEffect(() => {
@@ -761,6 +763,56 @@ function LearnPageContent() {
     return () => clearTimeout(t);
   }, []);
 
+  // ─── Neon cross-device sync ───────────────────────────────────────────────
+
+  const getFid = (): number | null => {
+    try {
+      const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
+      return p?.fid ? Number(p.fid) : null;
+    } catch { return null; }
+  };
+
+  // On mount: if FID available, load progress from Neon (overrides localStorage)
+  useEffect(() => {
+    const fid = getFid();
+    if (!fid) return;
+    fetch(`/api/learning-progress?fid=${fid}`)
+      .then(r => r.json())
+      .then(d => {
+        if (!d.found || !d.plan) return;
+        setPlan(d.plan);
+        setCompletedIds(new Set(d.completed_ids ?? []));
+        setPageState('plan');
+        try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(d.plan)); } catch {}
+        try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(d.completed_ids ?? [])); } catch {}
+        if (d.completions && Object.keys(d.completions).length > 0) {
+          try { localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(d.completions)); } catch {}
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced save: whenever plan or completedIds change, sync to Neon after 2s
+  useEffect(() => {
+    if (!plan) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      const fid = getFid();
+      if (!fid) return;
+      const completions = (() => {
+        try { return JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) ?? '{}'); } catch { return {}; }
+      })();
+      fetch('/api/learning-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fid, plan, completed_ids: [...completedIds], completions }),
+      }).catch(() => {});
+    }, 2000);
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, completedIds]);
+
   const navigateToModule = useCallback((id: string) => {
     setNavigating(true);
     setTimeout(() => router.push(`/learn/module?id=${id}`), 200);
@@ -772,8 +824,27 @@ function LearnPageContent() {
 
   const generatePlan = async () => {
     if (!track || !level) return;
-    setPageState('generating');
     setError(null);
+
+    // Show fallback plan instantly — no spinner needed
+    let fallbackShown = false;
+    try {
+      const fallbackRes = await fetch(`/api/learning-plan?track=${track}&level=${level}`);
+      if (fallbackRes.ok) {
+        const fallbackPlan = await fallbackRes.json() as LearningPlan;
+        setPlan(fallbackPlan);
+        setCompletedIds(new Set());
+        setPageState('plan');
+        fallbackShown = true;
+      }
+    } catch {
+      // proceed to generating spinner if GET failed
+    }
+
+    if (!fallbackShown) setPageState('generating');
+
+    // AI personalization fires in the background while user already sees the plan
+    setPlanPersonalizing(true);
     try {
       const res = await fetch('/api/learning-plan', {
         method: 'POST',
@@ -784,8 +855,13 @@ function LearnPageContent() {
       const data = await res.json() as LearningPlan;
       setPlan(data); setCompletedIds(new Set()); setPageState('plan');
     } catch (err: any) {
-      setError(err?.message || 'Something went wrong. Please try again.');
-      setPageState('quiz'); setStep(3);
+      if (!fallbackShown) {
+        setError(err?.message || 'Something went wrong. Please try again.');
+        setPageState('quiz'); setStep(3);
+      }
+      // silently keep fallback plan if AI personalisation fails
+    } finally {
+      setPlanPersonalizing(false);
     }
   };
 
@@ -922,6 +998,19 @@ function LearnPageContent() {
           <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>{plan.summary}</p>
         </div>
 
+        {/* Personalizing banner */}
+        {planPersonalizing && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16,
+            padding: '10px 14px', borderRadius: 10,
+            background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)',
+            fontSize: 13, color: '#a5b4fc',
+          }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #a5b4fc', borderTopColor: 'transparent', animation: 'hhSpin 0.8s linear infinite', flexShrink: 0 }} />
+            ✨ Personalizing your plan based on your goals…
+          </div>
+        )}
+
         {/* Progress */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -1048,6 +1137,40 @@ function LearnPageContent() {
                 </div>
               </button>
             ))}
+          </div>
+
+          {/* Try first shortcut */}
+          <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+            <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 10px', textAlign: 'center' }}>Not sure yet?</p>
+            <button
+              onClick={() => {
+                const starterPlan: LearningPlan = {
+                  track: 'learner',
+                  level: 'beginner',
+                  summary: 'A quick taste of the HomieHouse learning experience.',
+                  modules: [{
+                    id: 'wallet-basics',
+                    title: 'Your First Crypto Wallet',
+                    description: 'Learn what a crypto wallet is, how it works, and how to set one up safely.',
+                    whyItMatters: 'Your wallet is your identity and bank account in Web3 — without it, you cannot participate.',
+                    objectives: ['Understand what a seed phrase is and why it must be kept secret', 'Set up a self-custody wallet like MetaMask or Coinbase Wallet', 'Know the difference between hot and cold wallets', 'Send and receive your first transaction safely'],
+                    estimatedMinutes: 25,
+                    difficulty: 'beginner',
+                    tags: ['wallet', 'security', 'basics'],
+                  }],
+                };
+                try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(starterPlan)); } catch {}
+                router.push('/learn/module?id=wallet-basics');
+              }}
+              style={{
+                width: '100%', padding: '13px 18px', borderRadius: 12,
+                background: 'rgba(99,102,241,0.08)', border: '1px dashed rgba(99,102,241,0.4)',
+                color: '#a5b4fc', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              Try a lesson first →
+            </button>
           </div>
         </div>
       )}

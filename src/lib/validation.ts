@@ -5,7 +5,10 @@
 import { ValidationError } from './errors';
 
 /**
- * Validate cast text content
+ * Validate cast text content.
+ * Supports standard casts (≤ 320 chars) and long-form casts (≤ 10,000 chars).
+ * The cast type (CastType.CAST vs CastType.LONG_CAST) is determined automatically
+ * by the write layer based on the text length.
  */
 export function validateCastText(text: string): string {
   if (!text || typeof text !== 'string') {
@@ -18,9 +21,8 @@ export function validateCastText(text: string): string {
     throw new ValidationError('Cast text cannot be empty', 'text');
   }
 
-  // Farcaster limit is 320 characters
-  if (trimmed.length > 320) {
-    throw new ValidationError('Cast text exceeds 320 character limit', 'text');
+  if (trimmed.length > 10000) {
+    throw new ValidationError('Cast text exceeds 10,000 character limit', 'text');
   }
 
   return trimmed;
