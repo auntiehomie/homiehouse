@@ -21,9 +21,14 @@ async function fetchParent(hash: string): Promise<ParentMeta | null> {
     .then(data => {
       const cast = data?.cast;
       if (!cast) { cache.set(hash, null); return null; }
+      const rawUser = cast.author?.username || '';
+      const isFidString = /^fid:\d+$/i.test(rawUser);
+      const authorUsername = isFidString
+        ? (cast.author?.display_name || String(cast.author?.fid || '?'))
+        : (rawUser || cast.author?.display_name || String(cast.author?.fid || '?'));
       const meta: ParentMeta = {
         hash,
-        authorUsername: cast.author?.username || cast.author?.fid || '?',
+        authorUsername,
         text: (cast.text || '').slice(0, 200),
       };
       cache.set(hash, meta);
