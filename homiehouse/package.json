@@ -1,6 +1,7 @@
 {
   "name": "1481393129444737075",
   "private": true,
+  "themes": ["Cypherpunk", "Spring", "Summer", "Winter", "Urban"],
   "version": "0.0.0",
   "type": "module",
   "scripts": {
