@@ -1,0 +1,24 @@
+{
+  "crons": [
+    {
+      "path": "/api/publish-scheduled-casts",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/push/check-notifications",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/agent/tip",
+      "schedule": "0 9,21 * * *"
+    },
+    {
+      "path": "/api/agent/mention",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/agent/engagement-check",
+      "schedule": "0 6,18 * * *"
+    }
+  ]
+}

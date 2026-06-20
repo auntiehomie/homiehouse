@@ -1,0 +1,1033 @@
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { HumanMessage, AIMessage, SystemMessage, BaseMessage } from '@langchain/core/messages';
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { z } from 'zod';
+import { searchCasts, getCastsByUsername } from '../hypersnap';
+import { getTokenData, searchTokens, formatTokenDisplay } from '../token-data';
+
+// User profile schema
+export const UserProfileSchema = z.object({
+  fid: z.number().optional(),
+  username: z.string().optional(),
+  writingStyle: z.enum(['casual', 'professional', 'technical', 'creative']).default('casual'),
+  preferredTone: z.enum(['friendly', 'informative', 'humorous', 'serious']).default('friendly'),
+  topics: z.array(z.string()).default([]),
+  castLength: z.enum(['short', 'medium', 'long']).default('medium'),
+  useEmojis: z.boolean().default(true),
+  useHashtags: z.boolean().default(false),
+  learningPreferences: z.object({
+    previousCasts: z.array(z.string()).default([]),
+    feedbackHistory: z.array(z.object({
+      cast: z.string(),
+      feedback: z.string(),
+      timestamp: z.number()
+    })).default([]),
+    commonPatterns: z.array(z.string()).default([])
+  }).default({
+    previousCasts: [],
+    feedbackHistory: [],
+    commonPatterns: []
+  })
+});
+
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+
+// Agent Types
+export type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
+
+export interface AgentMessage {
+  role: AgentRole;
+  content: string;
+  suggestions?: string[];
+  metadata?: Record<string, any>;
+}
+
+// Base Agent Class
+export class BaseAgent {
+  protected llm: ChatOpenAI | ChatAnthropic;
+  protected systemPrompt: string;
+  protected conversationHistory: BaseMessage[] = [];
+  protected tools: DynamicStructuredTool[] = [];
+
+  constructor(
+    provider: 'openai' | 'anthropic' = 'openai',
+    systemPrompt: string,
+    tools: DynamicStructuredTool[] = []
+  ) {
+    if (provider === 'anthropic') {
+      this.llm = new ChatAnthropic({
+        modelName: 'claude-sonnet-4-6',
+        temperature: 0.7,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY
+      });
+    } else {
+      this.llm = new ChatOpenAI({
+        modelName: 'gpt-4o',
+        temperature: 0.7,
+        openAIApiKey: process.env.OPENAI_API_KEY
+      });
+    }
+
+    this.systemPrompt = systemPrompt;
+    this.tools = tools;
+  }
+
+  async chat(message: string, context?: string): Promise<string> {
+    const messages: BaseMessage[] = [new SystemMessage(this.systemPrompt)];
+    
+    if (context) {
+      messages.push(new SystemMessage(`Context: ${context}`));
+    }
+
+    // Add conversation history
+    messages.push(...this.conversationHistory);
+    messages.push(new HumanMessage(message));
+
+    // If tools are available, bind them to the model
+    let model = this.llm;
+    if (this.tools.length > 0) {
+      model = this.llm.bindTools(this.tools) as typeof this.llm;
+    }
+
+    const response = await model.invoke(messages);
+    
+    // Check if the model wants to use tools
+    if (response.tool_calls && response.tool_calls.length > 0) {
+      // Execute tool calls
+      const toolMessages: BaseMessage[] = [];
+      
+      for (const toolCall of response.tool_calls) {
+        const tool = this.tools.find(t => t.name === toolCall.name);
+        if (tool) {
+          try {
+            const toolResult = await tool.invoke(toolCall.args);
+            toolMessages.push(new SystemMessage(`Tool ${toolCall.name} result: ${toolResult}`));
+          } catch (error) {
+            toolMessages.push(new SystemMessage(`Tool ${toolCall.name} error: ${error instanceof Error ? error.message : 'Unknown error'}`));
+          }
+        }
+      }
+      
+      // If we have tool results, ask the model to incorporate them
+      if (toolMessages.length > 0) {
+        const finalMessages = [
+          ...messages,
+          new AIMessage(response.content as string),
+          ...toolMessages,
+          new HumanMessage('Based on the tool results above, provide your final response.')
+        ];
+        
+        const finalResponse = await this.llm.invoke(finalMessages);
+        
+        // Update history with final response
+        this.conversationHistory.push(new HumanMessage(message));
+        this.conversationHistory.push(new AIMessage(finalResponse.content as string));
+        
+        // Keep only last 10 messages to avoid token limits
+        if (this.conversationHistory.length > 10) {
+          this.conversationHistory = this.conversationHistory.slice(-10);
+        }
+        
+        return finalResponse.content as string;
+      }
+    }
+    
+    // Update history
+    this.conversationHistory.push(new HumanMessage(message));
+    this.conversationHistory.push(new AIMessage(response.content as string));
+
+    // Keep only last 10 messages to avoid token limits
+    if (this.conversationHistory.length > 10) {
+      this.conversationHistory = this.conversationHistory.slice(-10);
+    }
+
+    return response.content as string;
+  }
+}
+
+// Farcaster Search Tools
+export function createSearchCastsTool() {
+  return new DynamicStructuredTool({
+    name: 'search_farcaster_casts',
+    description: 'Search for Farcaster casts by keyword or phrase. Use this when users ask to find casts about a specific topic, or to find similar casts to one being analyzed. Returns matching casts with author info and engagement metrics. If a combined query returns empty, automatically tries each keyword individually.',
+    schema: z.object({
+      query: z.string().describe('The search query to find relevant casts'),
+      limit: z.number().optional().default(10).describe('Number of results to return (default: 10, max: 25)')
+    }),
+    func: async ({ query, limit = 10 }) => {
+      try {
+        const cap = Math.min(limit, 25);
+
+        // Primary search with full query
+        const primary = await searchCasts(query, cap);
+        if (Array.isArray(primary?.casts) && primary.casts.length > 0) {
+          return JSON.stringify(primary, null, 2);
+        }
+
+        // Fallback: split on common separators and search each keyword individually
+        const keywords = query
+          .split(/\s+(?:and|or|,)\s+|\s*,\s*/i)
+          .map((k: string) => k.trim())
+          .filter((k: string) => k.length > 2);
+
+        if (keywords.length > 1) {
+          const seen = new Set<string>();
+          const merged: any[] = [];
+
+          for (const kw of keywords) {
+            const r = await searchCasts(kw, cap);
+            for (const cast of (r?.casts ?? [])) {
+              if (!seen.has(cast.hash)) {
+                seen.add(cast.hash);
+                merged.push(cast);
+              }
+            }
+          }
+
+          if (merged.length > 0) {
+            return JSON.stringify({ casts: merged.slice(0, cap), searchedTerms: keywords }, null, 2);
+          }
+        }
+
+        return JSON.stringify({ casts: [], message: 'No casts found. Try a different search term or ask about a specific user.' }, null, 2);
+      } catch (error) {
+        return `Error searching casts: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+}
+
+export function createGetCastsByUserTool() {
+  return new DynamicStructuredTool({
+    name: 'get_user_casts',
+    description: 'Get recent casts from a specific Farcaster user by their username. Use this when users want to see what someone has been posting, analyze a user\'s posting style, or find their most engaged cast. Returns casts with engagement metrics (likes, recasts, replies).',
+    schema: z.object({
+      username: z.string().describe('The Farcaster username (without @ symbol)'),
+      limit: z.number().optional().default(25).describe('Number of casts to return (default: 25, max: 100)')
+    }),
+    func: async ({ username, limit = 25 }) => {
+      try {
+        console.log(`Tool: Getting casts from @${username}`);
+        const results = await getCastsByUsername(username, Math.min(limit, 100));
+        
+        if (!results || !results.casts || results.casts.length === 0) {
+          return `No casts found for @${username}. They may not have posted anything yet, or their account might be new.`;
+        }
+        
+        // Calculate engagement metrics for each cast
+        const castsWithEngagement = results.casts.map((cast: any) => {
+          const likes = cast.reactions?.likes_count || 0;
+          const recasts = cast.reactions?.recasts_count || 0;
+          const replies = cast.replies?.count || 0;
+          const totalEngagement = likes + recasts + replies;
+          
+          return {
+            hash: cast.hash,
+            text: cast.text,
+            timestamp: cast.timestamp,
+            author: cast.author?.username,
+            engagement: {
+              likes,
+              recasts,
+              replies,
+              total: totalEngagement
+            }
+          };
+        });
+        
+        // Sort by total engagement
+        castsWithEngagement.sort((a: any, b: any) => b.engagement.total - a.engagement.total);
+        
+        return JSON.stringify({
+          username,
+          totalCasts: castsWithEngagement.length,
+          casts: castsWithEngagement,
+          mostEngaged: castsWithEngagement[0]
+        }, null, 2);
+      } catch (error) {
+        console.error(`Tool error for @${username}:`, error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
+        // Provide helpful error messages
+        if (errorMessage.includes('not found')) {
+          return `I couldn't find a Farcaster user named @${username}. Please verify the username is correct. Usernames are case-sensitive on Farcaster. You can check if the user exists by visiting https://warpcast.com/${username}`;
+        }
+        
+        return `Error fetching casts from @${username}: ${errorMessage}. This could be due to an API issue or the username might not exist.`;
+      }
+    }
+  });
+}
+
+// Token Information Tools
+export function createGetTokenInfoTool() {
+  return new DynamicStructuredTool({
+    name: 'get_token_info',
+    description: 'Get detailed real-time information about a cryptocurrency token including price, market cap, volume, liquidity, and more. Works with token names (e.g., "Ethereum"), symbols (e.g., "ETH"), or contract addresses. Data is sourced from CoinGecko and DexScreener.',
+    schema: z.object({
+      identifier: z.string().describe('Token name, symbol, or contract address (e.g., "ethereum", "ETH", or "0x...")')
+    }),
+    func: async ({ identifier }) => {
+      try {
+        console.log(`Tool: Getting token info for ${identifier}`);
+        const tokenData = await getTokenData(identifier);
+        
+        if (!tokenData) {
+          return `Token "${identifier}" not found. This could mean:
+- The token doesn't exist or isn't listed on major platforms
+- The name/symbol might be misspelled
+- For new/small tokens, try using the contract address instead
+- The token might only exist on chains other than Base`;
+        }
+        
+        // Log what was actually returned
+        console.log(`Tool: Found token - ${tokenData.symbol} (${tokenData.name})`);
+        
+        // Verify we got the right token
+        const upperIdentifier = identifier.toUpperCase();
+        const upperSymbol = tokenData.symbol?.toUpperCase() || '';
+        const upperName = tokenData.name?.toUpperCase() || '';
+        
+        // If identifier doesn't match symbol or name, warn about it
+        if (!identifier.startsWith('0x') && 
+            !upperSymbol.includes(upperIdentifier) && 
+            !upperName.includes(upperIdentifier) &&
+            upperIdentifier !== upperSymbol) {
+          return `Found token ${tokenData.name} (${tokenData.symbol}), but this may not match "${identifier}". The search returned the closest match. If this is not what you're looking for, try using the exact token symbol or contract address.`;
+        }
+        
+        const formatted = formatTokenDisplay(tokenData);
+        
+        // Check if we have any useful data
+        const hasPrice = !!tokenData.currentPrice;
+        const hasMarketData = !!(tokenData.marketCap || tokenData.totalVolume || tokenData.liquidity);
+        
+        // Add additional context
+        let response = formatted;
+        
+        // If token was found but has no price/market data, add helpful message
+        if (!hasPrice && !hasMarketData) {
+          response += `\n\n⚠️ **Note:** Market data is not currently available for this token. This might mean:
+- The token is very new and hasn't been indexed yet
+- Trading volume is too low for reliable data
+- The token is not actively traded
+
+You can check the contract address on [Basescan](https://basescan.org/token/${tokenData.address}) or try checking DEX pairs directly.`;
+        }
+        
+        if (tokenData.description && tokenData.description.length > 0) {
+          response += `\n\n**About:**\n${tokenData.description.substring(0, 300)}${tokenData.description.length > 300 ? '...' : ''}`;
+        }
+        
+        if (tokenData.links) {
+          const links = [];
+          if (tokenData.links.homepage?.[0]) links.push(`🌐 [Website](${tokenData.links.homepage[0]})`);
+          if (tokenData.links.twitter) links.push(`🐦 [@${tokenData.links.twitter}](https://twitter.com/${tokenData.links.twitter})`);
+          if (links.length > 0) {
+            response += `\n\n**Links:** ${links.join(' • ')}`;
+          }
+        }
+        
+        // Add risk assessment context
+        if (tokenData.liquidity && tokenData.liquidity.usd && tokenData.liquidity.usd < 50000) {
+          response += `\n\n⚠️ **Warning:** Low liquidity ($${(tokenData.liquidity.usd / 1000).toFixed(1)}K) - higher risk of price manipulation`;
+        }
+        
+        return response;
+      } catch (error) {
+        console.error(`Tool error for token ${identifier}:`, error);
+        return `Error fetching token information for "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+}
+
+export function createSearchTokensTool() {
+  return new DynamicStructuredTool({
+    name: 'search_tokens',
+    description: 'Search for cryptocurrency tokens by name or symbol. Returns a list of matching tokens with basic information. Use this when the user is not sure of the exact token name or wants to see multiple options.',
+    schema: z.object({
+      query: z.string().describe('Search query (token name or symbol)'),
+      limit: z.number().optional().default(5).describe('Number of results to return (default: 5, max: 10)')
+    }),
+    func: async ({ query, limit = 5 }) => {
+      try {
+        console.log(`Tool: Searching tokens for "${query}"`);
+        const results = await searchTokens(query, Math.min(limit, 10));
+        
+        if (!results || results.length === 0) {
+          return `No tokens found matching "${query}". Try:
+- Different spelling or abbreviation
+- The full token name instead of symbol (or vice versa)
+- Checking if the token is available on Base network`;
+        }
+        
+        const formatted = results.map((token, i) => {
+          const parts = [`${i + 1}. **${token.name} (${token.symbol})**`];
+          if (token.currentPrice) {
+            parts.push(`   💵 $${token.currentPrice < 0.01 ? token.currentPrice.toExponential(4) : token.currentPrice.toFixed(token.currentPrice < 1 ? 6 : 2)}`);
+          }
+          if (token.marketCap) {
+            const mcap = token.marketCap >= 1_000_000_000 
+              ? `$${(token.marketCap / 1_000_000_000).toFixed(2)}B`
+              : token.marketCap >= 1_000_000
+              ? `$${(token.marketCap / 1_000_000).toFixed(2)}M`
+              : `$${(token.marketCap / 1_000).toFixed(2)}K`;
+            parts.push(`   📊 MCap: ${mcap}`);
+          }
+          if (token.priceChangePercentage24h !== undefined) {
+            const emoji = token.priceChangePercentage24h >= 0 ? '📈' : '📉';
+            parts.push(`   ${emoji} 24h: ${token.priceChangePercentage24h.toFixed(2)}%`);
+          }
+          return parts.join('\n');
+        }).join('\n\n');
+        
+        return `Found ${results.length} token${results.length === 1 ? '' : 's'}:\n\n${formatted}\n\nUse get_token_info with a specific token name or symbol for detailed information.`;
+      } catch (error) {
+        console.error(`Tool error for token search "${query}":`, error);
+        return `Error searching tokens: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+}
+
+// Cast Composer Agent - Helps write better Farcaster casts
+export class CastComposerAgent extends BaseAgent {
+  constructor(userProfile: UserProfile) {
+    const systemPrompt = `You are an expert Farcaster cast composer. Your job is to help users write engaging, authentic casts.
+
+User Profile:
+- Writing Style: ${userProfile.writingStyle}
+- Preferred Tone: ${userProfile.preferredTone}
+- Cast Length Preference: ${userProfile.castLength}
+- Use Emojis: ${userProfile.useEmojis ? 'Yes' : 'No'}
+- Use Hashtags: ${userProfile.useHashtags ? 'Yes' : 'No'}
+- Topics of Interest: ${userProfile.topics.join(', ') || 'Various'}
+
+Guidelines:
+1. Keep casts under 320 characters for standard posts; up to 10,000 characters for long-form casts
+2. Match the user's style and tone
+3. Make it authentic and engaging
+4. Suggest improvements, don't rewrite completely
+5. Offer 2-3 alternatives when appropriate
+6. Consider Farcaster culture and best practices
+
+When helping:
+- Ask clarifying questions if needed
+- Provide specific, actionable suggestions
+- Explain WHY a change would improve the cast
+- Learn from user feedback to improve future suggestions`;
+
+    super('anthropic', systemPrompt);
+  }
+
+  async composeCast(
+    userInput: string,
+    context?: { topic?: string; replyTo?: string }
+  ): Promise<{
+    suggestions: string[];
+    reasoning: string;
+    tips: string[];
+  }> {
+    let prompt = `Help me write a Farcaster cast based on this: "${userInput}"`;
+    
+    if (context?.topic) {
+      prompt += `\nTopic focus: ${context.topic}`;
+    }
+    if (context?.replyTo) {
+      prompt += `\nReplying to: "${context.replyTo}"`;
+    }
+
+    prompt += '\n\nProvide 2-3 cast suggestions with brief reasoning for each.';
+
+    const response = await this.chat(prompt);
+    
+    // Parse response to extract suggestions
+    return this.parseComposerResponse(response);
+  }
+
+  private parseComposerResponse(response: string): {
+    suggestions: string[];
+    reasoning: string;
+    tips: string[];
+  } {
+    const lines = response.split('\n').filter(l => l.trim());
+    const suggestions: string[] = [];
+    const tips: string[] = [];
+    let reasoning = '';
+
+    for (const line of lines) {
+      // Look for numbered suggestions or quotes
+      if (/^\d+[\.\)]/.test(line) || line.startsWith('"') || line.startsWith('•')) {
+        const cleaned = line.replace(/^\d+[\.\)]\s*/, '').replace(/^["•]\s*/, '').replace(/"$/, '').trim();
+        if (cleaned.length > 0 && cleaned.length <= 10000) {
+          suggestions.push(cleaned);
+        }
+      } else if (line.toLowerCase().includes('tip') || line.toLowerCase().includes('suggestion')) {
+        tips.push(line);
+      } else if (!reasoning && line.length > 20) {
+        reasoning = line;
+      }
+    }
+
+    return { suggestions, reasoning, tips };
+  }
+}
+
+// Farcaster Coach Agent - Provides learning and improvement feedback
+export class FarcasterCoachAgent extends BaseAgent {
+  constructor() {
+    const systemPrompt = `You are a Farcaster growth coach. You help users improve their Farcaster presence through:
+
+1. Cast Quality Analysis - Review casts for engagement potential
+2. Pattern Recognition - Identify what works for this user
+3. Personalized Tips - Suggest improvements based on their style
+4. Engagement Strategy - Help grow their audience authentically
+5. Cast Discovery - Find similar or related casts to learn from
+
+Key Principles:
+- Be encouraging but honest
+- Focus on actionable feedback
+- Help users find their authentic voice
+- Avoid generic social media advice
+- Understand Farcaster culture and norms
+
+Available Tools:
+- search_farcaster_casts: Search for casts by keyword or topic
+- get_user_casts: Get recent casts from a specific user
+
+When analyzing casts:
+- Consider timing, tone, length, and content
+- Look for engagement hooks
+- Check for clarity and authenticity
+- Suggest specific improvements
+- When asked to find similar casts, use the search tool to discover examples
+- When analyzing a user's style, you can fetch their recent casts`;
+
+    // Add Farcaster search tools
+    const tools = [
+      createSearchCastsTool(),
+      createGetCastsByUserTool()
+    ];
+
+    super('openai', systemPrompt, tools);
+  }
+
+  async analyzeCast(castOrMessage: string, metrics?: { likes?: number; recasts?: number; replies?: number }): Promise<string> {
+    // Check if this is a structured context message or just a cast
+    const hasStructuredContext = castOrMessage.includes('Cast Author:') || 
+                                  castOrMessage.includes('Cast Content:') ||
+                                  castOrMessage.includes('IMPORTANT CONTEXT');
+    
+    let prompt: string;
+    
+    if (hasStructuredContext) {
+      // Use the full context message as-is since it's already well-formatted
+      prompt = `${castOrMessage}
+
+Please provide thoughtful analysis of this cast. Consider:
+- The cast's message and intent
+- Tone and writing style
+- Engagement potential
+- What makes it interesting or noteworthy
+- If asked to find similar casts, use the search_farcaster_casts tool`;
+    } else {
+      // Simple cast analysis
+      prompt = `Analyze this Farcaster cast: "${castOrMessage}"`;
+      
+      if (metrics) {
+        prompt += `\nMetrics: ${metrics.likes || 0} likes, ${metrics.recasts || 0} recasts, ${metrics.replies || 0} replies`;
+      }
+
+      prompt += '\n\nProvide specific feedback on what works and what could be improved.';
+    }
+
+    return this.chat(prompt);
+  }
+
+  async generateLearningInsights(
+    previousCasts: string[],
+    feedbackHistory: Array<{ cast: string; feedback: string }>
+  ): Promise<string> {
+    const prompt = `Based on these previous casts and feedback, what patterns do you notice? What should the user focus on improving?
+
+Previous Casts:
+${previousCasts.slice(-5).map((c, i) => `${i + 1}. "${c}"`).join('\n')}
+
+Recent Feedback:
+${feedbackHistory.slice(-3).map(f => `Cast: "${f.cast}"\nFeedback: ${f.feedback}`).join('\n\n')}
+
+Provide 3-5 key learning insights and actionable recommendations.`;
+
+    return this.chat(prompt);
+  }
+}
+
+// Farcaster Research Agent - Helps with research and context
+export class FarcasterResearchAgent extends BaseAgent {
+  constructor() {
+    const systemPrompt = `You are a Farcaster research assistant. You help users:
+
+1. Understand trending topics and conversations
+2. Learn about users, projects, and communities
+3. Get context on technical concepts and terms
+4. Discover relevant channels and discussions
+5. Search for casts and analyze user activity
+6. Find most engaged/popular casts from specific users
+7. Get real-time cryptocurrency token information
+
+Farcaster Knowledge:
+- Farcaster is a sufficiently decentralized social protocol
+- Built on Ethereum/Optimism
+- Users own their social graph via FIDs
+- Casts are the equivalent of tweets
+- Channels are topic-based communities
+- Frames enable interactive experiences
+
+Available Tools:
+- search_farcaster_casts: Search for casts by keyword or topic
+- get_user_casts: Get recent casts from a specific user with engagement metrics
+- get_token_info: Get detailed real-time token information (price, market cap, volume, etc.)
+- search_tokens: Search for tokens by name or symbol
+
+When asked to find casts or see what someone is posting:
+- Use search_farcaster_casts for topic-based searches
+- Use get_user_casts when asked about a specific user (extract username from @mentions)
+- Extract @username from queries and use without the @ symbol
+- The get_user_casts tool returns casts sorted by engagement, with the mostEngaged cast highlighted
+- When asked for "most engaged cast", use get_user_casts and report the mostEngaged cast from the results
+
+Search strategy for multi-topic questions:
+- When a user asks about "X and Y" (e.g., "neynar and hypersnap"), call search_farcaster_casts TWICE — once for "X" and once for "Y" separately, then combine what you find
+- For company/product names, also call get_user_casts on their likely Farcaster handles (e.g., for "neynar" try get_user_casts with username "neynar"; for "hypersnap" try username "hypersnap")
+- If search returns little, try related terms or shorter versions of the query
+
+Be accurate, cite what you know, and admit when you're not certain.`;
+
+    // Add Farcaster search tools and token tools
+    const tools = [
+      createSearchCastsTool(),
+      createGetCastsByUserTool(),
+      createGetTokenInfoTool(),
+      createSearchTokensTool()
+    ];
+
+    super('openai', systemPrompt, tools);
+  }
+
+  async research(query: string, context?: string): Promise<string> {
+    let prompt = `Research and explain: ${query}`;
+    
+    if (context) {
+      prompt += `\n\nContext: ${context}`;
+    }
+
+    return this.chat(prompt);
+  }
+}
+
+// Search for similar casts to enrich context
+// Uses Hypersnap /v2/farcaster/cast/search endpoint via searchCasts() in lib/hypersnap.ts.
+// Cast search is fully operational via the self-hosted HyperSync hub index.
+async function searchSimilarCasts(castText: string): Promise<string> {
+  try {
+    const keywords = extractKeywordsForSearch(castText);
+    if (keywords.length === 0) {
+      console.log('[agents] searchSimilarCasts: no keywords extracted, skipping');
+      return '';
+    }
+    const query = keywords.slice(0, 3).join(' ');
+    console.log(`[agents] searchSimilarCasts: querying HyperSync for "${query}"`);
+    const results = await searchCasts(query, 5);
+    if (!results || !results.casts || results.casts.length === 0) {
+      return '';
+    }
+    const formatted = results.casts.map((c: any, i: number) => {
+      const author = c.author?.username || 'unknown';
+      const text = (c.text || '').slice(0, 200);
+      const likes = c.reactions?.likes_count || 0;
+      const recasts = c.reactions?.recasts_count || 0;
+      return `${i + 1}. @${author}: "${text}" [${likes} likes, ${recasts} recasts]`;
+    }).join('\n');
+    return `\n\n--- Similar Casts Found via Cast Search ---\n${formatted}\n---`;
+  } catch (error) {
+    console.warn('[agents] searchSimilarCasts error:', error instanceof Error ? error.message : error);
+    return '';
+  }
+}
+
+// Extract keywords from text for search
+function extractKeywordsForSearch(text: string): string[] {
+  // Remove URLs, mentions, and common words
+  const cleanText = text
+    .toLowerCase()
+    .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+    .replace(/@\w+/g, '') // Remove mentions
+    .replace(/[^\w\s]/g, ' '); // Remove punctuation
+
+  // Common stop words to filter out
+  const stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'up', 'about', 'into', 'through', 'during',
+    'it', 'is', 'was', 'are', 'were', 'be', 'been', 'being', 'have', 'has',
+    'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can',
+    'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they',
+    'what', 'which', 'who', 'when', 'where', 'why', 'how', 'just', 'im', 'its'
+  ]);
+
+  // Split into words and filter
+  const words = cleanText
+    .split(/\s+/)
+    .filter(word => word.length > 3 && !stopWords.has(word));
+
+  // Count word frequency
+  const wordCount = new Map<string, number>();
+  words.forEach(word => {
+    wordCount.set(word, (wordCount.get(word) || 0) + 1);
+  });
+
+  // Return top keywords by frequency
+  return Array.from(wordCount.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([word]) => word);
+}
+
+// Agent Orchestrator - Coordinates multiple agents
+export class AgentOrchestrator {
+  private composer: CastComposerAgent;
+  private coach: FarcasterCoachAgent;
+  private researcher: FarcasterResearchAgent;
+  private userProfile: UserProfile;
+
+  constructor(userProfile: UserProfile) {
+    this.userProfile = userProfile;
+    this.composer = new CastComposerAgent(userProfile);
+    this.coach = new FarcasterCoachAgent();
+    this.researcher = new FarcasterResearchAgent();
+  }
+
+  async processRequest(
+    message: string,
+    intent: 'compose' | 'analyze' | 'learn' | 'research' | 'curate' | 'auto' = 'auto'
+  ): Promise<AgentMessage> {
+    // Auto-detect intent if not specified
+    if (intent === 'auto') {
+      intent = this.detectIntent(message);
+      console.log(`🎯 Auto-detected intent: ${intent}`);
+    }
+
+    // Check if message contains cast context (for analysis)
+    const hasCastContext = message.includes('Cast Author:') || 
+                           message.includes('Cast Content:') || 
+                           message.includes('IMPORTANT CONTEXT');
+    
+    if (hasCastContext) {
+      console.log('📋 Cast context detected in message');
+    }
+    
+    let enrichedMessage = message;
+
+    // If analyzing a cast, search for similar casts to enrich context
+    if (hasCastContext) {
+      console.log('📊 Detected cast context, searching for similar casts...');
+      
+      // Extract the cast text from the context - try multiple patterns
+      let castText = '';
+      
+      // Pattern 1: Cast Content: "..."
+      const contentMatch = message.match(/Cast Content: "([^"]+)"/);
+      if (contentMatch && contentMatch[1]) {
+        castText = contentMatch[1];
+      }
+      
+      // Pattern 2: text field in context
+      const textMatch = message.match(/text:\s*"([^"]+)"/i);
+      if (!castText && textMatch && textMatch[1]) {
+        castText = textMatch[1];
+      }
+
+      if (castText && castText.length > 20) {
+        console.log(`🔍 Searching for similar casts to: "${castText.slice(0, 80)}..."`);
+        const similarCastsContext = await searchSimilarCasts(castText);
+        if (similarCastsContext) {
+          enrichedMessage = message + similarCastsContext;
+          console.log('✅ Enriched context with similar casts');
+        }
+      } else {
+        console.log('⚠️ Could not extract cast text for similar search');
+      }
+    }
+
+    switch (intent) {
+      case 'compose':
+        const composerResult = await this.composer.composeCast(enrichedMessage);
+        return {
+          role: 'composer',
+          content: composerResult.reasoning,
+          suggestions: composerResult.suggestions,
+          metadata: { tips: composerResult.tips }
+        };
+
+      case 'analyze':
+        const analysis = await this.coach.analyzeCast(enrichedMessage);
+        return {
+          role: 'coach',
+          content: analysis
+        };
+
+      case 'learn':
+        const insights = await this.coach.generateLearningInsights(
+          this.userProfile.learningPreferences.previousCasts,
+          this.userProfile.learningPreferences.feedbackHistory
+        );
+        return {
+          role: 'coach',
+          content: insights
+        };
+
+      case 'research':
+        const research = await this.researcher.research(enrichedMessage);
+        return {
+          role: 'researcher',
+          content: research
+        };
+
+      case 'curate':
+        const curationResponse = await this.handleFeedCuration(enrichedMessage);
+        return {
+          role: 'coach',
+          content: curationResponse.content,
+          metadata: curationResponse.metadata
+        };
+
+      default:
+        return {
+          role: 'coach',
+          content: 'I can help you compose casts, analyze your content, learn from feedback, or research Farcaster topics. What would you like to do?'
+        };
+    }
+  }
+
+  private async handleFeedCuration(message: string): Promise<{ content: string; metadata: any }> {
+    const systemPrompt = `You are a helpful Farcaster feed curation assistant. Your job is to help users customize their home feed by suggesting topics, channels, and interests they might want to see more of.
+
+When users ask about feed customization, suggest specific interests as single-word or short phrases (e.g., "crypto", "nft", "art", "trading", "tech", "politics", "music").
+
+If users mention specific topics they like or want to see more of, extract those as interest keywords.
+
+Be conversational and helpful. Explain how their interests will help prioritize relevant content in their feed.`;
+
+    const contextMessage = `The user currently wants to customize their Farcaster feed. ${message}
+
+Based on what they've said, suggest 3-5 specific interests they might want to add to their feed. Format your response as a friendly explanation followed by a list of suggested interests.`;
+
+    const tempAgent = new BaseAgent('anthropic', systemPrompt);
+    const response = await tempAgent.chat(contextMessage);
+
+    // Extract suggested interests from response (look for common patterns)
+    const suggestedInterests: string[] = [];
+    const interestMatches = response.match(/["']([a-zA-Z0-9\-]+)["']/g);
+    if (interestMatches) {
+      interestMatches.forEach(match => {
+        const interest = match.replace(/["']/g, '');
+        if (interest.length >= 3 && interest.length <= 20) {
+          suggestedInterests.push(interest);
+        }
+      });
+    }
+
+    return {
+      content: response,
+      metadata: {
+        suggestedInterests: suggestedInterests.slice(0, 5)
+      }
+    };
+  }
+
+  private detectIntent(message: string): 'compose' | 'analyze' | 'learn' | 'research' | 'curate' {
+    const lower = message.toLowerCase();
+
+    // Check if cast context is present (user is asking about a specific cast)
+    const hasCastContext = message.includes('Cast Author:') || 
+                           message.includes('Cast Content:') || 
+                           message.includes('IMPORTANT CONTEXT');
+    
+    // PRIORITY 0: Follow-up/confirmation messages - maintain current context
+    // These indicate the user is continuing a previous conversation
+    if (
+      lower.includes('yes') ||
+      lower.includes('proceed') ||
+      lower.includes('continue') ||
+      lower.includes('go ahead') ||
+      lower.includes('correct') ||
+      lower.includes('that one') ||
+      lower.includes('that\'s right') ||
+      lower.includes('confirmed') ||
+      (lower.includes('more') && lower.includes('about')) ||
+      (lower.includes('tell') && lower.includes('more'))
+    ) {
+      // Return research as default for confirmations (most common use case)
+      return 'research';
+    }
+    
+    // PRIORITY 1: Research/Search intent - check FIRST before anything else
+    // These keywords indicate the user wants to find other casts, not analyze the current one
+    if (
+      lower.includes('find') ||
+      lower.includes('search') ||
+      lower.includes('look for') ||
+      lower.includes('show me') ||
+      lower.includes('other casts') ||
+      lower.includes('similar casts') ||
+      lower.includes('more casts') ||
+      lower.includes('any casts') ||
+      lower.includes('recent casts') ||
+      lower.includes('latest casts') ||
+      lower.includes('casts by') ||
+      lower.includes('casts from') ||
+      lower.includes('casts about') ||
+      lower.includes('posts by') ||
+      lower.includes('posts from') ||
+      lower.includes('posts about') ||
+      lower.includes('news about') ||
+      lower.includes('any news') ||
+      lower.includes('recent news') ||
+      lower.includes('seen any') ||
+      lower.includes('heard about') ||
+      lower.includes('updates on') ||
+      lower.includes('updates about') ||
+      lower.includes('latest on') ||
+      lower.includes('info on') ||
+      lower.includes('info about') ||
+      lower.includes('price of') ||
+      lower.includes('get info') ||
+      lower.includes('details about') ||
+      lower.includes('sentiment on') ||
+      lower.includes('sentiment about') ||
+      lower.match(/@\w+/) ||  // Contains any @username mention
+      lower.match(/\$\w+/)    // Contains any $token ticker
+    ) {
+      return 'research';
+    }
+    
+    // If cast context is present, prioritize analyze intent for most questions
+    if (hasCastContext) {
+      // Questions about the cast should be analyze
+      if (
+        lower.includes('what do you think') ||
+        lower.includes('your thoughts') ||
+        lower.includes('opinion') ||
+        lower.includes('analyze') ||
+        lower.includes('why') ||
+        lower.includes('how') ||
+        lower.includes('what') ||
+        lower.includes('this cast') ||
+        lower.includes('about this') ||
+        lower.includes('tell me about')
+      ) {
+        return 'analyze';
+      }
+    }
+
+    // Curate intent (feed customization)
+    if (
+      lower.includes('curate') ||
+      lower.includes('customize my feed') ||
+      lower.includes('feed preferences') ||
+      lower.includes('what should i follow') ||
+      lower.includes('topics i like') ||
+      lower.includes('interests') ||
+      lower.includes('show me more') ||
+      lower.includes('see less') ||
+      lower.includes('filter my feed')
+    ) {
+      return 'curate';
+    }
+
+    // Compose intent
+    if (
+      lower.includes('write') ||
+      lower.includes('compose') ||
+      lower.includes('create a cast') ||
+      lower.includes('help me post') ||
+      lower.includes('how should i say')
+    ) {
+      return 'compose';
+    }
+
+    // Analyze intent
+    if (
+      lower.includes('analyze') ||
+      lower.includes('feedback on') ||
+      lower.includes('review this') ||
+      lower.includes('thoughts on this cast') ||
+      lower.includes('how is this')
+    ) {
+      return 'analyze';
+    }
+
+    // Learn intent
+    if (
+      lower.includes('improve') ||
+      lower.includes('better at') ||
+      lower.includes('learn') ||
+      lower.includes('tips') ||
+      lower.includes('advice')
+    ) {
+      return 'learn';
+    }
+
+    // Research intent (including search queries)
+    if (
+      lower.includes('what is') ||
+      lower.includes('who is') ||
+      lower.includes('explain') ||
+      lower.includes('tell me about') ||
+      lower.includes('research') ||
+      lower.includes('find') ||
+      lower.includes('search') ||
+      lower.includes('look for') ||
+      lower.includes('show me') ||
+      lower.includes('other casts') ||
+      lower.includes('similar casts') ||
+      lower.includes('more casts') ||
+      lower.includes('casts by') ||
+      lower.includes('casts from') ||
+      lower.includes('casts about') ||
+      lower.includes('posts by') ||
+      lower.includes('posts from') ||
+      lower.includes('what does @') ||
+      lower.includes('check @') ||
+      lower.match(/@\w+/)  // Contains any @username
+    ) {
+      return 'research';
+    }
+
+    // Default to compose for shorter messages, research for longer
+    return message.length < 100 ? 'compose' : 'research';
+  }
+
+  updateUserProfile(updates: Partial<UserProfile>): void {
+    this.userProfile = { ...this.userProfile, ...updates };
+    // Recreate composer with updated profile
+    this.composer = new CastComposerAgent(this.userProfile);
+  }
+
+  addFeedback(cast: string, feedback: string): void {
+    this.userProfile.learningPreferences.feedbackHistory.push({
+      cast,
+      feedback,
+      timestamp: Date.now()
+    });
+  }
+
+  addCast(cast: string): void {
+    this.userProfile.learningPreferences.previousCasts.push(cast);
+    // Keep only last 50 casts
+    if (this.userProfile.learningPreferences.previousCasts.length > 50) {
+      this.userProfile.learningPreferences.previousCasts.shift();
+    }
+  }
+}

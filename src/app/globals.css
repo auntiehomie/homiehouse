@@ -1,0 +1,827 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* Friendly palette and typography adapted from the Vite mini app */
+:root {
+  /* Monochrome palette */
+  --accent: #FFFFFF;
+  --accent-hover: #D4D4D4;
+  --accent-soft: #A1A1AA;
+  --bg-dark: #111111;
+  --surface: #1C1C1C;
+  --text-on-dark: #FFFFFF;
+  --muted-on-dark: rgba(255,255,255,0.60);
+  --border: rgba(255,255,255,0.08);
+  --nav-bg: #000000;
+  --nav-border: rgba(255,255,255,0.1);
+
+  --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --heading-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+
+  /* Button theming */
+  --btn-primary-bg: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+  --btn-primary-color: #e2e8f0;
+
+  /* Light-mode overrides will set these to lighter variants */
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+}
+
+/* Theme overrides — applied via data-theme on <html> */
+
+[data-theme="michigan"] {
+  --bg-dark: #00274C;
+  --surface: #003875;
+  --text-on-dark: #FFCB05;
+  --muted-on-dark: rgba(255, 203, 5, 0.65);
+  --border: rgba(255, 203, 5, 0.18);
+  --accent: #FFCB05;
+  --accent-hover: rgba(255, 203, 5, 0.85);
+  --accent-soft: rgba(255, 203, 5, 0.4);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #001830;
+  --nav-border: rgba(255, 203, 5, 0.25);
+  --btn-primary-bg: #FFCB05;
+  --btn-primary-color: #00274C;
+}
+
+[data-theme="msu"] {
+  --bg-dark: #18453B;
+  --surface: #1F5246;
+  --text-on-dark: #FFFFFF;
+  --muted-on-dark: rgba(255, 255, 255, 0.65);
+  --border: rgba(255, 255, 255, 0.12);
+  --accent: #FFFFFF;
+  --accent-hover: rgba(255, 255, 255, 0.85);
+  --accent-soft: rgba(255, 255, 255, 0.4);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0F2B22;
+  --nav-border: rgba(255, 255, 255, 0.15);
+  --btn-primary-bg: linear-gradient(180deg, #2d7a5e 0%, #1F5246 100%);
+  --btn-primary-color: #FFFFFF;
+}
+
+[data-theme="derby"] {
+  --bg-dark: #1A0A00;
+  --surface: #2D1600;
+  --text-on-dark: #F5E6C8;
+  --muted-on-dark: rgba(197, 165, 114, 0.75);
+  --border: rgba(197, 165, 114, 0.22);
+  --accent: #C53030;
+  --accent-hover: #E53E3E;
+  --accent-soft: rgba(197, 48, 48, 0.4);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0E0500;
+  --nav-border: rgba(197, 165, 114, 0.3);
+  --btn-primary-bg: linear-gradient(180deg, #C53030 0%, #9B2C2C 100%);
+  --btn-primary-color: #F5E6C8;
+}
+
+[data-theme="munchers"] {
+  --bg-dark: #001100;
+  --surface: #002200;
+  --text-on-dark: #00FF41;
+  --muted-on-dark: rgba(0, 255, 65, 0.55);
+  --border: rgba(0, 255, 65, 0.22);
+  --accent: #00FF41;
+  --accent-hover: #33FF66;
+  --accent-soft: rgba(0, 255, 65, 0.3);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #000900;
+  --nav-border: rgba(0, 255, 65, 0.3);
+  --btn-primary-bg: #00FF41;
+  --btn-primary-color: #001100;
+}
+
+[data-theme="munchers"] body,
+[data-theme="munchers"] input,
+[data-theme="munchers"] textarea,
+[data-theme="munchers"] button {
+  font-family: 'Courier New', Courier, monospace !important;
+}
+
+[data-theme="winamp"] {
+  /* Classic Winamp: black body, raised panel surfaces, orange EQ accent */
+  --bg-dark: #000000;
+  --surface: #1a1a1a;
+  --text-on-dark: #E8E8E8;
+  --muted-on-dark: rgba(232, 232, 232, 0.5);
+  --border: #3a3a3a;
+  --accent: #FF8C00;
+  --accent-hover: #FFA733;
+  --accent-soft: rgba(255, 140, 0, 0.3);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0a0a0a;
+  --nav-border: #333333;
+  --btn-primary-bg: linear-gradient(180deg, #3a3a3a 0%, #1e1e1e 100%);
+  --btn-primary-color: #FF8C00;
+}
+
+/* Winamp bevel panels */
+[data-theme="winamp"] .surface {
+  border: 1px solid;
+  border-color: #4a4a4a #111111 #111111 #4a4a4a;
+  box-shadow: inset 1px 1px 0 #555, inset -1px -1px 0 #000, 0 2px 8px rgba(0,0,0,0.8);
+}
+
+/* Winamp monospace everywhere */
+[data-theme="winamp"] body,
+[data-theme="winamp"] input,
+[data-theme="winamp"] textarea,
+[data-theme="winamp"] button {
+  font-family: 'Courier New', Courier, monospace !important;
+}
+
+/* Winamp: orange glow on links and timestamps */
+[data-theme="winamp"] a,
+[data-theme="winamp"] time {
+  color: #FF8C00;
+}
+
+/* Winamp: section headings in orange */
+[data-theme="winamp"] h1,
+[data-theme="winamp"] h2,
+[data-theme="winamp"] h3 {
+  color: #FF8C00;
+  text-shadow: 0 0 8px rgba(255, 140, 0, 0.4);
+}
+
+/* Winamp: green spectrum-style bottom nav active indicator */
+[data-theme="winamp"] .hh-bottom-nav {
+  border-top: 2px solid #FF8C00;
+  box-shadow: 0 -2px 12px rgba(255, 140, 0, 0.3);
+}
+
+/* ── Cypherpunk ──────────────────────────────────────────── */
+
+[data-theme="cypherpunk"] {
+  --bg-dark: #0a0f0a;
+  --surface: #0d1a0d;
+  --text-on-dark: #80ff80;
+  --muted-on-dark: rgba(0, 255, 65, 0.55);
+  --border: rgba(0, 255, 65, 0.18);
+  --accent: #00ff41;
+  --accent-hover: #33ff66;
+  --accent-soft: rgba(0, 255, 65, 0.25);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #050805;
+  --nav-border: rgba(0, 255, 65, 0.25);
+  --btn-primary-bg: #00ff41;
+  --btn-primary-color: #0a0f0a;
+}
+
+[data-theme="cypherpunk"] body,
+[data-theme="cypherpunk"] input,
+[data-theme="cypherpunk"] textarea,
+[data-theme="cypherpunk"] button {
+  font-family: 'Courier New', Courier, monospace !important;
+}
+
+[data-theme="cypherpunk"] h1,
+[data-theme="cypherpunk"] h2,
+[data-theme="cypherpunk"] h3 {
+  color: #00ff41;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+}
+
+[data-theme="cypherpunk"] a {
+  color: #80ff80;
+  text-decoration: underline wavy rgba(0, 255, 65, 0.3);
+}
+
+/* ── Chicago Mobster ─────────────────────────────────────── */
+
+[data-theme="mobster"] {
+  --bg-dark: #1a0d0d;
+  --surface: #2d1212;
+  --text-on-dark: #e8d4b8;
+  --muted-on-dark: rgba(200, 170, 110, 0.65);
+  --border: rgba(200, 170, 110, 0.18);
+  --accent: #c9a96e;
+  --accent-hover: #d4bc8a;
+  --accent-soft: rgba(200, 170, 110, 0.25);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0f0707;
+  --nav-border: rgba(200, 170, 110, 0.22);
+  --btn-primary-bg: linear-gradient(180deg, #6b2e2e 0%, #4a1f1f 100%);
+  --btn-primary-color: #e8d4b8;
+}
+
+[data-theme="mobster"] h1,
+[data-theme="mobster"] h2,
+[data-theme="mobster"] h3 {
+  font-family: 'Georgia', 'Times New Roman', serif !important;
+  color: #c9a96e;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  letter-spacing: 1px;
+}
+
+[data-theme="mobster"] .surface {
+  border: 2px solid;
+  border-color: #5a3a2a #2a1a1a #2a1a1a #5a3a2a;
+  box-shadow: inset 1px 1px 0 #6a4a3a, inset -1px -1px 0 #1a0a0a;
+}
+
+[data-theme="mobster"] a {
+  color: #c9a96e;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(200, 170, 110, 0.3);
+}
+
+[data-theme="mobster"] .hh-bottom-nav {
+  border-top: 2px solid #6b2e2e;
+  box-shadow: 0 -2px 12px rgba(107, 46, 46, 0.3);
+}
+
+/* ── K-Pop ───────────────────────────────────────────────── */
+
+[data-theme="kpop"] {
+  --bg-dark: #1a0a1a;
+  --surface: #2d142d;
+  --text-on-dark: #ffb6c1;
+  --muted-on-dark: rgba(255, 105, 180, 0.55);
+  --border: rgba(255, 105, 180, 0.18);
+  --accent: #ff69b4;
+  --accent-hover: #ff85c8;
+  --accent-soft: rgba(255, 105, 180, 0.28);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0f0510;
+  --nav-border: rgba(255, 105, 180, 0.22);
+  --btn-primary-bg: linear-gradient(135deg, #ff69b4 0%, #ff1493 100%);
+  --btn-primary-color: #1a0a1a;
+}
+
+[data-theme="kpop"] h1,
+[data-theme="kpop"] h2,
+[data-theme="kpop"] h3 {
+  color: #ff69b4;
+  text-shadow: 0 0 10px rgba(255, 105, 180, 0.5), 0 0 24px rgba(255, 20, 147, 0.3);
+  letter-spacing: 1px;
+}
+
+[data-theme="kpop"] a {
+  color: #ff85c8;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(255, 133, 200, 0.3);
+}
+
+[data-theme="kpop"] .hh-bottom-nav {
+  border-top: 2px solid #ff69b4;
+  box-shadow: 0 -2px 12px rgba(255, 105, 180, 0.3);
+}
+
+[data-theme="kpop"] ::-webkit-scrollbar-thumb {
+  background: #ff69b4 !important;
+  border-radius: 10px;
+}
+
+/* ── Premium Themes ───────────────────────────────────────── */
+
+[data-theme="synthwave"] {
+  --bg-dark: #0d0221;
+  --surface: #1a0533;
+  --text-on-dark: #ff71ce;
+  --muted-on-dark: rgba(255, 113, 206, 0.60);
+  --border: rgba(185, 103, 255, 0.22);
+  --accent: #01cdfe;
+  --accent-hover: #05ffa1;
+  --accent-soft: rgba(1, 205, 254, 0.30);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #06010f;
+  --nav-border: rgba(255, 113, 206, 0.30);
+  --btn-primary-bg: linear-gradient(135deg, #ff71ce 0%, #b967ff 100%);
+  --btn-primary-color: #0d0221;
+}
+
+[data-theme="synthwave"] h1,
+[data-theme="synthwave"] h2,
+[data-theme="synthwave"] h3 {
+  text-shadow: 0 0 10px rgba(1, 205, 254, 0.6), 0 0 24px rgba(185, 103, 255, 0.4);
+  color: #01cdfe;
+}
+
+[data-theme="synthwave"] a { color: #05ffa1; }
+
+[data-theme="ocean"] {
+  --bg-dark: #0a1628;
+  --surface: #0f2040;
+  --text-on-dark: #e0f2ff;
+  --muted-on-dark: rgba(224, 242, 255, 0.58);
+  --border: rgba(56, 189, 248, 0.18);
+  --accent: #38bdf8;
+  --accent-hover: #7dd3fc;
+  --accent-soft: rgba(56, 189, 248, 0.28);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #060e1a;
+  --nav-border: rgba(56, 189, 248, 0.20);
+  --btn-primary-bg: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+  --btn-primary-color: #f0f9ff;
+}
+
+[data-theme="dracula"] {
+  --bg-dark: #282a36;
+  --surface: #343746;
+  --text-on-dark: #f8f8f2;
+  --muted-on-dark: rgba(248, 248, 242, 0.58);
+  --border: rgba(98, 114, 164, 0.32);
+  --accent: #bd93f9;
+  --accent-hover: #caa9fa;
+  --accent-soft: rgba(189, 147, 249, 0.28);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #1e1f29;
+  --nav-border: rgba(98, 114, 164, 0.38);
+  --btn-primary-bg: linear-gradient(180deg, #bd93f9 0%, #9a71e8 100%);
+  --btn-primary-color: #282a36;
+}
+
+[data-theme="dracula"] a { color: #8be9fd; }
+[data-theme="dracula"] h1,
+[data-theme="dracula"] h2,
+[data-theme="dracula"] h3 { color: #bd93f9; text-shadow: none; }
+
+[data-theme="sunset"] {
+  --bg-dark: #1a0a00;
+  --surface: #2d1200;
+  --text-on-dark: #ffe4cc;
+  --muted-on-dark: rgba(255, 200, 140, 0.62);
+  --border: rgba(255, 140, 60, 0.20);
+  --accent: #ff6b35;
+  --accent-hover: #ff8c5a;
+  --accent-soft: rgba(255, 107, 53, 0.28);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0f0500;
+  --nav-border: rgba(255, 140, 60, 0.24);
+  --btn-primary-bg: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  --btn-primary-color: #1a0a00;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-dark: #f8f8f8;
+    --surface: #ffffff;
+    --text-on-dark: #111111;
+    --muted-on-dark: rgba(0,0,0,0.6);
+    --border: rgba(0,0,0,0.06);
+    --text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+    --heading-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+    --background: var(--bg-dark);
+    --foreground: var(--text-on-dark);
+  }
+}
+
+/* Import Montserrat for headings to match mini app (already imported at top) */
+
+/* Base page styles */
+html, body {
+  height: 100%;
+  /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
+  width: 100%;
+  /* Prevent iOS Safari pull-to-refresh from triggering a hard page reload */
+  overscroll-behavior-y: none;
+}
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  /* Make Montserrat the primary font, fall back to the geist variable if present */
+  font-family: 'Space Grotesk', var(--font-geist-sans, Inter, system-ui, Avenir, Helvetica, Arial, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Better touch scrolling on mobile */
+  -webkit-overflow-scrolling: touch;
+  /* Prevent text size adjustment on orientation change */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Headings */
+h1, h2, h3 {
+  font-family: 'Space Grotesk', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-shadow: var(--heading-shadow);
+  margin: 0 0 0.5rem 0;
+}
+
+/* Utility surfaces and components */
+.surface {
+  background: var(--surface);
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.muted { color: var(--muted-on-dark); }
+
+.btn {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+  /* Better touch targets on mobile (min 44x44px) */
+  min-height: 44px;
+  min-width: 44px;
+  /* Prevent tap highlight */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn.primary {
+  background: var(--btn-primary-bg, linear-gradient(180deg, #334155 0%, #1e293b 100%));
+  color: var(--btn-primary-color, #e2e8f0);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+button[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+textarea { font-family: inherit; border-radius: 6px; padding: 0.5rem; border: 1px solid var(--border); background: transparent; color: inherit; }
+
+/* small layout niceties */
+main { margin-top: 1rem; }
+
+/* Header/layout spacing (match Vite app) */
+.app-header { margin-bottom: 0.5rem; }
+.header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+
+/* Mobile optimizations for iPhone/Android 6.1-6.7" screens */
+@media (max-width: 768px) {
+  /* Safe area support for notched phones */
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Larger text on mobile for readability */
+  body {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  /* Better spacing on mobile */
+  h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+    line-height: 1.3;
+  }
+  
+  h3 {
+    font-size: 1.25rem;
+    line-height: 1.4;
+  }
+  
+  /* Touch-friendly inputs */
+  input, textarea, select, button {
+    font-size: 16px; /* Prevents zoom on iOS */
+    touch-action: manipulation;
+  }
+  
+  /* Reduce padding on mobile */
+  .surface {
+    padding: 0.875rem;
+    border-radius: 12px;
+  }
+  
+  /* Full-width buttons on mobile */
+  .btn {
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Better word wrapping on mobile */
+  p, div, span {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+/* Safe area utilities for notched devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+}
+
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 8px);
+}
+
+/* Additional mobile optimizations */
+@media (max-width: 640px) {
+  /* Ensure modals work well on mobile */
+  .modal-overlay {
+    align-items: flex-end;
+  }
+  
+  .modal {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 16px 16px 0 0;
+    margin: 0;
+  }
+  
+  /* Better text rendering on mobile */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Prevent double-tap zoom on buttons */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+  
+  /* Improve touch targets for links — don't override display on nav items */
+  a:not(.no-underline) {
+    min-height: 44px;
+  }
+}
+.header-row h1 { margin-bottom: 0.25rem; }
+.header-actions { display: flex; align-items: center; gap: 0.75rem; }
+.connect-container { display: flex; flex-direction: column; align-items: flex-end; }
+.connect-info { display: flex; gap: 0.5rem; align-items: center; }
+
+/* Links — exclude hh-bottom-nav so tap styles aren't broken */
+nav a:not(.no-underline) { color: var(--muted-on-dark); text-decoration: underline; }
+nav a:not(.no-underline):hover { color: var(--accent); }
+.hh-bottom-nav a {
+  text-decoration: none;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.06);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hh-bottom-nav a:active {
+  opacity: 0.55;
+  transform: scale(0.9);
+}
+
+/* Modal animations and styling */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Compose textarea styling */
+.compose-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 1.5;
+  resize: vertical;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.compose-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+  background: var(--surface);
+}
+
+.compose-textarea::placeholder {
+  color: var(--muted-on-dark);
+  opacity: 0.6;
+}
+
+/* Wallet Dashboard Styling */
+.wallet-dashboard {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  min-width: 180px;
+}
+
+.wallet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.balance-card {
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  padding: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.balance-label {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.balance-amount {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.balance-chain {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.wallet-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.wallet-address {
+  padding: 8px;
+  background: var(--bg-dark);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.wallet-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--bg-dark);
+  color: var(--foreground);
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.wallet-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
+}
+
+.wallet-input::placeholder {
+  color: var(--muted-on-dark);
+  opacity: 0.5;
+}
+
+/* Channels List Styling */
+.channels-list {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  min-width: 180px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.channel-link {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--muted-on-dark);
+  text-decoration: none;
+  font-size: 15px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.channel-link:hover {
+  background: var(--bg-dark);
+  color: var(--text-on-dark);
+}
+
+/* Bottom Navigation Styling */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #000000;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 50;
+  backdrop-filter: blur(10px);
+}
+
+@media (prefers-color-scheme: light) {
+  .bottom-nav {
+    background: #ffffff;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Safe area for mobile devices with notches */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Theme-aware bottom nav */
+.hh-bottom-nav {
+  background-color: var(--nav-bg, #000000);
+  border-color: var(--nav-border, rgba(255,255,255,0.1));
+  /* Ensure nav sits above Privy wallet iframe and any other SDK overlays */
+  z-index: 9500;
+  pointer-events: all;
+  /* Android: ensure touch targets clear system gesture zone */
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+/* Page transition — fade up from slight offset for a fluid mobile feel */
+@keyframes hhPageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hh-page-transition {
+  animation: hhPageIn 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Toast fade-in */
+@keyframes hhFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Page transition — quick fade only; no translate (causes layout shift) */
+@keyframes hhPageIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.hh-page-transition {
+  animation: hhPageIn 0.12s ease-out;
+}
+
+/* Toast fade-in */
+@keyframes hhFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
