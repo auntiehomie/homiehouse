@@ -52,6 +52,27 @@ const FREE_THEMES = [
     emoji: "🎵",
     preview: { bg: "#000000", surface: "#1a1a1a", text: "#E8E8E8", accent: "#FF8C00", muted: "rgba(232,232,232,0.5)" },
   },
+  {
+    id: "cypherpunk",
+    name: "Cypherpunk",
+    description: "Privacy is necessary",
+    emoji: "🕶️",
+    preview: { bg: "#0a0f0a", surface: "#0d1a0d", text: "#80ff80", accent: "#00ff41", muted: "rgba(0,255,65,0.6)" },
+  },
+  {
+    id: "mobster",
+    name: "Chicago Mobster",
+    description: "Prohibition-era speakeasy",
+    emoji: "🍸",
+    preview: { bg: "#1a0d0d", surface: "#2d1212", text: "#e8d4b8", accent: "#c9a96e", muted: "rgba(200,170,110,0.6)" },
+  },
+  {
+    id: "kpop",
+    name: "K-Pop",
+    description: "Pink, sweet, and bright",
+    emoji: "💖",
+    preview: { bg: "#1a0a1a", surface: "#2d142d", text: "#ffb6c1", accent: "#ff69b4", muted: "rgba(255,105,180,0.6)" },
+  },
 ];
 
 const PREMIUM_THEMES = [
