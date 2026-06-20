@@ -50,7 +50,7 @@
     "pg": "^8.21.0",
     "pinata-fdk": "^3.10.2",
     "qrcode.react": "^4.2.0",
-    "react": "19.2.1",
+    "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
