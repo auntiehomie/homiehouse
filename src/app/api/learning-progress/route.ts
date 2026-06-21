@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const rows = await sql`
-      SELECT plan, completed_ids, completions, updated_at
+      SELECT plan, completed_ids, completions, hh2_points, updated_at
       FROM learning_progress
       WHERE fid = ${fid}
     `;
@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
       plan: row.plan,
       completed_ids: row.completed_ids ?? [],
       completions: row.completions ?? {},
+      hh2_points: row.hh2_points ?? 0,
       updated_at: row.updated_at,
     });
   } catch (err: any) {
@@ -36,28 +37,32 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/learning-progress
-// Body: { fid, plan, completed_ids, completions }
+// Body: { fid, plan, completed_ids, completions, hh2_points }
 export async function POST(req: NextRequest) {
   try {
-    const { fid, plan, completed_ids, completions } = await req.json();
+    const { fid, plan, completed_ids, completions, hh2_points } = await req.json();
 
     if (!fid) {
       return NextResponse.json({ error: 'fid required' }, { status: 400 });
     }
 
+    const points = typeof hh2_points === 'number' ? hh2_points : 0;
+
     await sql`
-      INSERT INTO learning_progress (fid, plan, completed_ids, completions, updated_at)
+      INSERT INTO learning_progress (fid, plan, completed_ids, completions, hh2_points, updated_at)
       VALUES (
         ${fid},
         ${JSON.stringify(plan ?? null)}::jsonb,
         ${JSON.stringify(completed_ids ?? [])}::jsonb,
         ${JSON.stringify(completions ?? {})}::jsonb,
+        ${points},
         NOW()
       )
       ON CONFLICT (fid) DO UPDATE SET
         plan = EXCLUDED.plan,
         completed_ids = EXCLUDED.completed_ids,
         completions = EXCLUDED.completions,
+        hh2_points = EXCLUDED.hh2_points,
         updated_at = NOW()
     `;
 
