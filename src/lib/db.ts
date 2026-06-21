@@ -16,15 +16,21 @@ export function getSql(): NeonQueryFunction<false, false> {
   return _sql;
 }
 
-// Convenience proxy so you can still write: sql`SELECT ...`
-export const sql: NeonQueryFunction<false, false> = new Proxy({} as NeonQueryFunction<false, false>, {
-  apply(_target, _thisArg, args) {
-    return (getSql() as any)(...args);
-  },
-  get(_target, prop) {
-    return (getSql() as any)[prop];
-  },
-});
+// Lazy sql tag — the Proxy target must be a *function* (not {}) so the apply
+// trap fires in production minified bundles. Proxying a plain object breaks
+// because JS only grants [[Call]] to Proxies whose targets are callable.
+export const sql: NeonQueryFunction<false, false> = new Proxy(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ((..._args: unknown[]) => {}) as unknown as NeonQueryFunction<false, false>,
+  {
+    apply(_target, _thisArg, args) {
+      return (getSql() as any)(...args);
+    },
+    get(_target, prop) {
+      return (getSql() as any)[prop];
+    },
+  }
+);
 
 // Legacy pg Pool for existing API routes that use getDb().query(...)
 let pool: Pool | null = null;
