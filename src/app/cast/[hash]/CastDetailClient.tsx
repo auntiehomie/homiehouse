@@ -50,6 +50,7 @@ export default function CastDetailClient() {
   // Interaction state
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
   const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
+  const [savedCasts, setSavedCasts] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -155,7 +156,29 @@ export default function CastDetailClient() {
     }
   };
 
-  const renderActionRow = (castHash: string, authorFid: number, previewText: string) => (
+  const handleSaveToNotes = (castHash: string, authorHandle: string, castText: string) => {
+    try {
+      const raw = localStorage.getItem('hh_notes');
+      const notes = raw ? JSON.parse(raw) : [];
+      const note = {
+        id: Date.now().toString(),
+        title: `@${authorHandle}`,
+        content: castText,
+        tags: ['saved-cast'],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        source: castHash,
+      };
+      localStorage.setItem('hh_notes', JSON.stringify([note, ...notes]));
+      setSavedCasts(prev => new Set([...prev, castHash]));
+      showToast('Saved to Notes!', true);
+      setTimeout(() => setSavedCasts(prev => { const s = new Set(prev); s.delete(castHash); return s; }), 3000);
+    } catch {
+      showToast('Could not save to Notes', false);
+    }
+  };
+
+  const renderActionRow = (castHash: string, authorFid: number, previewText: string, authorHandle = '') => (
     <div style={{
       display: 'flex', gap: 4, marginTop: 12, paddingTop: 12,
       borderTop: '1px solid rgba(255,255,255,0.08)',
@@ -189,6 +212,13 @@ export default function CastDetailClient() {
         onClick={() => setReplyingTo(replyingTo === castHash ? null : castHash)}
         icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
         label="Reply"
+      />
+      {/* Save to Notes */}
+      <ActionBtn
+        active={savedCasts.has(castHash)}
+        onClick={() => handleSaveToNotes(castHash, authorHandle, previewText)}
+        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill={savedCasts.has(castHash) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
+        label={savedCasts.has(castHash) ? 'Saved!' : 'Save'}
       />
     </div>
   );
@@ -250,7 +280,7 @@ export default function CastDetailClient() {
         </div>
       )}
 
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px' }}>
         {/* Back */}
         <Link
           href="/feed"
@@ -265,7 +295,9 @@ export default function CastDetailClient() {
             {parentChain.map((p: any, idx: number) => {
               const pAuthor = p.author;
               const pName = pAuthor?.display_name || pAuthor?.username || 'Unknown';
-              const pUsername = pAuthor?.username || '';
+              const pRawUsername = pAuthor?.username || '';
+              const pUsername = /^fid:\d+$/i.test(pRawUsername) ? '' : pRawUsername;
+              const pProfileHref = pUsername ? `/profile?user=${pUsername}` : pAuthor?.fid ? `/profile?fid=${pAuthor.fid}` : '/feed';
               const pPfp = pAuthor?.pfp_url;
               const pText = p.text || '';
               let pTime = '';
@@ -276,7 +308,7 @@ export default function CastDetailClient() {
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                         {pPfp ? (
-                          <Link href={`/profile?user=${pUsername}`}>
+                          <Link href={pProfileHref}>
                             <Image src={pPfp} alt={pName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover' }} />
                           </Link>
                         ) : (
@@ -287,7 +319,7 @@ export default function CastDetailClient() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0, paddingBottom: 12 }}>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', marginBottom: 4 }}>
-                          <Link href={`/profile?user=${pUsername}`} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 13 }}>{pName}</Link>
+                          <Link href={pProfileHref} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 13 }}>{pName}</Link>
                           <span style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>· {pTime}</span>
                         </div>
                         <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-on-dark, #eee)' }}>{pText}</div>
@@ -340,7 +372,7 @@ export default function CastDetailClient() {
           </div>
 
           {/* Action buttons */}
-          {renderActionRow(cast.hash, authorFid, text)}
+          {renderActionRow(cast.hash, authorFid, text, authorUsername)}
 
           {/* Reply input for main cast */}
           {replyingTo === cast.hash && (
@@ -369,7 +401,9 @@ export default function CastDetailClient() {
               {replies.map((reply: any, idx: number) => {
                 const rAuthor = reply.author;
                 const rName = rAuthor?.display_name || rAuthor?.username || 'Unknown';
-                const rUsername = rAuthor?.username || '';
+                const rRawUsername = rAuthor?.username || '';
+                const rUsername = /^fid:\d+$/i.test(rRawUsername) ? '' : rRawUsername;
+                const rProfileHref = rUsername ? `/profile?user=${rUsername}` : rAuthor?.fid ? `/profile?fid=${rAuthor.fid}` : '/feed';
                 const rFid = rAuthor?.fid ?? 0;
                 const rPfp = rAuthor?.pfp_url;
                 const rText = reply.text || '';
@@ -385,12 +419,12 @@ export default function CastDetailClient() {
                   <div key={reply.hash || idx} className="surface">
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
                       {rPfp && (
-                        <Link href={`/profile?user=${rUsername}`}>
+                        <Link href={rProfileHref}>
                           <Image src={rPfp} alt={rName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         </Link>
                       )}
                       <div>
-                        <Link href={`/profile?user=${rUsername}`} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 14 }}>
+                        <Link href={rProfileHref} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 14 }}>
                           {rName}
                         </Link>
                         <div style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>@{rUsername} · {rTime}</div>
@@ -401,7 +435,7 @@ export default function CastDetailClient() {
                     </div>
 
                     {/* Action buttons on each reply */}
-                    {renderActionRow(reply.hash, rFid, rText)}
+                    {renderActionRow(reply.hash, rFid, rText, rUsername)}
 
                     {/* Reply input for this reply */}
                     {replyingTo === reply.hash && (

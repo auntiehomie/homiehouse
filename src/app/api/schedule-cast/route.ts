@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { rateLimit } from '@/lib/ratelimit';
 
 export async function POST(req: NextRequest) {
@@ -37,21 +37,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const db = getDb();
-    const { rows } = await db.query(
-      `INSERT INTO scheduled_casts
+    const signerUuid = private_key || 'app-managed';
+    const channelId = channelKey || null;
+    const embedsJson = JSON.stringify(Array.isArray(embeds) ? embeds : []);
+    const scheduledAt = scheduledDate.toISOString();
+
+    const rows = await sql`
+      INSERT INTO scheduled_casts
         (user_fid, signer_uuid, text, embeds, channel_id, scheduled_time, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-       RETURNING *`,
-      [
-        userFid,
-        private_key || 'app-managed',
-        text,
-        JSON.stringify(embeds),
-        channelKey || null,
-        scheduledDate.toISOString(),
-      ]
-    );
+      VALUES (${userFid}, ${signerUuid}, ${text}, ${embedsJson}::jsonb, ${channelId}, ${scheduledAt}::timestamptz, 'pending')
+      RETURNING *
+    `;
 
     return NextResponse.json({
       ok: true,
@@ -59,9 +55,9 @@ export async function POST(req: NextRequest) {
       message: `Cast scheduled for ${scheduledDate.toLocaleString()}`,
     });
   } catch (error: any) {
-    console.error('Error in schedule-cast POST:', error);
+    console.error('Error in schedule-cast POST:', error?.message ?? error);
     return NextResponse.json(
-      { ok: false, error: 'Failed to schedule cast' },
+      { ok: false, error: error?.message || 'Failed to schedule cast' },
       { status: 500 }
     );
   }
@@ -84,19 +80,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    const db = getDb();
-    const { rows } = await db.query(
-      `SELECT * FROM scheduled_casts
-       WHERE user_fid = $1 AND status IN ('pending', 'failed')
-       ORDER BY scheduled_time ASC`,
-      [userFid]
-    );
+    const rows = await sql`
+      SELECT * FROM scheduled_casts
+      WHERE user_fid = ${userFid} AND status IN ('pending', 'failed')
+      ORDER BY scheduled_time ASC
+    `;
 
     return NextResponse.json({ ok: true, scheduled_casts: rows });
   } catch (error: any) {
-    console.error('Error in schedule-cast GET:', error);
+    console.error('Error in schedule-cast GET:', error?.message ?? error);
     return NextResponse.json(
-      { ok: false, error: 'Failed to fetch scheduled casts' },
+      { ok: false, error: error?.message || 'Failed to fetch scheduled casts' },
       { status: 500 }
     );
   }
@@ -116,14 +110,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    const db = getDb();
-    const { rows } = await db.query(
-      `UPDATE scheduled_casts
-       SET status = 'published', published_at = NOW(), cast_hash = $1, updated_at = NOW()
-       WHERE id = $2 AND user_fid = $3 AND status IN ('pending', 'failed')
-       RETURNING *`,
-      [cast_hash || null, parseInt(id), userFid]
-    );
+    const castHash = cast_hash || null;
+    const rows = await sql`
+      UPDATE scheduled_casts
+      SET status = 'published', published_at = NOW(), cast_hash = ${castHash}
+      WHERE id = ${id}::uuid AND user_fid = ${userFid} AND status IN ('pending', 'failed')
+      RETURNING *
+    `;
 
     if (rows.length === 0) {
       return NextResponse.json(
@@ -134,8 +127,11 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ok: true, cast_hash });
   } catch (error: any) {
-    console.error('Error in schedule-cast PATCH:', error);
-    return NextResponse.json({ ok: false, error: 'Failed to mark as published' }, { status: 500 });
+    console.error('Error in schedule-cast PATCH:', error?.message ?? error);
+    return NextResponse.json(
+      { ok: false, error: error?.message || 'Failed to mark as published' },
+      { status: 500 }
+    );
   }
 }
 
@@ -157,14 +153,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    const db = getDb();
-    const { rows } = await db.query(
-      `UPDATE scheduled_casts
-       SET status = 'cancelled', updated_at = NOW()
-       WHERE id = $1 AND user_fid = $2 AND status IN ('pending', 'failed')
-       RETURNING *`,
-      [parseInt(id), userFid]
-    );
+    const rows = await sql`
+      UPDATE scheduled_casts
+      SET status = 'cancelled'
+      WHERE id = ${id}::uuid AND user_fid = ${userFid} AND status IN ('pending', 'failed')
+      RETURNING *
+    `;
 
     if (rows.length === 0) {
       return NextResponse.json(
@@ -175,9 +169,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true, message: 'Scheduled cast cancelled' });
   } catch (error: any) {
-    console.error('Error in schedule-cast DELETE:', error);
+    console.error('Error in schedule-cast DELETE:', error?.message ?? error);
     return NextResponse.json(
-      { ok: false, error: 'Failed to cancel scheduled cast' },
+      { ok: false, error: error?.message || 'Failed to cancel scheduled cast' },
       { status: 500 }
     );
   }

@@ -573,6 +573,13 @@ export default function FeedList({
         const rawUsername = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
         // Don't show raw FID strings like "fid:234616" as a username
         const authorUsername = rawUsername && /^fid:\d+$/i.test(rawUsername) ? null : rawUsername;
+        const authorFid = authorObj?.fid ?? null;
+        // Navigate by username when available; fall back to FID so profile loads cleanly
+        const profileHref = authorUsername
+          ? `/profile?user=${authorUsername}`
+          : authorFid
+            ? `/profile?fid=${authorFid}`
+            : '/feed';
         const authorName = authorObj?.display_name || authorUsername || 'Unknown';
         const text = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : null)) ?? JSON.stringify(it);
         const key = it.hash || it.id || JSON.stringify({ h: it.hash, t: rawTs, a: authorName }).slice(0, 64);
@@ -600,7 +607,7 @@ export default function FeedList({
           <article key={key} className="surface" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'start', flex: 1 }}>
-                <Link href={`/profile?user=${authorUsername}`}>
+                <Link href={profileHref}>
                   <img
                     src={authorObj?.pfp_url || '/default-avatar.png'}
                     alt={authorName}
@@ -619,7 +626,7 @@ export default function FeedList({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', flexWrap: 'wrap', minWidth: 0 }}>
                     <Link
-                      href={`/profile?user=${authorUsername}`}
+                      href={profileHref}
                       style={{
                         fontWeight: 700,
                         textDecoration: 'none',
@@ -632,7 +639,7 @@ export default function FeedList({
                     </Link>
                     {authorUsername && (
                       <Link
-                        href={`/profile?user=${authorUsername}`}
+                        href={profileHref}
                         style={{
                           fontSize: '13px',
                           color: 'var(--muted-on-dark)',

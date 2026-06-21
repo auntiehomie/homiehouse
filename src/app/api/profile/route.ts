@@ -72,6 +72,37 @@ export async function GET(request: NextRequest) {
       const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
       user = data.users?.[0];
       logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
+
+      // Warpcast fallback when Hypersnap can't find the user by FID
+      if (!user && userFid) {
+        logger.info('Hypersnap returned no user by FID, trying Warpcast', { fid: userFid });
+        try {
+          const wcRes = await fetch(
+            `https://client.warpcast.com/v2/user?fid=${userFid}`,
+            { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
+          );
+          if (wcRes.ok) {
+            const wcData = await wcRes.json();
+            const wu = wcData?.result?.user;
+            if (wu) {
+              user = {
+                fid: wu.fid,
+                username: wu.username,
+                display_name: wu.displayName || wu.username,
+                pfp_url: wu.pfp?.url || '',
+                follower_count: wu.followerCount || 0,
+                following_count: wu.followingCount || 0,
+                power_badge: wu.badges?.some((b: any) => b.type === 'power_badge') || false,
+                verified_addresses: wu.verifiedAddresses || { eth_addresses: [] },
+                profile: { bio: { text: wu.profile?.bio?.text || '' } },
+              };
+              logger.info('Warpcast FID fallback succeeded', { fid: userFid });
+            }
+          }
+        } catch (e) {
+          logger.warn('Warpcast FID fallback failed', { error: String(e) });
+        }
+      }
     }
 
     if (!user) {

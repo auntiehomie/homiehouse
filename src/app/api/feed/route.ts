@@ -3,6 +3,7 @@ import { fetchFeed, fetchChannelFeed } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateLimit } from '@/lib/validation';
+import { getOpenRankScores, isSpamAccount } from '@/lib/openrank';
 
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/feed');
@@ -59,8 +60,34 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const casts = data?.casts || [];
+    let casts: any[] = data?.casts || [];
     logger.success(`Feed fetched successfully`, { count: casts.length });
+
+    // Filter spam accounts via OpenRank (free, no API key).
+    // Runs after the feed fetch; Redis caching keeps added latency minimal.
+    if (casts.length > 0) {
+      try {
+        const currentFid = fid ? Number(fid) : 0;
+        const authorFids = [...new Set(
+          casts.map((c: any) => c.author?.fid).filter((f: any) => f && f !== currentFid)
+        )] as number[];
+
+        if (authorFids.length > 0) {
+          const scores = await getOpenRankScores(authorFids);
+          const before = casts.length;
+          casts = casts.filter((cast: any) => {
+            const authorFid = cast.author?.fid;
+            if (!authorFid || authorFid === currentFid) return true;
+            return !isSpamAccount(authorFid, scores, cast.author);
+          });
+          const filtered = before - casts.length;
+          if (filtered > 0) logger.info(`Spam filtered ${filtered} casts`);
+        }
+      } catch {
+        // Fail open — never let spam filtering break the feed
+      }
+    }
+
     logger.end();
 
     // The Snapchain node returns hex([null,null]) as a sentinel meaning no more results.
