@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { buildSignedMessage, hexToBytes, MessageType } from '@/lib/fc-message-builder';
 import type { CastEmbed } from '@/lib/fc-message-builder';
 import { ed25519 } from '@noble/curves/ed25519';
@@ -64,7 +64,6 @@ async function handlePublishScheduledCasts(req: NextRequest) {
     const cronSecret = process.env.CRON_SECRET;
     const isVercelCron = req.headers.get('x-vercel-cron') === '1';
 
-    // If CRON_SECRET is configured, enforce it. Otherwise allow Vercel cron calls through.
     if (cronSecret && cronSecret.length >= 32) {
       const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
       if (authHeader !== `Bearer ${cronSecret}` && !isVercelCron) {
@@ -72,22 +71,20 @@ async function handlePublishScheduledCasts(req: NextRequest) {
         return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
       }
     } else if (!isVercelCron) {
-      // No secret configured — block non-Vercel-cron external calls
       console.warn('⚠️ CRON_SECRET not set; add it to Vercel env vars');
     }
 
     console.log('✅ Cron job running');
 
-    const db = getDb();
     const now = new Date();
-    console.log('⏰ Current time:', now.toISOString());
+    const nowIso = now.toISOString();
+    console.log('⏰ Current time:', nowIso);
 
-    const { rows: scheduledCasts } = await db.query(
-      `SELECT * FROM scheduled_casts
-       WHERE status = 'pending' AND scheduled_time <= $1
-       ORDER BY scheduled_time ASC`,
-      [now.toISOString()]
-    );
+    const scheduledCasts = await sql`
+      SELECT * FROM scheduled_casts
+      WHERE status = 'pending' AND scheduled_time <= ${nowIso}::timestamptz
+      ORDER BY scheduled_time ASC
+    `;
 
     console.log(`📋 Found ${scheduledCasts.length} casts to publish`);
 
@@ -101,23 +98,21 @@ async function handlePublishScheduledCasts(req: NextRequest) {
 
         console.log(`✅ Published! Hash: ${castHash}`);
 
-        await db.query(
-          `UPDATE scheduled_casts
-           SET status = 'published', published_at = $1, cast_hash = $2, updated_at = NOW()
-           WHERE id = $3`,
-          [now.toISOString(), castHash || null, cast.id]
-        );
+        await sql`
+          UPDATE scheduled_casts
+          SET status = 'published', published_at = ${nowIso}::timestamptz, cast_hash = ${castHash || null}
+          WHERE id = ${cast.id}::uuid
+        `;
 
         results.push({ id: cast.id, success: true, cast_hash: castHash });
       } catch (error: any) {
         console.error(`❌ Error publishing cast ${cast.id}:`, error.message);
 
-        await db.query(
-          `UPDATE scheduled_casts
-           SET status = 'failed', error_message = $1, updated_at = NOW()
-           WHERE id = $2`,
-          [error.message, cast.id]
-        );
+        await sql`
+          UPDATE scheduled_casts
+          SET status = 'failed', error_message = ${error.message}
+          WHERE id = ${cast.id}::uuid
+        `;
 
         results.push({ id: cast.id, success: false, error: error.message });
       }
@@ -163,12 +158,10 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    const db = getDb();
-    const { rows } = await db.query(
-      `SELECT * FROM scheduled_casts
-       WHERE id = $1 AND user_fid = $2 AND status = 'pending'`,
-      [id, userFid]
-    );
+    const rows = await sql`
+      SELECT * FROM scheduled_casts
+      WHERE id = ${id}::uuid AND user_fid = ${userFid} AND status = 'pending'
+    `;
 
     if (!rows.length) {
       return NextResponse.json(
@@ -181,12 +174,11 @@ export async function PUT(req: NextRequest) {
     try {
       const castHash = await publishWithStoredKey(cast);
 
-      await db.query(
-        `UPDATE scheduled_casts
-         SET status = 'published', published_at = NOW(), cast_hash = $1, updated_at = NOW()
-         WHERE id = $2`,
-        [castHash || null, id]
-      );
+      await sql`
+        UPDATE scheduled_casts
+        SET status = 'published', published_at = NOW(), cast_hash = ${castHash || null}
+        WHERE id = ${id}::uuid
+      `;
 
       return NextResponse.json({
         ok: true,
@@ -194,10 +186,11 @@ export async function PUT(req: NextRequest) {
         message: 'Cast published successfully',
       });
     } catch (error: any) {
-      await db.query(
-        `UPDATE scheduled_casts SET status = 'failed', error_message = $1, updated_at = NOW() WHERE id = $2`,
-        [error.message, id]
-      );
+      await sql`
+        UPDATE scheduled_casts
+        SET status = 'failed', error_message = ${error.message}
+        WHERE id = ${id}::uuid
+      `;
       return NextResponse.json(
         { ok: false, error: `Failed to publish cast: ${error.message}` },
         { status: 500 }
