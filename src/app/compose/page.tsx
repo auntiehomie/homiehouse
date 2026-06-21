@@ -661,6 +661,12 @@ function ComposePageInner() {
               style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </button>
+
+            <button onClick={() => router.push('/scheduled')} title="View scheduled casts"
+              style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10 }}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span style={{ fontSize: 12 }}>Scheduled</span>
+            </button>
           </div>
 
           {/* Right: char count + Post/Schedule button */}
