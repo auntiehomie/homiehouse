@@ -59,6 +59,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   UNIQUE(user_fid, (subscription->>'endpoint'))
 );
 
+CREATE TABLE IF NOT EXISTS learning_progress (
+  fid INTEGER PRIMARY KEY,
+  plan JSONB,
+  completed_ids JSONB DEFAULT '[]',
+  completions JSONB DEFAULT '{}',
+  hh2_points INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE learning_progress ADD COLUMN IF NOT EXISTS hh2_points INTEGER DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS idx_saved_casts_user_id ON saved_casts(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_casts_cast_hash ON saved_casts(cast_hash);
 CREATE INDEX IF NOT EXISTS idx_cast_notes_cast_id ON cast_notes(cast_id);
@@ -99,7 +110,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       message: 'Schema applied successfully',
-      tables: ['users', 'saved_casts', 'cast_notes', 'saved_mini_apps', 'push_subscriptions'],
+      tables: ['users', 'saved_casts', 'cast_notes', 'saved_mini_apps', 'push_subscriptions', 'learning_progress'],
     });
   } catch (err: any) {
     console.error('[migrate] error:', err);
