@@ -130,7 +130,7 @@ async function generateReply(
   try {
     const userContent = threadContext
       ? `Thread context (oldest → newest):\n${threadContext}\n\n@${authorUsername} then mentioned you: "${castText.slice(0, 400)}"\n\nWrite a helpful reply under 280 chars that fits this conversation. Use a tool if you need real-time data.`
-      : `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`;
+      : `@${authorUsername} mentioned you, and used the command "${cast.text.includes('curate this') ? 'curate this' : 'save this'}" "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`;
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: BOT_PERSONA + memoryContext },
       { role: 'user', content: userContent },
@@ -227,7 +227,7 @@ export async function GET(request: NextRequest) {
 
       if (!cast?.hash) continue;
 
-      if (notifType && !['mention', 'reply'].includes(notifType)) {
+      if (notifType && !['mention', 'reply', 'curate', 'save'].includes(notifType)) {
         console.log(`[agent/mention] skip: type "${notifType}" not mention/reply`);
         continue;
       }
