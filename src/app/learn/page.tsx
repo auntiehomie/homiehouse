@@ -726,7 +726,10 @@ function LearnPageContent() {
   const [contentVisible, setContentVisible] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const [planPersonalizing, setPlanPersonalizing] = useState(false);
+  const [hh2Points, setHh2Points] = useState(0);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const HH2_PER_LESSON = 10;
 
   // Deep-link pre-selection
   useEffect(() => {
@@ -788,6 +791,7 @@ function LearnPageContent() {
         if (d.completions && Object.keys(d.completions).length > 0) {
           try { localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(d.completions)); } catch {}
         }
+        if (typeof d.hh2_points === 'number') setHh2Points(d.hh2_points);
       })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -806,7 +810,7 @@ function LearnPageContent() {
       fetch('/api/learning-progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid, plan, completed_ids: [...completedIds], completions }),
+        body: JSON.stringify({ fid, plan, completed_ids: [...completedIds], completions, hh2_points: completedIds.size * HH2_PER_LESSON }),
       }).catch(() => {});
     }, 2000);
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
@@ -819,8 +823,13 @@ function LearnPageContent() {
   }, [router]);
 
   const toggleModule = useCallback((id: string) => {
-    setCompletedIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
-  }, []);
+    setCompletedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      setHh2Points(next.size * HH2_PER_LESSON);
+      return next;
+    });
+  }, [HH2_PER_LESSON]);
 
   const generatePlan = async () => {
     if (!track || !level) return;
@@ -1017,6 +1026,13 @@ function LearnPageContent() {
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>Progress</span>
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{done}/{total} modules · {pct}%</span>
           </div>
+          {/* HH2 points earned */}
+          {hh2Points > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+              <span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
+            </div>
+          )}
           <div style={{ height: 8, background: 'var(--bg-dark)', borderRadius: 4, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 4, transition: 'width 0.4s ease' }} />
           </div>
@@ -1069,6 +1085,14 @@ function LearnPageContent() {
           >
             Share Progress
           </button>
+          <Link href="/hh2" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            width: '100%', padding: '12px', borderRadius: 12, border: '1px solid rgba(251,191,36,0.4)',
+            background: 'rgba(251,191,36,0.06)', color: '#fbbf24',
+            fontSize: 14, fontWeight: 600, textDecoration: 'none',
+          }}>
+            🪙 View HH2 Tokenomics & How to Earn
+          </Link>
           <button
             onClick={startOver}
             style={{
