@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
 
@@ -712,6 +713,10 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
 function LearnPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = usePrivy();
+  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
+  const privyFid: number | null = farcasterAccount?.fid ? Number(farcasterAccount.fid) : null;
+
   const [pageState, setPageState] = useState<PageState>('quiz');
   const [activeTab, setActiveTab] = useState<LearnTab>('plan');
   const [step, setStep] = useState(1);
@@ -769,13 +774,16 @@ function LearnPageContent() {
   // ─── Neon cross-device sync ───────────────────────────────────────────────
 
   const getFid = (): number | null => {
+    // Prefer the live Privy FID; fall back to localStorage for non-Privy sessions
+    if (privyFid) return privyFid;
     try {
       const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
       return p?.fid ? Number(p.fid) : null;
     } catch { return null; }
   };
 
-  // On mount: if FID available, load progress from Neon (overrides localStorage)
+  // Load from Neon whenever the Privy FID becomes available (fires after auth resolves,
+  // not just at mount — this is what makes cross-device sync work reliably).
   useEffect(() => {
     const fid = getFid();
     if (!fid) return;
@@ -794,15 +802,16 @@ function LearnPageContent() {
         if (typeof d.hh2_points === 'number') setHh2Points(d.hh2_points);
       })
       .catch(() => {});
+  // privyFid as dep: re-runs once Privy auth resolves and the FID becomes non-null
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [privyFid]);
 
   // Debounced save: whenever plan or completedIds change, sync to Neon after 2s
   useEffect(() => {
     if (!plan) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
-      const fid = getFid();
+      const fid = privyFid ?? getFid();
       if (!fid) return;
       const completions = (() => {
         try { return JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) ?? '{}'); } catch { return {}; }
