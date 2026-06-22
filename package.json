@@ -43,7 +43,7 @@
     "@wagmi/core": "^3.4.4",
     "@walletconnect/utils": "^2.23.9",
     "@walletconnect/web3wallet": "^1.11.2",
-    "date-fns": "^2.30.0",
+    "date-fns": "^4.4.0",
     "langchain": "^1.4.5",
     "next": "^16.2.4",
     "openai": "^6.15.0",
