@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChannelSidebar } from '@/components/ChannelStrip';
 import HHLogo from '@/components/HHLogo';
 
 const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07';
@@ -16,9 +15,8 @@ export default function WalletPage() {
   const router = useRouter();
 
   return (
-    <div style={{ display: 'flex', minHeight: '100svh', background: 'var(--bg-dark)' }}>
-      <ChannelSidebar />
-      <main style={{ flex: 1, overflowY: 'auto', minHeight: '100svh' }}>
+    <div style={{ minHeight: '100svh', background: 'var(--bg-dark)' }}>
+      <main style={{ overflowY: 'auto', minHeight: '100svh' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px 80px' }}>
 
           {/* Header */}
