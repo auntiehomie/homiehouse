@@ -996,15 +996,14 @@ function LearnPageContent() {
         transform: navigating ? 'translateY(-8px)' : (contentVisible ? 'translateY(0)' : 'translateY(10px)'),
         transition: 'opacity 0.2s ease, transform 0.2s ease',
       }}>
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
             <GradCapIcon size={22} />
             <span style={{ fontSize: 13, fontWeight: 700, padding: '4px 12px', border: '1px solid var(--accent)', borderRadius: 20, color: 'var(--accent)' }}>{trackLabel}</span>
             <span style={{ fontSize: 13, fontWeight: 600, padding: '4px 12px', border: '1px solid var(--border)', borderRadius: 20, color: 'var(--muted-on-dark)' }}>{levelLabel}</span>
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginLeft: 4 }}>{total} modules · ~{totalMinutes} min total</span>
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px', color: 'var(--text-on-dark)', lineHeight: 1.3 }}>Your Learning Path</h1>
-          <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>{plan.summary}</p>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 0', color: 'var(--text-on-dark)', lineHeight: 1.3 }}>Your Learning Path</h1>
         </div>
 
         {/* Personalizing banner */}
@@ -1020,8 +1019,8 @@ function LearnPageContent() {
           </div>
         )}
 
-        {/* Progress */}
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 24 }}>
+        {/* Progress — shown at top so it's immediately visible */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>Progress</span>
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{done}/{total} modules · {pct}%</span>
@@ -1065,6 +1064,9 @@ function LearnPageContent() {
             </button>
           )}
         </div>
+
+        {/* Plan summary — collapsed below progress so it doesn't push it off screen */}
+        <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 20px', lineHeight: 1.6 }}>{plan.summary}</p>
 
         {/* Modules */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
