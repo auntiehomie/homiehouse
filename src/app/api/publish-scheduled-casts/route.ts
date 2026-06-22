@@ -80,13 +80,16 @@ async function handlePublishScheduledCasts(req: NextRequest) {
     const nowIso = now.toISOString();
     console.log('⏰ Current time:', nowIso);
 
+    // Atomically claim rows by flipping status to 'processing' before publishing.
+    // This prevents duplicate publishes if two cron invocations overlap.
     const scheduledCasts = await sql`
-      SELECT * FROM scheduled_casts
+      UPDATE scheduled_casts
+      SET status = 'processing'
       WHERE status = 'pending' AND scheduled_time <= ${nowIso}::timestamptz
-      ORDER BY scheduled_time ASC
+      RETURNING *
     `;
 
-    console.log(`📋 Found ${scheduledCasts.length} casts to publish`);
+    console.log(`📋 Claimed ${scheduledCasts.length} casts to publish`);
 
     const results = [];
 
