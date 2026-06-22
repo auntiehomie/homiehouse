@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
 
     const rows = await sql`
       SELECT * FROM scheduled_casts
-      WHERE user_fid = ${userFid} AND status IN ('pending', 'failed')
+      WHERE user_fid = ${userFid} AND status IN ('pending', 'processing', 'failed')
       ORDER BY scheduled_time ASC
     `;
 
@@ -153,16 +153,32 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
+    // cancelAll=true cancels every non-published cast for this user with a past scheduled time
+    const cancelAll = searchParams.get('cancelAll') === 'true';
+
+    if (cancelAll) {
+      const cancelled = await sql`
+        UPDATE scheduled_casts
+        SET status = 'cancelled'
+        WHERE user_fid = ${userFid}
+          AND status IN ('pending', 'processing', 'failed')
+          AND scheduled_time <= NOW()
+        RETURNING id
+      `;
+      return NextResponse.json({ ok: true, cancelled: cancelled.length });
+    }
+
     const rows = await sql`
       UPDATE scheduled_casts
       SET status = 'cancelled'
-      WHERE id = ${id}::uuid AND user_fid = ${userFid} AND status IN ('pending', 'failed')
+      WHERE id = ${id}::uuid AND user_fid = ${userFid}
+        AND status IN ('pending', 'processing', 'failed')
       RETURNING *
     `;
 
     if (rows.length === 0) {
       return NextResponse.json(
-        { ok: false, error: 'Scheduled cast not found or already published' },
+        { ok: false, error: 'Cast not found, already published, or already cancelled' },
         { status: 404 }
       );
     }
