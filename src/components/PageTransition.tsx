@@ -13,11 +13,15 @@ export default function PageTransition({ children }: { children: React.ReactNode
     if (isFirst.current) { isFirst.current = false; return; }
     const el = ref.current;
     if (!el) return;
-    // Remove the class, force a reflow, then re-add it to replay the animation
-    // without unmounting children (no blank-page flash)
+    // Disable pointer events during the opacity-0 phase of the animation.
+    // On iOS, opacity:0 elements still absorb touches and can permanently
+    // confuse the browser's touch target tracking.
+    el.style.pointerEvents = 'none';
     el.classList.remove('hh-page-transition');
     void el.offsetHeight;
     el.classList.add('hh-page-transition');
+    const timer = setTimeout(() => { el.style.pointerEvents = ''; }, 150);
+    return () => clearTimeout(timer);
   }, [pathname]);
 
   return (
