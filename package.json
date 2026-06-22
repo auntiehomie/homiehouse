@@ -70,6 +70,6 @@
     "eslint-config-next": "16.0.10",
     "ignore-loader": "^0.1.2",
     "tailwindcss": "^4",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   }
 }
