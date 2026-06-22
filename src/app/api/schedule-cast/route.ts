@@ -141,11 +141,8 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id');
     const fidParam = searchParams.get('fid');
 
-    if (!id || !fidParam) {
-      return NextResponse.json(
-        { ok: false, error: 'Missing id or fid parameter' },
-        { status: 400 }
-      );
+    if (!fidParam) {
+      return NextResponse.json({ ok: false, error: 'Missing fid parameter' }, { status: 400 });
     }
 
     const userFid = Number(fidParam);
@@ -153,9 +150,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    // cancelAll=true cancels every non-published cast for this user with a past scheduled time
+    // cancelAll=true must be checked BEFORE the id check — no id needed for bulk cancel
     const cancelAll = searchParams.get('cancelAll') === 'true';
-
     if (cancelAll) {
       const cancelled = await sql`
         UPDATE scheduled_casts
@@ -168,10 +164,14 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: true, cancelled: cancelled.length });
     }
 
+    if (!id) {
+      return NextResponse.json({ ok: false, error: 'Missing id parameter' }, { status: 400 });
+    }
+
     const rows = await sql`
       UPDATE scheduled_casts
       SET status = 'cancelled'
-      WHERE id = ${id}::uuid AND user_fid = ${userFid}
+      WHERE id = ${id} AND user_fid = ${userFid}
         AND status IN ('pending', 'processing', 'failed')
       RETURNING *
     `;

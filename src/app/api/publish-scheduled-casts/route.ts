@@ -104,7 +104,7 @@ async function handlePublishScheduledCasts(req: NextRequest) {
         await sql`
           UPDATE scheduled_casts
           SET status = 'published', published_at = ${nowIso}::timestamptz, cast_hash = ${castHash || null}
-          WHERE id = ${cast.id}::uuid
+          WHERE id = ${cast.id}
         `;
 
         results.push({ id: cast.id, success: true, cast_hash: castHash });
@@ -114,7 +114,7 @@ async function handlePublishScheduledCasts(req: NextRequest) {
         await sql`
           UPDATE scheduled_casts
           SET status = 'failed', error_message = ${error.message}
-          WHERE id = ${cast.id}::uuid
+          WHERE id = ${cast.id}
         `;
 
         results.push({ id: cast.id, success: false, error: error.message });
@@ -163,7 +163,7 @@ export async function PUT(req: NextRequest) {
 
     const rows = await sql`
       SELECT * FROM scheduled_casts
-      WHERE id = ${id}::uuid AND user_fid = ${userFid} AND status = 'pending'
+      WHERE id = ${id} AND user_fid = ${userFid} AND status = 'pending'
     `;
 
     if (!rows.length) {
@@ -180,7 +180,7 @@ export async function PUT(req: NextRequest) {
       await sql`
         UPDATE scheduled_casts
         SET status = 'published', published_at = NOW(), cast_hash = ${castHash || null}
-        WHERE id = ${id}::uuid
+        WHERE id = ${id}
       `;
 
       return NextResponse.json({
@@ -192,7 +192,7 @@ export async function PUT(req: NextRequest) {
       await sql`
         UPDATE scheduled_casts
         SET status = 'failed', error_message = ${error.message}
-        WHERE id = ${id}::uuid
+        WHERE id = ${id}
       `;
       return NextResponse.json(
         { ok: false, error: `Failed to publish cast: ${error.message}` },
