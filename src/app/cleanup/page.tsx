@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChannelSidebar } from '@/components/ChannelStrip';
 
@@ -8,23 +8,28 @@ interface Cast {
   hash: string;
   text: string;
   timestamp: number;
-  embeds: any[];
 }
 
 interface DuplicateGroup {
   text: string;
-  casts: Cast[];
+  keep: Cast;      // newest
+  dupes: Cast[];   // everything else — to be deleted
 }
 
 export default function CleanupPage() {
   const router = useRouter();
   const [fid, setFid] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanned, setScanned] = useState(0);
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
-  const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
+  const [failed, setFailed] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(0);
+  const [deleteTotal, setDeleteTotal] = useState(0);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const stopRef = useRef(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('hh_fid');
@@ -36,18 +41,23 @@ export default function CleanupPage() {
 
   async function scan() {
     if (!fid) return;
-    setLoading(true);
+    setScanning(true);
     setError('');
     setGroups([]);
+    setDeleted(new Set());
+    setFailed(new Set());
     setDone(false);
+    setScanned(0);
+
     try {
-      const res = await fetch(`/api/my-casts?fid=${fid}&limit=200`);
+      const res = await fetch(`/api/my-casts?fid=${fid}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch casts');
 
       const casts: Cast[] = data.casts ?? [];
+      setScanned(casts.length);
 
-      // Group by normalized text
+      // Group by normalized text, sort each group newest first
       const map = new Map<string, Cast[]>();
       for (const c of casts) {
         const key = c.text.trim();
@@ -55,28 +65,26 @@ export default function CleanupPage() {
         map.get(key)!.push(c);
       }
 
-      // Keep only groups with duplicates, sorted newest first
-      const dupes: DuplicateGroup[] = [];
+      const dupeGroups: DuplicateGroup[] = [];
       for (const [text, group] of map.entries()) {
         if (group.length > 1) {
-          dupes.push({
-            text,
-            casts: [...group].sort((a, b) => b.timestamp - a.timestamp),
-          });
+          const sorted = [...group].sort((a, b) => b.timestamp - a.timestamp);
+          dupeGroups.push({ text, keep: sorted[0], dupes: sorted.slice(1) });
         }
       }
-      setGroups(dupes);
-      if (dupes.length === 0) setDone(true);
+
+      // Sort by most duplicates first
+      dupeGroups.sort((a, b) => b.dupes.length - a.dupes.length);
+      setGroups(dupeGroups);
+      setDone(true);
     } catch (e: any) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      setScanning(false);
     }
   }
 
-  async function deleteCast(hash: string) {
-    if (!fid || deleting.has(hash) || deleted.has(hash)) return;
-    setDeleting((prev) => new Set(prev).add(hash));
+  async function deleteCastHash(hash: string): Promise<boolean> {
     try {
       const res = await fetch('/api/delete-cast', {
         method: 'POST',
@@ -86,34 +94,43 @@ export default function CleanupPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Delete failed');
       setDeleted((prev) => new Set(prev).add(hash));
-    } catch (e: any) {
-      setError(`Failed to delete ${hash.slice(0, 10)}…: ${e.message}`);
-    } finally {
-      setDeleting((prev) => { const s = new Set(prev); s.delete(hash); return s; });
-    }
-  }
-
-  async function deleteAllDuplicatesInGroup(group: DuplicateGroup) {
-    // Keep the most recent (index 0), delete the rest
-    const toDelete = group.casts.slice(1).map((c) => c.hash).filter((h) => !deleted.has(h));
-    for (const hash of toDelete) {
-      await deleteCast(hash);
-      // small delay to avoid hammering the hub
-      await new Promise((r) => setTimeout(r, 400));
+      return true;
+    } catch {
+      setFailed((prev) => new Set(prev).add(hash));
+      return false;
     }
   }
 
   async function deleteAll() {
-    for (const group of groups) {
-      await deleteAllDuplicatesInGroup(group);
+    stopRef.current = false;
+    const allDupes = groups.flatMap((g) => g.dupes).filter((c) => !deleted.has(c.hash));
+    if (!allDupes.length) return;
+
+    setDeleting(true);
+    setDeleteTotal(allDupes.length);
+    setDeleteProgress(0);
+
+    let done = 0;
+    for (const cast of allDupes) {
+      if (stopRef.current) break;
+      await deleteCastHash(cast.hash);
+      done++;
+      setDeleteProgress(done);
+      // Small delay to avoid hammering the hub
+      await new Promise((r) => setTimeout(r, 350));
     }
+
+    setDeleting(false);
   }
 
-  const totalDupes = groups.reduce((n, g) => n + g.casts.length - 1, 0);
-  const totalDeleted = groups.reduce(
-    (n, g) => n + g.casts.slice(1).filter((c) => deleted.has(c.hash)).length,
-    0,
-  );
+  function stop() {
+    stopRef.current = true;
+  }
+
+  const totalDupes = groups.reduce((n, g) => n + g.dupes.length, 0);
+  const totalDeleted = groups.reduce((n, g) => n + g.dupes.filter((c) => deleted.has(c.hash)).length, 0);
+  const totalFailed = groups.reduce((n, g) => n + g.dupes.filter((c) => failed.has(c.hash)).length, 0);
+  const remaining = totalDupes - totalDeleted - totalFailed;
 
   return (
     <div style={{ display: 'flex', minHeight: '100svh', background: 'var(--bg-dark)' }}>
@@ -125,7 +142,7 @@ export default function CleanupPage() {
             <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--muted-on-dark)', cursor: 'pointer', fontSize: 22, padding: '4px 8px 4px 0' }}>←</button>
             <div>
               <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--text-on-dark)' }}>Duplicate Cast Cleanup</h1>
-              <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>Find and delete casts posted multiple times</p>
+              <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>Find and delete casts posted multiple times by the scheduler</p>
             </div>
           </div>
 
@@ -137,31 +154,71 @@ export default function CleanupPage() {
 
           {fid && (
             <>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center' }}>
+              {/* Scan controls */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   onClick={scan}
-                  disabled={loading}
+                  disabled={scanning || deleting}
                   style={{
                     padding: '10px 20px', borderRadius: 10, border: 'none',
                     background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600,
-                    cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1,
+                    cursor: (scanning || deleting) ? 'not-allowed' : 'pointer',
+                    opacity: (scanning || deleting) ? 0.6 : 1,
                   }}
                 >
-                  {loading ? 'Scanning…' : 'Scan my casts'}
+                  {scanning ? `Scanning… (${scanned} fetched)` : 'Scan all my casts'}
                 </button>
-                {groups.length > 0 && totalDupes > totalDeleted && (
+
+                {totalDupes > 0 && remaining > 0 && !deleting && (
                   <button
                     onClick={deleteAll}
                     style={{
-                      padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.5)',
-                      background: 'rgba(239,68,68,0.1)', color: '#fca5a5', fontSize: 14, fontWeight: 600,
-                      cursor: 'pointer',
+                      padding: '10px 20px', borderRadius: 10,
+                      border: '1px solid rgba(239,68,68,0.5)',
+                      background: 'rgba(239,68,68,0.12)', color: '#fca5a5',
+                      fontSize: 14, fontWeight: 600, cursor: 'pointer',
                     }}
                   >
-                    Delete all {totalDupes - totalDeleted} duplicates
+                    🗑 Delete all {remaining} duplicate{remaining !== 1 ? 's' : ''}
+                  </button>
+                )}
+
+                {deleting && (
+                  <button
+                    onClick={stop}
+                    style={{
+                      padding: '10px 20px', borderRadius: 10,
+                      border: '1px solid rgba(251,191,36,0.4)',
+                      background: 'rgba(251,191,36,0.08)', color: '#fbbf24',
+                      fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    ⏹ Stop
                   </button>
                 )}
               </div>
+
+              {/* Delete progress bar */}
+              {(deleting || (deleteTotal > 0 && totalDeleted > 0)) && (
+                <div style={{ marginBottom: 20, padding: '14px 16px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-on-dark)', fontWeight: 600 }}>
+                      {deleting ? 'Deleting duplicates…' : 'Done'}
+                    </span>
+                    <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                      {totalDeleted} / {deleteTotal}
+                      {totalFailed > 0 && <span style={{ color: '#fca5a5' }}> · {totalFailed} failed</span>}
+                    </span>
+                  </div>
+                  <div style={{ height: 8, background: 'var(--bg-dark)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 4, transition: 'width 0.3s ease',
+                      width: `${deleteTotal ? (totalDeleted / deleteTotal) * 100 : 0}%`,
+                      background: totalFailed > 0 ? '#f97316' : '#22c55e',
+                    }} />
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: 13 }}>
@@ -170,81 +227,70 @@ export default function CleanupPage() {
               )}
 
               {done && groups.length === 0 && (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--muted-on-dark)', fontSize: 14 }}>
-                  ✅ No duplicate casts found in your last 200 casts.
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted-on-dark)', fontSize: 14 }}>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+                  No duplicate casts found in your last {scanned} casts.
                 </div>
               )}
 
-              {totalDeleted > 0 && totalDeleted === totalDupes && (
-                <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac', fontSize: 13 }}>
-                  ✅ All {totalDeleted} duplicate{totalDeleted > 1 ? 's' : ''} deleted successfully.
+              {/* Summary when found */}
+              {groups.length > 0 && (
+                <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 10, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', fontSize: 13 }}>
+                  <span style={{ color: '#fbbf24', fontWeight: 600 }}>
+                    Found {totalDupes} duplicate{totalDupes !== 1 ? 's' : ''} across {groups.length} cast{groups.length !== 1 ? 's' : ''}
+                  </span>
+                  {totalDeleted > 0 && (
+                    <span style={{ color: '#86efac', marginLeft: 10 }}>· {totalDeleted} deleted</span>
+                  )}
+                  {remaining > 0 && !deleting && (
+                    <span style={{ color: 'var(--muted-on-dark)', marginLeft: 10 }}>· {remaining} remaining</span>
+                  )}
                 </div>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Duplicate groups */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {groups.map((group) => {
-                  const dupeHashes = group.casts.slice(1).map((c) => c.hash);
-                  const allDeleted = dupeHashes.every((h) => deleted.has(h));
+                  const groupDeleted = group.dupes.filter((c) => deleted.has(c.hash)).length;
+                  const allGone = groupDeleted === group.dupes.length;
                   return (
                     <div
-                      key={group.casts[0].hash}
+                      key={group.keep.hash}
                       style={{
-                        background: 'var(--surface)', border: `1px solid ${allDeleted ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+                        background: 'var(--surface)', border: `1px solid ${allGone ? 'rgba(34,197,94,0.25)' : 'var(--border)'}`,
                         borderRadius: 12, padding: '14px 16px',
-                        opacity: allDeleted ? 0.5 : 1,
+                        opacity: allGone ? 0.45 : 1,
+                        transition: 'opacity 0.3s',
                       }}
                     >
-                      <p style={{ fontSize: 13, color: 'var(--text-on-dark)', margin: '0 0 10px', lineHeight: 1.5, wordBreak: 'break-word' }}>
-                        {group.text.length > 120 ? group.text.slice(0, 120) + '…' : group.text || <em style={{ color: 'var(--muted-on-dark)' }}>(no text)</em>}
+                      <p style={{ fontSize: 13, color: 'var(--text-on-dark)', margin: '0 0 8px', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                        {group.text.length > 140 ? group.text.slice(0, 140) + '…' : group.text || <em style={{ color: 'var(--muted-on-dark)' }}>(no text)</em>}
                       </p>
-                      <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', marginBottom: 10 }}>
-                        {group.casts.length} copies — keeping newest, deleting {dupeHashes.length}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
+                          {allGone
+                            ? `✓ all ${group.dupes.length} duplicates deleted`
+                            : `${group.dupes.length + 1} copies — ${groupDeleted}/${group.dupes.length} duplicates deleted`}
+                        </span>
+                        {!allGone && !deleting && (
+                          <button
+                            onClick={async () => {
+                              const toDelete = group.dupes.filter((c) => !deleted.has(c.hash) && !failed.has(c.hash));
+                              for (const c of toDelete) {
+                                await deleteCastHash(c.hash);
+                                await new Promise((r) => setTimeout(r, 350));
+                              }
+                            }}
+                            style={{
+                              padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                              border: '1px solid rgba(239,68,68,0.4)',
+                              background: 'rgba(239,68,68,0.08)', color: '#fca5a5', cursor: 'pointer',
+                            }}
+                          >
+                            Delete {group.dupes.length - groupDeleted} duplicate{group.dupes.length - groupDeleted !== 1 ? 's' : ''}
+                          </button>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {group.casts.map((cast, i) => {
-                          const isKeep = i === 0;
-                          const isDel = deleted.has(cast.hash);
-                          const isDeleting = deleting.has(cast.hash);
-                          return (
-                            <div key={cast.hash} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-                              <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--muted-on-dark)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
-                                {cast.hash.slice(0, 16)}…
-                              </span>
-                              {isKeep ? (
-                                <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600 }}>keep (newest)</span>
-                              ) : isDel ? (
-                                <span style={{ fontSize: 11, color: '#86efac' }}>✓ deleted</span>
-                              ) : (
-                                <button
-                                  onClick={() => deleteCast(cast.hash)}
-                                  disabled={isDeleting}
-                                  style={{
-                                    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                                    border: '1px solid rgba(239,68,68,0.4)',
-                                    background: 'rgba(239,68,68,0.1)', color: '#fca5a5',
-                                    cursor: isDeleting ? 'not-allowed' : 'pointer',
-                                    opacity: isDeleting ? 0.5 : 1,
-                                  }}
-                                >
-                                  {isDeleting ? 'Deleting…' : 'Delete'}
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {!allDeleted && (
-                        <button
-                          onClick={() => deleteAllDuplicatesInGroup(group)}
-                          style={{
-                            marginTop: 10, padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                            border: '1px solid rgba(239,68,68,0.4)',
-                            background: 'rgba(239,68,68,0.08)', color: '#fca5a5', cursor: 'pointer',
-                          }}
-                        >
-                          Delete all duplicates in this group
-                        </button>
-                      )}
                     </div>
                   );
                 })}

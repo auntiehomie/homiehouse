@@ -41,6 +41,8 @@ export default function ScheduledPage() {
   const [casts, setCasts] = useState<ScheduledCast[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancellingAll, setCancellingAll] = useState(false);
+  const [cancelError, setCancelError] = useState<Record<string, string>>({});
   const [retrying, setRetrying] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<Record<string, string>>({});
 
@@ -65,12 +67,34 @@ export default function ScheduledPage() {
   async function handleCancel(id: string) {
     if (!userFid) return;
     setCancelling(id);
+    setCancelError(prev => ({ ...prev, [id]: '' }));
     try {
       const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, { method: 'DELETE' });
       const data = await res.json();
-      if (data.ok) setCasts(prev => prev.filter(c => c.id !== id));
+      if (data.ok) {
+        setCasts(prev => prev.filter(c => c.id !== id));
+      } else {
+        setCancelError(prev => ({ ...prev, [id]: data.error || 'Cancel failed' }));
+      }
+    } catch {
+      setCancelError(prev => ({ ...prev, [id]: 'Network error' }));
     } finally {
       setCancelling(null);
+    }
+  }
+
+  async function handleCancelAllPast() {
+    if (!userFid) return;
+    setCancellingAll(true);
+    try {
+      const res = await fetch(`/api/schedule-cast?fid=${userFid}&cancelAll=true`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.ok) {
+        // Reload to reflect the cancelled casts
+        await loadCasts(true);
+      }
+    } finally {
+      setCancellingAll(false);
     }
   }
 
@@ -116,6 +140,20 @@ export default function ScheduledPage() {
           </svg>
         </button>
         <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Scheduled Casts</h1>
+        {userFid && casts.some(c => new Date(c.scheduled_time) <= new Date()) && (
+          <button
+            onClick={handleCancelAllPast}
+            disabled={cancellingAll}
+            style={{
+              marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: '1px solid rgba(239,68,68,0.5)', background: 'rgba(239,68,68,0.12)',
+              color: '#fca5a5', cursor: cancellingAll ? 'not-allowed' : 'pointer',
+              opacity: cancellingAll ? 0.6 : 1,
+            }}
+          >
+            {cancellingAll ? 'Cancelling…' : '🗑 Cancel all past'}
+          </button>
+        )}
       </header>
 
       <main style={{ maxWidth: 640, margin: '0 auto', padding: '20px 16px 100px' }}>
@@ -174,6 +212,9 @@ export default function ScheduledPage() {
 
                 {retryError[cast.id] && (
                   <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f87171' }}>{retryError[cast.id]}</p>
+                )}
+                {cancelError[cast.id] && (
+                  <p style={{ margin: '0 0 8px', fontSize: 12, color: '#f87171' }}>Cancel failed: {cancelError[cast.id]}</p>
                 )}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
