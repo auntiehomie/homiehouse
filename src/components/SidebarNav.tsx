@@ -111,6 +111,10 @@ export default function SidebarNav() {
           const active = isActive(item.href, item.exact);
           return (
             <Link
+              onMouseEnter={(e) => {
+                if (!active) (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)';
+              }}
+
               key={item.href}
               href={item.href}
               style={{
@@ -123,6 +127,7 @@ export default function SidebarNav() {
                 fontWeight: active ? 600 : 400,
                 fontSize: 15,
                 color: active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
+                transition: 'background 0.15s, color 0.15s, transform 0.15s',
                 background: active ? 'var(--surface)' : 'transparent',
                 transition: 'background 0.15s, color 0.15s',
               }}
@@ -130,6 +135,8 @@ export default function SidebarNav() {
                 if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface)';
               }}
               onMouseLeave={(e) => {
+                if (!active) (e.currentTarget as HTMLElement).style.transform = 'scale(1)';
+                
                 if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent';
               }}
             >

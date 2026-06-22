@@ -157,6 +157,132 @@
   box-shadow: 0 -2px 12px rgba(255, 140, 0, 0.3);
 }
 
+/* ── Cypherpunk ──────────────────────────────────────────── */
+
+[data-theme="cypherpunk"] {
+  --bg-dark: #0a0f0a;
+  --surface: #0d1a0d;
+  --text-on-dark: #80ff80;
+  --muted-on-dark: rgba(0, 255, 65, 0.55);
+  --border: rgba(0, 255, 65, 0.18);
+  --accent: #00ff41;
+  --accent-hover: #33ff66;
+  --accent-soft: rgba(0, 255, 65, 0.25);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #050805;
+  --nav-border: rgba(0, 255, 65, 0.25);
+  --btn-primary-bg: #00ff41;
+  --btn-primary-color: #0a0f0a;
+}
+
+[data-theme="cypherpunk"] body,
+[data-theme="cypherpunk"] input,
+[data-theme="cypherpunk"] textarea,
+[data-theme="cypherpunk"] button {
+  font-family: 'Courier New', Courier, monospace !important;
+}
+
+[data-theme="cypherpunk"] h1,
+[data-theme="cypherpunk"] h2,
+[data-theme="cypherpunk"] h3 {
+  color: #00ff41;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+}
+
+[data-theme="cypherpunk"] a {
+  color: #80ff80;
+  text-decoration: underline wavy rgba(0, 255, 65, 0.3);
+}
+
+/* ── Chicago Mobster ─────────────────────────────────────── */
+
+[data-theme="mobster"] {
+  --bg-dark: #1a0d0d;
+  --surface: #2d1212;
+  --text-on-dark: #e8d4b8;
+  --muted-on-dark: rgba(200, 170, 110, 0.65);
+  --border: rgba(200, 170, 110, 0.18);
+  --accent: #c9a96e;
+  --accent-hover: #d4bc8a;
+  --accent-soft: rgba(200, 170, 110, 0.25);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0f0707;
+  --nav-border: rgba(200, 170, 110, 0.22);
+  --btn-primary-bg: linear-gradient(180deg, #6b2e2e 0%, #4a1f1f 100%);
+  --btn-primary-color: #e8d4b8;
+}
+
+[data-theme="mobster"] h1,
+[data-theme="mobster"] h2,
+[data-theme="mobster"] h3 {
+  font-family: 'Georgia', 'Times New Roman', serif !important;
+  color: #c9a96e;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  letter-spacing: 1px;
+}
+
+[data-theme="mobster"] .surface {
+  border: 2px solid;
+  border-color: #5a3a2a #2a1a1a #2a1a1a #5a3a2a;
+  box-shadow: inset 1px 1px 0 #6a4a3a, inset -1px -1px 0 #1a0a0a;
+}
+
+[data-theme="mobster"] a {
+  color: #c9a96e;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(200, 170, 110, 0.3);
+}
+
+[data-theme="mobster"] .hh-bottom-nav {
+  border-top: 2px solid #6b2e2e;
+  box-shadow: 0 -2px 12px rgba(107, 46, 46, 0.3);
+}
+
+/* ── K-Pop ───────────────────────────────────────────────── */
+
+[data-theme="kpop"] {
+  --bg-dark: #1a0a1a;
+  --surface: #2d142d;
+  --text-on-dark: #ffb6c1;
+  --muted-on-dark: rgba(255, 105, 180, 0.55);
+  --border: rgba(255, 105, 180, 0.18);
+  --accent: #ff69b4;
+  --accent-hover: #ff85c8;
+  --accent-soft: rgba(255, 105, 180, 0.28);
+  --background: var(--bg-dark);
+  --foreground: var(--text-on-dark);
+  --nav-bg: #0f0510;
+  --nav-border: rgba(255, 105, 180, 0.22);
+  --btn-primary-bg: linear-gradient(135deg, #ff69b4 0%, #ff1493 100%);
+  --btn-primary-color: #1a0a1a;
+}
+
+[data-theme="kpop"] h1,
+[data-theme="kpop"] h2,
+[data-theme="kpop"] h3 {
+  color: #ff69b4;
+  text-shadow: 0 0 10px rgba(255, 105, 180, 0.5), 0 0 24px rgba(255, 20, 147, 0.3);
+  letter-spacing: 1px;
+}
+
+[data-theme="kpop"] a {
+  color: #ff85c8;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(255, 133, 200, 0.3);
+}
+
+[data-theme="kpop"] .hh-bottom-nav {
+  border-top: 2px solid #ff69b4;
+  box-shadow: 0 -2px 12px rgba(255, 105, 180, 0.3);
+}
+
+[data-theme="kpop"] ::-webkit-scrollbar-thumb {
+  background: #ff69b4 !important;
+  border-radius: 10px;
+}
+
 /* ── Premium Themes ───────────────────────────────────────── */
 
 [data-theme="synthwave"] {
