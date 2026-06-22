@@ -410,6 +410,10 @@ function ModuleLessonContent() {
   const [dir, setDir] = useState<'forward' | 'back'>('forward');
   const [animating, setAnimating] = useState(false);
 
+  // Swipe tracking
+  const swipeTouchX = useRef<number | null>(null);
+  const swipeTouchY = useRef<number | null>(null);
+
   // Quiz state: per question index → selected answer
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizChecked, setQuizChecked] = useState<Record<number, boolean>>({});
@@ -575,6 +579,24 @@ function ModuleLessonContent() {
     else router.push('/learn');
   };
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    swipeTouchX.current = e.touches[0].clientX;
+    swipeTouchY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (swipeTouchX.current === null || swipeTouchY.current === null) return;
+    const dx = e.changedTouches[0].clientX - swipeTouchX.current;
+    const dy = e.changedTouches[0].clientY - swipeTouchY.current;
+    swipeTouchX.current = null;
+    swipeTouchY.current = null;
+    // Ignore predominantly-vertical gestures (user scrolling card content)
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0 && canContinue()) navigate('forward');
+    else if (dx > 0 && cardIndex > 0) navigate('back');
+  }, [canContinue, navigate, cardIndex]);
+
   if (error) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24 }}>
@@ -640,7 +662,11 @@ function ModuleLessonContent() {
         @keyframes cardSlideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes cardSlideInLeft  { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
       `}</style>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+      <div
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
           key={cardIndex}
           style={{
