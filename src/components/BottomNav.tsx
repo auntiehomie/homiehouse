@@ -31,7 +31,7 @@ export default function BottomNav() {
     return pathname === path || pathname.startsWith(path + '/');
   };
   const cls = (path: string) =>
-    `flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-colors text-[9px] font-medium no-underline ${
+    `flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-colors text-[9px] font-medium no-underline cursor-pointer ${
       isActive(path) ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-400"
     }`;
   const dot = (path: string) =>
