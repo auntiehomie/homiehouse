@@ -418,6 +418,15 @@ function ModuleLessonContent() {
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizChecked, setQuizChecked] = useState<Record<number, boolean>>({});
   const [quizFailed, setQuizFailed] = useState(false);
+  // Transient pop-up shown the instant a quiz answer is checked, so the learner
+  // sees the result without scrolling down to the inline explanation.
+  const [quizToast, setQuizToast] = useState<null | boolean>(null);
+  const quizToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showQuizToast = useCallback((correct: boolean) => {
+    setQuizToast(correct);
+    if (quizToastTimer.current) clearTimeout(quizToastTimer.current);
+    quizToastTimer.current = setTimeout(() => setQuizToast(null), 2800);
+  }, []);
 
   // Completion
   const [alreadyDone, setAlreadyDone] = useState(false);
@@ -459,6 +468,7 @@ function ModuleLessonContent() {
     if (animating) return;
     const next = direction === 'forward' ? cardIndex + 1 : cardIndex - 1;
     if (next < 0 || next >= totalCards) return;
+    setQuizToast(null);
     setDir(direction);
     setCardIndex(next);
     setAnimating(true);
@@ -661,6 +671,7 @@ function ModuleLessonContent() {
       <style>{`
         @keyframes cardSlideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes cardSlideInLeft  { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes quizToastIn { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
       `}</style>
       <div
         style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}
@@ -695,7 +706,10 @@ function ModuleLessonContent() {
                   selected={quizAnswers[currentCard.qIndex] ?? null}
                   checked={quizChecked[currentCard.qIndex] ?? false}
                   onSelect={(i) => setQuizAnswers(prev => ({ ...prev, [currentCard.qIndex]: i }))}
-                  onCheck={() => setQuizChecked(prev => ({ ...prev, [currentCard.qIndex]: true }))}
+                  onCheck={() => {
+                    setQuizChecked(prev => ({ ...prev, [currentCard.qIndex]: true }));
+                    showQuizToast((quizAnswers[currentCard.qIndex] ?? -1) === currentCard.question.correctIndex);
+                  }}
                 />
               )}
               {currentCard.type === 'complete' && mod && (
@@ -778,6 +792,32 @@ function ModuleLessonContent() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Instant quiz result pop-up — visible without scrolling to the explanation */}
+      {quizToast !== null && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 200,
+            pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '12px 20px', borderRadius: 999,
+            maxWidth: 'calc(100vw - 32px)',
+            background: quizToast ? 'rgba(22,163,74,0.97)' : 'rgba(220,38,38,0.97)',
+            color: '#fff', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+            animation: 'quizToastIn 0.28s cubic-bezier(0.18,0.89,0.32,1.28)',
+          }}
+        >
+          <span>{quizToast ? '✅' : '❌'}</span>
+          <span>{quizToast ? 'Correct!' : 'Not quite — see why below'}</span>
         </div>
       )}
     </div>
