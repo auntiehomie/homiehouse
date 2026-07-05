@@ -111,7 +111,7 @@ function IntroCard({ content }: { content: string }) {
         background: 'linear-gradient(135deg, #1e1b4b 0%, #1a1a2e 100%)',
         border: '1px solid #3730a3',
       }}>
-        <p style={{ fontSize: 17, color: '#e0e7ff', margin: 0, lineHeight: 1.8 }}>{content}</p>
+        <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
     </CardBody>
   );
@@ -124,7 +124,7 @@ function WhyCard({ content }: { content: string }) {
         padding: '20px 18px', borderRadius: 16,
         background: 'var(--bg-dark)', borderLeft: '4px solid var(--accent)',
       }}>
-        <p style={{ fontSize: 16, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.8, fontStyle: 'italic' }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6, fontStyle: 'italic' }}>
           💡 {content}
         </p>
       </div>
@@ -141,7 +141,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
         </p>
         <div style={{ padding: '20px', borderRadius: 16, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)' }}>
           <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: '0 0 10px', fontWeight: 600 }}>Think of it this way…</p>
-          <p style={{ fontSize: 17, color: '#c7d2fe', margin: 0, lineHeight: 1.75, fontStyle: 'italic' }}>
+          <p style={{ fontSize: 15, color: '#c7d2fe', margin: 0, lineHeight: 1.6, fontStyle: 'italic' }}>
             🔁 {analogy ?? 'No analogy provided.'}
           </p>
         </div>
@@ -152,10 +152,10 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
   if (part === 1) {
     return (
       <CardBody>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.3 }}>
+        <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.3 }}>
           {title}
         </h2>
-        <p style={{ fontSize: 17, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.85 }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {explanation}
         </p>
       </CardBody>
@@ -167,7 +167,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
       <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
         {title} — continued
       </p>
-      <p style={{ fontSize: 17, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.85 }}>
+      <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
         {explanation}
       </p>
     </CardBody>
@@ -181,7 +181,7 @@ function ExampleCard({ content }: { content: string }) {
         padding: '20px', borderRadius: 16,
         background: 'var(--surface)', border: '1px solid var(--border)',
       }}>
-        <p style={{ fontSize: 16, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.8 }}>{content}</p>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
     </CardBody>
   );
@@ -221,7 +221,7 @@ function SummaryCard({ content }: { content: string }) {
         padding: '20px', borderRadius: 16,
         background: 'var(--surface)', border: '1px solid var(--border)',
       }}>
-        <p style={{ fontSize: 16, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.8 }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {content}
         </p>
       </div>
@@ -418,6 +418,15 @@ function ModuleLessonContent() {
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizChecked, setQuizChecked] = useState<Record<number, boolean>>({});
   const [quizFailed, setQuizFailed] = useState(false);
+  // Transient pop-up shown the instant a quiz answer is checked, so the learner
+  // sees the result without scrolling down to the inline explanation.
+  const [quizToast, setQuizToast] = useState<null | boolean>(null);
+  const quizToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showQuizToast = useCallback((correct: boolean) => {
+    setQuizToast(correct);
+    if (quizToastTimer.current) clearTimeout(quizToastTimer.current);
+    quizToastTimer.current = setTimeout(() => setQuizToast(null), 2800);
+  }, []);
 
   // Completion
   const [alreadyDone, setAlreadyDone] = useState(false);
@@ -459,6 +468,7 @@ function ModuleLessonContent() {
     if (animating) return;
     const next = direction === 'forward' ? cardIndex + 1 : cardIndex - 1;
     if (next < 0 || next >= totalCards) return;
+    setQuizToast(null);
     setDir(direction);
     setCardIndex(next);
     setAnimating(true);
@@ -661,6 +671,7 @@ function ModuleLessonContent() {
       <style>{`
         @keyframes cardSlideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes cardSlideInLeft  { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes quizToastIn { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
       `}</style>
       <div
         style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}
@@ -695,7 +706,10 @@ function ModuleLessonContent() {
                   selected={quizAnswers[currentCard.qIndex] ?? null}
                   checked={quizChecked[currentCard.qIndex] ?? false}
                   onSelect={(i) => setQuizAnswers(prev => ({ ...prev, [currentCard.qIndex]: i }))}
-                  onCheck={() => setQuizChecked(prev => ({ ...prev, [currentCard.qIndex]: true }))}
+                  onCheck={() => {
+                    setQuizChecked(prev => ({ ...prev, [currentCard.qIndex]: true }));
+                    showQuizToast((quizAnswers[currentCard.qIndex] ?? -1) === currentCard.question.correctIndex);
+                  }}
                 />
               )}
               {currentCard.type === 'complete' && mod && (
@@ -778,6 +792,32 @@ function ModuleLessonContent() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Instant quiz result pop-up — visible without scrolling to the explanation */}
+      {quizToast !== null && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 200,
+            pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '12px 20px', borderRadius: 999,
+            maxWidth: 'calc(100vw - 32px)',
+            background: quizToast ? 'rgba(22,163,74,0.97)' : 'rgba(220,38,38,0.97)',
+            color: '#fff', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+            animation: 'quizToastIn 0.28s cubic-bezier(0.18,0.89,0.32,1.28)',
+          }}
+        >
+          <span>{quizToast ? '✅' : '❌'}</span>
+          <span>{quizToast ? 'Correct!' : 'Not quite — see why below'}</span>
         </div>
       )}
     </div>

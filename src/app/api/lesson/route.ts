@@ -86,6 +86,77 @@ function fallbackLesson(title: string, description: string, objectives: string[]
   };
 }
 
+/**
+ * Independent second-pass check of the generated quiz.
+ *
+ * Re-derives the correct option for every question with a temperature-0 model
+ * call (a different framing than generation, so it genuinely re-answers rather
+ * than echoing), fixes any `correctIndex` that disagrees, and drops questions
+ * the verifier flags as ambiguous or factually broken. Fails open: on any error
+ * the original quiz is returned unchanged, so verification can never break a
+ * lesson.
+ */
+async function verifyQuiz(quiz: QuizQuestion[], topicContext: string): Promise<QuizQuestion[]> {
+  if (!Array.isArray(quiz) || quiz.length === 0) return quiz;
+  if (getLLMProviders().length === 0) return quiz;
+
+  const LETTERS = ['A', 'B', 'C', 'D'];
+  const questionsBlock = quiz
+    .map((q, i) => {
+      const opts = (q.options ?? []).map((o, oi) => `   ${LETTERS[oi]}. ${o}`).join('\n');
+      return `Q${i + 1}: ${q.question}\n${opts}`;
+    })
+    .join('\n\n');
+
+  const verifyPrompt = `You are a meticulous fact-checker for a Web3 education quiz. For EACH question below, independently work out which single option is factually correct. Do NOT assume option A is correct — judge each option on its own merits.
+${topicContext ? `\nReference facts you may rely on:\n${topicContext}\n` : ''}
+Ground truth to enforce: a GOVERNANCE token = voting/decision rights in a protocol; a UTILITY token = access to or payment for a product/service; an LP (liquidity provider) token = a depositor's share of a liquidity pool. Never accept an answer that assigns these the wrong way round.
+
+${questionsBlock}
+
+Return ONLY a JSON array — no markdown, no prose. One object per question:
+[{"q":1,"correct":"A","valid":true}]
+- "correct": the letter (A/B/C/D) of the one unambiguously correct option.
+- "valid": false if the question has no single correct answer, has more than one correct answer, or is factually broken; otherwise true.`;
+
+  try {
+    const { message } = await llmChat({
+      messages: [{ role: 'user', content: verifyPrompt }],
+      maxTokens: 700,
+      temperature: 0,
+    });
+    const raw = (message.content ?? '')
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/, '')
+      .trim();
+    const verdicts = JSON.parse(raw) as Array<{ q: number; correct: string; valid: boolean }>;
+    if (!Array.isArray(verdicts)) return quiz;
+
+    const result: QuizQuestion[] = [];
+    for (let i = 0; i < quiz.length; i++) {
+      const v = verdicts.find((x) => Number(x?.q) === i + 1);
+      if (!v) { result.push(quiz[i]); continue; }            // no verdict → keep as generated
+      if (v.valid === false) continue;                        // flawed question → drop it
+      const idx = LETTERS.indexOf(String(v.correct ?? '').trim().toUpperCase());
+      if (idx < 0 || idx >= (quiz[i].options?.length ?? 0)) {
+        result.push(quiz[i]);                                 // unparseable letter → keep original
+      } else {
+        result.push({ ...quiz[i], correctIndex: idx });       // apply the verified answer
+      }
+    }
+
+    // Never let verification empty the quiz; if it flagged everything, keep the original set.
+    if (result.length === 0) return quiz;
+    if (result.length !== quiz.length) {
+      console.error(`[lesson] quiz verification dropped ${quiz.length - result.length} question(s)`);
+    }
+    return result;
+  } catch (err: any) {
+    console.error('[lesson] quiz verification failed, keeping original:', err?.message);
+    return quiz;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { moduleId, title, description, whyItMatters, objectives, difficulty, tags } = await req.json();
@@ -101,7 +172,7 @@ export async function POST(req: NextRequest) {
 
     // ── Cache check — return stored lesson if available ──────────────────────
     const redis = getRedis();
-    const cacheKey = moduleId ? `lesson:v1:${moduleId}` : null;
+    const cacheKey = moduleId ? `lesson:v2:${moduleId}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
@@ -301,21 +372,21 @@ Module:
 Return ONLY valid JSON — no markdown, no code fences. Use this exact structure:
 
 {
-  "intro": "3-4 sentence engaging intro that hooks the reader, states what they'll learn, and why it matters RIGHT NOW in 2026.",
+  "intro": "2-3 short sentences (max ~45 words total) that hook the reader, state what they'll learn, and why it matters RIGHT NOW in 2026. Keep it tight and scannable — no filler.",
   "concepts": [
     {
       "title": "Short, memorable concept name (3-5 words)",
-      "explanation": "6-8 sentences. (1) Define the concept clearly. (2) Explain HOW it works mechanically. (3) Describe a specific real-world example naming an actual protocol, token, or event. (4) Explain why it matters and what changes when you understand it. Write each point as its own sentence so the explanation can be read one step at a time. No vague generalities — be specific and concrete.",
+      "explanation": "5-6 sentences. (1) Define the concept clearly. (2) Explain HOW it works mechanically. (3) Describe a specific real-world example naming an actual protocol, token, or event. (4) Explain why it matters and what changes when you understand it. Write each point as its own short sentence so the explanation can be read one step at a time. No vague generalities — be specific and concrete.",
       "analogy": "One vivid sentence comparing this to something from everyday life (banking, real estate, restaurant, sports, etc.)"
     }
   ],
-  "practicalExample": "5-6 sentences walking through a specific, named real-world scenario — e.g. 'When Alice swaps ETH for USDC on Uniswap v3...' or 'When the MakerDAO DAO voted in 2023 to...' Make it concrete enough that the reader can verify it themselves.",
+  "practicalExample": "2-3 sentences (max ~60 words) walking through ONE specific, named real-world scenario — e.g. 'When Alice swaps ETH for USDC on Uniswap v3...' or 'When the MakerDAO DAO voted in 2023 to...' Concrete enough to verify, but bite-sized — no scrolling required.",
   "quickActions": [
     "Specific action with a named tool or site the learner can do in 5-10 minutes",
     "A second concrete action — explore something, try a transaction, read a specific page",
     "A third action that deepens understanding or connects to the broader Web3 world"
   ],
-  "summary": "3 sentences. Core insight + one thing that surprises most people + how it connects to the bigger decentralization picture.",
+  "summary": "2 short sentences (max ~35 words). The single core insight + how it connects to the bigger decentralization picture. Punchy and memorable.",
   "quiz": [
     {
       "question": "A specific, knowledge-testing question (not 'what is the purpose of this module')",
@@ -332,9 +403,14 @@ Requirements:
 - 3 quick actions (each must name a specific website, tool, or resource)
 - 6 quiz questions, each testing a different concept or detail from the lesson
 - Quiz questions must have exactly 4 options
-- correctIndex is 0-based (0=A, 1=B, 2=C, 3=D)
 - Authoritative but accessible tone — treat the reader as smart, not as a beginner who needs hand-holding
-- NEVER use placeholder text or generic statements. Every sentence must teach something specific.`;
+- NEVER use placeholder text or generic statements. Every sentence must teach something specific.
+
+QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
+- correctIndex is 0-based (0=A, 1=B, 2=C, 3=D). It MUST point to the option that is unambiguously, factually correct.
+- Before finalizing each question, re-read the option at correctIndex and confirm it is TRUE and the other three are clearly FALSE. If two options could both be defended as correct, rewrite the question.
+- Watch out for "reversed pair" distractors (e.g. swapping which token does what). Verify the definitions are not backwards. Ground truth to respect: a GOVERNANCE token = voting/decision rights in a protocol; a UTILITY token = access to or payment for a product/service; an LP (liquidity provider) token = a depositor's share of a liquidity pool. Never mark an option correct that assigns these the wrong way round.
+- The "explanation" must restate the correct fact so it can be checked against the option at correctIndex — they must agree.`;
 
     let content = '';
     let usedProvider = '';
@@ -349,7 +425,7 @@ Requirements:
       const t = setTimeout(() => ctrl.abort(), 25000);
       try {
         const res = await perplexityClient.chat.completions.create(
-          { model: 'llama-3.1-sonar-small-128k-online', messages: [{ role: 'user', content: prompt }], max_tokens: 2500, temperature: 0.7 },
+          { model: 'llama-3.1-sonar-small-128k-online', messages: [{ role: 'user', content: prompt }], max_tokens: 2500, temperature: 0.5 },
           { signal: ctrl.signal },
         );
         clearTimeout(t);
@@ -392,7 +468,7 @@ Requirements:
         const { message, provider } = await llmChat({
           messages: [{ role: 'user', content: enrichedPrompt }],
           maxTokens: 2500,
-          temperature: 0.7,
+          temperature: 0.5,
         });
         content = message.content?.trim() ?? '';
         usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
@@ -417,7 +493,14 @@ Requirements:
       return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
     }
 
-    // ── Cache the generated lesson for 30 days ──────────────────────────────
+    // ── Second-pass quiz verification — correct wrong answers, drop bad Qs ───
+    try {
+      lesson.quiz = await verifyQuiz(lesson.quiz, topicContext);
+    } catch {
+      // verifyQuiz already fails open, but guard the assignment too
+    }
+
+    // ── Cache the (verified) lesson for 30 days ─────────────────────────────
     if (redis && cacheKey) {
       try { await redis.set(cacheKey, lesson, { ex: 60 * 60 * 24 * 30 }); } catch {}
     }

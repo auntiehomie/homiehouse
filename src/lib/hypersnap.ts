@@ -137,16 +137,83 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
   return { casts: [] };
 }
 
+/** OpenRank (Karma3Labs) cast graph — free, unauthenticated global trending ranking. */
+const OPENRANK_CAST_BASE = 'https://graph.cast.k3l.io';
+
+/**
+ * Fetch globally trending cast hashes, ranked, from OpenRank.
+ * GET /casts/global/trending?limit=:limit → { result: [{ cast_hash, cast_hour }] }
+ * Returns [] on any failure so trending degrades gracefully.
+ */
+async function fetchTrendingCastHashes(limit: number): Promise<string[]> {
+  try {
+    const res = await fetch(
+      `${OPENRANK_CAST_BASE}/casts/global/trending?limit=${limit}&offset=0`,
+      {
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(5000),
+        // OpenRank recomputes hourly — cache for 5 min on the server.
+        next: { revalidate: 300 },
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const rows: any[] = Array.isArray(data?.result) ? data.result : [];
+    return rows.map((r) => r?.cast_hash).filter((h): h is string => typeof h === 'string' && h.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Hydrate ranked cast hashes into full cast objects via Hypersnap.
+ * Runs in parallel, preserves the input (rank) order, and drops any hash
+ * that fails to resolve.
+ */
+async function hydrateCastsByHash(hashes: string[]): Promise<any[]> {
+  const results = await Promise.all(
+    hashes.map(async (hash) => {
+      try {
+        const data = await fetchCast(hash);
+        return data?.cast ?? null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return results.filter(Boolean);
+}
+
 /**
  * Fetch the global trending feed.
- * GET /v2/farcaster/feed/trending
+ *
+ * The Hypersnap node's own /feed/trending endpoint is unavailable (it times
+ * out — trending computation isn't served by the self-hosted node), so we rank
+ * globally via OpenRank and hydrate the resulting hashes through Hypersnap.
+ * Falls back to the node's native endpoint in case it is restored later.
  */
 export async function fetchTrendingFeed(params: Record<string, any> = {}): Promise<any> {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null) qs.set(k, String(v));
+  const limit = Math.max(1, Math.min(Number(params.limit) || 25, 50));
+
+  // 1. Rank globally via OpenRank, then hydrate through Hypersnap.
+  // Over-fetch hashes so hydration failures don't shrink the list below `limit`.
+  const hashes = await fetchTrendingCastHashes(Math.min(limit * 2, 50));
+  if (hashes.length > 0) {
+    const casts = await hydrateCastsByHash(hashes);
+    if (casts.length > 0) return { casts: casts.slice(0, limit) };
   }
-  return hypersnapFetch(`/v2/farcaster/feed/trending?${qs.toString()}`);
+
+  // 2. Last-ditch: the node's native trending endpoint (in case it comes back).
+  try {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null) qs.set(k, String(v));
+    }
+    const data = await hypersnapFetch(`/v2/farcaster/feed/trending?${qs.toString()}`, {}, 6000);
+    if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
+  } catch {}
+
+  return { casts: [] };
 }
 
 /**
