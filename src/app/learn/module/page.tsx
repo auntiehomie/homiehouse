@@ -111,7 +111,7 @@ function IntroCard({ content }: { content: string }) {
         background: 'linear-gradient(135deg, #1e1b4b 0%, #1a1a2e 100%)',
         border: '1px solid #3730a3',
       }}>
-        <p style={{ fontSize: 17, color: '#e0e7ff', margin: 0, lineHeight: 1.8 }}>{content}</p>
+        <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
     </CardBody>
   );
@@ -124,7 +124,7 @@ function WhyCard({ content }: { content: string }) {
         padding: '20px 18px', borderRadius: 16,
         background: 'var(--bg-dark)', borderLeft: '4px solid var(--accent)',
       }}>
-        <p style={{ fontSize: 16, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.8, fontStyle: 'italic' }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6, fontStyle: 'italic' }}>
           💡 {content}
         </p>
       </div>
@@ -141,7 +141,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
         </p>
         <div style={{ padding: '20px', borderRadius: 16, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)' }}>
           <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: '0 0 10px', fontWeight: 600 }}>Think of it this way…</p>
-          <p style={{ fontSize: 17, color: '#c7d2fe', margin: 0, lineHeight: 1.75, fontStyle: 'italic' }}>
+          <p style={{ fontSize: 15, color: '#c7d2fe', margin: 0, lineHeight: 1.6, fontStyle: 'italic' }}>
             🔁 {analogy ?? 'No analogy provided.'}
           </p>
         </div>
@@ -152,10 +152,10 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
   if (part === 1) {
     return (
       <CardBody>
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.3 }}>
+        <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.3 }}>
           {title}
         </h2>
-        <p style={{ fontSize: 17, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.85 }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {explanation}
         </p>
       </CardBody>
@@ -167,7 +167,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
       <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
         {title} — continued
       </p>
-      <p style={{ fontSize: 17, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.85 }}>
+      <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
         {explanation}
       </p>
     </CardBody>
@@ -181,7 +181,7 @@ function ExampleCard({ content }: { content: string }) {
         padding: '20px', borderRadius: 16,
         background: 'var(--surface)', border: '1px solid var(--border)',
       }}>
-        <p style={{ fontSize: 16, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.8 }}>{content}</p>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
     </CardBody>
   );
@@ -221,7 +221,7 @@ function SummaryCard({ content }: { content: string }) {
         padding: '20px', borderRadius: 16,
         background: 'var(--surface)', border: '1px solid var(--border)',
       }}>
-        <p style={{ fontSize: 16, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.8 }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {content}
         </p>
       </div>
