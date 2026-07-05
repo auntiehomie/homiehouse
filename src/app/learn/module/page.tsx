@@ -410,6 +410,10 @@ function ModuleLessonContent() {
   const [dir, setDir] = useState<'forward' | 'back'>('forward');
   const [animating, setAnimating] = useState(false);
 
+  // Anti-gaming: record when the module was opened
+  const moduleStartTime = useRef(Date.now());
+  const MIN_MODULE_SECONDS = 45;
+
   // Swipe tracking
   const swipeTouchX = useRef<number | null>(null);
   const swipeTouchY = useRef<number | null>(null);
@@ -492,6 +496,9 @@ function ModuleLessonContent() {
 
   const handleComplete = useCallback(() => {
     if (!moduleId) return;
+    // Require minimum time spent on the module before awarding HH2
+    const elapsed = (Date.now() - moduleStartTime.current) / 1000;
+    if (elapsed < MIN_MODULE_SECONDS) return;
     try {
       const raw = localStorage.getItem(LS_PROGRESS_KEY);
       const progress: string[] = raw ? JSON.parse(raw) : [];
@@ -549,12 +556,16 @@ function ModuleLessonContent() {
     } catch {}
   }, [moduleId, mod]);
 
-  // Mark complete when reaching the complete card
+  // Mark complete when reaching the complete card — retries after the time gate clears
   useEffect(() => {
-    if (currentCard?.type === 'complete' && !alreadyDone) {
+    if (currentCard?.type !== 'complete' || alreadyDone) return;
+    const elapsed = (Date.now() - moduleStartTime.current) / 1000;
+    const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
+    const timer = setTimeout(() => {
       handleComplete();
       setAlreadyDone(true);
-    }
+    }, remaining * 1000);
+    return () => clearTimeout(timer);
   }, [currentCard, alreadyDone, handleComplete]);
 
   const quizCards = cards.filter((c): c is Extract<CardDef, { type: 'quiz' }> => c.type === 'quiz');

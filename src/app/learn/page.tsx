@@ -1136,10 +1136,26 @@ function LearnPageContent() {
       </div>
 
       {/* Step dots */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
         {[1, 2, 3].map((s) => (
           <div key={s} style={{ width: s === step ? 24 : 8, height: 8, borderRadius: 4, background: s === step ? 'var(--accent)' : s < step ? 'var(--accent)' : 'var(--border)', transition: 'all 0.25s', opacity: s < step ? 0.4 : 1 }} />
         ))}
+      </div>
+
+      {/* HH2 earning callout */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+        padding: '12px 18px', borderRadius: 12, marginBottom: 28,
+        background: 'linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(245,158,11,0.08) 100%)',
+        border: '1px solid rgba(251,191,36,0.4)',
+      }}>
+        <span style={{ fontSize: 20 }}>🪙</span>
+        <div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>Earn 10 HH2 per completed module</span>
+          <span style={{ fontSize: 12, color: 'rgba(251,191,36,0.7)', display: 'block', marginTop: 1 }}>
+            Complete the quiz (75% to pass) to unlock your reward
+          </span>
+        </div>
       </div>
 
       {error && (

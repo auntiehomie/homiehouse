@@ -70,6 +70,19 @@ CREATE TABLE IF NOT EXISTS learning_progress (
 
 ALTER TABLE learning_progress ADD COLUMN IF NOT EXISTS hh2_points INTEGER DEFAULT 0;
 
+CREATE TABLE IF NOT EXISTS hh2_claims (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  fid INTEGER NOT NULL,
+  module_id TEXT NOT NULL,
+  wallet_address TEXT NOT NULL,
+  tx_hash TEXT,
+  amount INTEGER DEFAULT 10,
+  claimed_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(fid, module_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_hh2_claims_fid ON hh2_claims(fid);
+
 CREATE INDEX IF NOT EXISTS idx_saved_casts_user_id ON saved_casts(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_casts_cast_hash ON saved_casts(cast_hash);
 CREATE INDEX IF NOT EXISTS idx_cast_notes_cast_id ON cast_notes(cast_id);
