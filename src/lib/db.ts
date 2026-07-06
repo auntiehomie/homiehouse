@@ -1,6 +1,25 @@
 import { neon, NeonQueryFunction } from '@neondatabase/serverless';
 import { Pool } from 'pg';
 
+/**
+ * Resolve the Postgres connection string.
+ *
+ * Prefers DATABASE_URL, then falls back to POSTGRES_URL — the variable Vercel's
+ * native Neon/Postgres integration injects. This lets the app run whether the
+ * database is a standalone Neon project (DATABASE_URL) or one provisioned through
+ * Vercel (POSTGRES_URL) with no code change at migration time.
+ *
+ * Both should point at Neon's POOLED endpoint (host contains "-pooler") for
+ * serverless use — avoid the unpooled/direct URL here.
+ */
+function getDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!url) {
+    throw new Error('DATABASE_URL (or POSTGRES_URL) environment variable is not set');
+  }
+  return url;
+}
+
 // Neon serverless SQL client (tagged template literal API)
 // Use this for new code: await sql`SELECT ...`
 // Lazy-initialized so module import doesn't throw at build time.
@@ -8,10 +27,7 @@ let _sql: NeonQueryFunction<false, false> | null = null;
 
 export function getSql(): NeonQueryFunction<false, false> {
   if (!_sql) {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL environment variable is not set');
-    }
-    _sql = neon(process.env.DATABASE_URL);
+    _sql = neon(getDatabaseUrl());
   }
   return _sql;
 }
@@ -37,11 +53,8 @@ let pool: Pool | null = null;
 
 export function getDb(): Pool {
   if (!pool) {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL environment variable is not set');
-    }
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: getDatabaseUrl(),
       ssl: { rejectUnauthorized: false },
       max: 10,
     });
