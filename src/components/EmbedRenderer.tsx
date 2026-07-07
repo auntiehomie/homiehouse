@@ -17,23 +17,45 @@ function parseYouTubeId(url: string): string | null {
   return null;
 }
 
-// Extracts cast hash from Farcaster/Warpcast cast URLs:
-//   farcaster.xyz/~/c/[network:]0xhash
-//   farcaster.xyz/username/0xhash
-//   warpcast.com/username/0xhash
-//   warpcast.com/~/conversations/0xhash
-function parseFarcasterCastUrl(url: string): string | null {
-  const patterns = [
-    /(?:www\.)?farcaster\.xyz\/~\/c\/(?:[a-z]+:)?(0x[a-fA-F0-9]+)/i,
-    /(?:www\.)?farcaster\.xyz\/[^/]+\/(0x[a-fA-F0-9]+)/i,
-    /(?:www\.)?warpcast\.com\/[^/]+\/(0x[a-fA-F0-9]+)/i,
-    /(?:www\.)?warpcast\.com\/~\/conversations\/(0x[a-fA-F0-9]+)/i,
-  ];
-  for (const re of patterns) {
-    const m = url.match(re);
-    if (m) return m[1];
-  }
+// Extracts cast hash (and author username, when present) from Farcaster/Warpcast
+// cast URLs. The hash may be a short prefix (farcaster.xyz uses ~8 hex chars):
+//   farcaster.xyz/~/c/[network:]0xhash        → no username
+//   farcaster.xyz/username/0xhash             → username captured
+//   warpcast.com/username/0xhash              → username captured
+//   warpcast.com/~/conversations/0xhash       → no username
+export function parseFarcasterCastUrl(url: string): { hash: string; username: string | null } | null {
+  // ~/c and ~/conversations forms — no username in the path
+  const canonical = url.match(
+    /(?:www\.)?(?:farcaster\.xyz\/~\/c|warpcast\.com\/~\/conversations)\/(?:[a-z]+:)?(0x[a-fA-F0-9]+)/i
+  );
+  if (canonical) return { hash: canonical[1], username: null };
+
+  // username/0xhash form
+  const withUser = url.match(
+    /(?:www\.)?(?:farcaster\.xyz|warpcast\.com)\/([^/~][^/]*)\/(0x[a-fA-F0-9]+)/i
+  );
+  if (withUser) return { hash: withUser[2], username: withUser[1] };
+
   return null;
+}
+
+/** Find every Farcaster/Warpcast cast URL inside a block of cast text. */
+export function findFarcasterCastUrls(
+  text: string
+): Array<{ url: string; hash: string; username: string | null }> {
+  if (!text) return [];
+  const urls = text.match(/https?:\/\/[^\s]+/gi) ?? [];
+  const out: Array<{ url: string; hash: string; username: string | null }> = [];
+  const seen = new Set<string>();
+  for (const raw of urls) {
+    const url = raw.replace(/[),.]+$/, ''); // trim trailing punctuation
+    const parsed = parseFarcasterCastUrl(url);
+    if (parsed && !seen.has(parsed.hash.toLowerCase())) {
+      seen.add(parsed.hash.toLowerCase());
+      out.push({ url, ...parsed });
+    }
+  }
+  return out;
 }
 
 export default function EmbedRenderer({ embed, index }: { embed: any; index: number }) {
@@ -101,9 +123,9 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
   }
 
   // Farcaster cast link → inline quote-cast card
-  const castHash = parseFarcasterCastUrl(embedUrl);
-  if (castHash) {
-    return <FarcasterCastEmbed hash={castHash} originalUrl={embedUrl} />;
+  const fc = parseFarcasterCastUrl(embedUrl);
+  if (fc) {
+    return <FarcasterCastEmbed hash={fc.hash} username={fc.username} originalUrl={embedUrl} />;
   }
 
   // SmartEmbed: probes for Frame + Snap in parallel, falls back to UrlPreview
