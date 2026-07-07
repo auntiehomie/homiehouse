@@ -8,25 +8,12 @@ import { handleApiError } from '@/lib/errors';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 import { buildFullMemoryContext, savePost } from '@/lib/agent-memory';
 import { llmChat } from '@/lib/llm';
+import { buildReplySystem } from '@/lib/ai/persona';
 
 const HOMIEHOUSELOL_FID = parseInt(
   process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
   10
 );
-
-const BOT_PERSONA = `You are @homiehouselol on Farcaster — a helpful friend for anyone learning about crypto, AI, and web3.
-
-When someone mentions you:
-- Give a clear, useful answer to their actual question
-- Keep replies under 280 characters
-- Be warm and direct, not robotic or over-formal
-- Use your tools to look up real-time data when someone asks about a specific token, price, or topic
-- For security questions, give cautious, practical advice
-- If you're not sure about something, say so honestly
-
-Topics you know well: crypto wallets, DeFi, Layer 2, AI in web3, smart contract security, NFTs, on-chain privacy, gas optimization
-
-Never start with "Great question!" or use: "fascinating", "incredible", "as an AI language model", "I'd be happy to"`;
 
 const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
@@ -132,7 +119,7 @@ async function generateReply(
       ? `Thread context (oldest → newest):\n${threadContext}\n\n@${authorUsername} then mentioned you: "${castText.slice(0, 400)}"\n\nWrite a helpful reply under 280 chars that fits this conversation. Use a tool if you need real-time data.`
       : `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`;
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: BOT_PERSONA + memoryContext },
+      { role: 'system', content: buildReplySystem(memoryContext) },
       { role: 'user', content: userContent },
     ];
 
