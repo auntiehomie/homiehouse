@@ -12,7 +12,7 @@
     "migrate-db": "npx tsx scripts/migrate-db.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.2",
+    "@anthropic-ai/sdk": "^0.110.0",
     "@farcaster/hub-nodejs": "^0.15.9",
     "@farcaster/miniapp-sdk": "^0.2.2",
     "@langchain/anthropic": "^1.4.1",
