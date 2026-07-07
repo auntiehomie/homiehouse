@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import dynamic from 'next/dynamic';
 import UrlPreview from './UrlPreview';
-import EmbedRenderer from './EmbedRenderer';
+import EmbedRenderer, { findFarcasterCastUrls, parseFarcasterCastUrl } from './EmbedRenderer';
+import FarcasterCastEmbed from './FarcasterCastEmbed';
 import ParentCastBadge from './ParentCastBadge';
 import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
@@ -603,6 +604,15 @@ export default function FeedList({
           }
         }
 
+        // If the body is nothing but Farcaster cast link(s), skip the raw-URL text
+        // and let the quote-cast embed(s) below stand in for it.
+        const allUrlsInText = text.match(/https?:\/\/[^\s]+/gi) ?? [];
+        const fcCastUrlsInText = findFarcasterCastUrls(text);
+        const textIsOnlyFcCastUrls =
+          fcCastUrlsInText.length > 0 &&
+          allUrlsInText.length === fcCastUrlsInText.length &&
+          text.replace(/https?:\/\/[^\s]+/gi, '').trim() === '';
+
         return (
           <article key={key} className="surface" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
@@ -756,6 +766,7 @@ export default function FeedList({
             {it.parent_hash && (
               <ParentCastBadge parentHash={it.parent_hash} />
             )}
+            {!textIsOnlyFcCastUrls && (
             <div
               onClick={() => router.push(`/cast/${key}`)}
               style={{
@@ -767,7 +778,24 @@ export default function FeedList({
             >
               <LazyMarkdown
                 components={{
-                  a: ({ node: _node, ...props }: any) => <a {...props} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', textDecoration: 'underline' }} />,
+                  a: ({ node: _node, href, ...props }: any) => (
+                    <a
+                      {...props}
+                      href={href}
+                      rel="noopener noreferrer"
+                      onClick={(e) => {
+                        // Open via window.open — plain target="_blank" navigation is
+                        // blocked inside the Farcaster mini-app webview.
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (href) {
+                          try { window.open(href, '_blank', 'noopener,noreferrer'); }
+                          catch { window.location.href = href; }
+                        }
+                      }}
+                      style={{ color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer' }}
+                    />
+                  ),
                   code: ({ node, inline, ...props }: any) =>
                     inline ?
                       <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '3px', fontSize: '0.9em' }} /> :
@@ -776,7 +804,8 @@ export default function FeedList({
               >
                 {text}
               </LazyMarkdown>            </div>
-            
+            )}
+
             {/* Display embeds (images, videos, links, etc.) */}
             {Array.isArray(it.embeds) && it.embeds.length > 0 && (
               <>
@@ -787,6 +816,27 @@ export default function FeedList({
                 </div>
               </>
             )}
+
+            {/* Farcaster cast links that live only in the text (not in embeds) →
+                render them as quote-cast cards too, deduped against the embeds. */}
+            {(() => {
+              const embedHashes = new Set(
+                (Array.isArray(it.embeds) ? it.embeds : [])
+                  .map((e: any) => parseFarcasterCastUrl((typeof e === 'string' ? e : e?.url) || '')?.hash?.toLowerCase())
+                  .filter(Boolean)
+              );
+              const textCasts = findFarcasterCastUrls(text).filter(
+                (c) => !embedHashes.has(c.hash.toLowerCase())
+              );
+              if (!textCasts.length) return null;
+              return (
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {textCasts.map((c, idx) => (
+                    <FarcasterCastEmbed key={`txt-${idx}`} hash={c.hash} username={c.username} originalUrl={c.url} />
+                  ))}
+                </div>
+              );
+            })()}
             
             <div style={{ 
               marginTop: 8, 

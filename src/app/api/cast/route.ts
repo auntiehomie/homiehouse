@@ -1,12 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchCast, fetchCastConversation } from '@/lib/hypersnap';
+import { fetchCast, fetchCastConversation, getCastsByUsername } from '@/lib/hypersnap';
+
+// A full Snapchain cast hash is 20 bytes → "0x" + 40 hex chars.
+const FULL_HASH_LEN = 42;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const hash = searchParams.get('hash');
+  const username = searchParams.get('username');
 
   if (!hash) {
     return NextResponse.json({ ok: false, error: 'Missing hash parameter' }, { status: 400 });
+  }
+
+  // Short hash (e.g. from a farcaster.xyz/<user>/0x<8hex> link). The node can't
+  // resolve partial hashes — a `type=hash` lookup just times out — so best-effort
+  // match it against the author's recent casts by hash prefix. Fails fast to a
+  // 404 (the embed then shows a tappable "open on Farcaster" card).
+  if (/^0x[a-f0-9]+$/i.test(hash) && hash.length < FULL_HASH_LEN) {
+    if (!username) {
+      return NextResponse.json({ ok: false, error: 'Short hash needs a username to resolve' }, { status: 404 });
+    }
+    try {
+      const data = await getCastsByUsername(username, 50);
+      const casts: any[] = data?.casts ?? [];
+      const prefix = hash.toLowerCase().replace(/^0x/, '');
+      const match = casts.find(
+        (c: any) => (c.hash || '').toLowerCase().replace(/^0x/, '').startsWith(prefix)
+      );
+      if (match) {
+        return NextResponse.json(
+          { ok: true, cast: match },
+          { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } }
+        );
+      }
+    } catch (err: any) {
+      console.warn('[api/cast] short-hash resolve failed:', err?.message);
+    }
+    return NextResponse.json({ ok: false, error: 'Cast not found' }, { status: 404 });
   }
 
   try {
