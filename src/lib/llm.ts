@@ -30,6 +30,18 @@ export interface LLMProvider {
 export function getLLMProviders(): LLMProvider[] {
   const providers: LLMProvider[] = [];
 
+  // Cerebras — free tier with a much larger daily token budget than Groq and
+  // very fast inference. Listed first so it absorbs load before Groq's small
+  // daily limit (500k/day) gets exhausted. Free key: https://cloud.cerebras.ai
+  if (process.env.CEREBRAS_API_KEY) {
+    const client = new OpenAI({
+      apiKey: process.env.CEREBRAS_API_KEY,
+      baseURL: 'https://api.cerebras.ai/v1',
+    });
+    providers.push({ name: 'cerebras', client, model: 'llama-3.3-70b' });
+    providers.push({ name: 'cerebras-fast', client, model: 'llama3.1-8b' });
+  }
+
   if (process.env.GROQ_API_KEY) {
     const client = new OpenAI({
       apiKey: process.env.GROQ_API_KEY,
