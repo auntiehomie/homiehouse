@@ -30,6 +30,18 @@ export interface LLMProvider {
 export function getLLMProviders(): LLMProvider[] {
   const providers: LLMProvider[] = [];
 
+  // Cerebras — free tier with a much larger daily token budget than Groq and
+  // very fast inference. Listed first so it absorbs load before Groq's small
+  // daily limit (500k/day) gets exhausted. Free key: https://cloud.cerebras.ai
+  if (process.env.CEREBRAS_API_KEY) {
+    const client = new OpenAI({
+      apiKey: process.env.CEREBRAS_API_KEY,
+      baseURL: 'https://api.cerebras.ai/v1',
+    });
+    providers.push({ name: 'cerebras', client, model: 'llama-3.3-70b' });
+    providers.push({ name: 'cerebras-fast', client, model: 'llama3.1-8b' });
+  }
+
   if (process.env.GROQ_API_KEY) {
     const client = new OpenAI({
       apiKey: process.env.GROQ_API_KEY,
@@ -51,7 +63,8 @@ export function getLLMProviders(): LLMProvider[] {
       apiKey: process.env.GEMINI_API_KEY,
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
     });
-    providers.push({ name: 'gemini-flash', client, model: 'gemini-1.5-flash', visionModel: 'gemini-1.5-flash' });
+    // gemini-1.5-flash was retired by Google (404s) — use current flash models.
+    providers.push({ name: 'gemini-flash', client, model: 'gemini-2.5-flash', visionModel: 'gemini-2.5-flash' });
     providers.push({ name: 'gemini', client, model: 'gemini-2.0-flash', visionModel: 'gemini-2.0-flash' });
   }
 
@@ -60,8 +73,9 @@ export function getLLMProviders(): LLMProvider[] {
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: 'https://openrouter.ai/api/v1',
     });
-    // mistral-7b is much faster than llama-70b on OpenRouter free tier
-    providers.push({ name: 'openrouter-mistral', client, model: 'mistralai/mistral-7b-instruct:free' });
+    // mistral-7b:free was delisted from OpenRouter (404) — gemma-4 is a current,
+    // fast free model that serves as a real fallback when Groq/Gemini are limited.
+    providers.push({ name: 'openrouter-gemma', client, model: 'google/gemma-4-26b-a4b-it:free' });
     providers.push({
       name: 'openrouter',
       client,

@@ -510,7 +510,32 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
         content = message.content?.trim() ?? '';
         usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
       } catch (aiErr: any) {
-        console.error('[lesson] All AI providers failed, using fallback:', aiErr?.message);
+        console.error('[lesson] Free providers failed:', aiErr?.message);
+      }
+
+      // ── Tier 3: Anthropic paid last-resort — only when every free provider is
+      // down (rate-limited/misconfigured). Keeps lessons from ever dropping to
+      // the placeholder template. Rarely hit, so the cost stays near zero.
+      if (!content && process.env.ANTHROPIC_API_KEY) {
+        try {
+          const { default: Anthropic } = await import('@anthropic-ai/sdk');
+          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          const res = await anthropic.messages.create({
+            model: process.env.LESSON_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
+            max_tokens: 2500,
+            temperature: 0.5,
+            messages: [{ role: 'user', content: enrichedPrompt }],
+          });
+          const block = res.content[0];
+          content = block?.type === 'text' ? block.text.trim() : '';
+          if (content) usedProvider = 'anthropic-fallback';
+        } catch (anthErr: any) {
+          console.error('[lesson] Anthropic fallback failed:', anthErr?.message);
+        }
+      }
+
+      if (!content) {
+        console.error('[lesson] All providers failed, using fallback');
         return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
       }
     }
