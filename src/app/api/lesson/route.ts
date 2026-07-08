@@ -87,6 +87,43 @@ function fallbackLesson(title: string, description: string, objectives: string[]
 }
 
 /**
+ * Best-effort parse of an LLM lesson response.
+ *
+ * Tolerates code fences and prose wrapped around the JSON (weaker free models
+ * often add "Here's the lesson:" preambles despite instructions), and validates
+ * that the result actually has usable content before accepting it. Returns null
+ * if nothing usable can be extracted.
+ */
+function parseLessonJson(raw: string): LessonContent | null {
+  if (!raw) return null;
+  const stripped = raw
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim();
+
+  const candidates = [stripped];
+  // Also try the outermost {...} span in case there's prose around it.
+  const first = stripped.indexOf('{');
+  const last = stripped.lastIndexOf('}');
+  if (first >= 0 && last > first) candidates.push(stripped.slice(first, last + 1));
+
+  for (const c of candidates) {
+    try {
+      const obj = JSON.parse(c);
+      if (
+        obj && typeof obj === 'object' &&
+        Array.isArray(obj.concepts) && obj.concepts.length > 0 &&
+        Array.isArray(obj.quiz) && obj.quiz.length > 0 &&
+        typeof obj.intro === 'string'
+      ) {
+        return obj as LessonContent;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+/**
  * Independent second-pass check of the generated quiz.
  *
  * Re-derives the correct option for every question with a temperature-0 model
@@ -425,7 +462,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       const t = setTimeout(() => ctrl.abort(), 25000);
       try {
         const res = await perplexityClient.chat.completions.create(
-          { model: 'llama-3.1-sonar-small-128k-online', messages: [{ role: 'user', content: prompt }], max_tokens: 2500, temperature: 0.5 },
+          { model: 'sonar', messages: [{ role: 'user', content: prompt }], max_tokens: 2500, temperature: 0.5 },
           { signal: ctrl.signal },
         );
         clearTimeout(t);
@@ -480,15 +517,28 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     console.error(`[lesson] generated via ${usedProvider} (${content.length} chars)`);
 
-    const cleaned = content
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/, '')
-      .trim();
+    let lesson = parseLessonJson(content);
 
-    let lesson: LessonContent;
-    try {
-      lesson = JSON.parse(cleaned) as LessonContent;
-    } catch {
+    // One strict retry via the free stack before giving up — small models
+    // sometimes wrap the JSON in prose or truncate on the first attempt.
+    if (!lesson && getLLMProviders().length > 0) {
+      try {
+        const { message } = await llmChat({
+          messages: [{
+            role: 'user',
+            content: prompt + '\n\nIMPORTANT: Reply with ONLY the JSON object described above — start with { and end with }. No prose, no markdown, no code fences.',
+          }],
+          maxTokens: 2500,
+          temperature: 0.4,
+        });
+        lesson = parseLessonJson(message.content ?? '');
+        if (lesson) console.error('[lesson] recovered on strict retry');
+      } catch (retryErr: any) {
+        console.error('[lesson] retry failed:', retryErr?.message);
+      }
+    }
+
+    if (!lesson) {
       console.error('[lesson] Failed to parse AI response, using fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
     }
