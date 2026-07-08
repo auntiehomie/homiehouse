@@ -113,14 +113,19 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
   const isTrending =
     feedType === 'filter' && params.filter_type === 'global_trending';
 
+  // Global/trending routes through the resilient trending path (OpenRank ranking
+  // + Hypersnap hydration, with a node fallback). The node's own /feed/trending
+  // endpoint is dead, so hitting it here just returned empty.
+  if (isTrending) {
+    return fetchTrendingFeed({ limit: params.limit, viewer_fid: params.viewer_fid });
+  }
+
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null) qs.set(k, String(v));
   }
 
-  const endpoint = isTrending
-    ? `/v2/farcaster/feed/trending?${qs.toString()}`
-    : feedType === 'filter'
+  const endpoint = feedType === 'filter'
     ? `/v2/farcaster/feed?${qs.toString()}`
     : `/v2/farcaster/feed/following?${qs.toString()}`;
 
@@ -185,12 +190,56 @@ async function hydrateCastsByHash(hashes: string[]): Promise<any[]> {
 }
 
 /**
+ * High-signal Farcaster accounts used as a trending proxy when OpenRank is
+ * unreachable. Their following feeds are a firehose of active, prominent casts.
+ */
+const TRENDING_SEED_FIDS = [3, 99, 194, 2];
+
+/**
+ * Node-only trending fallback for when OpenRank is down (e.g. its TLS cert
+ * expires) and the node has no working /feed/trending. Aggregates recent casts
+ * from a few high-signal following feeds, deduped and sorted newest-first.
+ *
+ * Not true engagement ranking — the node doesn't return reaction counts — but it
+ * keeps the tab populated with active content instead of showing nothing.
+ */
+async function fetchTrendingFallbackFromNode(limit: number): Promise<any[]> {
+  const perSeed = Math.max(10, Math.ceil(limit / 2));
+  const batches = await Promise.all(
+    TRENDING_SEED_FIDS.map(async (fid) => {
+      try {
+        const data = await hypersnapFetch(
+          `/v2/farcaster/feed/following?fid=${fid}&limit=${perSeed}`,
+          {},
+          6000
+        );
+        return Array.isArray(data?.casts) ? data.casts : [];
+      } catch {
+        return [];
+      }
+    })
+  );
+
+  const byHash = new Map<string, any>();
+  const parseTs = (c: any) => { const t = Date.parse(c?.timestamp); return isNaN(t) ? 0 : t; };
+  for (const cast of batches.flat()) {
+    if (cast?.hash && !byHash.has(cast.hash)) byHash.set(cast.hash, cast);
+  }
+  // Prefer top-level casts; fall back to including replies if that's too thin.
+  const all = [...byHash.values()];
+  const topLevel = all.filter((c) => !c.parent_hash);
+  const pool = topLevel.length >= limit ? topLevel : all;
+  return pool.sort((a, b) => parseTs(b) - parseTs(a)).slice(0, limit);
+}
+
+/**
  * Fetch the global trending feed.
  *
  * The Hypersnap node's own /feed/trending endpoint is unavailable (it times
  * out — trending computation isn't served by the self-hosted node), so we rank
  * globally via OpenRank and hydrate the resulting hashes through Hypersnap.
- * Falls back to the node's native endpoint in case it is restored later.
+ * If OpenRank is unreachable too, fall back to recent casts from high-signal
+ * accounts so the feed is never empty.
  */
 export async function fetchTrendingFeed(params: Record<string, any> = {}): Promise<any> {
   const limit = Math.max(1, Math.min(Number(params.limit) || 25, 50));
@@ -203,7 +252,7 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
     if (casts.length > 0) return { casts: casts.slice(0, limit) };
   }
 
-  // 2. Last-ditch: the node's native trending endpoint (in case it comes back).
+  // 2. Try the node's native trending endpoint (in case it comes back).
   try {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
@@ -213,7 +262,9 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
     if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
   } catch {}
 
-  return { casts: [] };
+  // 3. OpenRank + node trending both unavailable → recent high-signal casts.
+  const fallbackCasts = await fetchTrendingFallbackFromNode(limit);
+  return { casts: fallbackCasts };
 }
 
 /**
