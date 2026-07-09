@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }
 
-    if (getLLMProviders().length === 0 && !process.env.PERPLEXITY_API_KEY) {
+    if (getLLMProviders().length === 0 && !process.env.PERPLEXITY_API_KEY && !process.env.ANTHROPIC_API_KEY) {
       console.error('[lesson] No AI provider configured, returning fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives));
     }
@@ -452,8 +452,57 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     let content = '';
     let usedProvider = '';
 
-    // ── Tier 1: Perplexity Sonar — real-time web search baked in ──────────────
-    if (process.env.PERPLEXITY_API_KEY) {
+    // Optional Tavily web-search enrichment — built once and shared by every
+    // generation tier so the latest facts inform whichever model writes.
+    let enrichedPrompt = prompt;
+    if (process.env.TAVILY_API_KEY) {
+      const searchQuery = [title, ...(tags ?? []).slice(0, 2), 'blockchain cryptocurrency 2026'].join(' ');
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      try {
+        const r = await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query: searchQuery, max_results: 4, search_depth: 'basic' }),
+          signal: ctrl.signal,
+        });
+        clearTimeout(t);
+        if (r.ok) {
+          const data = await r.json();
+          const hits: any[] = (data.results ?? []).slice(0, 4);
+          if (hits.length > 0) {
+            enrichedPrompt = prompt + '\n\nCURRENT WEB SEARCH RESULTS (use these for the latest facts and figures — they are more recent than your training data):\n' +
+              hits.map((h, i) => `[${i + 1}] ${h.title} — ${h.url}\n${(h.content ?? '').slice(0, 400)}`).join('\n\n');
+          }
+        }
+      } catch {
+        clearTimeout(t);
+      }
+    }
+
+    // ── Tier 1: Claude (Anthropic) — PRIMARY writer for warm, high-quality prose.
+    // Lessons generate once per module and cache for 30 days, so the cost stays
+    // low. Model overridable via LESSON_ANTHROPIC_MODEL (default Sonnet).
+    if (process.env.ANTHROPIC_API_KEY) {
+      try {
+        const { default: Anthropic } = await import('@anthropic-ai/sdk');
+        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const res = await anthropic.messages.create({
+          model: process.env.LESSON_ANTHROPIC_MODEL || 'claude-sonnet-5',
+          max_tokens: 2500,
+          temperature: 0.7,
+          messages: [{ role: 'user', content: enrichedPrompt }],
+        });
+        const block = res.content[0];
+        content = block?.type === 'text' ? block.text.trim() : '';
+        if (content) usedProvider = 'anthropic';
+      } catch (anthErr: any) {
+        console.error('[lesson] Anthropic (primary) failed, falling back:', anthErr?.message);
+      }
+    }
+
+    // ── Tier 2: Perplexity Sonar — real-time web search baked in ──────────────
+    if (!content && process.env.PERPLEXITY_API_KEY) {
       const perplexityClient = new OpenAI({
         apiKey: process.env.PERPLEXITY_API_KEY,
         baseURL: 'https://api.perplexity.ai',
@@ -462,7 +511,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       const t = setTimeout(() => ctrl.abort(), 25000);
       try {
         const res = await perplexityClient.chat.completions.create(
-          { model: 'sonar', messages: [{ role: 'user', content: prompt }], max_tokens: 2500, temperature: 0.5 },
+          { model: 'sonar', messages: [{ role: 'user', content: enrichedPrompt }], max_tokens: 2500, temperature: 0.5 },
           { signal: ctrl.signal },
         );
         clearTimeout(t);
@@ -473,34 +522,8 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       }
     }
 
-    // ── Tier 2: Tavily web search → inject context → existing LLM providers ──
+    // ── Tier 3: free provider stack (Cerebras → Groq → Gemini → OpenRouter) ────
     if (!content) {
-      let enrichedPrompt = prompt;
-      if (process.env.TAVILY_API_KEY) {
-        const searchQuery = [title, ...(tags ?? []).slice(0, 2), 'blockchain cryptocurrency 2026'].join(' ');
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 8000);
-        try {
-          const r = await fetch('https://api.tavily.com/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query: searchQuery, max_results: 4, search_depth: 'basic' }),
-            signal: ctrl.signal,
-          });
-          clearTimeout(t);
-          if (r.ok) {
-            const data = await r.json();
-            const hits: any[] = (data.results ?? []).slice(0, 4);
-            if (hits.length > 0) {
-              enrichedPrompt = prompt + '\n\nCURRENT WEB SEARCH RESULTS (use these for the latest facts and figures — they are more recent than your training data):\n' +
-                hits.map((h, i) => `[${i + 1}] ${h.title} — ${h.url}\n${(h.content ?? '').slice(0, 400)}`).join('\n\n');
-            }
-          }
-        } catch {
-          clearTimeout(t);
-        }
-      }
-
       try {
         const { message, provider } = await llmChat({
           messages: [{ role: 'user', content: enrichedPrompt }],
@@ -512,32 +535,11 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       } catch (aiErr: any) {
         console.error('[lesson] Free providers failed:', aiErr?.message);
       }
+    }
 
-      // ── Tier 3: Anthropic paid last-resort — only when every free provider is
-      // down (rate-limited/misconfigured). Keeps lessons from ever dropping to
-      // the placeholder template. Rarely hit, so the cost stays near zero.
-      if (!content && process.env.ANTHROPIC_API_KEY) {
-        try {
-          const { default: Anthropic } = await import('@anthropic-ai/sdk');
-          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          const res = await anthropic.messages.create({
-            model: process.env.LESSON_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
-            max_tokens: 2500,
-            temperature: 0.5,
-            messages: [{ role: 'user', content: enrichedPrompt }],
-          });
-          const block = res.content[0];
-          content = block?.type === 'text' ? block.text.trim() : '';
-          if (content) usedProvider = 'anthropic-fallback';
-        } catch (anthErr: any) {
-          console.error('[lesson] Anthropic fallback failed:', anthErr?.message);
-        }
-      }
-
-      if (!content) {
-        console.error('[lesson] All providers failed, using fallback');
-        return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
-      }
+    if (!content) {
+      console.error('[lesson] All providers failed, using fallback');
+      return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
     }
 
     console.error(`[lesson] generated via ${usedProvider} (${content.length} chars)`);
