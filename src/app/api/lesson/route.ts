@@ -10,7 +10,10 @@ function getRedis(): Redis | null {
   try { return new Redis({ url, token }); } catch { return null; }
 }
 
-export const maxDuration = 60;
+// Claude (primary writer) can take ~50s on a content-heavy lesson; give web
+// enrichment + generation + quiz verification headroom so a slow call never
+// times out mid-generation.
+export const maxDuration = 120;
 
 interface QuizQuestion {
   question: string;
@@ -209,7 +212,9 @@ export async function POST(req: NextRequest) {
 
     // ── Cache check — return stored lesson if available ──────────────────────
     const redis = getRedis();
-    const cacheKey = moduleId ? `lesson:v2:${moduleId}` : null;
+    // v3: regenerate every module through the Claude-primary path (v2 cached the
+    // dry free-model prose). Each module regenerates once, then caches 30 days.
+    const cacheKey = moduleId ? `lesson:v3:${moduleId}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
