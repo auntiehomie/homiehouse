@@ -16,12 +16,50 @@ export interface BotReplyRow {
   created_at: string;
 }
 
+// Self-initialize / self-heal the bot_replies schema. The deployed table was
+// created by an older schema missing the parent_hash column (Postgres 42703),
+// which broke every dedup check and every reply-record — so the agent would
+// re-reply to the same cast on every cron run once posting works. Runs the
+// statements individually and idempotently so a partial/legacy table is repaired
+// in place without failing the whole batch.
+let _ensured = false;
+async function ensureTable(): Promise<void> {
+  if (_ensured) return;
+  const db = getDb();
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS bot_replies (
+       id           SERIAL PRIMARY KEY,
+       parent_hash  TEXT,
+       reply_hash   TEXT,
+       command_type TEXT DEFAULT 'mention',
+       reply_text   TEXT,
+       created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`,
+    `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS parent_hash  TEXT`,
+    `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS reply_hash   TEXT`,
+    `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS command_type TEXT DEFAULT 'mention'`,
+    `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS reply_text   TEXT`,
+    `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW()`,
+    // Unique index backs the ON CONFLICT (parent_hash) upsert in recordReply.
+    `CREATE UNIQUE INDEX IF NOT EXISTS bot_replies_parent_hash_key ON bot_replies (parent_hash)`,
+  ];
+  for (const sql of statements) {
+    try {
+      await db.query(sql);
+    } catch (err: any) {
+      console.error('[bot-reply-storage] ensureTable statement failed:', err?.message);
+    }
+  }
+  _ensured = true;
+}
+
 /**
  * Check whether the bot has already replied to a given parent cast hash.
  * Uses the UNIQUE constraint on bot_replies.parent_hash.
  */
 export async function hasRepliedTo(parentHash: string): Promise<boolean> {
   try {
+    await ensureTable();
     const db = getDb();
     const { rows } = await db.query(
       `SELECT id FROM bot_replies WHERE parent_hash = $1 LIMIT 1`,
@@ -41,6 +79,7 @@ export async function hasRepliedTo(parentHash: string): Promise<boolean> {
  */
 export async function hasRepliedToAny(trackingKeys: string[]): Promise<string | null> {
   try {
+    await ensureTable();
     const db = getDb();
     const placeholders = trackingKeys.map((_, i) => `$${i + 1}`).join(', ');
     const { rows } = await db.query(
@@ -65,6 +104,7 @@ export async function recordReply(params: {
   replyText?: string;
 }): Promise<boolean> {
   try {
+    await ensureTable();
     const db = getDb();
     await db.query(
       `INSERT INTO bot_replies (parent_hash, reply_hash, command_type, reply_text)
