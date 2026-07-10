@@ -38,8 +38,9 @@ export function getLLMProviders(): LLMProvider[] {
       apiKey: process.env.CEREBRAS_API_KEY,
       baseURL: 'https://api.cerebras.ai/v1',
     });
-    providers.push({ name: 'cerebras', client, model: 'llama-3.3-70b' });
-    providers.push({ name: 'cerebras-fast', client, model: 'llama3.1-8b' });
+    // Cerebras retired its Llama models (llama-3.3-70b / llama3.1-8b now 404) —
+    // gpt-oss-120b is the current production model. Overridable via CEREBRAS_MODEL.
+    providers.push({ name: 'cerebras', client, model: process.env.CEREBRAS_MODEL || 'gpt-oss-120b' });
   }
 
   if (process.env.GROQ_API_KEY) {
