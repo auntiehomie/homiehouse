@@ -22,21 +22,25 @@ import {
   CastType,
   hexStringToBytes,
 } from '@farcaster/core';
-// Primary write hub — supports the /v1/submitMessage REST endpoint.
-// Default to Pinata's public hub, a real write endpoint. (The previous default,
-// haatz.quilibrium.com, is a read proxy that rejects submitMessage.)
-const HUB_URL =
-  (typeof process !== 'undefined' && process.env.FARCASTER_HUB_URL) ||
-  'https://hub.pinata.cloud';
+// Quilibrium's Snapchain node — synced with on-chain signer registrations and
+// accepts /v1/submitMessage. It's the default primary AND is always kept as a
+// fallback, because some configured hubs are stale: Pinata's sunset hub, for
+// example, returns empty signers for valid FIDs and rejects writes with
+// "unknown fid". Keeping haatz in the list means writes still land even if
+// FARCASTER_HUB_URL points at a dead hub.
+const QUIL_HUB = 'https://haatz.quilibrium.com';
 
-// Optional extra write hubs, comma-separated in FARCASTER_HUB_FALLBACKS. The
-// previously hard-coded ardea.arcabot.ai (now a dead website → 404) and
-// snapchain.farcaster.xyz (405 — not a submitMessage endpoint) were not valid
-// write hubs and only added noise, so they're gone.
-const HUB_FALLBACKS: string[] =
-  (typeof process !== 'undefined' && process.env.FARCASTER_HUB_FALLBACKS
+const HUB_URL =
+  (typeof process !== 'undefined' && process.env.FARCASTER_HUB_URL) || QUIL_HUB;
+
+// Always try the synced Quilibrium node in addition to the configured primary.
+// Extra hubs can be added via FARCASTER_HUB_FALLBACKS (comma-separated).
+const HUB_FALLBACKS: string[] = [
+  QUIL_HUB,
+  ...(typeof process !== 'undefined' && process.env.FARCASTER_HUB_FALLBACKS
     ? process.env.FARCASTER_HUB_FALLBACKS.split(',').map((h) => h.trim()).filter(Boolean)
-    : []);
+    : []),
+];
 
 /** Return the registered Ed25519 signer key for the bot FID. */
 function getAppSignerKey(): { privateKeyHex: string; fid: number } {
