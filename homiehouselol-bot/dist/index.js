@@ -30,7 +30,7 @@ async function loadPersona() {
 }
 async function publishCast(fid, text, parentHash) {
     console.log('📝 Publishing cast to FID ' + fid + ': ' + text.substring(0, 60));
-    const response = await fetch('https://hub.warpcast.com/add_cast', {
+    const response = await fetch('https://hub.farcaster.xyz/add_cast', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -92,7 +92,7 @@ async function startBot() {
     console.log('Polling every 60s for @mentions...\n');
     const poll = async () => {
         try {
-            const response = await fetch('https://www.warpcast.com/~/api/v2/search?q=@homiehouselol&limit=5&sort=Latest');
+            const response = await fetch('https://farcaster.xyz/~/api/v2/search?q=@homiehouselol&limit=5&sort=Latest');
             const data = await response.json();
             if (data.casts?.length > 0) {
                 for (const cast of data.casts) {
