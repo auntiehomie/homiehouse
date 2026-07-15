@@ -8,10 +8,10 @@ dotenv.config();
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const SIGNER_PRIVATE_KEY_HEX = process.env.SIGNER_PRIVATE_KEY_HEX;
 const SIGNER_PUBLIC_KEY_HEX = process.env.SIGNER_PUBLIC_KEY_HEX;
-const APP_FID = process.env.APP_FID || '1349780';
+const APP_FID = process.env.APP_FID;
 
-if (!ANTHROPIC_API_KEY || !SIGNER_PRIVATE_KEY_HEX || !SIGNER_PUBLIC_KEY_HEX) {
-  throw new Error('Missing env vars: ANTHROPIC_API_KEY, SIGNER_PRIVATE_KEY_HEX, SIGNER_PUBLIC_KEY_HEX, APP_FID');
+if (!ANTHROPIC_API_KEY || !SIGNER_PRIVATE_KEY_HEX || !SIGNER_PUBLIC_KEY_HEX || !APP_FID) {
+  throw new Error('Missing env vars: ANTHROPIC_API_KEY, SIGNER_*_KEY_HEX, APP_FID');
 }
 
 interface RepliedCast {
@@ -40,41 +40,46 @@ async function loadPersona(): Promise<string> {
 }
 
 async function publishCast(fid: number, text: string, parentHash?: string): Promise<string> {
-  console.log('📝 Publishing cast to FID ' + fid + ': ' + text.substring(0, 60));
+  console.log('📝 Publishing cast to FID ' + fid);
   
-  const response = await fetch('https://hub.farcaster.xyz/add_cast', {
+  const response = await fetch('https://farcaster.xyz/api/rpc', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      fid,
-      text,
-      parent_hash: parentHash || null,
-      signer_hex: SIGNER_PUBLIC_KEY_HEX,
-      timestamp: Math.floor(Date.now() / 1000),
+      jsonrpc: '2.0',
+      method: 'casts_add',
+      params: [{
+        fid,
+        text,
+        parentHash,
+        signer: SIGNER_PRIVATE_KEY_HEX,
+        timestamp: Math.floor(Date.now() / 1000)
+      }],
+      id: 1
     })
   });
 
   const result = await response.json();
   
-  if (result.hash) {
-    console.log('✅ Cast published:', result.hash);
-    return result.hash;
+  if (result.result?.hash) {
+    console.log('✅ Cast published:', result.result.hash);
+    return result.result.hash;
   } else {
     throw new Error('Failed to publish: ' + JSON.stringify(result));
   }
 }
 
 async function handleMention(castText: string, parentCastHash: string): Promise<void> {
-  const cleanedText = castText.replace(/@homiehouselol/g, '').trim();
+  const cleanedText = castText.replace(/@homiehouselol/g, '').trim() || 'Hey, what can I help you with?';
   console.log('Processing mention: ' + cleanedText);
 
   const persona = await loadPersona();
   const botReply = await generateBotResponse(cleanedText, persona);
 
   try {
-    await publishCast(parseInt(APP_FID), botReply, parentCastHash);
+    await publishCast(Number(APP_FID), botReply, parentCastHash);
     
     repliedCasts.add(parentCastHash);
     const file = path.join(__dirname, '..', 'replied_casts.json');
@@ -109,18 +114,18 @@ async function generateBotResponse(question: string, persona: string): Promise<s
 
 async function startBot() {
   repliedCasts = await loadRepliedCasts();
-  console.log('🤖 @homiehouselol bot running on FID ' + APP_FID);
+  console.log('🤖 @homiehouselol bot running on FID ' + APP_FID + ' (v1.1)');
   console.log('Polling every 60s for @mentions...\n');
 
   const poll = async () => {
     try {
-      const response = await fetch('https://farcaster.xyz/~/api/v2/search?q=@homiehouselol&limit=5&sort=Latest');
+      const response = await fetch('https://farcaster.xyz/api/search?q=@homiehouselol&limit=5&sort=latest');
       const data = await response.json();
       
       if (data.casts?.length > 0) {
         for (const cast of data.casts) {
-          const hash = cast.cast_info?.hash || cast.hash;
-          const text = cast.cast_info?.text;
+          const hash = cast.hash || '';
+          const text = cast.text || '';
           if (text && !repliedCasts.has(hash)) {
             await handleMention(text, hash);
           }
