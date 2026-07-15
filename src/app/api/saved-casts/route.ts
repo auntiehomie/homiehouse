@@ -50,3 +50,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
   }
 }
+
+// DELETE /api/saved-casts
+// body: { fid, cast_hash }
+export async function DELETE(req: NextRequest) {
+  const { fid, cast_hash } = await req.json();
+  if (!fid || !cast_hash) return NextResponse.json({ error: 'fid and cast_hash required' }, { status: 400 });
+  try {
+    const [user] = await sql`SELECT id FROM users WHERE fid = ${fid}`;
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    await sql`DELETE FROM saved_casts WHERE user_id = ${user.id} AND cast_hash = ${cast_hash}`;
+    return NextResponse.json({ deleted: true });
+  } catch (err) {
+    console.error('saved-casts DELETE error:', err);
+    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+  }
+}

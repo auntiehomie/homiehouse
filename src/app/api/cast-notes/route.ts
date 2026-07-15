@@ -24,11 +24,24 @@ export async function POST(req: NextRequest) {
     const [user] = await sql`SELECT id FROM users WHERE fid = ${fid}`;
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-    const [created] = await sql`
-      INSERT INTO cast_notes (user_id, cast_id, note)
-      VALUES (${user.id}, ${cast_id}, ${note})
-      RETURNING *
+    // Upsert: update existing note if one exists for this user+cast
+    const [existing] = await sql`
+      SELECT id FROM cast_notes WHERE user_id = ${user.id} AND cast_id = ${cast_id}
     `;
+    let created;
+    if (existing) {
+      [created] = await sql`
+        UPDATE cast_notes SET note = ${note}, updated_at = NOW()
+        WHERE id = ${existing.id}
+        RETURNING *
+      `;
+    } else {
+      [created] = await sql`
+        INSERT INTO cast_notes (user_id, cast_id, note)
+        VALUES (${user.id}, ${cast_id}, ${note})
+        RETURNING *
+      `;
+    }
     return NextResponse.json({ note: created });
   } catch (err) {
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
