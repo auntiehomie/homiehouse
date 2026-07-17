@@ -220,6 +220,19 @@ export default function CastDetailClient() {
         icon={<svg width="15" height="15" viewBox="0 0 24 24" fill={savedCasts.has(castHash) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
         label={savedCasts.has(castHash) ? 'Saved!' : 'Save'}
       />
+      {/* Ask Homie — bring the cast into the Homie chat as context */}
+      <ActionBtn
+        onClick={() => {
+          const castData = encodeURIComponent(JSON.stringify({
+            author: { username: authorHandle },
+            text: previewText,
+            hash: castHash,
+          }));
+          window.location.href = `/ask-homie?cast=${castData}`;
+        }}
+        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>}
+        label="Ask Homie"
+      />
     </div>
   );
 
