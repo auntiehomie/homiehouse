@@ -10,7 +10,7 @@ import {
   buildPostSystem,
   pickPostMode,
   postInstruction,
-  getDailyTopic,
+  pickFreshTopic,
   type PostMode,
 } from '@/lib/ai/persona';
 
@@ -69,6 +69,24 @@ function cleanPost(text: string): string {
     .trim();
 }
 
+// ─── Near-duplicate detection ─────────────────────────────────────────────────
+// Word-overlap (Jaccard) check so the agent doesn't re-post the same idea reworded
+// (e.g. two "block explorers / etherscan" tips a day apart).
+function contentWords(s: string): Set<string> {
+  return new Set((s.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 3));
+}
+function similarity(a: string, b: string): number {
+  const x = contentWords(a);
+  const y = contentWords(b);
+  if (!x.size || !y.size) return 0;
+  let inter = 0;
+  for (const w of x) if (y.has(w)) inter++;
+  return inter / (x.size + y.size - inter);
+}
+function tooSimilar(text: string, recentTexts: string[], threshold = 0.4): boolean {
+  return recentTexts.some((r) => similarity(text, r) >= threshold);
+}
+
 /**
  * Generate a post.
  *
@@ -124,13 +142,18 @@ export async function GET(request: NextRequest) {
     const memoryContext = await buildFullMemoryContext(HOMIEHOUSELOL_FID);
     const system = buildPostSystem(memoryContext);
 
-    // Don't run the same mode twice in a row.
-    let lastMode: PostMode | null = null;
+    // Recent posts drive dedup: avoid the last mode, avoid recently-used tip
+    // topics, and reject content that's too similar to something posted recently.
+    let recentPosts: Awaited<ReturnType<typeof getRecentPosts>> = [];
     try {
-      const recent = await getRecentPosts(HOMIEHOUSELOL_FID, 1);
-      const s = recent[0]?.source as PostMode | undefined;
-      if (s === 'tip' || s === 'trend-take' || s === 'chill' || s === 'question') lastMode = s;
+      recentPosts = await getRecentPosts(HOMIEHOUSELOL_FID, 12);
     } catch {}
+    const recentTexts = recentPosts.map((p) => p.text).filter(Boolean);
+    const recentTopics = recentPosts.map((p) => p.topic || '').filter(Boolean);
+    const lastSource = recentPosts[0]?.source as PostMode | undefined;
+    const lastMode: PostMode | null =
+      lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'chill' || lastSource === 'question'
+        ? lastSource : null;
 
     let chosen = pickPostMode(lastMode);
 
@@ -156,11 +179,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const topic = chosen.mode === 'tip' ? getDailyTopic() : undefined;
-    const instruction = postInstruction(chosen.mode, { topic, trend });
-    const content = await writePost(system, instruction);
+    let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
+    let content = await writePost(system, postInstruction(chosen.mode, { topic, trend }));
+
+    // If it came out too close to a recent post, try once more with a different
+    // topic (for tips) and an explicit "don't repeat yourself" nudge.
+    if (content && tooSimilar(content, recentTexts)) {
+      console.log('[agent/tip] first draft too similar to a recent post — retrying');
+      if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
+      const retryInstruction = postInstruction(chosen.mode, { topic, trend }) +
+        '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.';
+      const retry = await writePost(system, retryInstruction);
+      if (retry) content = retry;
+    }
 
     if (!content) throw new Error('LLM returned an empty post');
+
+    // Still a near-duplicate? Skip this run rather than post a repeat.
+    if (tooSimilar(content, recentTexts)) {
+      console.log('[agent/tip] skipping — still too similar to a recent post');
+      return NextResponse.json({ ok: true, skipped: 'duplicate', mode: chosen.mode, content });
+    }
 
     // Dry-run: generate and return the post WITHOUT publishing. Lets you preview
     // the voice safely (e.g. ?dry=1) before trusting the cron to post for real.
