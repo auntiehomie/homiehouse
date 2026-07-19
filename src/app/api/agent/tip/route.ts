@@ -100,7 +100,9 @@ async function writePost(system: string, instruction: string): Promise<string> {
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const model = process.env.AGENT_POST_MODEL || 'claude-haiku-4-5-20251001';
+      // Sonnet by default for a noticeably more natural, human voice — posts are
+      // ~2/day so the cost is trivial. Override with AGENT_POST_MODEL.
+      const model = process.env.AGENT_POST_MODEL || 'claude-sonnet-5';
       const res = await anthropic.messages.create({
         model,
         max_tokens: 160,
