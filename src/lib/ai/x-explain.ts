@@ -7,6 +7,7 @@
  * is the API reads/posts (see x-budget.ts), not the language model.
  */
 
+import Anthropic from '@anthropic-ai/sdk';
 import { llmChat } from '@/lib/llm';
 import { HOMIE_VOICE } from '@/lib/ai/persona';
 
@@ -33,7 +34,11 @@ export async function explainXPost(
   if (!clean) return '';
 
   const user = `Explain this X post in plain language${opts.author ? ` (posted by @${opts.author})` : ''}:\n\n"${clean.slice(0, 1500)}"`;
+  const clip = (s: string) => s.trim().replace(/^["']|["']$/g, '').slice(0, 280).trim();
 
+  // Free stack first (zero cost). The homie voice explainer is quality-sensitive
+  // and low-volume, so fall back to Claude when the free providers are down/rate
+  // limited — otherwise a flaky free stack silently returns no explanation.
   try {
     const { message } = await llmChat({
       messages: [
@@ -43,13 +48,28 @@ export async function explainXPost(
       maxTokens: 160,
       temperature: 0.5,
     });
-    return (message.content || '')
-      .trim()
-      .replace(/^["']|["']$/g, '')
-      .slice(0, 280)
-      .trim();
+    const out = clip(message.content || '');
+    if (out) return out;
   } catch (err: any) {
-    console.error('[x-explain] failed:', err?.message);
-    return '';
+    console.warn('[x-explain] free stack failed, trying Claude:', err?.message);
   }
+
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const res = await anthropic.messages.create({
+        model: process.env.X_EXPLAIN_MODEL || 'claude-haiku-4-5-20251001',
+        max_tokens: 160,
+        temperature: 0.5,
+        system: EXPLAIN_SYSTEM,
+        messages: [{ role: 'user', content: user }],
+      });
+      const block = res.content[0];
+      if (block?.type === 'text') return clip(block.text);
+    } catch (err: any) {
+      console.error('[x-explain] Claude fallback failed:', err?.message);
+    }
+  }
+
+  return '';
 }
