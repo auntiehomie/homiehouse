@@ -21,8 +21,6 @@
     "@langchain/groq": "^1.2.1",
     "@langchain/openai": "^1.2.2",
     "@neondatabase/serverless": "^1.1.0",
-    "@neynar/nodejs-sdk": "^3.176.0",
-    "@neynar/react": "^1.2.22",
     "@noble/ed25519": "^3.0.0",
     "@pigment-css/react": "^0.0.31",
     "@pinata/sdk": "^2.1.0",
