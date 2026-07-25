@@ -135,6 +135,7 @@ function CompletedTab() {
 
 const LEARNING_CHANNELS = [
   { id: '', label: 'All', query: '' },
+  { id: 'journeys', label: '📚 Journeys', query: '#HomieHouseLearning' },
   { id: 'defi', label: 'DeFi', query: 'DeFi' },
   { id: 'web3', label: 'Web3', query: 'web3' },
   { id: 'base', label: 'Base', query: 'Base chain' },
@@ -732,6 +733,7 @@ function LearnPageContent() {
   const [navigating, setNavigating] = useState(false);
   const [planPersonalizing, setPlanPersonalizing] = useState(false);
   const [hh2Points, setHh2Points] = useState(0);
+  const [peerCount, setPeerCount] = useState<number | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const HH2_PER_LESSON = 10;
@@ -805,6 +807,36 @@ function LearnPageContent() {
   // privyFid as dep: re-runs once Privy auth resolves and the FID becomes non-null
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [privyFid]);
+
+  // "N people you follow are also on this track" — fetch the user's following
+  // list, then ask how many of those fids have a learning_progress row on the
+  // same track. Best-effort: silently skip on any failure, this is a nice-to-have
+  // social signal, not core functionality.
+  useEffect(() => {
+    const fid = getFid();
+    if (!fid || !plan?.track) { setPeerCount(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const friendsRes = await fetch(`/api/friends?fid=${fid}`);
+        const friendsData = await friendsRes.json();
+        const followFids: number[] = (friendsData?.data ?? [])
+          .map((u: any) => u?.fid)
+          .filter((f: any): f is number => typeof f === 'number');
+        if (cancelled || followFids.length === 0) return;
+
+        const peersRes = await fetch(
+          `/api/learning-progress/peers?fids=${followFids.join(',')}&track=${encodeURIComponent(plan.track)}`
+        );
+        const peersData = await peersRes.json();
+        if (!cancelled && typeof peersData?.count === 'number') setPeerCount(peersData.count);
+      } catch {
+        // silent — social signal only
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan?.track, privyFid]);
 
   // Debounced save: whenever plan or completedIds change, sync to Neon after 2s
   useEffect(() => {
@@ -895,7 +927,10 @@ function LearnPageContent() {
     const done = completedIds.size;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     const progressLine = pct === 0 ? 'Just getting started 🌱' : pct < 50 ? 'Making progress 🔥' : pct < 100 ? 'Almost there 💪' : 'Plan complete! 🎉';
-    const text = `📚 My Web3 Learning Journey on HomieHouse\n\nTrack: ${plan.track} | Level: ${plan.level}\nProgress: ${done}/${total} modules (${pct}%)\n\n${progressLine}\n\nBuilding my path to decentralization, one step at a time.`;
+    // #HomieHouseLearning is a stable, searchable marker — LearningFeed's
+    // "Journeys" pill queries for it directly so the feed can surface real
+    // progress-share casts instead of only generic topic-keyword search.
+    const text = `📚 My Web3 Learning Journey on HomieHouse\n\nTrack: ${plan.track} | Level: ${plan.level}\nProgress: ${done}/${total} modules (${pct}%)\n\n${progressLine}\n\nBuilding my path to decentralization, one step at a time.\n\n#HomieHouseLearning`;
     router.push(`/compose?text=${encodeURIComponent(text)}`);
   };
 
@@ -1047,6 +1082,11 @@ function LearnPageContent() {
           {learnerCount > 0 && (
             <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 10, textAlign: 'right' }}>
               🧑‍🎓 {learnerCount} people learning with HomieHouse
+            </p>
+          )}
+          {peerCount !== null && peerCount > 0 && (
+            <p style={{ fontSize: 12, color: '#a5b4fc', marginTop: 4, textAlign: 'right' }}>
+              👋 {peerCount} {peerCount === 1 ? 'person you follow is' : 'people you follow are'} also on the {trackLabel} track
             </p>
           )}
           {pct === 100 && (
