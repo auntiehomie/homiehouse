@@ -251,7 +251,6 @@ function QuizCard({
   onCheck: () => void;
 }) {
   const correct = question.correctIndex;
-  const isRight = selected === correct;
 
   return (
     <CardBody>
@@ -296,20 +295,8 @@ function QuizCard({
         })}
       </div>
 
-      {checked && (
-        <div style={{
-          padding: '14px 16px', borderRadius: 12,
-          background: isRight ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.08)',
-          border: `1px solid ${isRight ? '#22c55e40' : '#ef444440'}`,
-        }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: isRight ? '#86efac' : '#fca5a5', margin: '0 0 6px' }}>
-            {isRight ? '✅ Correct!' : '❌ Not quite'}
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
-            {question.explanation}
-          </p>
-        </div>
-      )}
+      {/* The result + explanation now render in the fixed footer (renderQuizResultCard)
+          so they're never clipped by the Next button. */}
 
       {!checked && selected !== null && (
         <button
@@ -754,6 +741,27 @@ function ModuleLessonContent() {
       {/* Quiz continue (only after checked) */}
       {currentCard?.type === 'quiz' && quizChecked[currentCard.qIndex] && (
         <div style={{ padding: '12px 20px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', flexShrink: 0 }}>
+          {/* Result + explanation — pinned above the button so it's never clipped.
+              Scrolls internally if the explanation is long. */}
+          {(() => {
+            const q = currentCard.question;
+            const isRight = (quizAnswers[currentCard.qIndex] ?? -1) === q.correctIndex;
+            return (
+              <div style={{
+                marginBottom: 12, padding: '14px 16px', borderRadius: 14,
+                background: isRight ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.1)',
+                border: `1px solid ${isRight ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
+                maxHeight: '34vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any,
+              }}>
+                <p style={{ fontSize: 15, fontWeight: 800, margin: '0 0 6px', color: isRight ? '#86efac' : '#fca5a5' }}>
+                  {isRight ? '✅ Correct!' : '❌ Not quite'}
+                </p>
+                <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0, color: 'var(--text-on-dark)' }}>
+                  {q.explanation}
+                </p>
+              </div>
+            );
+          })()}
           {cardIndex < totalCards - 2 ? (
             <button
               onClick={handleContinue}
