@@ -235,6 +235,66 @@ const EXTRA_MODULES: Record<string, LearningModule> = {
     difficulty: 'beginner',
     tags: ['venice', 'AI', 'privacy', 'web3'],
   },
+  'how-llms-actually-work': {
+    id: 'how-llms-actually-work',
+    title: 'How AI Actually "Thinks": LLMs in Plain English',
+    description: 'Demystify large language models like the ones powering ChatGPT, Claude, and HomieHouse\'s own AI features — what they\'re actually doing when they "answer" you, and why they sometimes confidently make things up.',
+    whyItMatters: 'You interact with AI models constantly now — knowing roughly how they work makes you a sharper, more skeptical user instead of someone who either fears or blindly trusts the output.',
+    objectives: [
+      'Explain what a token is and how a model predicts the next one',
+      'Understand what "training" actually means at a high level, without the math',
+      'Explain why models hallucinate and how to spot a likely-wrong answer',
+      'Compare a few real models (Claude, GPT, open-source options) at a conceptual level',
+    ],
+    estimatedMinutes: 25,
+    difficulty: 'beginner',
+    tags: ['AI', 'machine-learning', 'LLMs', 'fundamentals'],
+  },
+  'ai-agents-onchain': {
+    id: 'ai-agents-onchain',
+    title: 'AI Agents That Own Wallets and Trade On-Chain',
+    description: 'Meet the wave of autonomous AI agents that hold their own crypto wallets, post on Farcaster, trade tokens, and coordinate with other agents — including the one built into this app.',
+    whyItMatters: 'AI agents with on-chain wallets are one of the fastest-growing intersections of AI and crypto — understanding how they work helps you evaluate which ones are legitimate and which are hype.',
+    objectives: [
+      'Explain what it means for an AI agent to "own" a wallet and sign transactions autonomously',
+      'Understand the basic agent loop: perceive (read casts/data) → decide (LLM call) → act (post, trade, reply)',
+      'Identify real examples: trading agents, social agents like @homiehouselol, and agent-to-agent marketplaces',
+      'Spot the difference between a genuinely autonomous agent and a scripted bot wearing an "AI" label',
+    ],
+    estimatedMinutes: 25,
+    difficulty: 'intermediate',
+    tags: ['AI', 'agents', 'automation', 'web3'],
+  },
+  'ai-security-prompt-injection': {
+    id: 'ai-security-prompt-injection',
+    title: 'Prompt Injection: The New Frontier of Hacks',
+    description: 'Just like DeFi has flash-loan attacks and reentrancy bugs, AI systems have their own exploit class — prompt injection. Learn how attackers manipulate AI agents and how builders defend against it.',
+    whyItMatters: 'As AI agents get wallets and permissions, securing them against manipulation becomes exactly as important as securing a smart contract.',
+    objectives: [
+      'Explain what prompt injection is and how it differs from traditional code exploits',
+      'Understand why an AI agent that reads untrusted content (like social posts) is especially exposed',
+      'Identify real-world prompt injection incidents against AI agents and chatbots',
+      'Apply basic defensive patterns: input sanitization, permission boundaries, human-in-the-loop for high-stakes actions',
+    ],
+    estimatedMinutes: 20,
+    difficulty: 'intermediate',
+    tags: ['AI', 'security', 'prompt-injection', 'agents'],
+  },
+  'ai-crypto-convergence': {
+    id: 'ai-crypto-convergence',
+    title: 'Why AI and Crypto Keep Colliding',
+    description: 'From decentralized GPU marketplaces to on-chain model provenance to agent-native payment rails, explore the handful of ways AI and crypto are genuinely merging — and which are still mostly narrative.',
+    whyItMatters: 'Every cycle brings hype around "AI x crypto" — knowing the real infrastructure from the marketing lets you tell which projects are solving something real.',
+    objectives: [
+      'Explain what decentralized compute marketplaces (like Render, Akash, io.net) actually provide',
+      'Understand why crypto rails (stablecoins, micropayments) are a natural fit for machine-to-machine AI agent payments',
+      'Describe how on-chain provenance could help verify AI-generated content',
+      'Separate genuine AI-crypto infrastructure from projects that just added "AI" to their pitch deck',
+    ],
+    estimatedMinutes: 25,
+    difficulty: 'intermediate',
+    tags: ['AI', 'crypto', 'infrastructure', 'convergence'],
+  },
 };
 
 const FALLBACK_PLAN: LearningPlan = {
@@ -328,6 +388,11 @@ const FALLBACK_PLAN: LearningPlan = {
       difficulty: 'beginner',
       tags: ['farcaster', 'social', 'community'],
     },
+    // AI/ML modules, framed for a crypto-curious audience rather than as a
+    // standalone data-science course — ties into what learners are already here for.
+    EXTRA_MODULES['how-llms-actually-work'],
+    EXTRA_MODULES['venice-ai'],
+    EXTRA_MODULES['ai-agents-onchain'],
   ],
 };
 
@@ -382,8 +447,13 @@ Available topic areas to draw from (pick the most relevant for this user's track
 - DeFi security & hacks: major hacks timeline (DAO hack, Ronin bridge, Wormhole), attack vectors, opsec
 - Security in decentralization: smart contract audits, rug pulls, phishing, how to stay safe
 - Farcaster history: Dan Romero + Varun Srinivasan, protocol evolution, FIDs, Hubs, Frames
-- Venice.ai: privacy-first AI on Web3 infrastructure, decentralized model inference, data ownership
 - On-chain data & storage: IPFS, Arweave, Filecoin, The Graph, calldata, EIP-4844
+- AI & machine learning (framed for a crypto-curious audience, not a data-science course):
+  - How LLMs actually work: tokens, training, why models hallucinate, comparing Claude/GPT/open models
+  - AI agents on-chain: agents that own wallets and sign transactions, the perceive-decide-act loop, real examples like this app's own @homiehouselol
+  - Venice.ai: privacy-first AI on decentralized infrastructure, why data ownership matters for AI the same way it does for money
+  - Prompt injection & AI security: the "flash loan attack" of the AI world, how agents that read untrusted content get manipulated, defensive patterns
+  - AI x crypto convergence: decentralized compute (Render, Akash, io.net), agent-to-agent stablecoin payments, on-chain content provenance — and how to tell real infrastructure from hype
 - Web3 philosophy: decentralization principles, censorship resistance, permissionless systems, ownership
 - NFTs: ERC-721, use cases beyond art, gaming, ticketing, music royalties
 - DAOs: governance tokens, voting, Snapshot, Tally, Gnosis Safe, real examples
