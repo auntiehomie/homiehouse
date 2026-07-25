@@ -8,17 +8,21 @@ import Image from "next/image";
 
 interface TrendingListProps {
   limit?: number;
+  /** Scope trending to one channel (Farcaster's topic unit) instead of the global feed. */
+  channelId?: string;
 }
 
-export default function TrendingList({ limit = 10 }: TrendingListProps) {
+export default function TrendingList({ limit = 10, channelId }: TrendingListProps) {
   const [items, setItems] = useState<any[] | null>(null);
 
   useEffect(() => {
     let mounted = true;
+    setItems(null);
     (async () => {
       try {
-        const params = new URLSearchParams({ limit: String(limit), time_window: "24h" });
-        
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (channelId) params.set("channel_id", channelId);
+
         // Get FID from localStorage if available
         const storedProfile = localStorage.getItem("hh_profile");
         if (storedProfile) {
@@ -29,7 +33,7 @@ export default function TrendingList({ limit = 10 }: TrendingListProps) {
             }
           } catch {}
         }
-        
+
         const res = await fetch(`/api/trending?${params.toString()}`);
         const data = await res.json();
         const casts = data?.data ?? [];
@@ -39,7 +43,7 @@ export default function TrendingList({ limit = 10 }: TrendingListProps) {
       }
     })();
     return () => { mounted = false; };
-  }, [limit]);
+  }, [limit, channelId]);
 
   if (items === null)
     return (
@@ -47,7 +51,7 @@ export default function TrendingList({ limit = 10 }: TrendingListProps) {
         <TrendingSkeleton count={2} />
       </div>
     );
-  if (!items.length) return <div className="surface">No trending casts.</div>;
+  if (!items.length) return <div className="surface">No trending casts{channelId ? ` in #${channelId}` : ""}.</div>;
 
   return (
     <div className="space-y-3">

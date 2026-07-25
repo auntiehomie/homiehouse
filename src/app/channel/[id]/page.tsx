@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import FeedList from '@/components/FeedList';
+import TrendingList from '@/components/TrendingList';
 
 interface ChannelInfo {
   id: string;
@@ -21,6 +22,7 @@ export default function ChannelPage() {
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
+  const [view, setView] = useState<'recent' | 'trending'>('recent');
 
   useEffect(() => {
     if (!channelId) return;
@@ -115,9 +117,32 @@ export default function ChannelPage() {
         <div style={{ height: 1, background: '#222' }} />
       </div>
 
+      {/* Recent / Trending toggle */}
+      <div style={{ display: 'flex', gap: 8, padding: '12px 20px 0' }}>
+        {(['recent', 'trending'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              textTransform: 'capitalize',
+              padding: '6px 14px',
+              borderRadius: 20,
+              border: '1px solid #333',
+              background: view === v ? '#fff' : 'transparent',
+              color: view === v ? '#000' : '#888',
+              cursor: 'pointer',
+            }}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
       {/* Feed */}
-      <div style={{ padding: '0 20px' }}>
-        {channelId && (
+      <div style={{ padding: '12px 20px 0' }}>
+        {channelId && view === 'recent' && (
           <FeedList
             feedType="global"
             selectedChannel={channelId}
@@ -126,6 +151,9 @@ export default function ChannelPage() {
             onMuteUser={(username: string) => setMutedUsers(prev => new Set([...prev, username]))}
             onHideCast={(hash: string) => setHiddenCasts(prev => new Set([...prev, hash]))}
           />
+        )}
+        {channelId && view === 'trending' && (
+          <TrendingList limit={25} channelId={channelId} />
         )}
       </div>
     </div>
