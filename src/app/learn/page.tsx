@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
+import { getEli5Mode } from '@/lib/eli5';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -514,6 +515,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
                 : m
             ),
             mode: 'agent',
+            eli5: getEli5Mode(),
           }),
         });
         const data = await res.json();
