@@ -21,7 +21,8 @@
 
 import { TwitterApi } from 'twitter-api-v2';
 
-function isConfigured(): boolean {
+/** True when all four OAuth 1.0a credentials are present. Exported so cron routes can no-op cleanly. */
+export function isXConfigured(): boolean {
   return Boolean(
     process.env.X_APP_KEY &&
     process.env.X_APP_SECRET &&
@@ -29,6 +30,7 @@ function isConfigured(): boolean {
     process.env.X_ACCESS_SECRET
   );
 }
+const isConfigured = isXConfigured;
 
 let _client: TwitterApi | null = null;
 
@@ -55,6 +57,9 @@ export interface XPost {
   authorId: string;
   authorUsername?: string;
   createdAt: string;
+  /** Text of the tweet this mention replies to / quotes — the thing to explain. */
+  referencedText?: string;
+  referencedAuthor?: string;
 }
 
 /**
@@ -83,18 +88,35 @@ export async function fetchXMentions(sinceId?: string): Promise<XPost[]> {
   const timeline = await client.v2.userMentionTimeline(me.data.id, {
     since_id: sinceId,
     max_results: 20,
-    expansions: ['author_id'],
-    'tweet.fields': ['created_at', 'author_id'],
+    // referenced_tweets.id pulls the replied-to/quoted tweet into `includes.tweets`
+    // so we can explain THAT post, not just the "@homiehouselol explain this" mention.
+    expansions: ['author_id', 'referenced_tweets.id'],
+    'tweet.fields': ['created_at', 'author_id', 'referenced_tweets'],
+    'user.fields': ['username'],
   });
 
-  const users = new Map((timeline.includes?.users ?? []).map((u) => [u.id, u.username]));
-  return timeline.data.data.map((t) => ({
-    id: t.id,
-    text: t.text,
-    authorId: t.author_id!,
-    authorUsername: users.get(t.author_id!),
-    createdAt: t.created_at!,
-  }));
+  const users = new Map<string, string>(
+    (timeline.includes?.users ?? []).map((u: { id: string; username: string }) => [u.id, u.username])
+  );
+  const tweetsById = new Map<string, { text: string; author_id?: string }>(
+    (timeline.includes?.tweets ?? []).map((t: { id: string; text: string; author_id?: string }) => [t.id, t])
+  );
+
+  return (timeline.data.data ?? []).map((t): XPost => {
+    const ref = (t.referenced_tweets ?? []).find(
+      (r: { type: string; id: string }) => r.type === 'replied_to' || r.type === 'quoted'
+    );
+    const refTweet = ref ? tweetsById.get(ref.id) : undefined;
+    return {
+      id: t.id,
+      text: t.text,
+      authorId: t.author_id!,
+      authorUsername: users.get(t.author_id!),
+      createdAt: t.created_at!,
+      referencedText: refTweet?.text,
+      referencedAuthor: refTweet?.author_id ? users.get(refTweet.author_id) : undefined,
+    };
+  });
 }
 
 /**
