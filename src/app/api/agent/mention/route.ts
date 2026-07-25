@@ -7,6 +7,7 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 import { buildFullMemoryContext, savePost } from '@/lib/agent-memory';
+import { recordMention, buildUserMemoryContext, learnFromInteraction } from '@/lib/agent-user-memory';
 import { llmChat } from '@/lib/llm';
 import { buildReplySystem } from '@/lib/ai/persona';
 
@@ -113,13 +114,14 @@ async function generateReply(
   authorUsername: string,
   memoryContext: string,
   threadContext: string,
+  userContext: string,
 ): Promise<string> {
   try {
     const userContent = threadContext
       ? `Thread context (oldest → newest):\n${threadContext}\n\n@${authorUsername} then mentioned you: "${castText.slice(0, 400)}"\n\nWrite a helpful reply under 280 chars that fits this conversation. Use a tool if you need real-time data.`
       : `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`;
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: buildReplySystem(memoryContext) },
+      { role: 'system', content: buildReplySystem(memoryContext, userContext) },
       { role: 'user', content: userContent },
     ];
 
@@ -265,9 +267,11 @@ export async function GET(request: NextRequest) {
       try {
         attempted++;
         const authorUsername = cast.author?.username || 'friend';
+        const authorFid: number | undefined = cast.author?.fid;
         const threadContext = await fetchThreadChain(cast.parent_hash);
         if (threadContext) console.log(`[agent/mention] thread context (${threadContext.split('\n').length} turns)`);
-        const reply = await generateReply(cast.text || '', authorUsername, memoryContext, threadContext);
+        const userContext = authorFid ? await buildUserMemoryContext(authorFid) : '';
+        const reply = await generateReply(cast.text || '', authorUsername, memoryContext, threadContext, userContext);
 
         const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
         console.error(`[agent/mention] ATTEMPTING reply to @${authorUsername} (cast ${castHash.slice(0, 10)}): "${reply.slice(0, 60)}"`);
@@ -287,6 +291,19 @@ export async function GET(request: NextRequest) {
           source: 'reply',
           topic: `reply to @${authorUsername}`,
         });
+
+        // Learn from this interaction: bump this user's mention count, and fold
+        // what they said + how the agent replied into their rolling profile
+        // summary. Best-effort — never blocks the reply that already went out.
+        if (authorFid) {
+          await recordMention(authorFid, authorUsername);
+          await learnFromInteraction({
+            fid: authorFid,
+            username: authorUsername,
+            userMessage: cast.text || '',
+            agentReply: reply,
+          });
+        }
 
         console.error(`[agent/mention] SUCCESS reply to @${authorUsername} replyHash=${replyHash}`);
         await recordReplyBatch({

@@ -41,14 +41,14 @@ HARD RULES
 
 // ─── Reply-specific system prompt ─────────────────────────────────────────────
 
-export function buildReplySystem(memoryContext = ''): string {
+export function buildReplySystem(memoryContext = '', userContext = ''): string {
   return `${HOMIE_VOICE}
 
 RIGHT NOW: someone mentioned you and you're writing a reply.
 - Answer their actual question first — be genuinely useful.
 - Match their energy. If they're joking, joke back. If they're asking for help, help.
 - Use a tool to look up real-time data (token prices, what people are saying) when it makes your answer better.
-- Sound like a friend replying, not a help desk closing a ticket.${memoryContext}`;
+- Sound like a friend replying, not a help desk closing a ticket.${memoryContext}${userContext}`;
 }
 
 // ─── Post-specific system prompt ──────────────────────────────────────────────
