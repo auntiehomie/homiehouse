@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchXMentions, postToX } from '@/lib/x-client';
+import { isXConfigured, fetchXMentions, postToX } from '@/lib/x-client';
 import { checkXBudget, recordXUsage } from '@/lib/x-budget';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
+import { getXState, setXState } from '@/lib/x-state';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
-import { llmChat } from '@/lib/llm';
-import { buildReplySystem } from '@/lib/ai/persona';
+import { explainXPost } from '@/lib/ai/x-explain';
 
 export const maxDuration = 60;
+
+const LAST_MENTION_KEY = 'last_mention_id';
 
 /**
  * Reply-to-mentions cron for @homiehouselol on X — scaffold, not wired up.
@@ -30,28 +32,17 @@ export const maxDuration = 60;
  * tweak, so it's deliberately left out of this first scaffold.
  */
 
-async function generateXReply(text: string, authorUsername: string): Promise<string> {
-  try {
-    const { message } = await llmChat({
-      messages: [
-        { role: 'system', content: buildReplySystem() },
-        {
-          role: 'user',
-          content: `@${authorUsername} mentioned you on X and said: "${text.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars.`,
-        },
-      ],
-      maxTokens: 200,
-    });
-    return (message.content || '').trim().slice(0, 280) || 'hey! 🏠';
-  } catch (err: any) {
-    console.error('[agent/x-mention] reply generation failed:', err?.message);
-    return 'hey! 🏠';
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     verifyCronSecret(request, process.env.CRON_SECRET);
+
+    // Explicit on-switch — off by default so live X spend never starts by accident.
+    if (process.env.X_AGENT_ENABLED !== 'true') {
+      return NextResponse.json({ ok: true, skipped: 'X_AGENT_ENABLED is not "true"' });
+    }
+    if (!isXConfigured()) {
+      return NextResponse.json({ ok: true, skipped: 'not-configured' });
+    }
 
     const readBudget = await checkXBudget('read');
     if (!readBudget.allowed) {
@@ -59,18 +50,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, skipped: 'budget', ...readBudget });
     }
 
-    const mentions = await fetchXMentions();
+    // since_id keeps the poll from re-reading (and re-paying for) handled mentions.
+    const sinceId = (await getXState(LAST_MENTION_KEY)) ?? undefined;
+    const mentions = await fetchXMentions(sinceId);
     await recordXUsage('read');
 
     let repliedCount = 0;
     let attempted = 0;
+    let newestId = sinceId;
 
-    for (const mention of mentions) {
-      if (attempted >= 1) break; // one reply per cron run, same cap as the Farcaster mention cron
+    // Oldest → newest so replies are chronological and the cursor advances past
+    // everything we saw (even mentions we don't reply to).
+    for (const mention of [...mentions].reverse()) {
+      newestId = mention.id;
+
+      if (attempted >= 1) continue; // one reply per cron run (matches the Farcaster cron)
 
       const trackingKey = `x_${mention.id}`;
-      const alreadyReplied = await hasRepliedToAny([trackingKey]);
-      if (alreadyReplied) continue;
+      if (await hasRepliedToAny([trackingKey])) continue;
+
+      // Explain the referenced (replied-to/quoted) post — that's the confusing
+      // thing someone wants unpacked. Fall back to the mention's own text.
+      const targetText = (mention.referencedText || mention.text || '').replace(/@\w+/g, '').trim();
+      const targetAuthor = mention.referencedText ? mention.referencedAuthor : mention.authorUsername;
+      if (!targetText) continue;
 
       const postBudget = await checkXBudget('post');
       if (!postBudget.allowed) {
@@ -80,8 +83,8 @@ export async function GET(request: NextRequest) {
 
       try {
         attempted++;
-        const authorUsername = mention.authorUsername || 'friend';
-        const reply = await generateXReply(mention.text, authorUsername);
+        const reply = await explainXPost(targetText, { author: targetAuthor });
+        if (!reply) continue;
 
         const { id: replyId } = await postToX(reply, mention.id);
         await recordXUsage('post');
@@ -98,6 +101,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (newestId && newestId !== sinceId) {
+      await setXState(LAST_MENTION_KEY, newestId);
+    }
+
     return NextResponse.json({
       ok: true,
       checked: mentions.length,
@@ -106,7 +113,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     if (error?.message?.includes('X API not configured')) {
-      console.log('[agent/x-mention] Not configured — skipping (this is expected until X credentials are provisioned)');
       return NextResponse.json({ ok: true, skipped: 'not-configured' });
     }
     console.error('[agent/x-mention] Error:', error?.message);
