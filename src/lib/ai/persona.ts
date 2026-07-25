@@ -68,20 +68,23 @@ RIGHT NOW: you're writing a standalone post for your own feed (not a reply).
 // range, not a tip-bot. Weights lean ~70% helpful / ~30% chill to match "help
 // people understand crypto, but also just chill."
 
-export type PostMode = 'tip' | 'trend-take' | 'chill' | 'question';
+export type PostMode = 'tip' | 'trend-take' | 'news-take' | 'chill' | 'question';
 
 interface PostModeDef {
   mode: PostMode;
   weight: number;
-  /** Whether this mode wants a trending cast to react to. */
+  /** Whether this mode wants a trending Farcaster cast to react to. */
   needsTrend: boolean;
+  /** Whether this mode wants a real crypto news story (from the wider web) to react to. */
+  needsNews: boolean;
 }
 
 export const POST_MODES: PostModeDef[] = [
-  { mode: 'trend-take', weight: 40, needsTrend: true  }, // react to what's actually happening
-  { mode: 'tip',        weight: 25, needsTrend: false }, // an offhand useful thing
-  { mode: 'chill',      weight: 20, needsTrend: false }, // relatable, no lesson
-  { mode: 'question',   weight: 15, needsTrend: false }, // spark replies
+  { mode: 'trend-take', weight: 30, needsTrend: true,  needsNews: false }, // react to what's happening on Farcaster
+  { mode: 'news-take',  weight: 15, needsTrend: false, needsNews: true  }, // react to real crypto news from the web
+  { mode: 'tip',        weight: 25, needsTrend: false, needsNews: false }, // an offhand useful thing
+  { mode: 'chill',      weight: 20, needsTrend: false, needsNews: false }, // relatable, no lesson
+  { mode: 'question',   weight: 10, needsTrend: false, needsNews: false }, // spark replies
 ];
 
 /** Weighted-random pick of a post mode. `avoid` deprioritizes the last mode used. */
@@ -98,12 +101,19 @@ export function pickPostMode(avoid?: PostMode | null): PostModeDef {
 }
 
 /** The user-turn instruction for a given post mode. */
-export function postInstruction(mode: PostMode, opts: { topic?: string; trend?: { author: string; text: string } }): string {
+export function postInstruction(
+  mode: PostMode,
+  opts: { topic?: string; trend?: { author: string; text: string }; news?: { headline: string; summary: string; source?: string } }
+): string {
   switch (mode) {
     case 'trend-take':
       return `People on Farcaster are talking about this right now — someone said: "${opts.trend?.text}"
 
 React to it like a real person scrolling their feed: your honest opinion, a "honestly..." take, agreement, a little pushback, or a relatable aside. It's a standalone post — do NOT @ anyone or quote them, just riff on the vibe/topic. NOT a lesson. Sound like you're saying what you actually think. Max 280 chars.`;
+    case 'news-take':
+      return `Real crypto news, just happened: "${opts.news?.headline}" — ${opts.news?.summary}${opts.news?.source ? ` (via ${opts.news.source})` : ''}
+
+React to it like a real person who just saw the headline: your honest take, gut reaction, a little skepticism if warranted, or genuine interest. Standalone post — don't just restate the headline, say what YOU think about it. No price predictions or financial advice. Max 280 chars.`;
     case 'tip':
       return `Drop ONE genuinely useful crypto thing about "${opts.topic}" — but casually, like you're telling a friend, not writing a how-to.
 
