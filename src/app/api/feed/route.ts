@@ -4,12 +4,18 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateLimit } from '@/lib/validation';
 import { getOpenRankScores, isSpamAccount } from '@/lib/openrank';
+import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/feed');
   logger.start();
 
   try {
+    // Now a guest-accessible entry point (feed/page.tsx shows the Global feed to
+    // signed-out visitors) — response is already CDN-cached for non-personal
+    // feeds (see Cache-Control below), this is just defense-in-depth.
+    await enforceRateLimit({ key: rateLimitKeyFromRequest(req), limit: 60, windowSeconds: 60, label: 'feed' });
+
     const { searchParams } = new URL(req.url);
     const feedType = searchParams.get("feed_type") || "following";
     const fidParam = searchParams.get("fid");

@@ -3,12 +3,18 @@ import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateLimit, validateFid } from '@/lib/validation';
+import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/trending');
   logger.start();
 
   try {
+    // Now a guest-accessible entry point (feed/page.tsx shows this to signed-out
+    // visitors) — response is already CDN-cached (see Cache-Control below), this
+    // is just defense-in-depth against direct API abuse.
+    await enforceRateLimit({ key: rateLimitKeyFromRequest(req), limit: 60, windowSeconds: 60, label: 'trending' });
+
     const { searchParams } = new URL(req.url);
     const limitParam = searchParams.get("limit");
     const timeWindow = searchParams.get("time_window") || "24h";

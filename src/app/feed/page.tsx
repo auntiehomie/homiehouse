@@ -25,17 +25,6 @@ export default function FeedPage() {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
-        <div className="text-center">
-          <p style={{ color: 'var(--muted-on-dark)', marginBottom: 16 }}>Sign in to view your feed</p>
-          <NeynarSignIn />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
       <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -66,13 +55,35 @@ export default function FeedPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </Link>
-            <Link href="/notifications" className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center hover:border-zinc-500 transition-colors text-zinc-400" title="Notifications">
-              <NotificationBadge className="w-4 h-4" />
-            </Link>
+            {isAuthenticated && (
+              <Link href="/notifications" className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center hover:border-zinc-500 transition-colors text-zinc-400" title="Notifications">
+                <NotificationBadge className="w-4 h-4" />
+              </Link>
+            )}
             <NeynarSignIn />
           </div>
         </div>
       </header>
+
+      {!isAuthenticated && (
+        <div
+          className="max-w-7xl mx-auto px-3 sm:px-6"
+          style={{ paddingTop: 12 }}
+        >
+          <div
+            className="flex items-center justify-between gap-3"
+            style={{
+              padding: '10px 16px', borderRadius: 12,
+              background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)',
+            }}
+          >
+            <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>
+              👀 Browsing as a guest — sign in to post, like, and follow
+            </span>
+            <NeynarSignIn />
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24">
         <div className="flex gap-6 items-start">
@@ -83,11 +94,17 @@ export default function FeedPage() {
             <SidebarNav />
           </aside>
           <div className="flex-1 min-w-0">
-            <LearningHeroCard />
+            {isAuthenticated && <LearningHeroCard />}
             <div className="flex items-center mb-3">
               <h3 className="text-lg font-semibold">Explore</h3>
             </div>
-            <FeedTrendingTabs />
+            {isAuthenticated ? (
+              <FeedTrendingTabs />
+            ) : (
+              // Guests have no following graph — start on Trending (fully public data)
+              // instead of an empty/broken "Following" feed.
+              <FeedTrendingTabs defaultTab="trending" defaultFeedType="global" />
+            )}
           </div>
         </div>
       </main>
