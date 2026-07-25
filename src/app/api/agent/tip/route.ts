@@ -6,6 +6,7 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { buildFullMemoryContext, savePost, getRecentPosts } from '@/lib/agent-memory';
 import { llmChat } from '@/lib/llm';
+import { fetchCryptoNews } from '@/lib/ai/news';
 import {
   buildPostSystem,
   pickPostMode,
@@ -154,7 +155,8 @@ export async function GET(request: NextRequest) {
     const recentTopics = recentPosts.map((p) => p.topic || '').filter(Boolean);
     const lastSource = recentPosts[0]?.source as PostMode | undefined;
     const lastMode: PostMode | null =
-      lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'chill' || lastSource === 'question'
+      lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'news-take' ||
+      lastSource === 'chill' || lastSource === 'question'
         ? lastSource : null;
 
     let chosen = pickPostMode(lastMode);
@@ -177,19 +179,33 @@ export async function GET(request: NextRequest) {
         };
       } else {
         console.log('[agent/tip] no relevant trend — falling back to tip mode');
-        chosen = { mode: 'tip', weight: 0, needsTrend: false };
+        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
+      }
+    }
+
+    // If the chosen mode wants a real news story, resolve one via Perplexity's
+    // web-search-backed sonar model — else fall back to a tip (same pattern as
+    // the trend fallback above, and gracefully covers a missing PERPLEXITY_API_KEY).
+    let news: { headline: string; summary: string; source?: string } | undefined;
+    if (chosen.needsNews) {
+      const article = await fetchCryptoNews();
+      if (article) {
+        news = article;
+      } else {
+        console.log('[agent/tip] no crypto news found — falling back to tip mode');
+        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
       }
     }
 
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    let content = await writePost(system, postInstruction(chosen.mode, { topic, trend }));
+    let content = await writePost(system, postInstruction(chosen.mode, { topic, trend, news }));
 
     // If it came out too close to a recent post, try once more with a different
     // topic (for tips) and an explicit "don't repeat yourself" nudge.
     if (content && tooSimilar(content, recentTexts)) {
       console.log('[agent/tip] first draft too similar to a recent post — retrying');
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
-      const retryInstruction = postInstruction(chosen.mode, { topic, trend }) +
+      const retryInstruction = postInstruction(chosen.mode, { topic, trend, news }) +
         '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.';
       const retry = await writePost(system, retryInstruction);
       if (retry) content = retry;
@@ -222,7 +238,7 @@ export async function GET(request: NextRequest) {
       castHash,
       text: content,
       source: chosen.mode,
-      topic: topic || trend?.text?.slice(0, 80) || undefined,
+      topic: topic || trend?.text?.slice(0, 80) || news?.headline?.slice(0, 80) || undefined,
     });
 
     console.log(`[agent/tip] Posted (${chosen.mode}): "${content}" → ${castHash}`);
