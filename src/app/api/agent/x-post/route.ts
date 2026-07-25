@@ -6,6 +6,7 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { getDb } from '@/lib/db';
 import { llmChat } from '@/lib/llm';
+import { fetchCryptoNews } from '@/lib/ai/news';
 import { buildPostSystem, pickPostMode, postInstruction, pickFreshTopic, type PostMode } from '@/lib/ai/persona';
 
 export const maxDuration = 60;
@@ -143,25 +144,38 @@ export async function GET(request: NextRequest) {
     const recentTopics = recentPosts.map((p) => p.topic || '').filter(Boolean);
     const lastSource = recentPosts[0]?.source as PostMode | undefined;
     const lastMode: PostMode | null =
-      lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'chill' || lastSource === 'question'
+      lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'news-take' ||
+      lastSource === 'chill' || lastSource === 'question'
         ? lastSource : null;
 
     let chosen = pickPostMode(lastMode);
     // trend-take needs a Farcaster cast, which doesn't make sense to react to
     // on X — treat it the same as "no trend found" and fall back to a tip.
     if (chosen.needsTrend) {
-      chosen = { mode: 'tip', weight: 0, needsTrend: false };
+      chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
+    }
+
+    // news-take works the same on X as on Farcaster — it's a reaction to a
+    // real web news story, not a platform-specific cast, so it's fully reusable.
+    let news: { headline: string; summary: string; source?: string } | undefined;
+    if (chosen.needsNews) {
+      const article = await fetchCryptoNews();
+      if (article) {
+        news = article;
+      } else {
+        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
+      }
     }
 
     const system = buildPostSystem(); // no cross-platform memory context yet — see strategy doc
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    let content = await writeXPost(system, postInstruction(chosen.mode, { topic }));
+    let content = await writeXPost(system, postInstruction(chosen.mode, { topic, news }));
 
     if (content && tooSimilar(content, recentTexts)) {
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
       const retry = await writeXPost(
         system,
-        postInstruction(chosen.mode, { topic }) +
+        postInstruction(chosen.mode, { topic, news }) +
           '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT.'
       );
       if (retry) content = retry;
@@ -179,7 +193,7 @@ export async function GET(request: NextRequest) {
 
     const { id } = await postToX(content);
     await recordXUsage('post');
-    await saveXPost({ xPostId: id, text: content, source: chosen.mode, topic });
+    await saveXPost({ xPostId: id, text: content, source: chosen.mode, topic: topic || news?.headline?.slice(0, 80) });
 
     return NextResponse.json({ ok: true, mode: chosen.mode, content, xPostId: id, timestamp: new Date().toISOString() });
   } catch (error: any) {
