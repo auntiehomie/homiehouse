@@ -142,25 +142,37 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
   return { casts: [] };
 }
 
-/** OpenRank (Karma3Labs) cast graph — free, unauthenticated global trending ranking. */
+/** OpenRank (Karma3Labs) cast graph — free, unauthenticated global + per-channel trending ranking. */
 const OPENRANK_CAST_BASE = 'https://graph.cast.k3l.io';
 
 /**
- * Fetch globally trending cast hashes, ranked, from OpenRank.
- * GET /casts/global/trending?limit=:limit → { result: [{ cast_hash, cast_hour }] }
+ * Fetch trending cast hashes, ranked, from OpenRank — globally, or scoped to
+ * one channel when `channelId` is given.
+ *
+ * Global: GET /casts/global/trending?limit=:limit → { result: [{ cast_hash, cast_hour }] }
+ * Channel: GET /channels/casts/popular/:channel?agg=sumsquare&weights=L1C10R5Y1&limit=:limit
+ *          → same { result: [{ cast_hash, ... }] } shape.
+ * (agg/weights are OpenRank's documented defaults for this endpoint — sumsquare
+ * aggregation weighted toward recasts > replies > likes.)
+ *
+ * Neither OpenRank endpoint supports a time-window parameter — trending is
+ * always "right now" per OpenRank's own rolling computation, hourly for
+ * global and per its own cadence for channels. There is no way to ask for
+ * e.g. "trending this week" from this data source.
+ *
  * Returns [] on any failure so trending degrades gracefully.
  */
-async function fetchTrendingCastHashes(limit: number): Promise<string[]> {
+async function fetchTrendingCastHashes(limit: number, channelId?: string): Promise<string[]> {
+  const url = channelId
+    ? `${OPENRANK_CAST_BASE}/channels/casts/popular/${encodeURIComponent(channelId)}?agg=sumsquare&weights=L1C10R5Y1&limit=${limit}&offset=0`
+    : `${OPENRANK_CAST_BASE}/casts/global/trending?limit=${limit}&offset=0`;
   try {
-    const res = await fetch(
-      `${OPENRANK_CAST_BASE}/casts/global/trending?limit=${limit}&offset=0`,
-      {
-        headers: { accept: 'application/json' },
-        signal: AbortSignal.timeout(5000),
-        // OpenRank recomputes hourly — cache for 5 min on the server.
-        next: { revalidate: 300 },
-      }
-    );
+    const res = await fetch(url, {
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(5000),
+      // OpenRank recomputes hourly — cache for 5 min on the server.
+      next: { revalidate: 300 },
+    });
     if (!res.ok) return [];
     const data = await res.json();
     const rows: any[] = Array.isArray(data?.result) ? data.result : [];
@@ -233,36 +245,60 @@ async function fetchTrendingFallbackFromNode(limit: number): Promise<any[]> {
 }
 
 /**
- * Fetch the global trending feed.
+ * Fetch the trending feed — globally, or scoped to one channel when
+ * `params.channel_id` is set (Farcaster's channels are its closest thing to
+ * "topics", so this is how you get "what's trending in this topic" rather
+ * than just a single undifferentiated global list).
  *
  * The Hypersnap node's own /feed/trending endpoint is unavailable (it times
- * out — trending computation isn't served by the self-hosted node), so we rank
- * globally via OpenRank and hydrate the resulting hashes through Hypersnap.
- * If OpenRank is unreachable too, fall back to recent casts from high-signal
- * accounts so the feed is never empty.
+ * out — trending computation isn't served by the self-hosted node) and never
+ * supported channel scoping anyway, so we rank via OpenRank (globally or via
+ * its per-channel endpoint) and hydrate the resulting hashes through
+ * Hypersnap. If OpenRank is unreachable too, fall back to recent casts —
+ * from the channel itself when one was requested, otherwise from a few
+ * high-signal accounts — so the feed is never empty.
+ *
+ * `time_window`/`viewer_fid` in `params` are accepted for API compatibility
+ * but currently do nothing: neither OpenRank endpoint nor the Hypersnap node
+ * support time-windowed or personalized trending.
  */
 export async function fetchTrendingFeed(params: Record<string, any> = {}): Promise<any> {
   const limit = Math.max(1, Math.min(Number(params.limit) || 25, 50));
+  const channelId: string | undefined = params.channel_id || undefined;
 
-  // 1. Rank globally via OpenRank, then hydrate through Hypersnap.
+  // 1. Rank via OpenRank (global or channel-scoped), then hydrate through Hypersnap.
   // Over-fetch hashes so hydration failures don't shrink the list below `limit`.
-  const hashes = await fetchTrendingCastHashes(Math.min(limit * 2, 50));
+  const hashes = await fetchTrendingCastHashes(Math.min(limit * 2, 50), channelId);
   if (hashes.length > 0) {
     const casts = await hydrateCastsByHash(hashes);
     if (casts.length > 0) return { casts: casts.slice(0, limit) };
   }
 
   // 2. Try the node's native trending endpoint (in case it comes back).
-  try {
-    const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null) qs.set(k, String(v));
-    }
-    const data = await hypersnapFetch(`/v2/farcaster/feed/trending?${qs.toString()}`, {}, 6000);
-    if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
-  } catch {}
+  // Channel scoping was never supported here, so only try this path globally.
+  if (!channelId) {
+    try {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== null) qs.set(k, String(v));
+      }
+      const data = await hypersnapFetch(`/v2/farcaster/feed/trending?${qs.toString()}`, {}, 6000);
+      if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
+    } catch {}
+  }
 
-  // 3. OpenRank + node trending both unavailable → recent high-signal casts.
+  // 3. OpenRank (+ node trending, if applicable) unavailable → recent casts.
+  // Channel-scoped: pull straight from the channel's own feed instead of the
+  // channel-agnostic high-signal-account fallback below.
+  if (channelId) {
+    try {
+      const data = await fetchChannelFeed(channelId, { limit });
+      const casts: any[] = data?.casts ?? [];
+      if (casts.length > 0) return { casts: casts.slice(0, limit) };
+    } catch {}
+    return { casts: [] };
+  }
+
   const fallbackCasts = await fetchTrendingFallbackFromNode(limit);
   return { casts: fallbackCasts };
 }
