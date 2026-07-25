@@ -5,13 +5,22 @@ import { useNeynarContext } from "@/hooks/useNeynarCompat";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+interface Curator {
+  fid: number;
+  username?: string;
+  display_name?: string;
+  pfp_url?: string;
+}
+
 interface CuratedList {
   id: number;
+  fid: number;
   list_name: string;
   description: string;
   is_public: boolean;
   created_at: string;
   item_count?: number;
+  curator?: Curator;
 }
 
 interface ListItem {
@@ -23,16 +32,26 @@ interface ListItem {
   created_at: string;
 }
 
+type Tab = "mine" | "discover" | "following";
+
 export default function CuratedListsPage() {
   const { user } = useNeynarContext();
   const router = useRouter();
+  const [tab, setTab] = useState<Tab>("mine");
+
   const [lists, setLists] = useState<CuratedList[]>([]);
+  const [discoverLists, setDiscoverLists] = useState<CuratedList[]>([]);
+  const [followingLists, setFollowingLists] = useState<CuratedList[]>([]);
+  const [followedIds, setFollowedIds] = useState<Set<number>>(new Set());
+
   const [selectedList, setSelectedList] = useState<CuratedList | null>(null);
   const [listItems, setListItems] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [visibilityBusy, setVisibilityBusy] = useState<number | null>(null);
+  const [followBusy, setFollowBusy] = useState<number | null>(null);
 
-  // Fetch user's lists
+  // Fetch user's own lists
   useEffect(() => {
     if (!user?.fid) return;
 
@@ -54,7 +73,37 @@ export default function CuratedListsPage() {
     fetchLists();
   }, [user]);
 
-  // Fetch items for selected list
+  // Fetch public (Discover) lists
+  useEffect(() => {
+    if (tab !== "discover") return;
+    fetch(`/api/curated-lists?public=true`)
+      .then((r) => r.json())
+      .then((data) => setDiscoverLists(data.lists || []))
+      .catch(() => setDiscoverLists([]));
+  }, [tab]);
+
+  // Fetch followed lists
+  const fetchFollowing = () => {
+    if (!user?.fid) return;
+    fetch(`/api/curated-lists/followed?fid=${user.fid}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const followed: CuratedList[] = data.lists || [];
+        setFollowingLists(followed);
+        setFollowedIds(new Set(followed.map((l) => l.id)));
+      })
+      .catch(() => {});
+  };
+  useEffect(() => {
+    if (tab === "following" && user?.fid) fetchFollowing();
+  }, [tab, user?.fid]);
+
+  // Following state also needed on the Discover tab (to show "Following" vs "Follow")
+  useEffect(() => {
+    if (user?.fid) fetchFollowing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.fid]);
+
   const fetchListItems = async (listId: number) => {
     setItemsLoading(true);
     try {
@@ -77,7 +126,7 @@ export default function CuratedListsPage() {
 
   const handleDeleteItem = async (itemId: number) => {
     if (!selectedList) return;
-    
+
     const confirmed = confirm("Remove this cast from the list?");
     if (!confirmed) return;
 
@@ -96,6 +145,50 @@ export default function CuratedListsPage() {
     }
   };
 
+  const toggleVisibility = async (list: CuratedList) => {
+    if (!user?.fid) return;
+    setVisibilityBusy(list.id);
+    try {
+      const res = await fetch("/api/curated-lists", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: list.id, fid: user.fid, isPublic: !list.is_public }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLists((prev) => prev.map((l) => (l.id === list.id ? { ...l, is_public: data.list.is_public } : l)));
+      }
+    } catch (error) {
+      console.error("Error updating visibility:", error);
+    } finally {
+      setVisibilityBusy(null);
+    }
+  };
+
+  const toggleFollow = async (list: CuratedList) => {
+    if (!user?.fid) return;
+    setFollowBusy(list.id);
+    const isFollowing = followedIds.has(list.id);
+    try {
+      if (isFollowing) {
+        await fetch(`/api/curated-lists/${list.id}/follow?followerFid=${user.fid}`, { method: "DELETE" });
+      } else {
+        await fetch(`/api/curated-lists/${list.id}/follow`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ followerFid: user.fid }),
+        });
+      }
+      fetchFollowing();
+    } catch (error) {
+      console.error("Error toggling follow:", error);
+    } finally {
+      setFollowBusy(null);
+    }
+  };
+
+  const displayListItems = tab === "mine" ? lists : tab === "discover" ? discoverLists : followingLists;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
@@ -106,7 +199,7 @@ export default function CuratedListsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-xl sm:text-2xl font-bold">My Lists</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Lists</h1>
           </div>
         </header>
         <div className="flex items-center justify-center p-12">
@@ -119,18 +212,37 @@ export default function CuratedListsPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-zinc-100 dark:text-zinc-100">
       <header className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 border-b border-zinc-200 dark:border-zinc-800">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 mb-4">
           <button onClick={() => router.back()} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold">My Lists</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">Lists</h1>
+        </div>
+        <div className="flex gap-2">
+          {([
+            { id: "mine" as Tab, label: `Your Lists (${lists.length})` },
+            { id: "discover" as Tab, label: "Discover" },
+            { id: "following" as Tab, label: `Following (${followingLists.length})` },
+          ]).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => { setTab(t.id); setSelectedList(null); setListItems([]); }}
+              className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
+                tab === t.id
+                  ? "border-white bg-zinc-900 dark:bg-zinc-950 text-white"
+                  : "border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {lists.length === 0 ? (
+        {tab === "mine" && lists.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📝</div>
             <h2 className="text-xl font-semibold mb-2">No Lists Yet</h2>
@@ -148,30 +260,64 @@ export default function CuratedListsPage() {
               </p>
             </div>
           </div>
+        ) : tab === "discover" && discoverLists.length === 0 ? (
+          <div className="text-center py-12 text-zinc-500">No public lists yet — be the first to make one public.</div>
+        ) : tab === "following" && followingLists.length === 0 ? (
+          <div className="text-center py-12 text-zinc-500">
+            Not following any lists yet — check Discover to find public lists from others.
+          </div>
         ) : (
           <div className="grid md:grid-cols-3 gap-6">
             {/* Lists sidebar */}
             <div className="md:col-span-1">
-              <h2 className="text-lg font-semibold mb-4">Your Lists ({lists.length})</h2>
+              <h2 className="text-lg font-semibold mb-4">
+                {tab === "mine" ? `Your Lists (${lists.length})` : tab === "discover" ? `Public Lists (${discoverLists.length})` : `Following (${followingLists.length})`}
+              </h2>
               <div className="space-y-2">
-                {lists.map(list => (
-                  <button
+                {displayListItems.map(list => (
+                  <div
                     key={list.id}
-                    onClick={() => handleListClick(list)}
                     className={`w-full text-left p-4 rounded-lg border transition-colors ${
                       selectedList?.id === list.id
                         ? "border-white bg-zinc-900 dark:bg-zinc-950"
                         : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900"
                     }`}
                   >
-                    <div className="font-semibold">{list.list_name}</div>
-                    {list.description && (
-                      <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{list.description}</div>
+                    <button onClick={() => handleListClick(list)} className="w-full text-left">
+                      <div className="font-semibold">{list.list_name}</div>
+                      {list.description && (
+                        <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{list.description}</div>
+                      )}
+                      {list.curator?.username && tab !== "mine" && (
+                        <div className="text-xs text-zinc-500 mt-1">by @{list.curator.username}</div>
+                      )}
+                      <div className="text-xs text-zinc-500 mt-2 flex items-center gap-2">
+                        <span>{typeof list.item_count === "number" ? `${list.item_count} casts · ` : ""}Created {new Date(list.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </button>
+                    {tab === "mine" && (
+                      <button
+                        onClick={() => toggleVisibility(list)}
+                        disabled={visibilityBusy === list.id}
+                        className={`mt-2 text-xs px-2 py-1 rounded-full border ${
+                          list.is_public ? "border-emerald-600 text-emerald-500" : "border-zinc-700 text-zinc-500"
+                        }`}
+                      >
+                        {visibilityBusy === list.id ? "…" : list.is_public ? "🌐 Public" : "🔒 Private — make public"}
+                      </button>
                     )}
-                    <div className="text-xs text-zinc-500 mt-2">
-                      Created {new Date(list.created_at).toLocaleDateString()}
-                    </div>
-                  </button>
+                    {tab === "discover" && (
+                      <button
+                        onClick={() => toggleFollow(list)}
+                        disabled={followBusy === list.id}
+                        className={`mt-2 text-xs px-3 py-1 rounded-full border ${
+                          followedIds.has(list.id) ? "border-zinc-600 text-zinc-400" : "border-white text-white"
+                        }`}
+                      >
+                        {followBusy === list.id ? "…" : followedIds.has(list.id) ? "Following" : "+ Follow"}
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -185,7 +331,7 @@ export default function CuratedListsPage() {
               ) : (
                 <div>
                   <h2 className="text-lg font-semibold mb-4">{selectedList.list_name}</h2>
-                  
+
                   {itemsLoading ? (
                     <div className="flex items-center justify-center h-32 text-zinc-500">
                       Loading casts...
@@ -218,15 +364,17 @@ export default function CuratedListsPage() {
                                 </Link>
                               </div>
                             </div>
-                            <button
-                              onClick={() => handleDeleteItem(item.id)}
-                              className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded transition-colors"
-                              title="Remove from list"
-                            >
-                              <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                            {tab === "mine" && (
+                              <button
+                                onClick={() => handleDeleteItem(item.id)}
+                                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded transition-colors"
+                                title="Remove from list"
+                              >
+                                <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}
