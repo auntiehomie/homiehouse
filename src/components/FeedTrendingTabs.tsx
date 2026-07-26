@@ -8,9 +8,15 @@ import ChannelStrip from "./ChannelStrip";
 
 export type FeedType = 'following' | 'global';
 
-export default function FeedTrendingTabs() {
-  const [tab, setTab] = useState<'feed'|'trending'>('feed');
-  const [feedType, setFeedType] = useState<FeedType>('following');
+interface FeedTrendingTabsProps {
+  /** Guests have no following graph, so default them to Trending instead of Feed/Following. */
+  defaultTab?: 'feed' | 'trending';
+  defaultFeedType?: FeedType;
+}
+
+export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType = 'following' }: FeedTrendingTabsProps = {}) {
+  const [tab, setTab] = useState<'feed'|'trending'>(defaultTab);
+  const [feedType, setFeedType] = useState<FeedType>(defaultFeedType);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
