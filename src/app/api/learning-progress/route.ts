@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { getStreak, recordActivity } from '@/lib/learning-streak';
 
 export const maxDuration = 10;
 
@@ -13,13 +14,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const rows = await sql`
-      SELECT plan, completed_ids, completions, hh2_points, updated_at
-      FROM learning_progress
-      WHERE fid = ${fid}
-    `;
+    const [rows, streak] = await Promise.all([
+      sql`
+        SELECT plan, completed_ids, completions, hh2_points, updated_at
+        FROM learning_progress
+        WHERE fid = ${fid}
+      `,
+      getStreak(fid),
+    ]);
 
-    if (rows.length === 0) return NextResponse.json({ found: false });
+    if (rows.length === 0) return NextResponse.json({ found: false, streak });
 
     const row = rows[0];
     return NextResponse.json({
@@ -29,6 +33,7 @@ export async function GET(req: NextRequest) {
       completions: row.completions ?? {},
       hh2_points: row.hh2_points ?? 0,
       updated_at: row.updated_at,
+      streak,
     });
   } catch (err: any) {
     console.error('[learning-progress] GET error:', err?.message);
@@ -66,7 +71,11 @@ export async function POST(req: NextRequest) {
         updated_at = NOW()
     `;
 
-    return NextResponse.json({ success: true });
+    // Every save is treated as "showed up today" for streak purposes — see
+    // learning-streak.ts for why a separate completion-event stream isn't needed.
+    const streak = await recordActivity(fid);
+
+    return NextResponse.json({ success: true, streak });
   } catch (err: any) {
     console.error('[learning-progress] POST error:', err?.message);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });

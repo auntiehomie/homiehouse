@@ -735,6 +735,9 @@ function LearnPageContent() {
   const [navigating, setNavigating] = useState(false);
   const [planPersonalizing, setPlanPersonalizing] = useState(false);
   const [hh2Points, setHh2Points] = useState(0);
+  const [streak, setStreak] = useState<{ currentStreak: number; longestStreak: number; freezeAvailable: boolean } | null>(null);
+  const [leaderboardEnabled, setLeaderboardEnabled] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<Array<{ fid: number; username?: string; pfpUrl?: string; weeklyPoints: number }>>([]);
   const [peerCount, setPeerCount] = useState<number | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -794,6 +797,7 @@ function LearnPageContent() {
     fetch(`/api/learning-progress?fid=${fid}`)
       .then(r => r.json())
       .then(d => {
+        if (d.streak) setStreak(d.streak);
         if (!d.found || !d.plan) return;
         setPlan(d.plan);
         setCompletedIds(new Set(d.completed_ids ?? []));
@@ -809,6 +813,56 @@ function LearnPageContent() {
   // privyFid as dep: re-runs once Privy auth resolves and the FID becomes non-null
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [privyFid]);
+
+  // Load the leaderboard opt-in preference once on mount.
+  useEffect(() => {
+    try { setLeaderboardEnabled(localStorage.getItem('hh_leaderboard_enabled') === 'true'); } catch {}
+  }, []);
+
+  function toggleLeaderboard() {
+    const next = !leaderboardEnabled;
+    setLeaderboardEnabled(next);
+    try { localStorage.setItem('hh_leaderboard_enabled', next ? 'true' : 'false'); } catch {}
+  }
+
+  // Opt-in weekly leaderboard: only fetched when the user has explicitly turned it
+  // on. Fetches the follow list, then this-week HH2 points for those fids, and
+  // joins them client-side for display (the leaderboard API returns points only,
+  // not identity — see its comments for why).
+  useEffect(() => {
+    if (!leaderboardEnabled) { setLeaderboard([]); return; }
+    const fid = getFid();
+    if (!fid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const friendsRes = await fetch(`/api/friends?fid=${fid}`);
+        const friendsData = await friendsRes.json();
+        const follows: Array<{ fid: number; username?: string; pfp_url?: string }> = friendsData?.data ?? [];
+        if (cancelled || follows.length === 0) { setLeaderboard([]); return; }
+
+        const followFids = follows.map((u) => u.fid).filter((f): f is number => typeof f === 'number');
+        const lbRes = await fetch(`/api/learning-progress/leaderboard?fids=${followFids.join(',')}`);
+        const lbData = await lbRes.json();
+        if (cancelled) return;
+
+        const byFid = new Map(follows.map((u) => [u.fid, u]));
+        const joined = (lbData?.leaderboard ?? [])
+          .map((entry: { fid: number; weeklyPoints: number }) => ({
+            fid: entry.fid,
+            weeklyPoints: entry.weeklyPoints,
+            username: byFid.get(entry.fid)?.username,
+            pfpUrl: byFid.get(entry.fid)?.pfp_url,
+          }))
+          .slice(0, 10);
+        setLeaderboard(joined);
+      } catch {
+        // silent — opt-in social feature, not core functionality
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaderboardEnabled, privyFid]);
 
   // "N people you follow are also on this track" — fetch the user's following
   // list, then ask how many of those fids have a learning_progress row on the
@@ -854,7 +908,10 @@ function LearnPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fid, plan, completed_ids: [...completedIds], completions, hh2_points: completedIds.size * HH2_PER_LESSON }),
-      }).catch(() => {});
+      })
+        .then(r => r.json())
+        .then(d => { if (d?.streak) setStreak(d.streak); })
+        .catch(() => {});
     }, 2000);
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1078,6 +1135,19 @@ function LearnPageContent() {
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
             </div>
           )}
+          {/* Daily streak */}
+          {streak && streak.currentStreak > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)' }}>
+              <span style={{ fontSize: 12, color: '#fb923c', fontWeight: 600 }}>
+                🔥 {streak.currentStreak} day streak{streak.longestStreak > streak.currentStreak ? ` · best ${streak.longestStreak}` : ''}
+              </span>
+              {streak.freezeAvailable && (
+                <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }} title="One missed day this week won't break your streak">
+                  ❄️ freeze ready
+                </span>
+              )}
+            </div>
+          )}
           <div style={{ height: 8, background: 'var(--bg-dark)', borderRadius: 4, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 4, transition: 'width 0.4s ease' }} />
           </div>
@@ -1113,6 +1183,46 @@ function LearnPageContent() {
             >
               🤖 Ask Homie to help you understand a topic or article →
             </button>
+          )}
+        </div>
+
+        {/* Weekly leaderboard — opt-in, follows-only */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 18px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: leaderboardEnabled ? 10 : 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>🏆 Weekly Leaderboard</span>
+            <button
+              onClick={toggleLeaderboard}
+              style={{
+                fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                border: `1px solid ${leaderboardEnabled ? 'var(--accent)' : 'var(--border)'}`,
+                background: leaderboardEnabled ? 'rgba(99,102,241,0.12)' : 'transparent',
+                color: leaderboardEnabled ? '#a5b4fc' : 'var(--muted-on-dark)',
+              }}
+            >
+              {leaderboardEnabled ? 'On' : 'Show among follows'}
+            </button>
+          </div>
+          {leaderboardEnabled && (
+            leaderboard.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {leaderboard.map((entry, i) => (
+                  <div key={entry.fid} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 4px' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted-on-dark)', width: 18 }}>#{i + 1}</span>
+                    {entry.pfpUrl ? (
+                      <Image src={entry.pfpUrl} alt="" width={24} height={24} style={{ borderRadius: '50%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--bg-dark)' }} />
+                    )}
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--text-on-dark)' }}>@{entry.username || entry.fid}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24' }}>{entry.weeklyPoints} HH2</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>
+                No one you follow has earned HH2 points this week yet.
+              </p>
+            )
           )}
         </div>
 
