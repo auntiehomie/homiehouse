@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
+import { ELI5_INSTRUCTION } from '@/lib/eli5';
 
 function getRedis(): Redis | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -199,7 +200,7 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
 
 export async function POST(req: NextRequest) {
   try {
-    const { moduleId, title, description, whyItMatters, objectives, difficulty, tags } = await req.json();
+    const { moduleId, title, description, whyItMatters, objectives, difficulty, tags, eli5 = false } = await req.json();
 
     if (!title) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
@@ -214,7 +215,7 @@ export async function POST(req: NextRequest) {
     const redis = getRedis();
     // v3: regenerate every module through the Claude-primary path (v2 cached the
     // dry free-model prose). Each module regenerates once, then caches 30 days.
-    const cacheKey = moduleId ? `lesson:v3:${moduleId}` : null;
+    const cacheKey = moduleId ? `lesson:v3:${moduleId}${eli5 ? ':eli5' : ''}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
@@ -452,7 +453,8 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 - correctIndex is 0-based (0=A, 1=B, 2=C, 3=D). It MUST point to the option that is unambiguously, factually correct.
 - Before finalizing each question, re-read the option at correctIndex and confirm it is TRUE and the other three are clearly FALSE. If two options could both be defended as correct, rewrite the question.
 - Watch out for "reversed pair" distractors (e.g. swapping which token does what). Verify the definitions are not backwards. Ground truth to respect: a GOVERNANCE token = voting/decision rights in a protocol; a UTILITY token = access to or payment for a product/service; an LP (liquidity provider) token = a depositor's share of a liquidity pool. Never mark an option correct that assigns these the wrong way round.
-- The "explanation" must restate the correct fact so it can be checked against the option at correctIndex — they must agree.`;
+- The "explanation" must restate the correct fact so it can be checked against the option at correctIndex — they must agree.`
+      + (eli5 ? `\n\n${ELI5_INSTRUCTION} This applies to every field above — intro, concepts, practicalExample, summary, and quiz explanations all need to be understandable with zero prior crypto/web3 knowledge.` : '');
 
     let content = '';
     let usedProvider = '';

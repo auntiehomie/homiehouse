@@ -6,6 +6,7 @@ import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
 import { buildRagContext } from '@/lib/ai/rag';
+import { ELI5_INSTRUCTION } from '@/lib/eli5';
 
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
@@ -353,7 +354,8 @@ export async function POST(req: NextRequest) {
       userId,
       userContext,
       intent,
-      feedback
+      feedback,
+      eli5 = false,
     } = await req.json();
 
     logger.info('Processing AI request', { 
@@ -459,6 +461,10 @@ ANALYZE THE CAST ABOVE. When the user asks about "this cast" or asks to find sim
         // Process with feedback if provided
         if (feedback) {
           UserProfileStorage.addFeedback(userIdentifier, feedback.cast, feedback.feedback);
+        }
+
+        if (eli5) {
+          contextualMessage = `${ELI5_INSTRUCTION}\n\n${contextualMessage}`;
         }
 
         // Process the request
@@ -567,9 +573,9 @@ Profile URL: https://warpcast.com/${profileData.username}]`
     const ragCtx = await buildRagContext(question).catch(() => ({
       topics: [], knowledge: '', liveCasts: '', combined: '',
     }));
-    const systemWithRag = ragCtx.combined
-      ? SYSTEM_PROMPT + ragCtx.combined
-      : SYSTEM_PROMPT;
+    const systemWithRag =
+      (ragCtx.combined ? SYSTEM_PROMPT + ragCtx.combined : SYSTEM_PROMPT) +
+      (eli5 ? `\n\n${ELI5_INSTRUCTION}` : '');
 
     // Provider chain: Ollama (self-hosted) → Groq (free cloud) — no paid APIs
     const ollamaClient = getOllama();
