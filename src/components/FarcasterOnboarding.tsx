@@ -27,7 +27,19 @@ const FNAME_DOMAIN = {
   verifyingContract: "0xe3Be01D99bAa8dB9905b33a3cA391238234B79D1",
 };
 
-type Step = "welcome" | "username" | "signing" | "creating" | "done" | "error";
+type Step = "welcome" | "username" | "signing" | "creating" | "done" | "starter" | "error";
+
+// ── Starter Pack — channel picks for a brand-new, empty-following-graph account ──
+// Same channel set already used as topic pills in learn/page.tsx's LEARNING_CHANNELS,
+// so the choices line up with content that's actually populated elsewhere in the app.
+const STARTER_CHANNELS = [
+  { id: "farcaster", label: "Farcaster", emoji: "🟣", description: "Protocol news & the core community" },
+  { id: "defi", label: "DeFi", emoji: "💧", description: "Decentralized finance, yields, protocols" },
+  { id: "web3", label: "Web3", emoji: "🌐", description: "Broader web3 builders & discussion" },
+  { id: "base", label: "Base", emoji: "🔵", description: "Base chain apps & ecosystem" },
+  { id: "dao", label: "DAOs", emoji: "🏛️", description: "Governance, coordination, DAOs" },
+  { id: "nft", label: "NFTs", emoji: "🖼️", description: "NFTs beyond art — tickets, memberships" },
+];
 
 interface CreatingStatus {
   fid: boolean;
@@ -144,6 +156,7 @@ export default function FarcasterOnboarding() {
   const [status, setStatus] = useState<CreatingStatus>({ fid: false, signer: false, fname: false });
   const [error, setError] = useState("");
   const [newFid, setNewFid] = useState<number | null>(null);
+  const [starterPicks, setStarterPicks] = useState<Set<string>>(new Set(STARTER_CHANNELS.map((c) => c.id)));
 
   useEffect(() => {
     const handleNeedAccount = () => setShow(true);
@@ -337,6 +350,34 @@ export default function FarcasterOnboarding() {
     }
   }
 
+  function toggleStarterChannel(id: string) {
+    setStarterPicks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // Saves picks into the SAME localStorage key FeedCurationChat writes to —
+  // there's no protocol-level "follow a channel" write in this codebase yet,
+  // so this reuses the existing client-side interest-scoring mechanism
+  // (FeedList.tsx's getUserInterests/scoreCast) that already personalizes the
+  // feed. A brand-new account otherwise has zero signal and an empty feed.
+  function finishOnboarding(picks: Set<string>) {
+    if (picks.size > 0) {
+      try {
+        const existingRaw = localStorage.getItem("hh_feed_interests");
+        const existing: string[] = existingRaw ? JSON.parse(existingRaw) : [];
+        const merged = [...new Set([...existing, ...picks])];
+        localStorage.setItem("hh_feed_interests", JSON.stringify(merged));
+      } catch {
+        // localStorage unavailable — not fatal, just skip personalization seeding
+      }
+    }
+    setShow(false);
+    window.location.reload();
+  }
+
   if (!show) return null;
 
   return (
@@ -491,14 +532,84 @@ export default function FarcasterOnboarding() {
               </p>
             )}
             <button
-              onClick={() => { setShow(false); window.location.reload(); }}
+              onClick={() => setStep("starter")}
               style={{
                 width: "100%", padding: 14, borderRadius: 12, border: "none",
                 background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)",
                 fontSize: 15, fontWeight: 700, cursor: "pointer",
               }}
             >
-              Start exploring →
+              Continue →
+            </button>
+          </div>
+        )}
+
+        {/* Starter Pack — pick channels so the first feed isn't empty */}
+        {step === "starter" && (
+          <div style={{ padding: "4px 0" }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>📦</div>
+              <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Pick a few interests</h2>
+              <p style={{ color: "var(--muted-on-dark)", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+                Your feed is empty until you follow people or channels. These give it something to show you right away — change them anytime in your feed settings.
+              </p>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+              {STARTER_CHANNELS.map((ch) => {
+                const picked = starterPicks.has(ch.id);
+                return (
+                  <button
+                    key={ch.id}
+                    onClick={() => toggleStarterChannel(ch.id)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left",
+                      padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                      border: `1.5px solid ${picked ? "var(--accent)" : "var(--border)"}`,
+                      background: picked ? "rgba(99,102,241,0.08)" : "var(--bg-dark)",
+                      transition: "border-color 0.15s, background 0.15s",
+                    }}
+                  >
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{ch.emoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-on-dark)" }}>{ch.label}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted-on-dark)" }}>{ch.description}</div>
+                    </div>
+                    <span
+                      style={{
+                        flexShrink: 0, width: 20, height: 20, borderRadius: 6,
+                        border: `2px solid ${picked ? "var(--accent)" : "var(--border)"}`,
+                        background: picked ? "var(--accent)" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      {picked && (
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="var(--bg-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => finishOnboarding(starterPicks)}
+              style={{
+                width: "100%", padding: 14, borderRadius: 12, border: "none",
+                background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)",
+                fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 8,
+              }}
+            >
+              {starterPicks.size > 0 ? `Start exploring (${starterPicks.size} picked) →` : "Start exploring →"}
+            </button>
+            <button
+              onClick={() => finishOnboarding(new Set())}
+              style={{
+                width: "100%", padding: 10, borderRadius: 10, border: "none",
+                background: "transparent", color: "var(--muted-on-dark)", cursor: "pointer", fontSize: 13,
+              }}
+            >
+              Skip for now
             </button>
           </div>
         )}

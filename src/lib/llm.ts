@@ -13,6 +13,11 @@
  *
  * Per the project's model policy we deliberately do NOT fall back to Claude or
  * OpenAI — only free, third-party-hosted open models.
+ *
+ * See docs/AI_PROVIDER_STRATEGY.md for the full policy, an audit of every AI
+ * call site in the codebase (several don't go through this file and don't
+ * follow this policy — that's documented there, not silently fixed here),
+ * and when a paid-provider exception (Claude/OpenAI/Perplexity) is justified.
  */
 
 import OpenAI from 'openai';

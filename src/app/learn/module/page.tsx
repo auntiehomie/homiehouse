@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { getEli5Mode } from '@/lib/eli5';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
@@ -439,7 +440,7 @@ function ModuleLessonContent() {
       fetch('/api/lesson', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(found),
+        body: JSON.stringify({ ...found, eli5: getEli5Mode() }),
       })
         .then(r => r.json())
         .then(data => {

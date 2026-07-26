@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { hypersnapFetch } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
+
+/** Bulk-hydrate curator fids into { fid, username, display_name, pfp_url } — same
+ * /v2/farcaster/user/bulk endpoint already used by /api/profile for single lookups. */
+async function hydrateCurators(fids: number[]): Promise<Map<number, any>> {
+  const map = new Map<number, any>();
+  if (fids.length === 0) return map;
+  try {
+    const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${fids.join(',')}`);
+    for (const u of data?.users ?? []) {
+      if (u?.fid) map.set(u.fid, { fid: u.fid, username: u.username, display_name: u.display_name, pfp_url: u.pfp_url });
+    }
+  } catch {
+    // Best-effort — lists still render with just a fid if hydration fails
+  }
+  return map;
+}
 
 export async function GET(request: NextRequest) {
   const logger = createApiLogger('/curated-lists');
@@ -11,6 +28,25 @@ export async function GET(request: NextRequest) {
     const db = getDb();
     const { searchParams } = new URL(request.url);
     const fidParam = searchParams.get('fid');
+    const isPublicBrowse = searchParams.get('public') === 'true';
+
+    if (isPublicBrowse) {
+      logger.info('Browsing public lists');
+      const { rows } = await db.query(
+        `SELECT cl.*, COUNT(cli.id)::int AS item_count
+         FROM curated_lists cl
+         LEFT JOIN curated_list_items cli ON cli.list_id = cl.id
+         WHERE cl.is_public = true
+         GROUP BY cl.id
+         ORDER BY cl.created_at DESC
+         LIMIT 50`
+      );
+      const curators = await hydrateCurators([...new Set(rows.map((r: any) => r.fid))]);
+      const lists = rows.map((r: any) => ({ ...r, curator: curators.get(r.fid) ?? { fid: r.fid } }));
+      logger.success('Public lists fetched', { count: lists.length });
+      logger.end();
+      return NextResponse.json({ lists });
+    }
 
     if (!fidParam) {
       return NextResponse.json({ error: 'fid is required' }, { status: 400 });
@@ -34,6 +70,43 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     logger.error('Failed to fetch curated lists', error);
     return handleApiError(error, 'GET /curated-lists');
+  }
+}
+
+/**
+ * PATCH /api/curated-lists
+ * Body: { id, fid, isPublic } — toggle an existing list's visibility.
+ * fid must match the list's owner (ownership check in the WHERE clause).
+ */
+export async function PATCH(request: NextRequest) {
+  const logger = createApiLogger('/curated-lists PATCH');
+  logger.start();
+
+  try {
+    const db = getDb();
+    const { id, fid, isPublic } = await request.json();
+
+    const listId = Number(id);
+    const ownerFid = Number(fid);
+    if (!listId || isNaN(listId) || !ownerFid || isNaN(ownerFid) || typeof isPublic !== 'boolean') {
+      return NextResponse.json({ error: 'id, fid, and isPublic (boolean) are required' }, { status: 400 });
+    }
+
+    const { rows } = await db.query(
+      `UPDATE curated_lists SET is_public = $1, updated_at = NOW() WHERE id = $2 AND fid = $3 RETURNING *`,
+      [isPublic, listId, ownerFid]
+    );
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'List not found or not owned by this fid' }, { status: 404 });
+    }
+
+    logger.success('List visibility updated', { listId, isPublic });
+    logger.end();
+    return NextResponse.json({ list: rows[0] });
+  } catch (error: any) {
+    logger.error('Failed to update list visibility', error);
+    return handleApiError(error, 'PATCH /curated-lists');
   }
 }
 

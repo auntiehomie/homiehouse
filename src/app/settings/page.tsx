@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import AppShell from "@/components/AppShell";
 import { provisionSignerWithMnemonic } from "@/lib/fc-key-add";
+import { getEli5Mode, setEli5Mode } from "@/lib/eli5";
 
 // ── Theme data ────────────────────────────────────────────────────────────────
 
@@ -463,6 +464,7 @@ export default function SettingsPage() {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [profile, setProfile] = useState<FarcasterProfile | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [eli5, setEli5] = useState(false);
 
   useEffect(() => {
     setActiveTheme(localStorage.getItem("hh_theme") || "default");
@@ -470,11 +472,18 @@ export default function SettingsPage() {
     setIos(isIOS());
     setStandalone(isStandalone());
     if ("Notification" in window) setNotifState(Notification.permission as any);
+    setEli5(getEli5Mode());
     try {
       const raw = localStorage.getItem("hh_profile");
       if (raw) setProfile(JSON.parse(raw));
     } catch {}
   }, []);
+
+  function toggleEli5() {
+    const next = !eli5;
+    setEli5(next);
+    setEli5Mode(next);
+  }
 
   function applyTheme(id: string) {
     setActiveTheme(id);
@@ -634,6 +643,23 @@ export default function SettingsPage() {
                 sublabel={currentThemeName}
               />
             </Card>
+          </div>
+
+          {/* Learning */}
+          <div style={{ marginBottom: 18 }}>
+            <SectionLabel>Learning</SectionLabel>
+            <Card>
+              <SettingRow
+                onClick={toggleEli5}
+                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>}
+                label="Simple Language Mode"
+                sublabel={eli5 ? "On — plain-language explanations, no jargon" : "Off"}
+                right={<Toggle on={eli5} onToggle={toggleEli5} />}
+              />
+            </Card>
+            <p style={{ fontSize: 11, color: "var(--muted-on-dark)", margin: "5px 4px 0" }}>
+              Applies to Ask Homie and new lessons — explains everything assuming zero crypto background.
+            </p>
           </div>
 
           {/* Notifications */}
