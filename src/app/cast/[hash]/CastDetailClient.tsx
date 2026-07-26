@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
-import SmartEmbed from "@/components/SmartEmbed";
+import EmbedRenderer from "@/components/EmbedRenderer";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 
 function ActionBtn({
@@ -367,12 +367,11 @@ export default function CastDetailClient() {
 
           {embeds.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
-              {embeds.map((embed: any, idx: number) => {
-                if (!embed.url) return null;
-                const isImage = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(embed.url) || /imagedelivery\.net|imgur\.com/i.test(embed.url);
-                if (isImage) return <img key={idx} src={embed.url} alt="embed" style={{ maxWidth: '100%', borderRadius: 8 }} />;
-                return <SmartEmbed key={idx} url={embed.url} castHash={cast.hash} />;
-              })}
+              {/* EmbedRenderer handles images, video, YouTube, and Farcaster cast
+                  links (→ pressable quote-cast preview), falling back to SmartEmbed. */}
+              {embeds.map((embed: any, idx: number) => (
+                <EmbedRenderer key={idx} embed={embed} index={idx} />
+              ))}
             </div>
           )}
 

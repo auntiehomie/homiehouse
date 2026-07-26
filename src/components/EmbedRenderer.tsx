@@ -24,15 +24,20 @@ function parseYouTubeId(url: string): string | null {
 //   warpcast.com/username/0xhash              → username captured
 //   warpcast.com/~/conversations/0xhash       → no username
 export function parseFarcasterCastUrl(url: string): { hash: string; username: string | null } | null {
+  // The 0x prefix is optional: external Warpcast/farcaster.xyz links carry it,
+  // but this app builds quote-cast URLs from the raw node hash (no 0x). Require
+  // >=6 hex chars so a plain path segment isn't mistaken for a hash.
+  const HASH = '((?:0x)?[a-fA-F0-9]{6,})';
+
   // ~/c and ~/conversations forms — no username in the path
   const canonical = url.match(
-    /(?:www\.)?(?:farcaster\.xyz\/~\/c|warpcast\.com\/~\/conversations)\/(?:[a-z]+:)?(0x[a-fA-F0-9]+)/i
+    new RegExp(`(?:www\\.)?(?:farcaster\\.xyz/~/c|warpcast\\.com/~/conversations)/(?:[a-z]+:)?${HASH}`, 'i')
   );
   if (canonical) return { hash: canonical[1], username: null };
 
-  // username/0xhash form
+  // username/hash form
   const withUser = url.match(
-    /(?:www\.)?(?:farcaster\.xyz|warpcast\.com)\/([^/~][^/]*)\/(0x[a-fA-F0-9]+)/i
+    new RegExp(`(?:www\\.)?(?:farcaster\\.xyz|warpcast\\.com)/([^/~][^/]*)/${HASH}`, 'i')
   );
   if (withUser) return { hash: withUser[2], username: withUser[1] };
 
