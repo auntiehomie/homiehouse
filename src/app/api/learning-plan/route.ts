@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
-import { ChatAnthropic } from '@langchain/anthropic';
-import { ChatOpenAI } from '@langchain/openai';
-import { ChatGroq } from '@langchain/groq';
+import { llmChat } from '@/lib/llm';
+
+// Free-tier-only AI provider chain (Cerebras → Groq → Gemini → OpenRouter)
+// Per docs/AI_PROVIDER_STRATEGY.md: we deliberately do NOT fall back to paid OpenAI/Claude.
+// The shared llmChat handles the fallback chain automatically.
 
 export const maxDuration = 30;
 
@@ -22,16 +24,6 @@ interface LearningPlan {
   level: 'beginner' | 'intermediate' | 'advanced';
   summary: string;
   modules: LearningModule[];
-}
-
-function getModel() {
-  if (process.env.ANTHROPIC_API_KEY)
-    return new ChatAnthropic({ model: 'claude-sonnet-4-6', temperature: 0.7 });
-  if (process.env.GROQ_API_KEY)
-    return new ChatGroq({ model: 'llama-3.3-70b-versatile', temperature: 0.7 });
-  if (process.env.OPENAI_API_KEY)
-    return new ChatOpenAI({ model: 'gpt-4o-mini', temperature: 0.7 });
-  return null;
 }
 
 const FALLBACK_FINANCIAL_PLAN: LearningPlan = {
@@ -422,14 +414,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const model = getModel();
-
-    if (!model) {
-      console.warn('[learning-plan] No AI provider configured, returning fallback plan');
-      const fallback = track === 'financial' ? FALLBACK_FINANCIAL_PLAN : FALLBACK_PLAN;
-      return NextResponse.json({ ...fallback, track, level });
-    }
-
     const financialTrackGuidance = track === 'financial' || track === 'all' ? `
 IMPORTANT — Token & DeFi curriculum requirements:
 - Include a foundational module on "What is a crypto token?" covering utility tokens, governance tokens, LP tokens
@@ -494,10 +478,12 @@ Requirements:
 - estimatedMinutes should be realistic (15-45 min per module)
 - ids must be lowercase kebab-case slugs`;
 
-    const response = await model.invoke(prompt);
-    const content = typeof response.content === 'string'
-      ? response.content
-      : JSON.stringify(response.content);
+    const response = await llmChat({
+      messages: [{ role: 'system', content: 'You are a Web3 / decentralization education expert. Create a personalized learning plan as a JSON object.' }, { role: 'user', content: prompt }],
+      temperature: 0.7,
+      maxTokens: 4000,
+    });
+    const content = response.message.content ?? '';
 
     // Strip any accidental markdown code fences
     const cleaned = content

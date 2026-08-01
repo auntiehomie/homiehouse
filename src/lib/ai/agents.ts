@@ -5,6 +5,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { searchCasts, getCastsByUsername } from '../hypersnap';
 import { getTokenData, searchTokens, formatTokenDisplay } from '../token-data';
+import { llmChat, LLMChatParams } from '../llm';
 
 // User profile schema
 export const UserProfileSchema = z.object({
@@ -49,13 +50,20 @@ export class BaseAgent {
   protected systemPrompt: string;
   protected conversationHistory: BaseMessage[] = [];
   protected tools: DynamicStructuredTool[] = [];
+  protected useFreeTier: boolean = false;
 
   constructor(
-    provider: 'openai' | 'anthropic' = 'openai',
+    provider: 'openai' | 'anthropic' | 'free' = 'free',
     systemPrompt: string,
     tools: DynamicStructuredTool[] = []
   ) {
-    if (provider === 'anthropic') {
+    this.useFreeTier = provider === 'free';
+    
+    if (this.useFreeTier) {
+      // Free tier: use shared llmChat fallback chain (Cerebras → Groq → Gemini → OpenRouter)
+      // No langchain model instance needed - we call llmChat directly
+      this.llm = null as any;
+    } else if (provider === 'anthropic') {
       this.llm = new ChatAnthropic({
         modelName: 'claude-sonnet-4-6',
         temperature: 0.7,
@@ -73,6 +81,16 @@ export class BaseAgent {
     this.tools = tools;
   }
 
+  /**
+   * Convert langchain messages to OpenAI-compatible format for llmChat
+   */
+  private messagesToOpenAIFormat(messages: BaseMessage[]): LLMChatParams['messages'] {
+    return messages.map(msg => ({
+      role: msg._getType() === 'human' ? 'user' : msg._getType() === 'ai' ? 'assistant' : 'system',
+      content: msg.content as string
+    }));
+  }
+
   async chat(message: string, context?: string): Promise<string> {
     const messages: BaseMessage[] = [new SystemMessage(this.systemPrompt)];
     
@@ -84,7 +102,35 @@ export class BaseAgent {
     messages.push(...this.conversationHistory);
     messages.push(new HumanMessage(message));
 
-    // If tools are available, bind them to the model
+    if (this.useFreeTier) {
+      // Free tier path: use llmChat with automatic fallback
+      const openAIMessages = this.messagesToOpenAIFormat(messages);
+      
+      try {
+        const response = await llmChat({
+          messages: openAIMessages,
+          temperature: 0.7,
+          maxTokens: 2000,
+        });
+        
+        const content = response.message.content as string;
+        
+        // Update history
+        this.conversationHistory.push(new HumanMessage(message));
+        this.conversationHistory.push(new AIMessage(content));
+        
+        if (this.conversationHistory.length > 10) {
+          this.conversationHistory = this.conversationHistory.slice(-10);
+        }
+        
+        return content;
+      } catch (error) {
+        console.error('[BaseAgent] Free tier llmChat failed:', error);
+        throw error;
+      }
+    }
+
+    // Paid provider path (langchain with tool binding)
     let model = this.llm;
     if (this.tools.length > 0) {
       model = this.llm.bindTools(this.tools) as typeof this.llm;
@@ -94,7 +140,6 @@ export class BaseAgent {
     
     // Check if the model wants to use tools
     if (response.tool_calls && response.tool_calls.length > 0) {
-      // Execute tool calls
       const toolMessages: BaseMessage[] = [];
       
       for (const toolCall of response.tool_calls) {
@@ -109,7 +154,6 @@ export class BaseAgent {
         }
       }
       
-      // If we have tool results, ask the model to incorporate them
       if (toolMessages.length > 0) {
         const finalMessages = [
           ...messages,
@@ -120,11 +164,9 @@ export class BaseAgent {
         
         const finalResponse = await this.llm.invoke(finalMessages);
         
-        // Update history with final response
         this.conversationHistory.push(new HumanMessage(message));
         this.conversationHistory.push(new AIMessage(finalResponse.content as string));
         
-        // Keep only last 10 messages to avoid token limits
         if (this.conversationHistory.length > 10) {
           this.conversationHistory = this.conversationHistory.slice(-10);
         }
@@ -133,11 +175,9 @@ export class BaseAgent {
       }
     }
     
-    // Update history
     this.conversationHistory.push(new HumanMessage(message));
     this.conversationHistory.push(new AIMessage(response.content as string));
-
-    // Keep only last 10 messages to avoid token limits
+    
     if (this.conversationHistory.length > 10) {
       this.conversationHistory = this.conversationHistory.slice(-10);
     }
@@ -703,6 +743,8 @@ export class AgentOrchestrator {
 
   constructor(userProfile: UserProfile) {
     this.userProfile = userProfile;
+    // Use free-tier provider chain (Cerebras → Groq → Gemini → OpenRouter)
+    // Per docs/AI_PROVIDER_STRATEGY.md: no paid fallback unless explicitly justified
     this.composer = new CastComposerAgent(userProfile);
     this.coach = new FarcasterCoachAgent();
     this.researcher = new FarcasterResearchAgent();
@@ -823,7 +865,7 @@ Be conversational and helpful. Explain how their interests will help prioritize 
 
 Based on what they've said, suggest 3-5 specific interests they might want to add to their feed. Format your response as a friendly explanation followed by a list of suggested interests.`;
 
-    const tempAgent = new BaseAgent('anthropic', systemPrompt);
+    const tempAgent = new BaseAgent('free', systemPrompt);
     const response = await tempAgent.chat(contextMessage);
 
     // Extract suggested interests from response (look for common patterns)
