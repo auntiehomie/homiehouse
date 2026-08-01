@@ -35,6 +35,16 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
 //    which is the standard safe rollout path. Once a deploy's console is
 //    checked for false positives, swap the header name to
 //    Content-Security-Policy to actually enforce it.
+//
+//    CSP violation reports are sent to /api/csp-report for collection.
+//    Before enforcing: deploy with the report-only header, let it run
+//    through a full usage cycle (auth, wallet interactions, token analysis),
+//    then review the collected reports via the csp-report logs. If no
+//    unexpected violations appear from third-party SDK origins, swap the
+//    header name from Content-Security-Policy-Report-Only to
+//    Content-Security-Policy.
+const CSP_REPORT_URI = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol'}/api/csp-report`;
+const CSP_REPORT_DIRECTIVE = `report-uri ${CSP_REPORT_URI}`;
 const APP_FRAME_ANCESTORS = "frame-ancestors 'self'";
 const CSP_REPORT_ONLY = [
   "default-src 'self'",
@@ -50,7 +60,7 @@ const CSP_REPORT_ONLY = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-].join('; ');
+].join('; ') + '; ' + CSP_REPORT_DIRECTIVE;
 
 const SECURITY_HEADERS = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
