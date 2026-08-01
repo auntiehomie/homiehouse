@@ -220,7 +220,7 @@ export default function CuratedListsPage() {
           </button>
           <h1 className="text-xl sm:text-2xl font-bold">Lists</h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {([
             { id: "mine" as Tab, label: `Your Lists (${lists.length})` },
             { id: "discover" as Tab, label: "Discover" },
@@ -238,6 +238,12 @@ export default function CuratedListsPage() {
               {t.label}
             </button>
           ))}
+          <Link
+            href="/lists/feed"
+            className="rounded-full border border-emerald-500 px-3 py-1.5 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/10 dark:text-emerald-400"
+          >
+            📜 Following Feed
+          </Link>
         </div>
       </header>
 
