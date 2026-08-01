@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { HDKey } from '@scure/bip32';
 import { ed25519 } from '@noble/curves/ed25519';
@@ -90,6 +91,14 @@ export async function GET(req: NextRequest) {
   // Fetch current nonce for custody address from KeyGateway
   let keyAddNonce: bigint;
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`provision-bot-signer:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     keyAddNonce = await publicClient.readContract({
       address: KEY_GATEWAY,
       abi: keyGatewayAbi,

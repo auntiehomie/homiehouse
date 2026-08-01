@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem';
 import { optimism } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -34,6 +35,14 @@ export async function POST(req: NextRequest) {
   const walletClient = createWalletClient({ account, chain: optimism, transport: http(OP_RPC) });
 
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`add-signer:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const txHash = await walletClient.writeContract({
       address: KEY_REGISTRY,
       abi: keyRegistryAbi,

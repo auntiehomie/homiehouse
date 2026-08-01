@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
 
 async function ensureTable(db: ReturnType<typeof getDb>) {
@@ -20,6 +21,14 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
 // POST /api/push/subscribe  { fid, subscription }
 export async function POST(req: NextRequest) {
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`push-subscribe:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const { fid, subscription } = await req.json();
     if (!fid || !subscription?.endpoint) {
       return NextResponse.json({ error: 'fid and subscription required' }, { status: 400 });

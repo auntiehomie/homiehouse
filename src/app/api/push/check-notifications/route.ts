@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
 import webpush from 'web-push';
 
@@ -69,6 +70,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`push-check-notifications:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     initVapid();
   } catch {
     // VAPID keys not yet configured — skip silently rather than flooding logs with 503

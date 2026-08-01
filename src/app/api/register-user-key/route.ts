@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 
 const WARPCAST_API = 'https://api.warpcast.com';
 
@@ -14,6 +15,14 @@ const WARPCAST_API = 'https://api.warpcast.com';
  */
 export async function POST(req: NextRequest) {
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`register-user-key:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const body = await req.json();
     const { key, requestFid, deadline, signature } = body;
 

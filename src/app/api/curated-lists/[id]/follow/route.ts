@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
@@ -23,6 +24,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   logger.start();
 
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`curated-lists-id-follow:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const { id } = await params;
     const listId = Number(id);
     const { followerFid } = await request.json();

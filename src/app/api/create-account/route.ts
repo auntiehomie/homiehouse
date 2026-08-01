@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import {
   createPublicClient,
   createWalletClient,
@@ -47,6 +48,14 @@ export async function GET(req: NextRequest) {
   const checkFname = searchParams.get('checkFname');
   if (checkFname) {
     try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`create-account:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
       const res = await fetch(`${FNAME_API}?name=${encodeURIComponent(checkFname)}`);
       if (!res.ok) return NextResponse.json({ available: false });
       const data = await res.json();

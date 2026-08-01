@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
 
 export async function GET(
@@ -6,6 +7,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`curated-lists-id-items:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const db = getDb();
     const { id } = await params;
 
