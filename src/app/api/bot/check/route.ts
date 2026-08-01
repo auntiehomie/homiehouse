@@ -8,6 +8,7 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 import { llmChat } from '@/lib/llm';
+import { rateLimit } from '@/lib/ratelimit';
 
 const BOT_FID = parseInt(process.env.APP_FID || '1349780');;
 
@@ -235,6 +236,14 @@ export async function GET(request: NextRequest) {
     // Verify cron secret if configured
     verifyCronSecret(request, process.env.CRON_SECRET);
     
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`bot-check:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
     logger.start();
     logger.info('Using DB-backed reply tracking (bot_replies table)')
 

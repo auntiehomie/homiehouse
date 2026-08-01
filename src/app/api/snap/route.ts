@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 
 const SNAP_MIME = 'application/vnd.farcaster.snap+json';
 
@@ -8,6 +9,14 @@ export async function GET(request: NextRequest) {
   if (!url) return NextResponse.json({ error: 'url required' }, { status: 400 });
 
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`snap:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const res = await fetch(url, {
       headers: { Accept: SNAP_MIME },
       signal: AbortSignal.timeout(8000),

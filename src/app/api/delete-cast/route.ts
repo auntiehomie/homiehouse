@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { sql } from '@/lib/db';
 import { buildSignedMessage, hexToBytes, MessageType } from '@/lib/fc-message-builder';
 import { ed25519 } from '@noble/curves/ed25519';
@@ -10,6 +11,14 @@ const HYPERSNAP_BASE =
 // Body: { fid: number, cast_hash: string }  — cast_hash is hex (with or without 0x)
 export async function POST(req: NextRequest) {
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`delete-cast:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const { fid, cast_hash } = await req.json();
 
     if (!fid || !cast_hash) {

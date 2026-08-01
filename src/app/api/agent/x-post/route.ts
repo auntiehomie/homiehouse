@@ -8,6 +8,7 @@ import { getDb } from '@/lib/db';
 import { llmChat } from '@/lib/llm';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import { buildPostSystem, pickPostMode, postInstruction, pickFreshTopic, type PostMode } from '@/lib/ai/persona';
+import { rateLimit } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
 
@@ -132,6 +133,14 @@ async function writeXPost(system: string, instruction: string): Promise<string> 
 export async function GET(request: NextRequest) {
   try {
     verifyCronSecret(request, process.env.CRON_SECRET);
+
+    // Rate limit: 10 requests/hour per IP (cron endpoint protection)
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`agent-x-post:${ip}`, 10, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
 
     const budget = await checkXBudget('post');
     if (!budget.allowed) {

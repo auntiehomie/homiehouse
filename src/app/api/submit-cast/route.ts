@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 
 const HYPERSNAP_BASE =
   process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
@@ -11,6 +12,14 @@ const HYPERSNAP_BASE =
  */
 export async function POST(request: NextRequest) {
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`submit-cast:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const messageBytes = await request.arrayBuffer();
 
     if (!messageBytes.byteLength) {

@@ -6,6 +6,7 @@ import { getXState, setXState } from '@/lib/x-state';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { explainXPost } from '@/lib/ai/x-explain';
+import { rateLimit } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
 
@@ -35,6 +36,14 @@ const LAST_MENTION_KEY = 'last_mention_id';
 export async function GET(request: NextRequest) {
   try {
     verifyCronSecret(request, process.env.CRON_SECRET);
+
+    // Rate limit: 10 requests/hour per IP (cron endpoint protection)
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`agent-x-mention:${ip}`, 10, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
 
     // Explicit on-switch — off by default so live X spend never starts by accident.
     if (process.env.X_AGENT_ENABLED !== 'true') {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { sql } from '@/lib/db';
 
 // GET /api/saved-casts?fid=123
@@ -7,6 +8,14 @@ export async function GET(req: NextRequest) {
   if (!fid) return NextResponse.json({ error: 'fid required' }, { status: 400 });
 
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`saved-casts:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const rows = await sql`
       SELECT sc.*, cn.note, cn.id as note_id
       FROM saved_casts sc

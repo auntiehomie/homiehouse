@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import { createWalletClient, http, parseUnits, isAddress } from 'viem';
 import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -37,6 +38,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+
+    // Rate limit: 30 requests/minute per IP
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`claim-hh2:${ip}`, 30, 60);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
     const [progressRows, claimedRows] = await Promise.all([
       sql`SELECT completed_ids FROM learning_progress WHERE fid = ${userFid}`,
       sql`SELECT module_id, tx_hash, claimed_at FROM hh2_claims WHERE fid = ${userFid}`,
