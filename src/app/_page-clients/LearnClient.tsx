@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { TooltipTrigger } from '@/lib/progressive-disclosure';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -1125,22 +1126,22 @@ function LearnPageContent() {
         {/* Progress — shown at top so it's immediately visible */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>Progress</span>
+            <TooltipTrigger termKey="fid"><span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>Progress</span></TooltipTrigger>
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{done}/{total} modules · {pct}%</span>
           </div>
           {/* HH2 points earned */}
           {hh2Points > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
-              <span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span>
+              <TooltipTrigger termKey="hh2"><span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span></TooltipTrigger>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
             </div>
           )}
           {/* Daily streak */}
           {streak && streak.currentStreak > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)' }}>
-              <span style={{ fontSize: 12, color: '#fb923c', fontWeight: 600 }}>
+              <TooltipTrigger termKey="learning-streak"><span style={{ fontSize: 12, color: '#fb923c', fontWeight: 600 }}>
                 🔥 {streak.currentStreak} day streak{streak.longestStreak > streak.currentStreak ? ` · best ${streak.longestStreak}` : ''}
-              </span>
+              </span></TooltipTrigger>
               {streak.freezeAvailable && (
                 <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }} title="One missed day this week won't break your streak">
                   ❄️ freeze ready
@@ -1189,7 +1190,7 @@ function LearnPageContent() {
         {/* Weekly leaderboard — opt-in, follows-only */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 18px', marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: leaderboardEnabled ? 10 : 0 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>🏆 Weekly Leaderboard</span>
+            <TooltipTrigger termKey="learning-streak"><span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>🏆 Weekly Leaderboard</span></TooltipTrigger>
             <button
               onClick={toggleLeaderboard}
               style={{
@@ -1238,16 +1239,18 @@ function LearnPageContent() {
 
         {/* Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            onClick={shareProgress}
-            style={{
-              width: '100%', padding: '14px', borderRadius: 12, border: '1px solid var(--accent)', background: 'transparent',
-              color: 'var(--accent)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.15s',
-            }}
-          >
-            Share Progress
-          </button>
+          <TooltipTrigger termKey="recast">
+            <button
+              onClick={shareProgress}
+              style={{
+                width: '100%', padding: '14px', borderRadius: 12, border: '1px solid var(--accent)', background: 'transparent',
+                color: 'var(--accent)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background 0.15s',
+              }}
+            >
+              Share Progress
+            </button>
+          </TooltipTrigger>
           <Link href="/hh2" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             width: '100%', padding: '12px', borderRadius: 12, border: '1px solid rgba(251,191,36,0.4)',

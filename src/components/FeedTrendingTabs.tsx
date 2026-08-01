@@ -5,6 +5,7 @@ import FeedList from "./FeedList";
 import TrendingList from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
 import ChannelStrip from "./ChannelStrip";
+import { TooltipTrigger } from "@/lib/progressive-disclosure";
 
 export type FeedType = 'following' | 'global';
 
@@ -30,14 +31,14 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
           className={"btn text-sm shrink-0 " + (tab === 'feed' ? 'primary' : '')}
           style={{ padding: '8px 16px', minWidth: 'auto' }}
         >
-          Feed
+          <TooltipTrigger termKey="cast">Feed</TooltipTrigger>
         </button>
         <button
           onClick={() => setTab('trending')}
           className={"btn text-sm shrink-0 " + (tab === 'trending' ? 'primary' : '')}
           style={{ padding: '8px 16px', minWidth: 'auto' }}
         >
-          Trending
+          <TooltipTrigger termKey="cast">Trending</TooltipTrigger>
         </button>
 
         {tab === 'feed' && (
@@ -48,14 +49,14 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
               className={"btn text-xs shrink-0 " + (feedType === 'following' ? 'primary' : '')}
               style={{ padding: '6px 12px', minWidth: 'auto' }}
             >
-              Following
+              <TooltipTrigger termKey="cast">Following</TooltipTrigger>
             </button>
             <button
               onClick={() => { setFeedType('global'); setSelectedChannel(null); }}
               className={"btn text-xs shrink-0 " + (feedType === 'global' ? 'primary' : '')}
               style={{ padding: '6px 12px', minWidth: 'auto' }}
             >
-              Global
+              <TooltipTrigger termKey="cast">Global</TooltipTrigger>
             </button>
           </>
         )}

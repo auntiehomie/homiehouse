@@ -7,6 +7,7 @@ import Image from "next/image";
 import AppShell from "@/components/AppShell";
 import { provisionSignerWithMnemonic } from "@/lib/fc-key-add";
 import { getEli5Mode, setEli5Mode } from "@/lib/eli5";
+import { BeginnerModeBadge } from "@/lib/progressive-disclosure";
 
 // ── Theme data ────────────────────────────────────────────────────────────────
 
@@ -656,6 +657,11 @@ export default function SettingsPage() {
                 sublabel={eli5 ? "On — plain-language explanations, no jargon" : "Off"}
                 right={<Toggle on={eli5} onToggle={toggleEli5} />}
               />
+              <Divider />
+              <div style={{ padding: "10px 14px" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-on-dark)", marginBottom: 8 }}>Experience Level</div>
+                <BeginnerModeBadge />
+              </div>
             </Card>
             <p style={{ fontSize: 11, color: "var(--muted-on-dark)", margin: "5px 4px 0" }}>
               Applies to Ask Homie and new lessons — explains everything assuming zero crypto background.

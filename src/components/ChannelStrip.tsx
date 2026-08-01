@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { TooltipTrigger } from "@/lib/progressive-disclosure";
 
 interface Channel {
   id: string;
@@ -114,7 +115,7 @@ export function ChannelSidebar() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-on-dark)', padding: '0 8px 8px' }}>
-        Channels
+        <TooltipTrigger termKey="channel">Channels</TooltipTrigger>
       </div>
       {!loaded && (
         <div style={{ padding: '8px', fontSize: 12, color: 'var(--muted-on-dark)' }}>Loading…</div>

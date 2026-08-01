@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { TooltipTrigger } from "@/lib/progressive-disclosure";
 import { TrendingSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
@@ -116,10 +117,14 @@ export default function TrendingList({ limit = 10, channelId }: TrendingListProp
             {(it.reactions?.likes_count || it.reactions?.recasts_count) && (
               <div className="flex gap-4 mt-3 text-sm text-gray-500 dark:text-gray-400">
                 {it.reactions?.likes_count > 0 && (
-                  <span>❤️ {it.reactions.likes_count}</span>
+                  <TooltipTrigger termKey="cast">
+                    <span>❤️ {it.reactions.likes_count}</span>
+                  </TooltipTrigger>
                 )}
                 {it.reactions?.recasts_count > 0 && (
-                  <span>🔁 {it.reactions.recasts_count}</span>
+                  <TooltipTrigger termKey="recast">
+                    <span>🔁 {it.reactions.recasts_count}</span>
+                  </TooltipTrigger>
                 )}
               </div>
             )}
