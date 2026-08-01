@@ -10,7 +10,8 @@
     "smoke-test": "npx tsx scripts/smoke-test.ts",
     "setup-agent-signer": "npx tsx scripts/setup-agent-signer.ts",
     "migrate-db": "npx tsx scripts/migrate-db.ts",
-    "test": "jest --passWithNoTests"
+    "test": "jest --passWithNoTests",
+    "prepare": "husky install"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -70,10 +71,18 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^10",
     "eslint-config-next": "16.0.10",
+    "husky": "^9.1.7",
     "ignore-loader": "^0.1.2",
     "jest": "^30.4.2",
+    "lint-staged": "^15.2.10",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.12",
     "typescript": "5.9.3"
+  },
+  "lint-staged": {
+    "*": {
+      "{js,jsx,ts,tsx,json,md}": "prettier --write",
+      "{js,jsx,ts,tsx}": "eslint --fix"
+    }
   }
 }
