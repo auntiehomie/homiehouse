@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
+import { rateLimit } from '@/lib/ratelimit';
 
 function getRedis(): Redis | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -200,6 +201,12 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`lesson:${ip}`, 5, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Too many lesson requests. Please try again later.' }, { status: 429 });
+    }
+
     const { moduleId, title, description, whyItMatters, objectives, difficulty, tags, eli5 = false } = await req.json();
 
     if (!title) {

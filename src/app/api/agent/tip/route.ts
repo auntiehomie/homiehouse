@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import Anthropic from '@anthropic-ai/sdk';
 import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
@@ -132,6 +133,12 @@ async function writePost(system: string, instruction: string): Promise<string> {
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`agent-tip:${ip}`, 20, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
     verifyCronSecret(request, process.env.CRON_SECRET);
 
     if (!HOMIEHOUSELOL_FID) {

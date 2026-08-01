@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/ratelimit';
 import OpenAI from 'openai';
 import { fetchNotifications, fetchCast, searchCasts } from '@/lib/hypersnap';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
@@ -158,6 +159,12 @@ async function generateReply(
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`agent-mention:${ip}`, 20, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
     verifyCronSecret(request, process.env.CRON_SECRET);
 
     if (!HOMIEHOUSELOL_FID) {

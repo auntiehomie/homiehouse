@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ChatAnthropic } from '@langchain/anthropic';
+import { rateLimit } from '@/lib/ratelimit';
+import { ChatAnthropic } } from '@langchain/anthropic';
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatGroq } from '@langchain/groq';
 
@@ -406,6 +407,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`learning-plan:${ip}`, 5, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Too many requests. Please try again in an hour.' }, { status: 429 });
+    }
+
     const { track, level, specificGoals } = await req.json();
 
     if (!track || !level) {
