@@ -455,7 +455,19 @@ export async function fetchNotifications(params: {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
   // Always fetch fresh — cron jobs need live notification data, not cached.
-  return hypersnapFetch(`/v2/farcaster/notifications?${qs.toString()}`, { cache: 'no-store' });
+  const endpoint = `/v2/farcaster/notifications?${qs.toString()}`;
+
+  // 1. Primary hub
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' }, 8_000);
+    if (data?.notifications || data?.data?.notifications) return data;
+  } catch { /* try fallback */ }
+
+  // 2. Fallback hub (Ardea/Arca)
+  const fallback = await fallbackFetch(endpoint);
+  if (fallback?.notifications || fallback?.data?.notifications) return fallback;
+
+  return { notifications: [], next: {} };
 }
 
 /**

@@ -31,13 +31,30 @@ export async function GET(req: NextRequest) {
 
     logger.info('Fetching notifications', { fid, cursor });
 
-    const raw = await fetchNotifications({
+    // Fetch notifications with a 12s timeout to stay within Vercel limits
+    const fetchPromise = fetchNotifications({
       fid,
       cursor: cursor || undefined,
     });
 
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Notifications fetch timed out after 12s')), 12_000)
+    );
+
+    const raw = await Promise.race([fetchPromise, timeoutPromise]);
+
     // Unwrap data envelope
     const notificationsRaw: any[] = raw?.data?.notifications ?? raw?.notifications ?? [];
+
+    if (notificationsRaw.length === 0) {
+      logger.info('No notifications returned from Hypersnap', { fid });
+      logger.end();
+      return NextResponse.json({
+        notifications: [],
+        next_cursor: undefined,
+        has_more: false
+      });
+    }
     const nextToken: string | undefined = raw?.data?.next_page_token ?? raw?.next?.cursor;
 
     const transformedNotifications = notificationsRaw.map((notif: any) => {

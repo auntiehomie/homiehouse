@@ -14,6 +14,11 @@ const OPENRANK_BASE = 'https://graph.cast.k3l.io';
 const CACHE_TTL_S = 7_200; // 2 h — matches OpenRank update frequency
 const FETCH_TIMEOUT_MS = 3_000;
 const CHUNK_SIZE = 100;
+const TOTAL_BUDGET_MS = 5_000; // Max total time spent on OpenRank across all chunks
+
+// Circuit breaker: cache OpenRank failures so repeated calls in the same
+// Vercel cold-start window don't accumulate timeout delays.
+let openRankUnhealthyUntil = 0; // epoch ms — skip calls until this time
 
 let _redis: any = null;
 
@@ -35,15 +40,44 @@ function cacheKey(fid: number) {
 
 async function fetchFromOpenRank(fids: number[]): Promise<Map<number, number>> {
   const result = new Map<number, number>();
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  let firstChunkFailed = false;
 
   for (let i = 0; i < fids.length; i += CHUNK_SIZE) {
     const chunk = fids.slice(i, i + CHUNK_SIZE);
+
+    // Circuit breaker: if first chunk failed (OpenRank likely down), skip rest.
+    // Each chunk costs FETCH_TIMEOUT_MS (3s) on failure — skipping saves 3s×N.
+    if (firstChunkFailed) {
+      for (const fid of chunk) {
+        if (!result.has(fid)) result.set(fid, 1.0);
+      }
+      continue;
+    }
+
+    // Respect total budget — if we've already spent >5s, fail open for remaining
+    if (Date.now() > deadline) {
+      openRankUnhealthyUntil = Date.now() + 60_000; // mark unhealthy for 1 minute
+      for (const fid of chunk) {
+        if (!result.has(fid)) result.set(fid, 1.0);
+      }
+      continue;
+    }
+
     try {
+      const chunkDeadline = Math.min(FETCH_TIMEOUT_MS, deadline - Date.now());
+      if (chunkDeadline <= 0) {
+        for (const fid of chunk) {
+          if (!result.has(fid)) result.set(fid, 1.0);
+        }
+        continue;
+      }
+
       const res = await fetch(`${OPENRANK_BASE}/scores/global/engagement/fids`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(chunk),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        signal: AbortSignal.timeout(chunkDeadline),
       });
       if (!res.ok) throw new Error(`OpenRank ${res.status}`);
 
@@ -60,8 +94,13 @@ async function fetchFromOpenRank(fids: number[]): Promise<Map<number, number>> {
       for (const fid of chunk) {
         if (!returnedFids.has(fid)) result.set(fid, 0);
       }
+
+      // Reset unhealthy flag on successful response
+      openRankUnhealthyUntil = 0;
     } catch {
       // Fail open: if OpenRank is unreachable, treat as trusted
+      firstChunkFailed = true;
+      openRankUnhealthyUntil = Date.now() + 60_000; // mark unhealthy for 1 minute
       for (const fid of chunk) {
         if (!result.has(fid)) result.set(fid, 1.0);
       }
@@ -80,6 +119,13 @@ async function fetchFromOpenRank(fids: number[]): Promise<Map<number, number>> {
 export async function getOpenRankScores(fids: number[]): Promise<Map<number, number>> {
   const scores = new Map<number, number>();
   if (!fids.length) return scores;
+
+  // Circuit breaker: if OpenRank was unreachable within the last 60s,
+  // don't even try — every chunk would just time out. Fail open.
+  if (Date.now() < openRankUnhealthyUntil) {
+    for (const fid of fids) scores.set(fid, 1.0);
+    return scores;
+  }
 
   const unique = [...new Set(fids.filter(Boolean))];
   const redis = getRedis();
