@@ -456,18 +456,35 @@ export async function fetchNotifications(params: {
   if (cursor) qs.set('cursor', cursor);
   // Always fetch fresh — cron jobs need live notification data, not cached.
   const endpoint = `/v2/farcaster/notifications?${qs.toString()}`;
+  const timings: Record<string, number> = {};
 
   // 1. Primary hub
+  const primaryStart = Date.now();
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' }, 8_000);
-    if (data?.notifications || data?.data?.notifications) return data;
-  } catch { /* try fallback */ }
+    timings.primary = Date.now() - primaryStart;
+    if (data?.notifications || data?.data?.notifications) {
+      return { ...data, _timings: timings, _source: 'primary' };
+    }
+  } catch (err: any) {
+    timings.primary = Date.now() - primaryStart;
+    timings.primaryError = err?.message || 'unknown';
+  }
 
   // 2. Fallback hub (Ardea/Arca)
-  const fallback = await fallbackFetch(endpoint);
-  if (fallback?.notifications || fallback?.data?.notifications) return fallback;
+  const fallbackStart = Date.now();
+  try {
+    const fallback = await fallbackFetch(endpoint);
+    timings.fallback = Date.now() - fallbackStart;
+    if (fallback?.notifications || fallback?.data?.notifications) {
+      return { ...fallback, _timings: timings, _source: 'fallback' };
+    }
+  } catch (err: any) {
+    timings.fallback = Date.now() - fallbackStart;
+    timings.fallbackError = err?.message || 'unknown';
+  }
 
-  return { notifications: [], next: {} };
+  return { notifications: [], next: {}, _timings: timings, _source: 'empty' };
 }
 
 /**

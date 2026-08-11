@@ -6,6 +6,16 @@ import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
 import { getOpenRankScores, isSpamAccount } from '@/lib/openrank';
 
+// Sentry for notification pipeline alerting — lazily loaded so the route works
+// without @sentry/nextjs installed.
+let SentryCapture: ((error: any, context?: Record<string, unknown>) => void) | null = null;
+try {
+  const Sentry = require('@sentry/nextjs');
+  SentryCapture = (error: any, context?: Record<string, unknown>) => {
+    Sentry.captureException(error, { extra: context });
+  };
+} catch { /* @sentry/nextjs not installed — alerting skipped */ }
+
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/notifications');
   logger.start();
@@ -46,13 +56,21 @@ export async function GET(req: NextRequest) {
     // Unwrap data envelope
     const notificationsRaw: any[] = raw?.data?.notifications ?? raw?.notifications ?? [];
 
+    // Surface fetch diagnostics so the frontend (and logs) can distinguish
+    // "no notifications" (healthy) from "couldn't reach Hypersnap" (error).
+    const fetchMeta = {
+      source: raw?._source || 'unknown',
+      timings: raw?._timings || {},
+    };
+
     if (notificationsRaw.length === 0) {
-      logger.info('No notifications returned from Hypersnap', { fid });
+      logger.info('No notifications returned', { fid, ...fetchMeta });
       logger.end();
       return NextResponse.json({
         notifications: [],
         next_cursor: undefined,
-        has_more: false
+        has_more: false,
+        _meta: fetchMeta,
       });
     }
     const nextToken: string | undefined = raw?.data?.next_page_token ?? raw?.next?.cursor;
@@ -117,16 +135,27 @@ export async function GET(req: NextRequest) {
       // Fail open
     }
 
-    logger.success('Notifications fetched', { count: finalNotifications.length });
+    logger.success('Notifications fetched', { count: finalNotifications.length, ...fetchMeta });
     logger.end();
 
     return NextResponse.json({
       notifications: finalNotifications,
       next_cursor: nextToken,
-      has_more: !!nextToken
+      has_more: !!nextToken,
+      _meta: fetchMeta,
     });
   } catch (error: any) {
     logger.error('Failed to fetch notifications', error);
+    // Capture to Sentry if available — dedicated alert for notification pipeline failures
+    if (SentryCapture) {
+      SentryCapture(error, {
+        route: '/api/notifications',
+        fid,
+        cursor,
+        errorMessage: error?.message || 'Unknown',
+        errorName: error?.name || 'Unknown',
+      });
+    }
     return handleApiError(error, 'GET /notifications');
   }
 }
