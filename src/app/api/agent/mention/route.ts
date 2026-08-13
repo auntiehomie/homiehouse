@@ -12,6 +12,8 @@ import { recordMention, buildUserMemoryContext, learnFromInteraction } from '@/l
 import { llmChat } from '@/lib/llm';
 import { buildReplySystem } from '@/lib/ai/persona';
 
+export const maxDuration = 60;
+
 const HOMIEHOUSELOL_FID = parseInt(
   process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
   10

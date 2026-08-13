@@ -121,7 +121,9 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
   const errors: string[] = [];
   for (const p of providers) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
+    // Agent tool loops and Vercel cold starts need a little more room than the
+    // original 25s budget. Keep this bounded while increasing it by 1.5x.
+    const timer = setTimeout(() => controller.abort(), 37500);
     try {
       const response = await p.client.chat.completions.create(
         {

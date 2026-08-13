@@ -22,6 +22,8 @@ import {
   CastType,
   hexStringToBytes,
 } from '@farcaster/core';
+import { mnemonicToSeedSync } from '@scure/bip39';
+import { HDKey } from '@scure/bip32';
 // Quilibrium's Snapchain node — synced with on-chain signer registrations and
 // accepts /v1/submitMessage. It's the default primary AND is always kept as a
 // fallback, because some configured hubs are stale: Pinata's sunset hub, for
@@ -43,19 +45,59 @@ const HUB_FALLBACKS: string[] = [
 ];
 
 /** Return the registered Ed25519 signer key for the bot FID. */
+function normalizePrivateKeyHex(value: string): string {
+  const normalized = value.trim().replace(/^0x/i, '');
+  if (!/^[0-9a-f]{64}$/i.test(normalized)) {
+    throw new Error('Farcaster signer key must be exactly 32 bytes of hex');
+  }
+  return normalized;
+}
+
+/**
+ * Resolve the dedicated bot identity used by autonomous server-side writes.
+ * HOMIEHOUSELOL_FID is preferred so the agent cannot silently read one FID
+ * while signing as another. APP_FID remains the backwards-compatible alias.
+ */
+function getBotFid(): number {
+  const fid = parseInt(
+    process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
+    10,
+  );
+  if (!Number.isSafeInteger(fid) || fid <= 0) {
+    throw new Error('HOMIEHOUSELOL_FID or APP_FID is required for server-side Farcaster writes');
+  }
+  return fid;
+}
+
+/**
+ * The operational signer is normally supplied directly in
+ * HOMIEHOUSELOL_SIGNER_KEY. If the signer was provisioned by the existing
+ * /api/provision-bot-signer flow, derive the same deterministic key from the
+ * server-only custody mnemonic as a compatibility fallback. The mnemonic is
+ * never returned, logged, or accepted from a request.
+ */
+function deriveProvisionedSignerFromMnemonic(): string | null {
+  const mnemonic = process.env.APP_MNEMONIC?.trim().replace(/^['"]|['"]$/g, '');
+  if (!mnemonic) return null;
+
+  const seed = mnemonicToSeedSync(mnemonic);
+  const child = HDKey.fromMasterSeed(seed).derive("m/44'/60'/0'/0/1");
+  if (!child.privateKey) throw new Error('Could not derive the bot signer from APP_MNEMONIC');
+  return Buffer.from(child.privateKey).toString('hex');
+}
+
 function getAppSignerKey(): { privateKeyHex: string; fid: number } {
-  const appFid = parseInt(process.env.APP_FID || '0', 10);
-  if (!appFid) throw new Error('APP_FID environment variable is required for server-side Farcaster writes');
+  const appFid = getBotFid();
 
   // Prefer the explicitly-registered key over any derived fallback.
-  const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
-  if (signerKey) return { privateKeyHex: signerKey, fid: appFid };
+  const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY || deriveProvisionedSignerFromMnemonic();
+  if (signerKey) return { privateKeyHex: normalizePrivateKeyHex(signerKey), fid: appFid };
 
-  throw new Error('HOMIEHOUSELOL_SIGNER_KEY is required — set it to the registered Ed25519 private key for the bot FID');
+  throw new Error('HOMIEHOUSELOL_SIGNER_KEY or APP_MNEMONIC is required for the registered bot signer');
 }
 
 function buildSigner(privateKeyHex: string): NobleEd25519Signer {
-  const bytes = Buffer.from(privateKeyHex, 'hex');
+  const bytes = Buffer.from(normalizePrivateKeyHex(privateKeyHex), 'hex');
   return new NobleEd25519Signer(bytes);
 }
 
@@ -75,9 +117,14 @@ async function trySubmitToHub(hubUrl: string, messageBytes: Uint8Array): Promise
       return null;
     }
     let data: any;
-    try { data = JSON.parse(body); } catch { return { hash: '' }; }
+    try { data = JSON.parse(body); } catch { return null; }
     const hashB64: string = data.hash ?? '';
-    return { hash: hashB64 ? Buffer.from(hashB64, 'base64').toString('hex') : '' };
+    if (!hashB64) return null;
+    const hash = /^0x[0-9a-f]+$/i.test(hashB64)
+      ? hashB64.toLowerCase()
+      : `0x${Buffer.from(hashB64, 'base64').toString('hex')}`;
+    if (hash === '0x') return null;
+    return { hash };
   } catch (err: any) {
     console.error(`[farcaster-writes] Hub ${hubUrl} error: ${err?.message}`);
     return null;

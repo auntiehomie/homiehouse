@@ -80,6 +80,31 @@ async function fallbackFetch(endpoint: string): Promise<any> {
   }
 }
 
+/**
+ * Fetch notifications with a node fallback. Notifications drive the autonomous
+ * mention agent, so a transient primary-node failure must not look like an
+ * empty inbox.
+ */
+async function fallbackNotifications(endpoint: string): Promise<any> {
+  if (!HYPERSNAP_FALLBACK) return null;
+  const url = `${HYPERSNAP_FALLBACK}${endpoint}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      cache: 'no-store',
+      headers: { accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Backward-compat alias — callers that imported neynarFetch still work. */
 // neynarFetch alias removed — use hypersnapFetch directly
 
