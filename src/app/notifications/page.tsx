@@ -82,6 +82,7 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [hasMore, setHasMore] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
+  const [meta, setMeta] = useState<{ _source?: string; _timings?: Record<string, number> } | null>(null);
   const router = useRouter();
 
   const loadNotifications = useCallback(async (silent = false) => {
@@ -99,6 +100,7 @@ export default function NotificationsPage() {
       setNotifications(data.notifications || []);
       setHasMore(data.has_more || false);
       setCursor(data.next_cursor || null);
+      setMeta(data._meta || null);
       if (!silent) setError(null);
     } catch (err) {
       if (!silent) setError('Failed to load notifications');
@@ -190,17 +192,34 @@ export default function NotificationsPage() {
               </div>
             ) : filteredNotifications.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem', gap: '0.75rem' }}>
-                <div style={{ fontSize: '3rem' }}>🔔</div>
-                <div style={{ color: 'var(--muted-on-dark)', textAlign: 'center' }}>
-                  {filter === 'all' ? 'No notifications yet' : `No ${filter} notifications`}
-                </div>
-                {filter !== 'all' && (
-                  <button
-                    onClick={() => setFilter('all')}
-                    style={{ color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
-                  >
-                    View all notifications
-                  </button>
+                {/* Distinguish fetch failure from genuine empty state using API _meta */}
+                {meta && meta._source === 'empty' && meta._timings ? (
+                  <>
+                    <div style={{ fontSize: '3rem' }}>⚠️</div>
+                    <div style={{ color: 'var(--muted-on-dark)', textAlign: 'center', maxWidth: 320 }}>
+                      Unable to reach notification server — retrying
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', opacity: 0.6 }}>
+                      {meta._timings.primary_ms ? `Primary: ${meta._timings.primary_ms}ms` : ''}
+                      {meta._timings.fallback_ms ? ` · Fallback: ${meta._timings.fallback_ms}ms` : ''}
+                    </div>
+                    <button onClick={() => loadNotifications()} className="btn primary">Retry</button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '3rem' }}>🔔</div>
+                    <div style={{ color: 'var(--muted-on-dark)', textAlign: 'center' }}>
+                      {filter === 'all' ? 'No notifications yet' : `No ${filter} notifications`}
+                    </div>
+                    {filter !== 'all' && (
+                      <button
+                        onClick={() => setFilter('all')}
+                        style={{ color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+                      >
+                        View all notifications
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             ) : (
