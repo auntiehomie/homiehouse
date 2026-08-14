@@ -20,6 +20,9 @@ export async function GET(req: NextRequest) {
   const logger = createApiLogger('/notifications');
   logger.start();
 
+  let fid: number | undefined;
+  let cursor: string | null | undefined;
+
   try {
 
     // Rate limit: 30 requests/minute per IP
@@ -31,13 +34,13 @@ export async function GET(req: NextRequest) {
     }
     const { searchParams } = new URL(req.url);
     const fidParam = searchParams.get('fid');
-    const cursor = searchParams.get('cursor');
+    cursor = searchParams.get('cursor');
 
     if (!fidParam) {
       return NextResponse.json({ error: 'FID is required' }, { status: 400 });
     }
 
-    const fid = validateFid(fidParam);
+    fid = validateFid(fidParam);
 
     logger.info('Fetching notifications', { fid, cursor });
 
