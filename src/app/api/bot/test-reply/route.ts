@@ -39,7 +39,7 @@ export async function GET(_req: NextRequest) {
       notifData?.data?.notifications ?? notifData?.notifications ?? [];
     result.steps.push(`fetchNotifications: ${rawNotifications.length} total`);
 
-    const searchData = await searchCasts('@homiehouselol', 10);
+    const searchData = await searchCasts('@thehomie', 10);
     const searchList: any[] = searchData?.casts ?? [];
     const notifHashes = new Set(rawNotifications.map((n: any) => (n.cast ?? n)?.hash).filter(Boolean));
     const searchMentions = searchList
@@ -95,7 +95,7 @@ export async function GET(_req: NextRequest) {
           model: 'llama-3.3-70b-versatile',
           max_tokens: 150,
           messages: [
-            { role: 'system', content: 'You are @homiehouselol, a helpful crypto/web3 friend on Farcaster. Reply in under 280 chars. Be warm and direct.' },
+            { role: 'system', content: 'You are @thehomie, a helpful crypto/web3 friend on Farcaster. Reply in under 280 chars. Be warm and direct.' },
             { role: 'user', content: `@${candidate.cast.author?.username} said: "${(candidate.cast.text || '').slice(0, 300)}"` },
           ],
         });

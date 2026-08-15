@@ -1,5 +1,5 @@
 /**
- * Live crypto news lookup for the @homiehouselol posting cron.
+ * Live crypto news lookup for the @thehomie posting cron.
  *
  * Uses Perplexity's `sonar` model, which does its own web search, to surface
  * one specific, recent, real crypto news item the agent can react to —

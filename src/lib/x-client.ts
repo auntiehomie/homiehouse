@@ -1,5 +1,5 @@
 /**
- * X (Twitter) client — scaffold for the @homiehouselol chat agent, mirroring
+ * X (Twitter) client — scaffold for the @thehomie chat agent, mirroring
  * the shape of src/lib/farcaster-writes.ts and src/lib/hypersnap.ts so the
  * eventual cron routes (agent/x-post, agent/x-mention) can reuse the same
  * persona/memory patterns as the Farcaster bot.
@@ -12,7 +12,7 @@
  * are actually enforced end-to-end, not just scaffolded).
  *
  * Auth model: OAuth 1.0a with a permanent user access token/secret,
- * generated once in the X Developer Portal for the @homiehouselol account —
+ * generated once in the X Developer Portal for the @thehomie account —
  * same "provision once, never expires" pattern as HOMIEHOUSELOL_SIGNER_KEY
  * for Farcaster. (OAuth 2.0 with PKCE is the alternative X recommends for
  * multi-user apps, but that requires an interactive login + refresh-token
@@ -89,7 +89,7 @@ export async function fetchXMentions(sinceId?: string): Promise<XPost[]> {
     since_id: sinceId,
     max_results: 20,
     // referenced_tweets.id pulls the replied-to/quoted tweet into `includes.tweets`
-    // so we can explain THAT post, not just the "@homiehouselol explain this" mention.
+    // so we can explain THAT post, not just the "@thehomie explain this" mention.
     expansions: ['author_id', 'referenced_tweets.id'],
     'tweet.fields': ['created_at', 'author_id', 'referenced_tweets'],
     'user.fields': ['username'],

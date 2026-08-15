@@ -13,7 +13,7 @@ import { rateLimit } from '@/lib/ratelimit';
 export const maxDuration = 60;
 
 /**
- * Autonomous posting cron for @homiehouselol on X — scaffold, not wired up.
+ * Autonomous posting cron for @thehomie on X — scaffold, not wired up.
  *
  * SCAFFOLD STATUS: this route is safe to deploy as-is. postToX() throws a
  * clear "not configured" error until X_APP_KEY etc. are set, so until then
@@ -23,7 +23,7 @@ export const maxDuration = 60;
  *
  * Deliberately reuses the exact persona (persona.ts) and post-mode logic
  * (pickPostMode/postInstruction) as the Farcaster posting cron
- * (agent/tip/route.ts) so @homiehouselol sounds like the same person on
+ * (agent/tip/route.ts) so @thehomie sounds like the same person on
  * both platforms — only the trend-take mode (which needs a Farcaster cast
  * to react to) isn't meaningful here, so it silently falls back to a tip,
  * the same way agent/tip already falls back when no trend is found.

@@ -251,7 +251,7 @@ const EXTRA_MODULES: Record<string, LearningModule> = {
     objectives: [
       'Explain what it means for an AI agent to "own" a wallet and sign transactions autonomously',
       'Understand the basic agent loop: perceive (read casts/data) → decide (LLM call) → act (post, trade, reply)',
-      'Identify real examples: trading agents, social agents like @homiehouselol, and agent-to-agent marketplaces',
+      'Identify real examples: trading agents, social agents like @thehomie, and agent-to-agent marketplaces',
       'Spot the difference between a genuinely autonomous agent and a scripted bot wearing an "AI" label',
     ],
     estimatedMinutes: 25,
@@ -441,7 +441,7 @@ Available topic areas to draw from (pick the most relevant for this user's track
 - On-chain data & storage: IPFS, Arweave, Filecoin, The Graph, calldata, EIP-4844
 - AI & machine learning (framed for a crypto-curious audience, not a data-science course):
   - How LLMs actually work: tokens, training, why models hallucinate, comparing Claude/GPT/open models
-  - AI agents on-chain: agents that own wallets and sign transactions, the perceive-decide-act loop, real examples like this app's own @homiehouselol
+  - AI agents on-chain: agents that own wallets and sign transactions, the perceive-decide-act loop, real examples like this app's own @thehomie
   - Venice.ai: privacy-first AI on decentralized infrastructure, why data ownership matters for AI the same way it does for money
   - Prompt injection & AI security: the "flash loan attack" of the AI world, how agents that read untrusted content get manipulated, defensive patterns
   - AI x crypto convergence: decentralized compute (Render, Akash, io.net), agent-to-agent stablecoin payments, on-chain content provenance — and how to tell real infrastructure from hype

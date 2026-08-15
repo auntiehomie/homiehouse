@@ -1,5 +1,5 @@
 /**
- * Persistent memory for the @homiehouselol agent.
+ * Persistent memory for the @thehomie agent.
  *
  * Stores every post/reply the agent makes so it can:
  * - Avoid repeating recent topics

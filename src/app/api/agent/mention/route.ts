@@ -192,11 +192,11 @@ export async function GET(request: NextRequest) {
     }).join(' | ');
     console.error(`[agent/mention] DIAG fid=${HOMIEHOUSELOL_FID} count=${rawNotifications.length} types=[${notifSummary}]`);
 
-    // Also search for recent casts mentioning @homiehouselol.
+    // Also search for recent casts mentioning @thehomie.
     // The notification index can lag by hours; cast search is usually fresh.
     let searchMentions: any[] = [];
     try {
-      const searchData = await searchCasts('@homiehouselol', 15);
+      const searchData = await searchCasts('@thehomie', 15);
       const searchCastList: any[] = searchData?.casts ?? [];
       const notifHashes = new Set(
         rawNotifications.map((n: any) => (n.cast ?? n)?.hash).filter(Boolean)

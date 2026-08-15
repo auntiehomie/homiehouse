@@ -14,6 +14,7 @@ export async function GET(_request: NextRequest) {
   const results: any = {
     botFid: BOT_FID,
     homiehouselolFid: HOMIEHOUSELOL_FID,
+    botUsername: 'thehomie',
     hasSignerKey: !!process.env.HOMIEHOUSELOL_SIGNER_KEY,
     hubUrl: process.env.FARCASTER_HUB_URL || 'https://haatz.quilibrium.com',
     notifications: [],
@@ -74,7 +75,7 @@ export async function GET(_request: NextRequest) {
 
   // Search for recent mentions
   try {
-    const searchData = await searchCasts('@homiehouselol', 15);
+    const searchData = await searchCasts('@thehomie', 15);
     const searchCastList: any[] = searchData?.casts ?? [];
     const notifHashes = new Set(results.notifications.map((n: any) => n.hash));
 

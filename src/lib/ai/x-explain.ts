@@ -1,7 +1,7 @@
 /**
  * Plain-language explainer for X (Twitter) posts.
  *
- * The @homiehouselol X agent's core job: take a dense, jargon-heavy, or just
+ * The @thehomie X agent's core job: take a dense, jargon-heavy, or just
  * confusing post and rewrite it so a normal person gets it. Uses the free LLM
  * stack (llmChat) so this costs nothing per call — the real cost on the X side
  * is the API reads/posts (see x-budget.ts), not the language model.

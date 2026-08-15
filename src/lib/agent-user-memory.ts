@@ -1,5 +1,5 @@
 /**
- * Per-user memory for the @homiehouselol agent.
+ * Per-user memory for the @thehomie agent.
  *
  * agent-memory.ts remembers the agent's OWN posts (so it doesn't repeat
  * itself). This file is the other half: a rolling profile of each Farcaster

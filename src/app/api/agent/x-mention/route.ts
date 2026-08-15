@@ -13,7 +13,7 @@ export const maxDuration = 60;
 const LAST_MENTION_KEY = 'last_mention_id';
 
 /**
- * Reply-to-mentions cron for @homiehouselol on X — scaffold, not wired up.
+ * Reply-to-mentions cron for @thehomie on X — scaffold, not wired up.
  *
  * SCAFFOLD STATUS: same as agent/x-post — fetchXMentions()/postToX() throw
  * a clear "not configured" error until X credentials are set, so this is a
