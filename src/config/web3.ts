@@ -55,9 +55,10 @@ export const walletConnectConfig = {
 };
 
 // Privy Configuration
-// appId defaults to the Privy app ID for HomieHouse; set NEXT_PUBLIC_PRIVY_APP_ID to override.
+// Set NEXT_PUBLIC_PRIVY_APP_ID in the environment; an empty fallback makes
+// missing configuration visible instead of silently using a dead app.
 export const privyConfig = {
-  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'cmpa5acg800h90cjor2a46xy8',
+  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
   config: {
     appearance: {
       loginMethods: ['farcaster', 'wallet', 'email'] as ('farcaster' | 'wallet' | 'email')[],
