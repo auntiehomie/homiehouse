@@ -46,6 +46,22 @@ function mnemonicToCustodyKey(mnemonic: string): Uint8Array {
   return child.privateKey;
 }
 
+export class CustodyMismatchError extends Error {
+  derivedAddress: string;
+  onChainAddress: string;
+
+  constructor(derived: string, onChain: string) {
+    super(
+      'This recovery phrase does not match the custody wallet for your FID. ' +
+      'Your FID is likely managed by Warpcast. Use "Enable Posting" instead — ' +
+      'it works with Warpcast-managed accounts.'
+    );
+    this.name = 'CustodyMismatchError';
+    this.derivedAddress = derived;
+    this.onChainAddress = onChain;
+  }
+}
+
 export async function provisionSignerWithMnemonic(
   fid: number,
   mnemonic: string,
@@ -60,6 +76,27 @@ export async function provisionSignerWithMnemonic(
   const custodyPrivKey = mnemonicToCustodyKey(clean);
   const custodyPrivHex = bytesToHex(custodyPrivKey);
   const custodyAddress = privateKeyToAddress(custodyPrivHex);
+
+  // Verify the derived address matches the on-chain custody address for this FID.
+  // If it doesn't, the recovery phrase is for a different wallet (e.g. a Warpcast
+  // recovery address) and the KeyRegistry.addFor() call would revert.
+  try {
+    const custodyRes = await fetch(`/api/custody-address?fid=${fid}`);
+    if (custodyRes.ok) {
+      const { custodyAddress: onChainAddress } = await custodyRes.json();
+      if (
+        onChainAddress &&
+        onChainAddress.toLowerCase() !== custodyAddress.toLowerCase()
+      ) {
+        throw new CustodyMismatchError(custodyAddress, onChainAddress);
+      }
+    }
+    // If the check fails (non-OK response), continue — the addFor call will
+    // still fail with a clear error if there's a real mismatch.
+  } catch (err) {
+    if (err instanceof CustodyMismatchError) throw err;
+    // Network/parse error — don't block the flow, let the on-chain call handle it
+  }
 
   // Generate fresh Ed25519 signer keypair
   const edPrivKey = ed25519.utils.randomPrivateKey();

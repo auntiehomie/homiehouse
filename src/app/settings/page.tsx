@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import Image from "next/image";
 import AppShell from "@/components/AppShell";
-import { provisionSignerWithMnemonic } from "@/lib/fc-key-add";
+import { provisionSignerWithMnemonic, CustodyMismatchError } from "@/lib/fc-key-add";
 import { getEli5Mode, setEli5Mode } from "@/lib/eli5";
 import { BeginnerModeBadge } from "@/lib/progressive-disclosure";
 
@@ -349,7 +349,11 @@ function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: numbe
     } catch (err: any) {
       setPhrase("");
       setStep("error");
-      setStatusMsg(err?.message || "Import failed. Check your FID and recovery phrase.");
+      if (err instanceof CustodyMismatchError) {
+        setStatusMsg("WARPCAST_MANAGED");
+      } else {
+        setStatusMsg(err?.message || "Import failed. Check your FID and recovery phrase.");
+      }
     }
   }
 
@@ -428,8 +432,31 @@ function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: numbe
 
               {step === "error" && (
                 <div>
-                  <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 10 }}>{statusMsg}</div>
-                  <button onClick={() => setStep("idle")} style={{ fontSize: 12, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Try again</button>
+                  {statusMsg === "WARPCAST_MANAGED" ? (
+                    <>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-on-dark)", marginBottom: 8 }}>
+                        This account is managed by Warpcast
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginBottom: 12, lineHeight: 1.5 }}>
+                        Your FID is custodied by a Warpcast-managed wallet, so the recovery phrase you entered is for your recovery address — not the custody wallet that owns the FID on-chain.
+                        <br /><br />
+                        You can still cast from HomieHouse — just use <strong style={{ color: "var(--text-on-dark)" }}>Enable Posting</strong> on the Compose page instead. That flow goes through Warpcast signer approval and works with Warpcast-managed accounts.
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => { router.push("/compose"); }} style={{ padding: "9px 16px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                          Go to Compose →
+                        </button>
+                        <button onClick={() => setStep("idle")} style={{ padding: "9px 16px", borderRadius: 8, background: "var(--bg-dark)", border: "1px solid var(--border)", color: "var(--text-on-dark)", fontSize: 13, cursor: "pointer" }}>
+                          Try different phrase
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 12, color: "#ef4444", marginBottom: 10 }}>{statusMsg}</div>
+                      <button onClick={() => setStep("idle")} style={{ fontSize: 12, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Try again</button>
+                    </>
+                  )}
                 </div>
               )}
             </>
