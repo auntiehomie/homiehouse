@@ -802,19 +802,32 @@ export default function SettingsPage() {
             </Card>
           </div>
 
-          {/* Sign Out */}
-          {authenticated && (
-            <div style={{ marginBottom: 18 }}>
-              <Card>
+          {/* Sign Out — works with or without Privy */}
+          <div style={{ marginBottom: 18 }}>
+            <Card>
                 <SettingRow
-                  onClick={logout}
+                  onClick={() => {
+                    // Privy logout if authenticated
+                    if (authenticated) logout();
+                    // Clear Farcaster local state regardless
+                    try {
+                      const profile = localStorage.getItem('hh_profile');
+                      if (profile) {
+                        const p = JSON.parse(profile);
+                        if (p?.fid) localStorage.removeItem(`signer_${p.fid}`);
+                      }
+                      localStorage.removeItem('hh_profile');
+                    } catch {}
+                    // Reload to reset app state
+                    window.location.href = '/';
+                  }}
                   danger
                   icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>}
                   label="Sign Out"
+                  sublabel={authenticated ? "Disconnect wallet & clear Farcaster session" : "Clear Farcaster session"}
                 />
-              </Card>
-            </div>
-          )}
+            </Card>
+          </div>
         </div>
 
         {/* ── Right panel — full width on mobile, flex col on desktop ── */}

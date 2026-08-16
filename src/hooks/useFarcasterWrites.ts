@@ -121,7 +121,6 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
   }, [refreshSignerState]);
 
   const getSigner = useCallback(async (): Promise<FarcasterSigner> => {
-    if (!authenticated) throw new Error('Sign in to post.');
     if (!fid) throw new Error('Connect your Farcaster account first.');
 
     const raw = localStorage.getItem(`signer_${fid}`);
@@ -149,7 +148,7 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
       publicKey: publicKeyBytes,
       sign: async (hash: Uint8Array) => ed25519.sign(hash, privateKeyBytes),
     };
-  }, [authenticated, fid]);
+  }, [fid]);
 
   const requestSigner = useCallback(async () => {
     window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));

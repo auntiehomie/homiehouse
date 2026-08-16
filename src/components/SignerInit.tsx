@@ -1,50 +1,62 @@
 'use client';
 
 /**
- * SignerInit — runs inside PrivyProvider.
+ * SignerInit — creates and manages Farcaster signer keys.
  *
- * On first login (or when no approved signer exists in localStorage) it calls
- * POST /api/signer to create an Ed25519 keypair registered via the app mnemonic,
- * stores the result (including private_key) client-side under `signer_<fid>`,
- * then fires the showWelcomeModal event so the user is prompted to approve in
- * Warpcast.  Polls /api/signer until the status flips to "approved".
+ * No longer requires Privy authentication. Reads FID from:
+ *   1. Privy linkedAccounts (if authenticated via Privy)
+ *   2. localStorage hh_profile (manual FID import)
+ *   3. Frame SDK context (if running inside a Farcaster mini app)
+ *
+ * Listens for hh:request:signer events from Compose / WelcomeModal.
  */
 
 import { useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 
+function resolveFid(privyUser: any): number | undefined {
+  // 1. Privy linked Farcaster account
+  const farcasterAccount = privyUser?.linkedAccounts?.find(
+    (a: any) => a.type === 'farcaster'
+  ) as any;
+  if (farcasterAccount?.fid) return farcasterAccount.fid;
+
+  // 2. localStorage hh_profile (manual import)
+  try {
+    const stored = localStorage.getItem('hh_profile');
+    if (stored) {
+      const profile = JSON.parse(stored);
+      if (profile?.fid && typeof profile.fid === 'number') {
+        return profile.fid;
+      }
+    }
+  } catch {}
+
+  // 3. Frame SDK context (mini app)
+  if (typeof window !== 'undefined') {
+    const sdk = (window as any).sdk;
+    if (sdk?.context?.user?.fid) return sdk.context.user.fid;
+  }
+
+  return undefined;
+}
+
 export default function SignerInit() {
-  const { authenticated, user } = usePrivy();
+  const { user } = usePrivy();
 
   useEffect(() => {
-    if (!authenticated || !user) return;
-
-    const farcasterAccount = user.linkedAccounts?.find(
-      (a: any) => a.type === 'farcaster'
-    ) as any;
-    let fid: number | undefined = farcasterAccount?.fid;
-
-    // Fall back to localStorage hh_profile when Privy doesn't have a linked
-    // Farcaster account (user signed in with Privy and imported FID manually).
-    if (!fid) {
-      try {
-        const stored = localStorage.getItem('hh_profile');
-        if (stored) {
-          const profile = JSON.parse(stored);
-          if (profile?.fid && typeof profile.fid === 'number') {
-            fid = profile.fid;
-          }
-        }
-      } catch {}
-    }
+    const fid = resolveFid(user);
     if (!fid) return;
 
     initSigner(fid);
 
-    const onRequest = (e: any) => { if (e.detail?.fid === fid) initSigner(fid); };
+    const onRequest = (e: any) => {
+      const requestFid = e.detail?.fid || resolveFid(user);
+      if (requestFid) initSigner(requestFid);
+    };
     window.addEventListener('hh:request:signer', onRequest);
     return () => window.removeEventListener('hh:request:signer', onRequest);
-  }, [authenticated, user]);
+  }, [user]);
 
   return null;
 }
@@ -87,6 +99,10 @@ async function initSigner(fid: number) {
     const signerData = await res.json();
     if (!signerData.ok) {
       console.error('[SignerInit] Failed to create signer:', signerData.error);
+      // Show modal with error so the user isn't left in the dark
+      window.dispatchEvent(new CustomEvent('showWelcomeModal', {
+        detail: { approvalUrl: null, error: signerData.error },
+      }));
       return;
     }
 
