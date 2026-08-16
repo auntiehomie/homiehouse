@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
@@ -78,28 +78,9 @@ export interface UseFarcasterWritesReturn {
 }
 
 export function useFarcasterWrites(): UseFarcasterWritesReturn {
-  const { user, authenticated } = usePrivy();
-  const [hasActiveSigner, setHasActiveSigner] = useState(false);
-
-  const farcasterAccount = user?.linkedAccounts?.find(
-    (a: any) => a.type === 'farcaster'
-  ) as any | undefined;
-  let fid: number = farcasterAccount?.fid ?? 0;
-
-  // Fall back to localStorage hh_profile when Privy doesn't have a linked
-  // Farcaster account (e.g. user signed in with Privy email/embedded wallet
-  // and imported their FID manually via Settings).
-  if (!fid) {
-    try {
-      const stored = localStorage.getItem('hh_profile');
-      if (stored) {
-        const profile = JSON.parse(stored);
-        if (profile?.fid && typeof profile.fid === 'number') {
-          fid = profile.fid;
-        }
-      }
-    } catch {}
-  }
+  const { fid: rawFid, isAuthenticated } = useFarcasterAuth()
+  const fid = rawFid ?? 0
+  const [hasActiveSigner, setHasActiveSigner] = useState(false)
 
   const refreshSignerState = useCallback(() => {
     if (!fid) { setHasActiveSigner(false); return; }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import PrivyAuthProvider from "../components/PrivyAuthProvider";
+import { FarcasterAuthProvider } from "../lib/farcaster-auth";
 import PrivyAuthSync from "../components/PrivyAuthSync";
 import BottomNav from "../components/BottomNav";
 import ThemeSync from "../components/ThemeSync";
@@ -128,15 +129,17 @@ export default function RootLayout({
       </head>
       <body className={`antialiased`}>
         <PrivyAuthProvider>
-          <PrivyAuthSync />
-          <PageTransition>
-            <div className="pb-20 lg:pb-0">
-              {children}
-            </div>
-          </PageTransition>
-          <BottomNav />
-          <ThemeSync />
-          <LazyClientComponents />
+          <FarcasterAuthProvider>
+            <PrivyAuthSync />
+            <PageTransition>
+              <div className="pb-20 lg:pb-0">
+                {children}
+              </div>
+            </PageTransition>
+            <BottomNav />
+            <ThemeSync />
+            <LazyClientComponents />
+          </FarcasterAuthProvider>
         </PrivyAuthProvider>
         <Analytics />
       </body>

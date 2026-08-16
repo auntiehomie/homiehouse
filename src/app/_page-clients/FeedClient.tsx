@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import FeedTrendingTabs from "@/components/FeedTrendingTabs";
 import SidebarNav from "@/components/SidebarNav";
 import LearningHeroCard from "@/components/LearningHeroCard";
@@ -13,6 +14,11 @@ import NotificationBadge from "@/components/NotificationBadge";
 export default function FeedClient() {
   const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useNeynarContext();
+  const { fid: viewerFid } = useFarcasterAuth();
+
+  // Feed components consume viewerFid from useFarcasterAuth context directly;
+  // the value is also available here for any feed-level logic in the future.
+  void viewerFid;
 
   useEffect(() => { setMounted(true); }, []);
 

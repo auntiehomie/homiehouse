@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import Image from "next/image";
 import AppShell from "@/components/AppShell";
 import { provisionSignerWithMnemonic, CustodyMismatchError } from "@/lib/fc-key-add";
@@ -203,6 +204,7 @@ interface FarcasterProfile {
 }
 
 function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: FarcasterProfile | null; onProfileUpdate: (p: FarcasterProfile) => void; hideTitle?: boolean }) {
+  const { signIn, signOut: fcSignOut, isAuthenticated, isAuthenticating } = useFarcasterAuth()
   const [fidInput, setFidInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -236,6 +238,73 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
   return (
     <div>
       {!hideTitle && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Farcaster Account</div>}
+
+      {/* ── Farcaster-native sign in ── */}
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-on-dark)", marginBottom: 4 }}>
+          Sign in with Farcaster
+        </div>
+        <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginBottom: 12, lineHeight: 1.5 }}>
+          Sign in by FID to enable posting, liking, and recasting. You'll be prompted to approve a signer key in Warpcast.
+        </div>
+
+        {profile?.fid && isAuthenticated && (
+          <div style={{ fontSize: 12, color: "#22c55e", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", flexShrink: 0, display: "inline-block" }} />
+            Authenticated — you can cast, like, and recast
+          </div>
+        )}
+
+        {profile?.fid && !isAuthenticated && (
+          <div style={{ fontSize: 12, color: "#eab308", marginBottom: 10 }}>
+            Profile imported, but no active signer. Sign in to enable writes.
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            type="number"
+            placeholder="FID (e.g. 3103)"
+            value={fidInput}
+            onChange={e => { setFidInput(e.target.value); setError(""); setSuccess(false); }}
+            onKeyDown={e => e.key === "Enter" && signIn(parseInt(fidInput.trim(), 10))}
+            disabled={isAuthenticating}
+            style={{
+              flex: 1, padding: "9px 12px", borderRadius: 8, fontSize: 14,
+              background: "var(--bg-dark)", border: "1px solid var(--border)",
+              color: "var(--text-on-dark)", outline: "none",
+            }}
+          />
+          <button
+            onClick={() => {
+              const fidNum = parseInt(fidInput.trim(), 10)
+              if (!fidNum || isNaN(fidNum) || fidNum <= 0) { setError("Enter a valid FID number"); return }
+              signIn(fidNum)
+            }}
+            disabled={isAuthenticating || !fidInput.trim()}
+            style={{
+              padding: "9px 16px", borderRadius: 8, background: "var(--accent)", color: "#fff",
+              border: "none", fontWeight: 600, fontSize: 13, cursor: isAuthenticating ? "wait" : "pointer",
+              opacity: isAuthenticating || !fidInput.trim() ? 0.6 : 1, whiteSpace: "nowrap",
+            }}
+          >
+            {isAuthenticating ? "Signing in…" : "Sign In"}
+          </button>
+        </div>
+
+        {profile?.fid && (
+          <button
+            onClick={fcSignOut}
+            style={{
+              marginTop: 10, padding: "7px 14px", borderRadius: 8,
+              background: "rgba(239,68,68,0.12)", color: "#ef4444",
+              border: "1px solid rgba(239,68,68,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer",
+            }}
+          >
+            Sign Out Farcaster
+          </button>
+        )}
+      </div>
 
       {/* Current profile card */}
       {profile?.fid ? (
