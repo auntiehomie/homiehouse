@@ -22,7 +22,21 @@ export default function SignerInit() {
     const farcasterAccount = user.linkedAccounts?.find(
       (a: any) => a.type === 'farcaster'
     ) as any;
-    const fid: number = farcasterAccount?.fid;
+    let fid: number | undefined = farcasterAccount?.fid;
+
+    // Fall back to localStorage hh_profile when Privy doesn't have a linked
+    // Farcaster account (user signed in with Privy and imported FID manually).
+    if (!fid) {
+      try {
+        const stored = localStorage.getItem('hh_profile');
+        if (stored) {
+          const profile = JSON.parse(stored);
+          if (profile?.fid && typeof profile.fid === 'number') {
+            fid = profile.fid;
+          }
+        }
+      } catch {}
+    }
     if (!fid) return;
 
     initSigner(fid);

@@ -11,7 +11,21 @@ function ComposePageInner() {
   const { user } = usePrivy();
   const { hasActiveSigner, requestSigner, submitCast, getPrivateKeyHex } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
-  const userFid: number | null = farcasterAccount?.fid ?? null;
+  let userFid: number | null = farcasterAccount?.fid ?? null;
+
+  // Fall back to localStorage hh_profile when Privy doesn't have a linked
+  // Farcaster account (user signed in with Privy and imported FID manually).
+  if (!userFid) {
+    try {
+      const stored = localStorage.getItem('hh_profile');
+      if (stored) {
+        const profile = JSON.parse(stored);
+        if (profile?.fid && typeof profile.fid === 'number') {
+          userFid = profile.fid;
+        }
+      }
+    } catch {}
+  }
 
   const [text, setText] = useState(searchParams.get('text') || "");
   const [loading, setLoading] = useState(false);

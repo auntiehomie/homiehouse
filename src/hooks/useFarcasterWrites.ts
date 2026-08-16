@@ -84,7 +84,22 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
   const farcasterAccount = user?.linkedAccounts?.find(
     (a: any) => a.type === 'farcaster'
   ) as any | undefined;
-  const fid: number = farcasterAccount?.fid ?? 0;
+  let fid: number = farcasterAccount?.fid ?? 0;
+
+  // Fall back to localStorage hh_profile when Privy doesn't have a linked
+  // Farcaster account (e.g. user signed in with Privy email/embedded wallet
+  // and imported their FID manually via Settings).
+  if (!fid) {
+    try {
+      const stored = localStorage.getItem('hh_profile');
+      if (stored) {
+        const profile = JSON.parse(stored);
+        if (profile?.fid && typeof profile.fid === 'number') {
+          fid = profile.fid;
+        }
+      }
+    } catch {}
+  }
 
   const refreshSignerState = useCallback(() => {
     if (!fid) { setHasActiveSigner(false); return; }
