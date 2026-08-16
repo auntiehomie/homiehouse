@@ -92,12 +92,14 @@ export async function POST(req: NextRequest) {
         ],
       });
     } catch (simErr: any) {
-      // The simulation reverted — surface the actual reason instead of guessing.
-      // Common causes: invalid signature, expired deadline, bad metadata, custody mismatch, etc.
-      const simReason = simErr?.shortMessage || simErr?.message || 'Unknown revert';
-      console.error('add-signer simulation reverted:', simReason);
+      // Surface the full revert reason — viem's shortMessage is generic ("addFor reverted")
+      // but the actual reason is in cause.data or cause.reason
+      const fullErr = simErr?.cause?.data || simErr?.cause?.reason || simErr?.data || simErr?.reason;
+      const shortMsg = simErr?.shortMessage || simErr?.message || 'Unknown revert';
+      const revertDetail = fullErr || shortMsg;
+      console.error('add-signer simulation reverted:', { shortMsg, fullErr, causeMsg: simErr?.cause?.message });
 
-      // Check if it's specifically a custody mismatch (derived address != on-chain owner)
+      // Check if it's specifically a custody mismatch
       let custodyMismatch = false;
       if (fid) {
         try {
@@ -123,9 +125,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // For any other revert reason, surface the actual error so we can debug it
       return NextResponse.json(
-        { error: `Signer registration failed: ${simReason}` },
+        { error: `Signer registration failed: ${revertDetail}` },
         { status: 400 },
       );
     }
