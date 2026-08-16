@@ -75,6 +75,38 @@ export async function POST(req: NextRequest) {
   const walletClient = createWalletClient({ account, chain: optimism, transport: http(OP_RPC) });
 
   try {
+    // Simulate first to catch reverts without spending gas
+    try {
+      await publicClient.simulateContract({
+        address: KEY_REGISTRY,
+        abi: keyRegistryAbi,
+        functionName: 'addFor',
+        args: [
+          fidOwner as `0x${string}`,
+          1,
+          signerPublicKey as `0x${string}`,
+          1,
+          signedKeyRequestMetadata as `0x${string}`,
+          BigInt(keyAddDeadline),
+          keyAddSig as `0x${string}`,
+        ],
+      });
+    } catch (simErr: any) {
+      // The simulation reverted — most common cause is custody mismatch
+      // (recovery phrase doesn't derive to the on-chain custody address).
+      // This happens with Warpcast-managed accounts.
+      console.error('add-signer simulation reverted:', simErr.shortMessage || simErr.message);
+      return NextResponse.json(
+        {
+          error:
+            'This recovery phrase does not match the custody wallet for your FID. ' +
+            'Your account is likely managed by Warpcast. Use "Enable Posting" on the ' +
+            'Compose page instead — it works with Warpcast-managed accounts.',
+        },
+        { status: 400 },
+      );
+    }
+
     const txHash = await walletClient.writeContract({
       address: KEY_REGISTRY,
       abi: keyRegistryAbi,
