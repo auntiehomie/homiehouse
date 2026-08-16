@@ -5,10 +5,15 @@ import { optimism } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const KEY_REGISTRY = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
+const ID_REGISTRY = '0x00000000fc6c5f01fc30151999387bb99a9f489b' as const;
 const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
 
 const keyRegistryAbi = parseAbi([
   'function addFor(address fidOwner, uint32 keyType, bytes key, uint32 metadataType, bytes metadata, uint256 deadline, bytes sig) external',
+]);
+
+const idRegistryAbi = parseAbi([
+  'function custodyOf(uint256 fid) view returns (address)',
 ]);
 
 const publicClient = createPublicClient({ chain: optimism, transport: http(OP_RPC) });
@@ -25,24 +30,51 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 });
   }
 
-  const { fidOwner, signerPublicKey, signedKeyRequestMetadata, keyAddSig, keyAddDeadline } = await req.json();
+  const { fidOwner, signerPublicKey, signedKeyRequestMetadata, keyAddSig, keyAddDeadline, fid } = await req.json();
 
   if (!fidOwner || !signerPublicKey || !signedKeyRequestMetadata || !keyAddSig || !keyAddDeadline) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+
+  // Rate limit: 30 requests/minute per IP
+  const forwarded = req.headers.get('x-forwarded-for');
+  const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+  const { success: rateLimitOk } = rateLimit(`add-signer:${ip}`, 30, 60);
+  if (!rateLimitOk) {
+    return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+  }
+
+  // Server-side custody check: if the client sends the FID (new client code),
+  // verify the fidOwner matches the on-chain custody address before attempting
+  // the gas-paying transaction. This catches Warpcast-managed accounts early.
+  if (fid) {
+    try {
+      const onChainCustody = await publicClient.readContract({
+        address: ID_REGISTRY,
+        abi: idRegistryAbi,
+        functionName: 'custodyOf',
+        args: [BigInt(fid)],
+      });
+      if (onChainCustody.toLowerCase() !== (fidOwner as string).toLowerCase()) {
+        return NextResponse.json(
+          {
+            error:
+              'This recovery phrase does not match the custody wallet for your FID. ' +
+              'Your account is likely managed by Warpcast. Use "Enable Posting" on the ' +
+              'Compose page instead — it works with Warpcast-managed accounts.',
+          },
+          { status: 400 },
+        );
+      }
+    } catch {
+      // If custody lookup fails, continue — the addFor call will handle it
+    }
   }
 
   const account = privateKeyToAccount(APP_WALLET_PRIVATE_KEY);
   const walletClient = createWalletClient({ account, chain: optimism, transport: http(OP_RPC) });
 
   try {
-
-    // Rate limit: 30 requests/minute per IP
-    const forwarded = req.headers.get('x-forwarded-for');
-    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`add-signer:${ip}`, 30, 60);
-    if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
-    }
     const txHash = await walletClient.writeContract({
       address: KEY_REGISTRY,
       abi: keyRegistryAbi,

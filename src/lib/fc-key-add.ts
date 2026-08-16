@@ -158,6 +158,7 @@ export async function provisionSignerWithMnemonic(
       signedKeyRequestMetadata,
       keyAddSig,
       keyAddDeadline,
+      fid, // enables server-side custody mismatch check
     }),
   });
 
