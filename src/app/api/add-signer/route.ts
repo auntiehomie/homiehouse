@@ -92,17 +92,40 @@ export async function POST(req: NextRequest) {
         ],
       });
     } catch (simErr: any) {
-      // The simulation reverted — most common cause is custody mismatch
-      // (recovery phrase doesn't derive to the on-chain custody address).
-      // This happens with Warpcast-managed accounts.
-      console.error('add-signer simulation reverted:', simErr.shortMessage || simErr.message);
+      // The simulation reverted — surface the actual reason instead of guessing.
+      // Common causes: invalid signature, expired deadline, bad metadata, custody mismatch, etc.
+      const simReason = simErr?.shortMessage || simErr?.message || 'Unknown revert';
+      console.error('add-signer simulation reverted:', simReason);
+
+      // Check if it's specifically a custody mismatch (derived address != on-chain owner)
+      let custodyMismatch = false;
+      if (fid) {
+        try {
+          const onChainCustody = await publicClient.readContract({
+            address: ID_REGISTRY,
+            abi: idRegistryAbi,
+            functionName: 'custodyOf',
+            args: [BigInt(fid)],
+          });
+          custodyMismatch = onChainCustody.toLowerCase() !== (fidOwner as string).toLowerCase();
+        } catch {}
+      }
+
+      if (custodyMismatch) {
+        return NextResponse.json(
+          {
+            error:
+              'This recovery phrase does not match the custody wallet for your FID. ' +
+              'Your account is likely managed by Warpcast. Use "Enable Posting" on the ' +
+              'Compose page instead — it works with Warpcast-managed accounts.',
+          },
+          { status: 400 },
+        );
+      }
+
+      // For any other revert reason, surface the actual error so we can debug it
       return NextResponse.json(
-        {
-          error:
-            'This recovery phrase does not match the custody wallet for your FID. ' +
-            'Your account is likely managed by Warpcast. Use "Enable Posting" on the ' +
-            'Compose page instead — it works with Warpcast-managed accounts.',
-        },
+        { error: `Signer registration failed: ${simReason}` },
         { status: 400 },
       );
     }
