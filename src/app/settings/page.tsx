@@ -314,6 +314,7 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
 type MnemonicStep = "idle" | "confirm" | "working" | "done" | "error";
 
 function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: number; onSuccess: (p: FarcasterProfile) => void }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [fidInput, setFidInput] = useState(existingFid ? String(existingFid) : "");
   const [phrase, setPhrase] = useState("");
