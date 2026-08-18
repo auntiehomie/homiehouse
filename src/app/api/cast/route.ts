@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Cast not found' }, { status: 404 });
     }
 
-    // Normalize reaction counts — raw hub returns arrays; Neynar proxy returns _count fields
+    // Normalize reaction counts — raw hub returns arrays; some proxies return _count fields
     const rxn = cast.reactions ?? {};
     if (rxn.likes_count == null && Array.isArray(rxn.likes)) {
       rxn.likes_count = rxn.likes.length;

@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 
 /**
  * Generic Farcaster API error — provider-agnostic.
- * Use this for new code; NeynarError / PinataError are aliases for back-compat.
+ * Use this for new code; PinataError is an alias for back-compat.
  */
 export class FarcasterAPIError extends Error {
   constructor(
@@ -24,21 +24,6 @@ export class FarcasterAPIError extends Error {
  */
 export const PinataError = FarcasterAPIError;
 export type PinataError = FarcasterAPIError;
-
-/**
- * @deprecated Use FarcasterAPIError instead.
- * Kept for backward compatibility with existing catch blocks.
- */
-export class NeynarError extends FarcasterAPIError {
-  constructor(
-    details: string,
-    status: number = 500,
-    code: string = 'FARCASTER_API_ERROR'
-  ) {
-    super(details, status, code);
-    this.name = 'NeynarError';
-  }
-}
 
 /**
  * Custom error class for authentication errors

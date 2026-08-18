@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         data = await fetchFeed(fetchParams);
         // If following feed is empty, fall back to global trending so the user
         // always sees something. Skip Hypersnap here since it may already be slow —
-        // call Neynar directly via fetchFeed with the trending params.
+        // call fetchFeed directly with the trending params.
         if (!data?.casts?.length) {
           const trendingParams: any = { feed_type: 'filter', filter_type: 'global_trending', limit };
           if (cursor) trendingParams.cursor = cursor;

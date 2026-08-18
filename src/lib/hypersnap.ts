@@ -105,7 +105,6 @@ async function fallbackNotifications(endpoint: string): Promise<any> {
   }
 }
 
-/** Backward-compat alias — callers that imported neynarFetch still work. */
 // neynarFetch alias removed — use hypersnapFetch directly
 
 // ─── Read endpoints ──────────────────────────────────────────────────────────
@@ -348,7 +347,7 @@ export async function fetchUserByUsername(username: string): Promise<any> {
 }
 
 /**
- * Fetch the Neynar mini apps / frame catalog.
+ * Fetch the mini apps / frame catalog.
  * GET /v2/farcaster/frame/catalog
  */
 export async function fetchMiniAppCatalog(params: {
@@ -378,7 +377,7 @@ export async function fetchChannelFeed(channelId: string, params: {
   if (cursor) base.set('cursor', cursor);
   if (viewerFid) base.set('viewer_fid', String(viewerFid));
 
-  // Primary: standard Neynar filter feed for a channel
+  // Primary: standard filter feed for a channel
   try {
     const qs = new URLSearchParams(base);
     qs.set('feed_type', 'filter');
@@ -572,7 +571,7 @@ export async function getCastsByUsername(username: string, limit = 25): Promise<
 // ─── Write stubs ─────────────────────────────────────────────────────────────
 //
 // Farcaster writes require submitting signed MessageData protobuf messages to
-// a Hub. The old signer_uuid pattern was Neynar-specific.
+// a Hub. The old signer_uuid pattern was deprecated.
 // To implement writes, use the Privy embedded signer to obtain an Ed25519
 // keypair, then sign casts/reactions with @standard-crypto/farcaster-js
 // HubRestAPIClient (see src/lib/farcaster-writes.ts).

@@ -11,7 +11,7 @@ export default function ChannelsList() {
 
   useEffect(() => {
     const loadUserChannels = () => {
-      // First try to use the Neynar context user
+      // First try to use the auth context user
       if (isAuthenticated && user?.fid) {
         console.log('[ChannelsList] Fetching channels for authenticated user FID:', user.fid);
         fetchChannels(user.fid);

@@ -265,7 +265,7 @@ export async function GET(request: NextRequest) {
       //
       // We use fetchCastReplies (feed filter by parent_hash) instead of
       // fetchCast because Hypersnap's /v2/farcaster/cast endpoint does NOT
-      // return direct_replies (that was a Neynar-specific field). Without
+      // return direct_replies (Hypersnap doesn't support that field). Without
       // this fix, the old code always saw an empty array and proceeded to
       // reply again, causing duplicate replies every cron run.
       try {

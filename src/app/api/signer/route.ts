@@ -7,13 +7,13 @@ import { validateUuid } from '@/lib/validation';
 import { rateLimit } from '@/lib/ratelimit';
 
 // Signer registration uses the Farcaster Signed Key Request protocol directly.
-// No Neynar API key required — replaced with direct Warpcast/Farcaster contract flow.
+// No API key required — uses direct Warpcast/Farcaster contract flow.
 // See: https://docs.farcaster.xyz/reference/contracts/reference/signed-key-request-validator
 
 const APP_FID = process.env.APP_FID;
 const APP_MNEMONIC = process.env.APP_MNEMONIC;
 
-// Warpcast API base — used for signer registration (no Neynar needed)
+// Warpcast API base — used for signer registration
 const WARPCAST_API = 'https://api.warpcast.com';
 
 // EIP-712 Domain for Farcaster SignedKeyRequestValidator
@@ -32,7 +32,7 @@ const SIGNED_KEY_REQUEST_TYPE = [
 
 /**
  * POST /api/signer
- * Creates a new Ed25519 signer and registers it via Warpcast API (no Neynar).
+ * Creates a new Ed25519 signer and registers it via Warpcast API.
  * Returns signer_approval_url for the user to open in Warpcast to approve.
  * WARNING: This handles sensitive data (mnemonics) - logging is carefully controlled.
  */
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     logger.info('EIP-712 signature generated');
 
-    // Step 3: Register via Warpcast API (no Neynar)
+    // Step 3: Register via Warpcast API
     const registerRes = await fetch(`${WARPCAST_API}/v2/signed-key-requests`, {
       method: 'POST',
       headers: {
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/signer?signer_uuid=...
- * Check the status of an existing signer via Warpcast API (no Neynar).
+ * Check the status of an existing signer via Warpcast API.
  */
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/signer GET');

@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "1481393129444737075": {
-      "command": "node",
-      "args": ["C:\\Users\\amand\\1481393129444737075\\mcp-server\\dist\\index.js"]
-    }
-  }
-}

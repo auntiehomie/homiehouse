@@ -1,7 +1,7 @@
 /**
  * Token Data Service
  * Aggregates token information from multiple sources:
- * - Neynar (Farcaster-native tokens on Base)
+ * - Base network tokens (via DexScreener)
  * - CoinGecko (price, market data, market cap)
  * - DexScreener (DEX trading data, liquidity)
  * - Base blockchain data
@@ -326,10 +326,9 @@ export async function getClankerToken(identifier: string): Promise<TokenInfo | n
 
 /**
  * Get token data for Base network tokens using DexScreener
- * Replaces the removed Neynar fungibles endpoint.
- * DexScreener covers Base DEX pairs with price, liquidity, and volume data.
+ * Covers Base DEX pairs with price, liquidity, and volume data.
  */
-export async function getNeynarToken(address: string): Promise<TokenInfo | null> {
+export async function getBaseToken(address: string): Promise<TokenInfo | null> {
   // Delegate to DexScreener for Base token lookups — no external API key required
   return getDexScreenerToken(address);
 }
