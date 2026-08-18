@@ -118,7 +118,7 @@ async function generateReply(
   memoryContext: string,
   threadContext: string,
   userContext: string,
-): Promise<string> {
+): Promise<string | null> {
   try {
     const userContent = threadContext
       ? `Thread context (oldest → newest):\n${threadContext}\n\n@${authorUsername} then mentioned you: "${castText.slice(0, 400)}"\n\nWrite a helpful reply under 280 chars that fits this conversation. Use a tool if you need real-time data.`
@@ -139,7 +139,8 @@ async function generateReply(
       if (!msg) break;
 
       if (!msg.tool_calls || msg.tool_calls.length === 0) {
-        return (msg.content || '').trim().slice(0, 280) || 'hey! 🏠';
+        const text = (msg.content || '').trim().slice(0, 280);
+        return text || null; // Don't fallback to 'hey' — return null if empty
       }
 
       // Execute tool calls and feed results back
@@ -153,10 +154,11 @@ async function generateReply(
       }
     }
   } catch (err: any) {
-    console.error('[agent/mention] Groq failed:', err?.message);
+    console.error('[agent/mention] All LLM providers failed:', err?.message);
+    return null; // Don't fallback — return null so caller skips posting
   }
 
-  return 'hey! 🏠';
+  return null; // All rounds exhausted without a final reply
 }
 
 export async function GET(request: NextRequest) {
@@ -289,6 +291,19 @@ export async function GET(request: NextRequest) {
         if (threadContext) console.log(`[agent/mention] thread context (${threadContext.split('\n').length} turns)`);
         const userContext = authorFid ? await buildUserMemoryContext(authorFid) : '';
         const reply = await generateReply(cast.text || '', authorUsername, memoryContext, threadContext, userContext);
+
+        // If all LLM providers failed, generateReply returns null.
+        // DO NOT post a fallback "hey" — record as deferred and skip.
+        // This prevents the bot from spamming generic replies when LLMs are down.
+        if (!reply) {
+          console.error(`[agent/mention] All LLM providers failed for ${castHash} — deferring, not posting`);
+          await recordReplyBatch({
+            trackingKeys,
+            replyHash: 'llm-failed-deferred',
+            commandType: 'mention',
+          }).catch(() => {});
+          continue;
+        }
 
         // RECORD BEFORE POSTING: Insert dedup records BEFORE publishCast so that
         // if publishing succeeds but a subsequent step (savePost, recordMention,
