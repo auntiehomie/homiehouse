@@ -35,16 +35,13 @@ export interface LLMProvider {
 export function getLLMProviders(): LLMProvider[] {
   const providers: LLMProvider[] = [];
 
-  // Cerebras — free tier with a much larger daily token budget than Groq and
-  // very fast inference. Listed first so it absorbs load before Groq's small
-  // daily limit (500k/day) gets exhausted. Free key: https://cloud.cerebras.ai
+  // Cerebras — free tier, very fast inference.
+  // 402 = billing/credits issue (model ID is valid, account needs credits)
   if (process.env.CEREBRAS_API_KEY) {
     const client = new OpenAI({
       apiKey: process.env.CEREBRAS_API_KEY,
       baseURL: 'https://api.cerebras.ai/v1',
     });
-    // Cerebras retired its Llama models (llama-3.3-70b / llama3.1-8b now 404) —
-    // gpt-oss-120b is the current production model. Overridable via CEREBRAS_MODEL.
     providers.push({ name: 'cerebras', client, model: process.env.CEREBRAS_MODEL || 'gpt-oss-120b' });
   }
 
@@ -53,15 +50,10 @@ export function getLLMProviders(): LLMProvider[] {
       apiKey: process.env.GROQ_API_KEY,
       baseURL: 'https://api.groq.com/openai/v1',
     });
-    // 8b-instant: 131k TPM (separate limit from 70b) — better for concurrent use
-    providers.push({ name: 'groq-fast', client, model: 'llama-3.1-8b-instant' });
-    // 70b as second groq slot for higher quality when fast slot is exhausted
-    providers.push({
-      name: 'groq',
-      client,
-      model: 'llama-3.3-70b-versatile',
-      visionModel: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    });
+    // Groq retired all Llama models (llama-3.1-8b-instant, llama-3.3-70b-versatile → 404).
+    // Current production models: openai/gpt-oss-20b (fast) and openai/gpt-oss-120b (quality).
+    providers.push({ name: 'groq-fast', client, model: 'openai/gpt-oss-20b' });
+    providers.push({ name: 'groq', client, model: 'openai/gpt-oss-120b' });
   }
 
   if (process.env.GEMINI_API_KEY) {
@@ -69,9 +61,9 @@ export function getLLMProviders(): LLMProvider[] {
       apiKey: process.env.GEMINI_API_KEY,
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
     });
-    // gemini-1.5-flash was retired by Google (404s) — use current flash models.
+    // gemini-2.0-flash was retired (404). gemini-2.5-flash still works (429 = rate limited, not dead).
     providers.push({ name: 'gemini-flash', client, model: 'gemini-2.5-flash', visionModel: 'gemini-2.5-flash' });
-    providers.push({ name: 'gemini', client, model: 'gemini-2.0-flash', visionModel: 'gemini-2.0-flash' });
+    providers.push({ name: 'gemini', client, model: 'gemini-2.5-pro', visionModel: 'gemini-2.5-flash' });
   }
 
   if (process.env.OPENROUTER_API_KEY) {
@@ -79,14 +71,16 @@ export function getLLMProviders(): LLMProvider[] {
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: 'https://openrouter.ai/api/v1',
     });
-    // mistral-7b:free was delisted from OpenRouter (404) — gemma-4 is a current,
-    // fast free model that serves as a real fallback when Groq/Gemini are limited.
+    // meta-llama/llama-3.3-70b-instruct:free was delisted (404 — paid only now).
+    // Current free models with tool support (verified Aug 2026):
+    //   z-ai/glm-5.2:free (256k ctx, text), openai/gpt-oss-20b:free (131k ctx, text),
+    //   google/gemma-4-31b-it:free (262k ctx, vision), nvidia/nemotron-3-super-120b-a12b:free
     providers.push({ name: 'openrouter-gemma', client, model: 'google/gemma-4-26b-a4b-it:free' });
     providers.push({
       name: 'openrouter',
       client,
-      model: 'meta-llama/llama-3.3-70b-instruct:free',
-      visionModel: 'meta-llama/llama-3.2-11b-vision-instruct:free',
+      model: 'z-ai/glm-5.2:free',
+      visionModel: 'google/gemma-4-31b-it:free',
     });
   }
 
@@ -123,7 +117,9 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
     const controller = new AbortController();
     // Agent tool loops and Vercel cold starts need a little more room than the
     // original 25s budget. Keep this bounded while increasing it by 1.5x.
-    const timer = setTimeout(() => controller.abort(), 37500);
+    // 8s per-provider timeout — 6 providers × 8s = 48s worst case,
+    // safely under Vercel's 60s function timeout.
+    const timer = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await p.client.chat.completions.create(
         {
