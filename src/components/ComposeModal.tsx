@@ -304,10 +304,8 @@ export default function ComposeModal() {
 
       console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
 
-      // Split into thread parts (long-form truncates to one cast)
-      const threadParts = isLongForm
-        ? [text.slice(0, CAST_LIMIT)]
-        : splitIntoThread(text.trim(), CAST_LIMIT);
+      // Split into thread parts (long-form also threads instead of truncating)
+      const threadParts = splitIntoThread(text.trim(), CAST_LIMIT);
       const castText = threadParts[0];
 
       // Prepare cast data (for scheduled path)
