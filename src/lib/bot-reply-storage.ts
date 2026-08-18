@@ -56,6 +56,9 @@ async function ensureTable(): Promise<void> {
 /**
  * Check whether the bot has already replied to a given parent cast hash.
  * Uses the UNIQUE constraint on bot_replies.parent_hash.
+ *
+ * FAIL-CLOSED: On DB error, returns true (already replied) to prevent
+ * duplicate replies when the database is unreachable.
  */
 export async function hasRepliedTo(parentHash: string): Promise<boolean> {
   try {
@@ -67,15 +70,19 @@ export async function hasRepliedTo(parentHash: string): Promise<boolean> {
     );
     return rows.length > 0;
   } catch (err) {
-    console.error('[bot-reply-storage] Error checking reply:', err);
-    // Fail open: allow reply if DB is unreachable (conservative)
-    return false;
+    console.error('[bot-reply-storage] Error checking reply (fail-closed):', err);
+    return true; // Assume already replied to prevent spam
   }
 }
 
 /**
  * Check whether an array of tracking keys (cast_hash, parent_hash, root_parent_url)
  * has ANY existing reply. Returns the first matching key or null.
+ *
+ * FAIL-CLOSED: On DB error, returns the string '__DB_ERROR__' (truthy) so
+ * callers treat it as "already replied" and skip. This prevents the bot from
+ * re-replying to the same cast on every cron run when the DB is unreachable.
+ * Missing a mention is better than spamming duplicate replies.
  */
 export async function hasRepliedToAny(trackingKeys: string[]): Promise<string | null> {
   try {
@@ -88,8 +95,8 @@ export async function hasRepliedToAny(trackingKeys: string[]): Promise<string | 
     );
     return rows.length > 0 ? rows[0].parent_hash : null;
   } catch (err) {
-    console.error('[bot-reply-storage] Error checking replies:', err);
-    return null;
+    console.error('[bot-reply-storage] Error checking replies (fail-closed):', err);
+    return '__DB_ERROR__';
   }
 }
 

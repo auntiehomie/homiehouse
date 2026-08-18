@@ -323,8 +323,15 @@ export async function GET(request: NextRequest) {
         });
         repliedCount++;
       } catch (error: any) {
-        // Don't blacklist on error — let next cron run retry
+        // Record the attempt even on failure to prevent infinite retry loops.
+        // The previous code said "Don't blacklist on error — let next cron run retry"
+        // which caused the bot to re-reply to the same cast every 5 minutes forever.
         console.error(`[agent/mention] FAILED reply to ${castHash}:`, error?.message);
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: 'error-no-reply',
+          commandType: 'mention',
+        }).catch(() => {});
       }
     }
 

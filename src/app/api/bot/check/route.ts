@@ -282,9 +282,9 @@ export async function GET(request: NextRequest) {
       
       // Create multiple tracking keys
       const trackingKeys = [
-        `cast_${castHash}`,
-        `parent_${parentHash}`,
-        `root_${rootParentHash}`
+        `hl_cast_${castHash}`,
+        `hl_parent_${parentHash}`,
+        `hl_root_${rootParentHash}`,
       ];
       
       console.log(`Processing: cast=${castHash}, parent=${parentHash}, root=${rootParentHash}`);
