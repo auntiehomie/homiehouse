@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import OpenAI from 'openai';
-import { fetchNotifications, fetchCast, searchCasts } from '@/lib/hypersnap';
+import { fetchNotifications, fetchCast, fetchCastReplies, searchCasts } from '@/lib/hypersnap';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
@@ -258,23 +258,31 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // Confirm no existing in-thread reply
+      // ─── HUB-BACKED DEDUP: Check the actual Farcaster thread for existing replies ───
+      // This is the source-of-truth check. The DB cache (hasRepliedToAny) is a
+      // secondary fast-path; this hub check catches cases where the DB was
+      // wiped, cold-started, or out of sync.
+      //
+      // We use fetchCastReplies (feed filter by parent_hash) instead of
+      // fetchCast because Hypersnap's /v2/farcaster/cast endpoint does NOT
+      // return direct_replies (that was a Neynar-specific field). Without
+      // this fix, the old code always saw an empty array and proceeded to
+      // reply again, causing duplicate replies every cron run.
       try {
-        const castData = await fetchCast(parentHash);
-        const parentCast = castData?.data?.cast ?? castData?.cast;
-        const directReplies: any[] = parentCast?.direct_replies ?? [];
-        const botAlreadyReplied = directReplies.some(
+        const repliesData = await fetchCastReplies(castHash);
+        const threadReplies: any[] = repliesData?.casts ?? repliesData?.data?.casts ?? [];
+        const botAlreadyReplied = threadReplies.some(
           (r: any) => (r.author?.fid ?? r.fid) === HOMIEHOUSELOL_FID
         );
         if (botAlreadyReplied) {
+          console.log(`[agent/mention] skip: bot already replied in thread (found via hub)`);
           await recordReplyBatch({ trackingKeys, replyHash: 'already-replied', commandType: 'mention' });
           continue;
         }
       } catch (fetchErr: any) {
         // FAIL-CLOSED: If we can't verify whether we already replied, skip.
-        // Previously this proceeded to reply, which caused duplicate replies
-        // when the Pinata/hypersnap API was temporarily unavailable.
-        console.warn(`[agent/mention] Could not fetch cast ${parentHash} to check for existing replies — skipping to prevent duplicates:`, fetchErr?.message);
+        // Proceeding would risk duplicate replies when the hub API is unavailable.
+        console.warn(`[agent/mention] Could not fetch replies for ${castHash} — skipping to prevent duplicates:`, fetchErr?.message);
         await recordReplyBatch({
           trackingKeys,
           replyHash: 'fetch-failed-skip',

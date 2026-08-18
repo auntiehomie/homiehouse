@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getDb } from '@/lib/db';
-import { fetchNotifications, fetchCast } from '@/lib/hypersnap';
+import { fetchNotifications, fetchCast, fetchCastReplies } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
@@ -297,29 +297,27 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        logger.info(`Checking if already replied to parent ${parentHash}`);
+        logger.info(`Checking hub for existing bot replies to ${castHash}`);
         
-        // Fetch the parent cast via Pinata to check if bot already replied
-        const castData = await fetchCast(parentHash);
-        // Pinata: { data: { cast: { ..., direct_replies: [...] } } }
-        const parentCast = castData?.data?.cast ?? castData?.cast;
+        // Query the actual Farcaster thread for existing replies from the bot.
+        // Uses fetchCastReplies (feed filter by parent_hash) because Hypersnap's
+        // /v2/farcaster/cast endpoint does NOT return direct_replies.
+        const repliesData = await fetchCastReplies(castHash);
+        const threadReplies: any[] = repliesData?.casts ?? repliesData?.data?.casts ?? [];
         
-        // Check direct_replies for existing bot reply
-        const directReplies: any[] = parentCast?.direct_replies ?? [];
-        
-        const botAlreadyReplied = directReplies.some(
+        const botAlreadyReplied = threadReplies.some(
           (reply: any) => {
             const replyFid = reply.author?.fid ?? reply.fid;
             const didReply = replyFid === BOT_FID;
             if (didReply) {
-              console.log(`Found existing bot reply to parent ${parentHash}`);
+              console.log(`Found existing bot reply in thread for ${castHash}`);
             }
             return didReply;
           }
         );
 
         if (botAlreadyReplied) {
-          logger.info(`Already replied to parent ${parentHash}, recording in DB and skipping`);
+          logger.info(`Already replied in thread for ${castHash}, recording in DB and skipping`);
           await recordReplyBatch({
             trackingKeys,
             replyHash: 'already-replied',
@@ -328,9 +326,16 @@ export async function GET(request: NextRequest) {
           continue;
         }
         
-        logger.info(`No existing reply found for parent ${parentHash}, proceeding to reply`);
+        logger.info(`No existing reply found in thread for ${castHash}, proceeding to reply`);
       } catch (error) {
-        logger.warn(`Could not fetch cast ${parentHash} to check for existing replies — proceeding`);
+        // FAIL-CLOSED: skip if we can't verify, to prevent duplicate replies
+        logger.warn(`Could not fetch replies for ${castHash} — skipping to prevent duplicates`);
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: 'fetch-failed-skip',
+          commandType: 'mention',
+        }).catch(() => {});
+        continue;
       }
 
       try {
