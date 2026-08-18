@@ -268,9 +268,17 @@ export async function GET(request: NextRequest) {
           await recordReplyBatch({ trackingKeys, replyHash: 'already-replied', commandType: 'mention' });
           continue;
         }
-      } catch {
-        // fetchCast failed — proceed to reply anyway rather than silently skipping
-        console.warn(`[agent/mention] Could not fetch cast ${parentHash} to check for existing replies — proceeding`);
+      } catch (fetchErr: any) {
+        // FAIL-CLOSED: If we can't verify whether we already replied, skip.
+        // Previously this proceeded to reply, which caused duplicate replies
+        // when the Pinata/hypersnap API was temporarily unavailable.
+        console.warn(`[agent/mention] Could not fetch cast ${parentHash} to check for existing replies — skipping to prevent duplicates:`, fetchErr?.message);
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: 'fetch-failed-skip',
+          commandType: 'mention',
+        }).catch(() => {});
+        continue;
       }
 
       try {
@@ -282,6 +290,17 @@ export async function GET(request: NextRequest) {
         const userContext = authorFid ? await buildUserMemoryContext(authorFid) : '';
         const reply = await generateReply(cast.text || '', authorUsername, memoryContext, threadContext, userContext);
 
+        // RECORD BEFORE POSTING: Insert dedup records BEFORE publishCast so that
+        // if publishing succeeds but a subsequent step (savePost, recordMention,
+        // learnFromInteraction) throws, the dedup entry already exists and
+        // prevents the next cron run from re-replying to the same cast.
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: 'pending',
+          commandType: 'mention',
+          replyText: reply,
+        });
+
         const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
         console.error(`[agent/mention] ATTEMPTING reply to @${authorUsername} (cast ${castHash.slice(0, 10)}): "${reply.slice(0, 60)}"`);
         const { castHash: replyHash } = await publishCast({
@@ -292,35 +311,35 @@ export async function GET(request: NextRequest) {
           ...(signerKey ? { signerPrivateKey: signerKey } : {}),
         });
 
-        // Persist reply to memory
+        // Update the dedup record with the actual reply hash (best effort).
+        // ON CONFLICT DO UPDATE in recordReply ensures this overwrites 'pending'.
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash,
+          commandType: 'mention',
+          replyText: reply,
+        }).catch(() => {});
+
+        // Persist reply to memory (best-effort — reply already posted)
         await savePost({
           fid: HOMIEHOUSELOL_FID,
           castHash: replyHash,
           text: reply,
           source: 'reply',
           topic: `reply to @${authorUsername}`,
-        });
+        }).catch(() => {});
 
-        // Learn from this interaction: bump this user's mention count, and fold
-        // what they said + how the agent replied into their rolling profile
-        // summary. Best-effort — never blocks the reply that already went out.
         if (authorFid) {
-          await recordMention(authorFid, authorUsername);
+          await recordMention(authorFid, authorUsername).catch(() => {});
           await learnFromInteraction({
             fid: authorFid,
             username: authorUsername,
             userMessage: cast.text || '',
             agentReply: reply,
-          });
+          }).catch(() => {});
         }
 
         console.error(`[agent/mention] SUCCESS reply to @${authorUsername} replyHash=${replyHash}`);
-        await recordReplyBatch({
-          trackingKeys,
-          replyHash,
-          commandType: 'mention',
-          replyText: reply,
-        });
         repliedCount++;
       } catch (error: any) {
         // Record the attempt even on failure to prevent infinite retry loops.

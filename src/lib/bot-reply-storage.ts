@@ -116,7 +116,7 @@ export async function recordReply(params: {
     await db.query(
       `INSERT INTO bot_replies (parent_hash, reply_hash, command_type, reply_text)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (parent_hash) DO NOTHING`,
+       ON CONFLICT (parent_hash) DO UPDATE SET reply_hash = EXCLUDED.reply_hash, reply_text = EXCLUDED.reply_text, command_type = EXCLUDED.command_type`,
       [
         params.parentHash,
         params.replyHash,
