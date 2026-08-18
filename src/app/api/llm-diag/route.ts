@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLLMProviders } from '@/lib/llm';
 
-export const maxDuration = 90;
+export const maxDuration = 30;
 
 export async function GET(_req: NextRequest) {
   const providers = getLLMProviders();
@@ -9,24 +9,32 @@ export async function GET(_req: NextRequest) {
     configured: providers.map(p => p.name).join(',') || 'none',
   };
 
-  for (const p of providers) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
-    try {
-      const response = await p.client.chat.completions.create(
-        {
-          model: p.model,
-          messages: [{ role: 'user', content: 'Reply with exactly: OK' }],
-          max_tokens: 10,
-        },
-        { signal: controller.signal },
-      );
-      clearTimeout(timer);
-      results[p.name] = `OK: ${response.choices[0]?.message?.content?.trim()}`;
-    } catch (err: any) {
-      clearTimeout(timer);
-      results[p.name] = `FAIL: ${err?.message?.slice(0, 200)}`;
-    }
+  // Test all providers in PARALLEL with 5s timeout each
+  // Sequential with 20s timeout = 120s total, way over Vercel's 60s limit
+  const tests = await Promise.all(
+    providers.map(async (p) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await p.client.chat.completions.create(
+          {
+            model: p.model,
+            messages: [{ role: 'user', content: 'Reply with exactly: OK' }],
+            max_tokens: 10,
+          },
+          { signal: controller.signal },
+        );
+        clearTimeout(timer);
+        return [p.name, `OK: ${response.choices[0]?.message?.content?.trim()}`] as const;
+      } catch (err: any) {
+        clearTimeout(timer);
+        return [p.name, `FAIL: ${err?.message?.slice(0, 200)}`] as const;
+      }
+    })
+  );
+
+  for (const [name, status] of tests) {
+    results[name] = status;
   }
 
   return NextResponse.json(results);
