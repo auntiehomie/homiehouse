@@ -7,7 +7,7 @@
  * Those stubs throw descriptive errors pointing to the proper implementation path.
  *
  * Primary node:  NEXT_PUBLIC_HYPERSNAP_URL  (default: Hypersnap Public — haatz.quilibrium.com)
- * Fallback node: HYPERSNAP_FALLBACK_URL     (default: Ardea/Arca   — ardea.arcabot.ai)
+ * Fallback node: HYPERSNAP_FALLBACK_URL     (default: self-hosted proxy on droplet)
  */
 
 const HYPERSNAP_BASE =
@@ -17,7 +17,7 @@ const HYPERSNAP_BASE =
 /** Ardea/Arca — second Hypersnap node, same API surface. Used when primary is slow/unavailable. */
 const HYPERSNAP_FALLBACK =
   (typeof process !== 'undefined' && process.env.HYPERSNAP_FALLBACK_URL) ||
-  'https://ardea.arcabot.ai';
+  'http://161.35.52.192:3100';
 
 // ─── Generic fetch ──────────────────────────────────────────────────────────
 
