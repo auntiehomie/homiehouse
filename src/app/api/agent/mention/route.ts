@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import OpenAI from 'openai';
-import { fetchNotifications, fetchCast, fetchCastReplies, fetchCastConversation, searchCasts } from '@/lib/hypersnap';
+import { fetchNotifications, fetchCast, fetchCastConversation, fetchCastsByFid, hasBotRepliedToCast, searchCasts } from '@/lib/hypersnap';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
@@ -258,39 +258,36 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      // ─── HUB-BACKED DEDUP: Check the actual Farcaster thread for existing replies ───
-      // This is the source-of-truth check. The DB cache (hasRepliedToAny) is a
-      // secondary fast-path; this hub check catches cases where the DB was
-      // wiped, cold-started, or out of sync.
-      //
-      // We use fetchCastReplies (feed filter by parent_hash) instead of
-      // fetchCast because Hypersnap's /v2/farcaster/cast endpoint does NOT
-      // return direct_replies (Hypersnap doesn't support that field). Without
-      // this fix, the old code always saw an empty array and proceeded to
-      // reply again, causing duplicate replies every cron run.
-      // ─── HUB-BACKED DEDUP: Check the actual Farcaster thread for existing replies ───
-      // Two-method check: primary via fetchCastReplies (feed filter),
-      // secondary via fetchCastConversation (conversation endpoint).
-      // If BOTH methods fail, fail-closed (skip) to prevent duplicates.
+      // ─── RACE CONDITION FIX: Record 'pending' in DB BEFORE any network/LLM calls ───
+      // This prevents overlapping cron invocations from both passing the DB check
+      // and posting duplicate replies. The 'pending' entry is overwritten with
+      // the actual reply hash after posting succeeds.
+      await recordReplyBatch({
+        trackingKeys,
+        replyHash: 'pending',
+        commandType: 'mention',
+      }).catch(() => {});
+
+      // ─── HUB-BACKED DEDUP: Check bot's recent casts for a reply to this cast ───
+      // Uses fetchCastsByFid (fids parameter) which IS supported by Hypersnap,
+      // unlike the old parent_hash filter which returned errors (causing the
+      // bot to think no replies existed and re-post every cron run).
+      // Secondary check via fetchCastConversation as backup.
       let botAlreadyReplied = false;
       let hubCheckSucceeded = false;
 
-      // Method 1: Feed filter by parent_hash
+      // Method 1: Fetch bot's recent casts via fids, check parent_hash
       try {
-        const repliesData = await fetchCastReplies(castHash);
-        const threadReplies: any[] = repliesData?.casts ?? repliesData?.data?.casts ?? repliesData?.result ?? [];
-        botAlreadyReplied = threadReplies.some(
-          (r: any) => (r.author?.fid ?? r.fid) === HOMIEHOUSELOL_FID
-        );
+        botAlreadyReplied = await hasBotRepliedToCast(HOMIEHOUSELOL_FID, castHash);
         hubCheckSucceeded = true;
         if (botAlreadyReplied) {
-          console.log(`[agent/mention] skip: bot already replied in thread (found via feed filter)`);
+          console.log(`[agent/mention] skip: bot already replied (found via fids feed)`);
         }
       } catch (fetchErr: any) {
-        console.warn(`[agent/mention] fetchCastReplies failed for ${castHash}:`, fetchErr?.message);
+        console.warn(`[agent/mention] hasBotRepliedToCast failed for ${castHash}:`, fetchErr?.message);
       }
 
-      // Method 2: Conversation endpoint (if Method 1 didn't find a reply)
+      // Method 2: Conversation endpoint (backup if Method 1 didn't find a reply)
       if (!botAlreadyReplied) {
         try {
           const convData = await fetchCastConversation(castHash);
@@ -304,7 +301,7 @@ export async function GET(request: NextRequest) {
             );
             hubCheckSucceeded = true;
             if (botAlreadyReplied) {
-              console.log(`[agent/mention] skip: bot already replied in thread (found via conversation)`);
+              console.log(`[agent/mention] skip: bot already replied (found via conversation)`);
             }
           }
         } catch (convErr: any) {
@@ -319,6 +316,7 @@ export async function GET(request: NextRequest) {
 
       if (!hubCheckSucceeded) {
         // FAIL-CLOSED: Both hub methods failed — skip to prevent duplicates.
+        // The DB has a 'pending' entry, so the next run will also skip this cast.
         console.warn(`[agent/mention] Both hub dedup methods failed for ${castHash} — skipping to prevent duplicates`);
         await recordReplyBatch({
           trackingKeys,
@@ -350,16 +348,14 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        // RECORD BEFORE POSTING: Insert dedup records BEFORE publishCast so that
-        // if publishing succeeds but a subsequent step (savePost, recordMention,
-        // learnFromInteraction) throws, the dedup entry already exists and
-        // prevents the next cron run from re-replying to the same cast.
+        // Dedup 'pending' entry was already recorded before the LLM call.
+        // Now update it with the actual reply text before posting.
         await recordReplyBatch({
           trackingKeys,
           replyHash: 'pending',
           commandType: 'mention',
           replyText: reply,
-        });
+        }).catch(() => {});
 
         const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
         console.error(`[agent/mention] ATTEMPTING reply to @${authorUsername} (cast ${castHash.slice(0, 10)}): "${reply.slice(0, 60)}"`);

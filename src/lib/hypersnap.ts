@@ -436,34 +436,47 @@ export async function fetchCast(hash: string): Promise<any> {
  * Fetch direct replies to a cast.
  * GET /v2/farcaster/feed?feed_type=filter&filter_type=parent_hash&parent_hash=:hash
  */
-export async function fetchCastReplies(hash: string, limit = 50): Promise<any> {
+/**
+ * Fetch recent casts by a specific FID.
+ * GET /v2/farcaster/feed?feed_type=filter&fids=:fid&limit=:limit
+ *
+ * This is the correct way to query casts by author on Hypersnap nodes —
+ * the `parent_hash` filter_type is NOT supported, but `fids` is required.
+ * The response includes `parent_hash` for reply casts (type === 'cast-reply').
+ */
+export async function fetchCastsByFid(fid: number, limit = 50): Promise<any[]> {
   const qs = new URLSearchParams({
     feed_type: 'filter',
-    filter_type: 'parent_hash',
-    parent_hash: hash,
+    fids: String(fid),
     limit: String(limit),
   });
   const endpoint = `/v2/farcaster/feed?${qs.toString()}`;
 
-  // 1. Primary Hypersnap node
   try {
     const data = await hypersnapFetch(endpoint);
-    // Return even if casts is empty — an empty array is a valid "no replies"
-    // response, distinct from an error.
-    return data;
-  } catch (primaryErr: any) {
-    // 2. Fallback node — another Hypersnap instance may support parent_hash
-    // filtering even if the primary doesn't.
+    return data?.casts ?? [];
+  } catch {
+    // Try fallback node
     const fallback = await fallbackFetch(endpoint);
-    if (fallback !== null) return fallback;
-
-    // 3. Both nodes failed — THROW so callers can fail-closed.
-    // Returning { casts: [] } here would make the caller think there are
-    // no replies and proceed to post, causing duplicate replies.
-    throw new Error(
-      `fetchCastReplies: both nodes failed for ${hash}: ${primaryErr?.message}`
-    );
+    if (fallback !== null) return fallback?.casts ?? [];
+    throw new Error(`fetchCastsByFid: both nodes failed for fid=${fid}`);
   }
+}
+
+/**
+ * Check if a bot (by FID) has already replied to a specific cast.
+ * Fetches the bot's recent casts and checks for parent_hash matches.
+ *
+ * Returns true if the bot has a cast with parent_hash === castHash.
+ * Throws on API error so callers can fail-closed.
+ */
+export async function hasBotRepliedToCast(botFid: number, castHash: string): Promise<boolean> {
+  const casts = await fetchCastsByFid(botFid, 50);
+  return casts.some(
+    (c: any) =>
+      c.parent_hash === castHash ||
+      c.parent_url === castHash
+  );
 }
 
 /**
