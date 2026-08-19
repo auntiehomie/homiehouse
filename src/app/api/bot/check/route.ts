@@ -215,7 +215,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
   try {
     const { message } = await llmChat({
       messages,
-      maxTokens: 150,
+      maxTokens: 400,
       temperature: 0.8,
       vision: hasImage,
     });

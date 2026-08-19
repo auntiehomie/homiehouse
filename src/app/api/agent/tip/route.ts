@@ -107,7 +107,7 @@ async function writePost(system: string, instruction: string): Promise<string> {
       const model = process.env.AGENT_POST_MODEL || 'claude-haiku-4-5-20251001';
       const res = await anthropic.messages.create({
         model,
-        max_tokens: 160,
+        max_tokens: 400,
         temperature: 0.85,
         system,
         messages: [{ role: 'user', content: instruction }],
@@ -125,7 +125,7 @@ async function writePost(system: string, instruction: string): Promise<string> {
       { role: 'system', content: system },
       { role: 'user', content: instruction },
     ],
-    maxTokens: 160,
+    maxTokens: 500,
     temperature: 0.85,
   });
   return cleanPost(message.content || '');
