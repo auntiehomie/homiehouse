@@ -134,6 +134,13 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
       clearTimeout(timer);
       const message = response.choices[0]?.message;
       if (!message) throw new Error('empty response');
+      // Some reasoning models (e.g. GLM 5.2) return content in reasoning fields
+      // with undefined/null in the standard content field. Treat as failure so
+      // the fallback chain continues to the next provider.
+      const hasContent = message.content ||
+        (message as any)?.tool_calls?.length ||
+        (message as any)?.reasoning;
+      if (!hasContent) throw new Error('empty content (reasoning model returned no text)');
       return { message, provider: p.name };
     } catch (err: any) {
       clearTimeout(timer);

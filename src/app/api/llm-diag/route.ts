@@ -9,12 +9,12 @@ export async function GET(_req: NextRequest) {
     configured: providers.map(p => p.name).join(',') || 'none',
   };
 
-  // Test all providers in PARALLEL with 5s timeout each
-  // Sequential with 20s timeout = 120s total, way over Vercel's 60s limit
+  // Test all providers in PARALLEL with 10s timeout each
+  // Parallel so total wait = max 10s, not sum of all providers
   const tests = await Promise.all(
     providers.map(async (p) => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
+      const timer = setTimeout(() => controller.abort(), 10000);
       try {
         const response = await p.client.chat.completions.create(
           {
