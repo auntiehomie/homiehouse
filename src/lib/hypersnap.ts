@@ -443,11 +443,26 @@ export async function fetchCastReplies(hash: string, limit = 50): Promise<any> {
     parent_hash: hash,
     limit: String(limit),
   });
+  const endpoint = `/v2/farcaster/feed?${qs.toString()}`;
+
+  // 1. Primary Hypersnap node
   try {
-    return await hypersnapFetch(`/v2/farcaster/feed?${qs.toString()}`);
-  } catch {
-    // Self-hosted nodes often don't support parent_hash filtering
-    return { casts: [] };
+    const data = await hypersnapFetch(endpoint);
+    // Return even if casts is empty — an empty array is a valid "no replies"
+    // response, distinct from an error.
+    return data;
+  } catch (primaryErr: any) {
+    // 2. Fallback node — another Hypersnap instance may support parent_hash
+    // filtering even if the primary doesn't.
+    const fallback = await fallbackFetch(endpoint);
+    if (fallback !== null) return fallback;
+
+    // 3. Both nodes failed — THROW so callers can fail-closed.
+    // Returning { casts: [] } here would make the caller think there are
+    // no replies and proceed to post, causing duplicate replies.
+    throw new Error(
+      `fetchCastReplies: both nodes failed for ${hash}: ${primaryErr?.message}`
+    );
   }
 }
 

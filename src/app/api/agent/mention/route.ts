@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import OpenAI from 'openai';
-import { fetchNotifications, fetchCast, fetchCastReplies, searchCasts } from '@/lib/hypersnap';
+import { fetchNotifications, fetchCast, fetchCastReplies, fetchCastConversation, searchCasts } from '@/lib/hypersnap';
 import { getTokenData, formatTokenDisplay } from '@/lib/token-data';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
@@ -268,24 +268,61 @@ export async function GET(request: NextRequest) {
       // return direct_replies (Hypersnap doesn't support that field). Without
       // this fix, the old code always saw an empty array and proceeded to
       // reply again, causing duplicate replies every cron run.
+      // ─── HUB-BACKED DEDUP: Check the actual Farcaster thread for existing replies ───
+      // Two-method check: primary via fetchCastReplies (feed filter),
+      // secondary via fetchCastConversation (conversation endpoint).
+      // If BOTH methods fail, fail-closed (skip) to prevent duplicates.
+      let botAlreadyReplied = false;
+      let hubCheckSucceeded = false;
+
+      // Method 1: Feed filter by parent_hash
       try {
         const repliesData = await fetchCastReplies(castHash);
-        const threadReplies: any[] = repliesData?.casts ?? repliesData?.data?.casts ?? [];
-        const botAlreadyReplied = threadReplies.some(
+        const threadReplies: any[] = repliesData?.casts ?? repliesData?.data?.casts ?? repliesData?.result ?? [];
+        botAlreadyReplied = threadReplies.some(
           (r: any) => (r.author?.fid ?? r.fid) === HOMIEHOUSELOL_FID
         );
+        hubCheckSucceeded = true;
         if (botAlreadyReplied) {
-          console.log(`[agent/mention] skip: bot already replied in thread (found via hub)`);
-          await recordReplyBatch({ trackingKeys, replyHash: 'already-replied', commandType: 'mention' });
-          continue;
+          console.log(`[agent/mention] skip: bot already replied in thread (found via feed filter)`);
         }
       } catch (fetchErr: any) {
-        // FAIL-CLOSED: If we can't verify whether we already replied, skip.
-        // Proceeding would risk duplicate replies when the hub API is unavailable.
-        console.warn(`[agent/mention] Could not fetch replies for ${castHash} — skipping to prevent duplicates:`, fetchErr?.message);
+        console.warn(`[agent/mention] fetchCastReplies failed for ${castHash}:`, fetchErr?.message);
+      }
+
+      // Method 2: Conversation endpoint (if Method 1 didn't find a reply)
+      if (!botAlreadyReplied) {
+        try {
+          const convData = await fetchCastConversation(castHash);
+          const directReplies: any[] =
+            convData?.conversation?.cast?.direct_replies ??
+            convData?.data?.conversation?.cast?.direct_replies ??
+            [];
+          if (directReplies.length > 0) {
+            botAlreadyReplied = directReplies.some(
+              (r: any) => (r.author?.fid ?? r.fid) === HOMIEHOUSELOL_FID
+            );
+            hubCheckSucceeded = true;
+            if (botAlreadyReplied) {
+              console.log(`[agent/mention] skip: bot already replied in thread (found via conversation)`);
+            }
+          }
+        } catch (convErr: any) {
+          console.warn(`[agent/mention] fetchCastConversation failed for ${castHash}:`, convErr?.message);
+        }
+      }
+
+      if (botAlreadyReplied) {
+        await recordReplyBatch({ trackingKeys, replyHash: 'already-replied', commandType: 'mention' });
+        continue;
+      }
+
+      if (!hubCheckSucceeded) {
+        // FAIL-CLOSED: Both hub methods failed — skip to prevent duplicates.
+        console.warn(`[agent/mention] Both hub dedup methods failed for ${castHash} — skipping to prevent duplicates`);
         await recordReplyBatch({
           trackingKeys,
-          replyHash: 'fetch-failed-skip',
+          replyHash: 'hub-check-failed-skip',
           commandType: 'mention',
         }).catch(() => {});
         continue;
