@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const claims = await verifyPrivyAuth(request);
     
     const body = await request.json();
-    const { text, embeds, channelKey, parentUrl, parentCastHash, isQuoteCast, fid, signerPrivateKey } = body;
+    const { text, embeds, channelKey, parentUrl, parentCastHash, isQuoteCast, fid } = body;
     
     // Rate limit: 20 compose requests per minute per user
     const userId = claims?.userId || 'unknown';
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       parentCastHash: parentCastHash && !isQuoteCast ? parentCastHash : undefined,
       parentUrl: parentUrl || undefined,
       channelKey: channelKey || undefined,
-      signerPrivateKey: signerPrivateKey || undefined,
+      // Use app-managed signer only — never accept private keys from client
     });
 
     logger.success('Cast published successfully', { hash: result.castHash });

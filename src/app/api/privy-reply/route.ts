@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const claims = await verifyPrivyAuth(request);
     
     const body = await request.json();
-    const { text, parentHash, parentCastHash, fid, parentCastFid, signerPrivateKey } = body;
+    const { text, parentHash, parentCastHash, fid, parentCastFid } = body;
     
     // Rate limit: 20 replies per minute per user
     const userId = claims?.userId || 'unknown';
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       text: validatedText,
       fid: castFid,
       parentCastHash: validatedParentHash,
-      signerPrivateKey: signerPrivateKey || undefined,
+    // Use app-managed signer only — never accept private keys from client
     });
 
     logger.success('Reply published', { hash: result.castHash });
