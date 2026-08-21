@@ -15,12 +15,22 @@ export default function FeedClient() {
   const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useNeynarContext();
   const { fid: viewerFid } = useFarcasterAuth();
+  const [isPro, setIsPro] = useState(false);
 
   // Feed components consume viewerFid from useFarcasterAuth context directly;
   // the value is also available here for any feed-level logic in the future.
   void viewerFid;
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Check Pro status
+  useEffect(() => {
+    if (!viewerFid) return;
+    fetch(`/api/pro-status?fid=${viewerFid}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setIsPro(d.is_pro); })
+      .catch(() => {});
+  }, [viewerFid]);
 
   if (!mounted) {
     return (
@@ -56,6 +66,20 @@ export default function FeedClient() {
             />
           </div>
           <div className="flex items-center gap-2 ml-auto">
+            {isPro && (
+              <Link
+                href="/pro"
+                style={{
+                  padding: '3px 8px', borderRadius: 6,
+                  background: 'rgba(232,119,34,0.15)', border: '1px solid rgba(232,119,34,0.3)',
+                  fontSize: 11, fontWeight: 700, color: 'var(--accent)',
+                  textDecoration: 'none', whiteSpace: 'nowrap',
+                }}
+                title="HomieHouse Pro"
+              >
+                ⚡ Pro
+              </Link>
+            )}
             <Link href="/search" className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center hover:border-zinc-500 transition-colors" title="Search">
               <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

@@ -4,6 +4,7 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateLimit, validateFid } from '@/lib/validation';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
+import { sql } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/trending');
@@ -36,10 +37,38 @@ export async function GET(req: NextRequest) {
     });
 
     const casts = data?.casts || [];
-    logger.success('Trending casts fetched', { count: casts.length });
+
+    // Optionally inject a sponsored cast at position 3 (index 2)
+    let sponsored = null;
+    try {
+      const sponsoredRows = await sql`
+        SELECT id, sponsor_fid, cast_hash, impression_count, click_count, budget_remaining
+        FROM sponsored_casts
+        WHERE budget_remaining > 0
+        ORDER BY budget_remaining DESC, created_at DESC
+        LIMIT 1
+      `;
+      if (sponsoredRows.length > 0) {
+        sponsored = sponsoredRows[0];
+        // Increment impression count
+        await sql`
+          UPDATE sponsored_casts
+          SET impression_count = impression_count + 1
+          WHERE id = ${(sponsored as any).id}
+        `;
+      }
+    } catch (sponsorErr) {
+      // Non-critical — don't fail the whole trending response
+      logger.warn?.('Failed to fetch sponsored cast', sponsorErr);
+    }
+
+    logger.success('Trending casts fetched', { count: casts.length, sponsored: !!sponsored });
     logger.end();
 
-    return NextResponse.json({ data: casts }, { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' } });
+    return NextResponse.json(
+      { data: casts, sponsored },
+      { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' } }
+    );
   } catch (error: any) {
     logger.error('Failed to fetch trending', error);
     return handleApiError(error, 'GET /trending');

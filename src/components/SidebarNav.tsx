@@ -83,6 +83,21 @@ const NAV_ITEMS = [
     icon: <span className="text-lg leading-none" style={{ filter: 'grayscale(1)' }}>🫰</span>,
   },
   {
+    href: '/shop',
+    label: 'Shop',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/pro',
+    label: 'Pro',
+    icon: <span style={{ fontSize: 16, lineHeight: 1 }}>⚡</span>,
+  },
+  {
     href: '/settings',
     label: 'Settings',
     icon: (

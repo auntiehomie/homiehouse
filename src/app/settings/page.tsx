@@ -790,6 +790,19 @@ export default function SettingsPage() {
             {notifDenied && <p style={{ fontSize: 11, color: "var(--muted-on-dark)", margin: "5px 4px 0" }}>Open browser/OS settings to unblock.</p>}
           </div>
 
+          {/* Pro */}
+          <div style={{ marginBottom: 18 }}>
+            <SectionLabel>Upgrade</SectionLabel>
+            <Card>
+              <SettingRow
+                onClick={() => router.push("/pro")}
+                icon={<span style={{ fontSize: 16 }}>⚡</span>}
+                label="HomieHouse Pro"
+                sublabel="Unlimited AI, deeper research, priority routing — $5/mo"
+              />
+            </Card>
+          </div>
+
           {/* Wallet */}
           <div style={{ marginBottom: 18 }}>
             <SectionLabel>Wallet</SectionLabel>
