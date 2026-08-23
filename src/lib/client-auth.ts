@@ -1,7 +1,7 @@
 /**
  * client-auth — helper for client-side auth headers.
  *
- * Replaces Privy's getAccessToken() with signer-key-based auth.
+ * Provides Farcaster signer-key-based auth headers for authenticated API calls.
  *
  * Usage in client components:
  *   const headers = getAuthHeaders(); // or null if not authenticated

@@ -7,7 +7,7 @@
  * POST /api/signer (which uses APP_FID + APP_MNEMONIC to sign the Warpcast
  * key-registration request).  SignerInit stores the resulting private_key in
  * localStorage under `signer_<fid>`.  Once the user approves in Warpcast,
- * all write operations sign directly with that key — no Privy TEE dependency.
+ * all write operations sign directly with that key — no third-party TEE dependency.
  */
 
 import { useCallback, useEffect, useState } from 'react';

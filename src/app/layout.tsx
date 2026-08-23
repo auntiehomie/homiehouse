@@ -102,8 +102,8 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-// Privy auth context requires a live React tree and can't run in a static
-// build worker — force-dynamic prevents Next.js from attempting to
+// Farcaster auth context requires a live React tree and can't run in a
+// static build worker — force-dynamic prevents Next.js from attempting to
 // statically prerender any page through this layout.
 export const dynamic = 'force-dynamic';
 

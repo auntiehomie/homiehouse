@@ -14,7 +14,7 @@ export interface WalletState {
   isConnected: boolean;
   address: string | null;
   chainId: number | null;
-  provider: 'metamask' | 'walletconnect' | 'rainbowkit' | 'privy' | null;
+  provider: 'metamask' | 'walletconnect' | 'rainbowkit' | null;
   balance: string | null;
 }
 

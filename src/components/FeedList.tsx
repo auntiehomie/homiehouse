@@ -319,7 +319,7 @@ export default function FeedList({
     }
   }, []);
 
-  // Privy handles signer approval natively — no pending action polling needed
+  // Signer approval handled natively via Ed25519 — no polling needed
 
   useEffect(() => {
     let mounted = true;
@@ -1077,7 +1077,7 @@ export default function FeedList({
         );
       })}
 
-      {/* Signer approval handled by Privy — no modal needed */}
+      {/* Signer approval handled by Farcaster auth — no modal needed */}
 
       {/* Recast Modal */}
       {showRecastModal && (

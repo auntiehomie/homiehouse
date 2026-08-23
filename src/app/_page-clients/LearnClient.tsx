@@ -717,7 +717,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
 function LearnPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { fid: privyFid } = useFarcasterAuth();
+  const { fid: farcasterFid } = useFarcasterAuth();
 
 
   const [pageState, setPageState] = useState<PageState>('quiz');
@@ -781,15 +781,15 @@ function LearnPageContent() {
   // ─── Neon cross-device sync ───────────────────────────────────────────────
 
   const getFid = (): number | null => {
-    // Prefer the live Privy FID; fall back to localStorage for non-Privy sessions
-    if (privyFid) return privyFid;
+    // Prefer the live Farcaster FID; fall back to localStorage for non-Farcaster sessions
+    if (farcasterFid) return farcasterFid;
     try {
       const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
       return p?.fid ? Number(p.fid) : null;
     } catch { return null; }
   };
 
-  // Load from Neon whenever the Privy FID becomes available (fires after auth resolves,
+  // Load from Neon whenever the Farcaster FID becomes available (fires after auth resolves,
   // not just at mount — this is what makes cross-device sync work reliably).
   useEffect(() => {
     const fid = getFid();
@@ -810,9 +810,9 @@ function LearnPageContent() {
         if (typeof d.hh2_points === 'number') setHh2Points(d.hh2_points);
       })
       .catch(() => {});
-  // privyFid as dep: re-runs once Privy auth resolves and the FID becomes non-null
+  // farcasterFid as dep: re-runs once Farcaster auth resolves and the FID becomes non-null
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [privyFid]);
+  }, [farcasterFid]);
 
   // Load the leaderboard opt-in preference once on mount.
   useEffect(() => {
@@ -862,7 +862,7 @@ function LearnPageContent() {
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leaderboardEnabled, privyFid]);
+  }, [leaderboardEnabled, farcasterFid]);
 
   // "N people you follow are also on this track" — fetch the user's following
   // list, then ask how many of those fids have a learning_progress row on the
@@ -892,14 +892,14 @@ function LearnPageContent() {
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.track, privyFid]);
+  }, [plan?.track, farcasterFid]);
 
   // Debounced save: whenever plan or completedIds change, sync to Neon after 2s
   useEffect(() => {
     if (!plan) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
-      const fid = privyFid ?? getFid();
+      const fid = farcasterFid ?? getFid();
       if (!fid) return;
       const completions = (() => {
         try { return JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) ?? '{}'); } catch { return {}; }

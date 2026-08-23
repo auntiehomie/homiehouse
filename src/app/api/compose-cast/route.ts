@@ -1,1 +1,1 @@
-export { POST } from '../privy-compose/route';
+export { POST } from '../compose/route';

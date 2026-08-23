@@ -51,7 +51,7 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
         throw new Error('Could not find a Farcaster account for this input.');
       }
 
-      // Store in localStorage (same shape PrivyAuthSync was writing)
+      // Store in localStorage (same shape FarcasterAuthProvider expects)
       const hhProfile = {
         fid: profile.fid,
         username: profile.username || '',

@@ -2,9 +2,9 @@
  * Hypersnap — Farcaster read/write client replacing the Pinata Farcaster API.
  *
  * Read endpoints are unauthenticated GETs to /v2/farcaster/*.
- * Write endpoints (publishCast, publishReaction, deleteReaction) require the
- * Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient.
- * Those stubs throw descriptive errors pointing to the proper implementation path.
+ * Write operations use the app-managed Ed25519 signer keypair (see
+ * src/lib/farcaster-writes.ts). The stubs below throw descriptive errors
+ * pointing to the proper implementation path.
  *
  * Primary node:  NEXT_PUBLIC_HYPERSNAP_URL  (default: Hypersnap Public — haatz.quilibrium.com)
  * Fallback node: HYPERSNAP_FALLBACK_URL     (default: self-hosted proxy on droplet)
@@ -600,36 +600,35 @@ export async function getCastsByUsername(username: string, limit = 25): Promise<
 //
 // Farcaster writes require submitting signed MessageData protobuf messages to
 // a Hub. The old signer_uuid pattern was deprecated.
-// To implement writes, use the Privy embedded signer to obtain an Ed25519
-// keypair, then sign casts/reactions with @standard-crypto/farcaster-js
-// HubRestAPIClient (see src/lib/farcaster-writes.ts).
+// To implement writes, use the app-mnemonic Ed25519 keypair approach
+// (see src/lib/farcaster-writes.ts).
 
 /**
- * @deprecated Use the Privy embedded signer + @standard-crypto/farcaster-js
+ * @deprecated Use the app-mnemonic Ed25519 signer + @standard-crypto/farcaster-js
  * HubRestAPIClient to submit casts. See src/lib/farcaster-writes.ts.
  */
 export async function publishCast(_payload: any): Promise<any> {
   throw new Error(
-    'publishCast: Use the Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient to submit casts. See src/lib/farcaster-writes.ts'
+    'publishCast: Use the app-mnemonic Ed25519 signer + @standard-crypto/farcaster-js HubRestAPIClient to submit casts. See src/lib/farcaster-writes.ts'
   );
 }
 
 /**
- * @deprecated Use the Privy embedded signer + @standard-crypto/farcaster-js
+ * @deprecated Use the app-mnemonic Ed25519 signer + @standard-crypto/farcaster-js
  * HubRestAPIClient. See src/lib/farcaster-writes.ts.
  */
 export async function publishReaction(_payload: any): Promise<any> {
   throw new Error(
-    'publishReaction: Use the Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient. See src/lib/farcaster-writes.ts'
+    'publishReaction: Use the app-mnemonic Ed25519 signer + @standard-crypto/farcaster-js HubRestAPIClient. See src/lib/farcaster-writes.ts'
   );
 }
 
 /**
- * @deprecated Use the Privy embedded signer + @standard-crypto/farcaster-js
+ * @deprecated Use the app-mnemonic Ed25519 signer + @standard-crypto/farcaster-js
  * HubRestAPIClient. See src/lib/farcaster-writes.ts.
  */
 export async function deleteReaction(_payload: any): Promise<any> {
   throw new Error(
-    'deleteReaction: Use the Privy embedded signer + @standard-crypto/farcaster-js HubRestAPIClient. See src/lib/farcaster-writes.ts'
+    'deleteReaction: Use the app-mnemonic Ed25519 signer + @standard-crypto/farcaster-js HubRestAPIClient. See src/lib/farcaster-writes.ts'
   );
 }

@@ -284,7 +284,7 @@ export function encodeMessageEnvelope(input: {
   return w.bytes();
 }
 
-/** Signer interface — Privy's useFarcasterSigner satisfies this */
+/** Signer interface for Farcaster message signing */
 export interface FarcasterSigner {
   publicKey: Uint8Array;
   sign(hash: Uint8Array): Promise<Uint8Array>;

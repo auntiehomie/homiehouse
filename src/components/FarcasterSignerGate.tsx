@@ -12,7 +12,7 @@ interface FarcasterSignerGateProps {
 
 /**
  * FarcasterSignerGate — renders children only when the user has an active
- * Farcaster account linked via Privy. Privy manages the Ed25519 signer;
+ * Farcaster account linked via FarcasterAuthProvider. App manages the Ed25519 signer;
  * no Warpcast approval URL flow needed.
  */
 export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateProps) {

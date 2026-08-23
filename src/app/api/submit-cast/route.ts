@@ -6,8 +6,8 @@ const HYPERSNAP_BASE =
 
 /**
  * Server-side proxy for Farcaster hub submitMessage.
- * The client builds and signs the protobuf message using Privy's embedded
- * Farcaster signer (Quorum approach), then POSTs the raw bytes here.
+ * The client builds and signs the protobuf message using the app-managed
+ * Ed25519 signer key, then POSTs the raw bytes here.
  * We forward them to Hypersnap server-side to avoid CORS restrictions.
  */
 export async function POST(request: NextRequest) {

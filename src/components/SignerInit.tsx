@@ -4,7 +4,7 @@
  * SignerInit — creates and manages Farcaster signer keys.
  *
  * Reads FID from FarcasterAuthProvider (which sources from localStorage hh_profile
- * and/or Frame SDK context). No longer depends on Privy.
+ * and/or Frame SDK context). No longer depends on third-party auth providers.
  *
  * Listens for hh:request:signer events from Compose / WelcomeModal.
  */

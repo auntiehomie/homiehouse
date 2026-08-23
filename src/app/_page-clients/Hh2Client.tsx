@@ -63,7 +63,7 @@ const TOKENOMICS = [
 export default function Hh2Client() {
   const router = useRouter();
   const { fid: userFid } = useFarcasterAuth();
-  const [privyWalletAddress, setPrivyWalletAddress] = useState('');
+  const [storedWalletAddress, setStoredWalletAddress] = useState('');
 
   const [userPoints, setUserPoints] = useState<number | null>(null);
   const [claimable, setClaimable] = useState(0);
@@ -82,7 +82,7 @@ export default function Hh2Client() {
         const addresses = profile.verified_addresses?.eth_addresses || [];
         if (addresses.length > 0 && !walletAddress) {
           setWalletAddress(addresses[0]);
-          setPrivyWalletAddress(addresses[0]);
+          setStoredWalletAddress(addresses[0]);
         }
       } catch {}
     }
@@ -244,12 +244,12 @@ export default function Hh2Client() {
                         color: 'var(--text-on-dark)', outline: 'none',
                       }}
                     />
-                    {privyWalletAddress && walletAddress !== privyWalletAddress && (
+                    {storedWalletAddress && walletAddress !== storedWalletAddress && (
                       <button
-                        onClick={() => setWalletAddress(privyWalletAddress)}
+                        onClick={() => setWalletAddress(storedWalletAddress)}
                         style={{ marginTop: 6, fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
-                        Use my stored wallet ({privyWalletAddress.slice(0, 6)}…{privyWalletAddress.slice(-4)})
+                        Use my stored wallet ({storedWalletAddress.slice(0, 6)}…{storedWalletAddress.slice(-4)})
                       </button>
                     )}
                   </div>

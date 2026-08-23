@@ -3,7 +3,7 @@
  *
  * Auth model: the client sends `x-farcaster-fid` and `x-signer-key` headers.
  * The server verifies the signer key against the stored signer record.
- * This replaces the previous Privy-based auth.
+ * This provides Farcaster-native signer-key auth.
  */
 
 import { NextRequest } from 'next/server';
@@ -28,14 +28,14 @@ export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<n
   const signerKey = request.headers.get('x-signer-key');
 
   if (!fidHeader || !signerKey) {
-    // Check for old Bearer token format (Privy) for backward compat
+    // Check for old Bearer token format (backward compat)
     const authHeader = request.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      // Old Privy token — try to extract fid from it (backward compat for cron jobs)
+      // Legacy Bearer token — try to extract fid from it (backward compat for cron jobs)
       // For now, just throw — cron jobs should use CRON_SECRET instead
       throw new AuthError(
-        'Legacy Privy auth no longer supported. Use x-farcaster-fid + x-signer-key headers.',
+        'Legacy Bearer auth no longer supported. Use x-farcaster-fid + x-signer-key headers.',
         401,
         'LEGACY_AUTH_UNSUPPORTED'
       );
@@ -174,17 +174,3 @@ export function getOptionalAuth(request: NextRequest): string | null {
   }
 }
 
-// ── Deprecated / removed ────────────────────────────────────────────────────
-
-/**
- * verifyPrivyAuth is removed. Use verifyFarcasterSignerAuth instead.
- * This stub throws a descriptive error for any code that still references it.
- * @deprecated
- */
-export async function verifyPrivyAuth(_request: NextRequest): Promise<never> {
-  throw new AuthError(
-    'verifyPrivyAuth has been removed. Use verifyFarcasterSignerAuth with x-farcaster-fid + x-signer-key headers.',
-    500,
-    'DEPRECATED_AUTH'
-  );
-}

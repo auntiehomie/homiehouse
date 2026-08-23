@@ -2,7 +2,7 @@
 
 /**
  * NeynarProvider — legacy wrapper. Now just renders children.
- * The actual auth provider is PrivyAuthProvider in layout.tsx.
+ * Auth is handled by FarcasterAuthProvider in the layout..
  */
 
 export default function NeynarProvider({ children }: { children: React.ReactNode }) {

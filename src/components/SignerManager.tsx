@@ -12,7 +12,7 @@ export default function SignerManager() {
     setLoading(true);
     try {
       await requestSigner();
-      // Privy opens Warpcast approval flow natively; collapse after request initiated
+      // Warpcast approval flow opens natively; collapse after request initiated
       setExpanded(false);
     } catch (e: any) {
       console.error("Signer request failed:", e);

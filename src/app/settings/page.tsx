@@ -883,7 +883,7 @@ export default function SettingsPage() {
             </Card>
           </div>
 
-          {/* Sign Out — works with or without Privy */}
+          {/* Sign Out — clears Farcaster auth */}
           <div style={{ marginBottom: 18 }}>
             <Card>
                 <SettingRow

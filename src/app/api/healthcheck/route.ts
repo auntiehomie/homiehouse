@@ -16,7 +16,7 @@ export async function GET() {
       openai: !!process.env.OPENAI_API_KEY,
       anthropic: !!process.env.ANTHROPIC_API_KEY,
       supabase: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-      privy: !!process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+      farcaster: !!(process.env.APP_FID && process.env.APP_MNEMONIC),
     },
   });
 }

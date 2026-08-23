@@ -3,7 +3,7 @@
 /**
  * Compatibility shim: replaces `useNeynarContext` from @neynar/react.
  * Components that used Neynar's context now read from localStorage (hh_profile)
- * which is populated by Privy auth on login.
+ * which is populated by Farcaster auth on login.
  *
  * Usage: import { useNeynarContext } from '@/hooks/useNeynarCompat';
  */
@@ -89,7 +89,7 @@ export function useNeynarContext(): NeynarCompatContext {
     };
     window.addEventListener('storage', handleStorage);
 
-    // Listen for custom auth events dispatched by PrivyAuthSync
+    // Listen for custom auth events dispatched by FarcasterLogin
     const handleAuthChange = () => readProfile();
     window.addEventListener('hh:auth:changed', handleAuthChange);
 

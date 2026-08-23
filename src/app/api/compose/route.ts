@@ -7,7 +7,7 @@ import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
-  const logger = createApiLogger('/privy-compose');
+  const logger = createApiLogger('/compose');
   logger.start();
 
   try {
@@ -82,6 +82,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     logger.error('Failed to publish cast', error);
-    return handleApiError(error, 'POST /privy-compose');
+    return handleApiError(error, 'POST /compose');
   }
 }
