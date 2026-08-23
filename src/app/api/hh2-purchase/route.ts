@@ -62,7 +62,7 @@ async function getUserHH2Balance(userFid: number): Promise<number> {
     spent += ITEM_PRICES[row.item_id] ?? 0;
   }
 
-  return earned - spent;
+  return earned - claimed - spent;
 }
 
 // POST /api/hh2-purchase — deduct HH2 and grant the item
