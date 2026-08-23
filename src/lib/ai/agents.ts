@@ -459,7 +459,7 @@ When helping:
 - Explain WHY a change would improve the cast
 - Learn from user feedback to improve future suggestions`;
 
-    super('anthropic', systemPrompt);
+    super('free', systemPrompt);
   }
 
   async composeCast(
@@ -551,7 +551,7 @@ When analyzing casts:
       createGetCastsByUserTool()
     ];
 
-    super('openai', systemPrompt, tools);
+    super('free', systemPrompt, tools);
   }
 
   async analyzeCast(castOrMessage: string, metrics?: { likes?: number; recasts?: number; replies?: number }): Promise<string> {
@@ -653,7 +653,7 @@ Be accurate, cite what you know, and admit when you're not certain.`;
       createSearchTokensTool()
     ];
 
-    super('openai', systemPrompt, tools);
+    super('free', systemPrompt, tools);
   }
 
   async research(query: string, context?: string): Promise<string> {
