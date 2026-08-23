@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sql } from '@/lib/db';
+import { sql, getDb } from '@/lib/db';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
@@ -104,51 +104,79 @@ export async function POST(req: NextRequest) {
 
     const price = ITEM_PRICES[itemId];
 
-    // Check if user already owns this item (non-stackable items)
-    const existing = await sql`
-      SELECT id FROM hh2_purchases
-      WHERE user_fid = ${userFid} AND item_id = ${itemId}
-    `;
-    if (existing.length > 0) {
-      return NextResponse.json(
-        { ok: false, error: 'You already own this item' },
-        { status: 409 }
+    // Use a database transaction with advisory lock to prevent concurrent double-spending.
+    // pg_try_advisory_xact_lock returns true if lock acquired, false if already held.
+    const db = getDb();
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const lockRes = await client.query(
+        'SELECT pg_try_advisory_xact_lock($1)',
+        [userFid]
       );
-    }
+      if (!lockRes.rows[0]?.pg_try_advisory_xact_lock) {
+        await client.query('ROLLBACK');
+        return NextResponse.json(
+          { ok: false, error: 'Another purchase is in progress. Please try again.' },
+          { status: 409 }
+        );
+      }
 
-    // Check balance
-    const balance = await getUserHH2Balance(userFid);
-    logger.info('Balance check', { userFid, balance, price });
-
-    if (balance < price) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `Insufficient HH2 balance. You have ${balance} HH2, need ${price} HH2.`,
-          balance,
-          required: price,
-        },
-        { status: 402 }
+      // Re-check existing ownership inside the transaction
+      const existing = await client.query(
+        'SELECT id FROM hh2_purchases WHERE user_fid = $1 AND item_id = $2',
+        [userFid, itemId]
       );
+      if (existing.rows.length > 0) {
+        await client.query('COMMIT');
+        return NextResponse.json(
+          { ok: false, error: 'You already own this item' },
+          { status: 409 }
+        );
+      }
+
+      // Check balance
+      const balance = await getUserHH2Balance(userFid);
+      logger.info('Balance check', { userFid, balance, price });
+
+      if (balance < price) {
+        await client.query('COMMIT');
+        return NextResponse.json(
+          {
+            ok: false,
+            error: `Insufficient HH2 balance. You have ${balance} HH2, need ${price} HH2.`,
+            balance,
+            required: price,
+          },
+          { status: 402 }
+        );
+      }
+
+      // Record the purchase
+      await client.query(
+        'INSERT INTO hh2_purchases (user_fid, item_id) VALUES ($1, $2)',
+        [userFid, itemId]
+      );
+
+      await client.query('COMMIT');
+
+      const newBalance = balance - price;
+
+      logger.success('Purchase recorded', { userFid, itemId, price, newBalance });
+      logger.end();
+
+      return NextResponse.json({
+        ok: true,
+        item_id: itemId,
+        price,
+        balance_remaining: newBalance,
+      });
+    } catch (txErr: any) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
     }
-
-    // Record the purchase
-    await sql`
-      INSERT INTO hh2_purchases (user_fid, item_id)
-      VALUES (${userFid}, ${itemId})
-    `;
-
-    const newBalance = balance - price;
-
-    logger.success('Purchase recorded', { userFid, itemId, price, newBalance });
-    logger.end();
-
-    return NextResponse.json({
-      ok: true,
-      item_id: itemId,
-      price,
-      balance_remaining: newBalance,
-    });
   } catch (error: any) {
     logger.error('Purchase failed', error);
     return handleApiError(error, 'POST /hh2-purchase');
