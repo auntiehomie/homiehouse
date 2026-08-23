@@ -1,12 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useNeynarContext } from '@/hooks/useNeynarCompat';
+import FarcasterLogin from './FarcasterLogin';
 
 export default function NeynarSignIn() {
   const { signIn, signOut, isAuthenticated } = useFarcasterAuth();
   const { user } = useNeynarContext();
+  const [showLogin, setShowLogin] = useState(false);
 
   if (isAuthenticated && user && user.fid) {
     return (
@@ -42,11 +45,20 @@ export default function NeynarSignIn() {
   }
 
   return (
-    <button
-      onClick={async () => { if (user?.fid) await signIn(user.fid); }}
-      className="px-4 py-2 rounded-lg bg-white text-black font-semibold text-sm hover:bg-zinc-200 transition-colors shrink-0"
-    >
-      Sign in
-    </button>
+    <>
+      <button
+        onClick={() => setShowLogin(true)}
+        className="px-4 py-2 rounded-lg bg-white text-black font-semibold text-sm hover:bg-zinc-200 transition-colors shrink-0"
+      >
+        Sign in
+      </button>
+      {showLogin && (
+        <FarcasterLogin
+          modal
+          onDismiss={() => setShowLogin(false)}
+          onLogin={() => setShowLogin(false)}
+        />
+      )}
+    </>
   );
 }
