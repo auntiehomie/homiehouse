@@ -3,15 +3,19 @@ import { sql } from '@/lib/db';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
+import { verifyPrivyAuth, verifyFarcasterSigner } from '@/lib/auth';
 
 // GET /api/hh2-purchase?fid=123 — return owned item IDs
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(req: NextRequest) {
+  const claims = await verifyPrivyAuth(req);
   const { searchParams } = new URL(req.url);
   const userFid = Number(searchParams.get('fid'));
   if (!userFid || isNaN(userFid) || userFid <= 0) {
     return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
   }
+
+  // Verify the authenticated user owns this FID
+  verifyFarcasterSigner(claims, userFid);
 
   try {
     const rows = await sql`SELECT item_id FROM hh2_purchases WHERE user_fid = ${userFid}`;
@@ -71,6 +75,9 @@ export async function POST(req: NextRequest) {
   logger.start();
 
   try {
+    // Verify auth token
+    const claims = await verifyPrivyAuth(req);
+
     await enforceRateLimit({
       key: rateLimitKeyFromRequest(req),
       limit: 10,
@@ -91,6 +98,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Verify the authenticated user owns this FID
+    verifyFarcasterSigner(claims, userFid);
 
     const price = ITEM_PRICES[itemId];
 
