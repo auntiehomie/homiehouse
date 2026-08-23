@@ -63,7 +63,8 @@
     "viem": "^2.53.1",
     "wagmi": "^3.6.3",
     "web-push": "^3.6.7",
-    "zod": "^4.3.5"
+    "zod": "^4.3.5",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
