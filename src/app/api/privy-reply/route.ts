@@ -3,7 +3,7 @@ import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateHash } from '@/lib/validation';
-import { verifyPrivyAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { enforceRateLimit } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
@@ -11,20 +11,14 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
-    // Verify auth token
-    const claims = await verifyPrivyAuth(request);
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(request);
     
     const body = await request.json();
     const { text, parentHash, parentCastHash, fid, parentCastFid } = body;
     
     // Rate limit: 20 replies per minute per user
-    const userId = claims?.userId || 'unknown';
-    await enforceRateLimit({ key: `reply:${userId}`, limit: 20, windowSeconds: 60, label: 'reply' });
-    
-    // Verify signer ownership if a specific FID is provided
-    if (fid) {
-      verifyFarcasterSigner(claims, Number(fid));
-    }
+    await enforceRateLimit({ key: `reply:${authFid}`, limit: 20, windowSeconds: 60, label: 'reply' });
 
     // Support both parentHash and parentCastHash field names
     const resolvedParentHash = parentCastHash || parentHash;
@@ -33,7 +27,7 @@ export async function POST(request: NextRequest) {
     const validatedText = validateCastText(text);
     const validatedParentHash = validateHash(resolvedParentHash, 'parentHash');
 
-    const castFid = fid ? Number(fid) : 0;
+    const castFid = fid ? Number(fid) : authFid;
 
     logger.info('Publishing reply', {
       textLength: validatedText.length,
@@ -46,7 +40,6 @@ export async function POST(request: NextRequest) {
       text: validatedText,
       fid: castFid,
       parentCastHash: validatedParentHash,
-    // Use app-managed signer only — never accept private keys from client
     });
 
     logger.success('Reply published', { hash: result.castHash });

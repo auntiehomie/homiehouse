@@ -5,7 +5,7 @@ import { TooltipTrigger } from '@/lib/progressive-disclosure';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
 import { getEli5Mode } from '@/lib/eli5';
@@ -717,9 +717,8 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
 function LearnPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = usePrivy();
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const privyFid: number | null = farcasterAccount?.fid ? Number(farcasterAccount.fid) : null;
+  const { fid: privyFid } = useFarcasterAuth();
+
 
   const [pageState, setPageState] = useState<PageState>('quiz');
   const [activeTab, setActiveTab] = useState<LearnTab>('plan');

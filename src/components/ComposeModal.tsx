@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
-import { usePrivy } from "@privy-io/react-auth";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
+import { getAuthHeaders } from "@/lib/client-auth";
 import Image from "next/image";
 
 const FAB_HIDDEN_PATHS = ['/learn', '/compose', '/settings'];
@@ -42,10 +43,8 @@ function splitIntoThread(text: string, limit: number): string[] {
 export default function ComposeModal() {
   const pathname = usePathname();
   const hideFab = FAB_HIDDEN_PATHS.some(p => pathname === p || pathname?.startsWith(p + '/'));
-  const { user, getAccessToken } = usePrivy();
+  const { fid: userFid } = useFarcasterAuth();
   const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
-  const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
-  const userFid: number | null = farcasterAccount?.fid ?? null;
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -349,11 +348,11 @@ export default function ComposeModal() {
 
         body.scheduled_time = scheduledDate.toISOString();
         
-        const token = await getAccessToken();
+        const authHeaders = getAuthHeaders();
         console.log('[ComposeModal] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
         const res = await fetch("/api/schedule-cast", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(body),
         });
 

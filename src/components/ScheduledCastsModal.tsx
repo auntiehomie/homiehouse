@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { getAuthHeaders, getStoredFid } from "@/lib/client-auth";
 
 interface ScheduledCast {
   id: string;
@@ -16,20 +16,12 @@ export default function ScheduledCastsModal() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scheduledCasts, setScheduledCasts] = useState<ScheduledCast[]>([]);
-  const { getAccessToken } = usePrivy();
   const [userFid, setUserFid] = useState<number | null>(null);
 
   // Load user fid from stored profile
   useEffect(() => {
-    const storedProfile = localStorage.getItem("hh_profile");
-    if (storedProfile) {
-      try {
-        const profile = JSON.parse(storedProfile);
-        setUserFid(profile?.fid ?? null);
-      } catch {
-        // ignore
-      }
-    }
+    const storedFid = getStoredFid();
+    if (storedFid) setUserFid(storedFid);
   }, []);
 
   // Fetch scheduled casts when modal opens
@@ -57,9 +49,9 @@ export default function ScheduledCastsModal() {
 
     setLoading(true);
     try {
-      const token = await getAccessToken();
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`/api/schedule-cast?fid=${userFid}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders ? { ...authHeaders } : {},
       });
       const data = await res.json();
 
@@ -77,10 +69,10 @@ export default function ScheduledCastsModal() {
     if (!userFid) return;
 
     try {
-      const token = await getAccessToken();
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders ? { ...authHeaders } : {},
       });
 
       const data = await res.json();

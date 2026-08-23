@@ -3,19 +3,24 @@ import { sql, getDb } from '@/lib/db';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
-import { verifyPrivyAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
 
 // GET /api/hh2-purchase?fid=123 — return owned item IDs
 export async function GET(req: NextRequest) {
-  const claims = await verifyPrivyAuth(req);
+  const authFid = await verifyFarcasterSignerAuth(req);
   const { searchParams } = new URL(req.url);
   const userFid = Number(searchParams.get('fid'));
   if (!userFid || isNaN(userFid) || userFid <= 0) {
     return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
   }
 
-  // Verify the authenticated user owns this FID
-  verifyFarcasterSigner(claims, userFid);
+  // Verify the authenticated FID matches
+  if (authFid !== userFid) {
+    return NextResponse.json(
+      { ok: false, error: 'FID does not match authenticated user' },
+      { status: 403 }
+    );
+  }
 
   try {
     const rows = await sql`SELECT item_id FROM hh2_purchases WHERE user_fid = ${userFid}`;
@@ -52,12 +57,6 @@ async function getUserHH2Balance(userFid: number): Promise<number> {
   `;
   const claimed = Number(claimedRows[0]?.total ?? 0);
 
-  const spentRows = await sql`
-    SELECT COUNT(*) AS count FROM hh2_purchases WHERE user_fid = ${userFid}
-  `;
-  const spentCount = Number(spentRows[0]?.count ?? 0);
-  // Estimate spent = number of purchases * average price, but we need exact pricing.
-  // Better approach: sum actual prices from item lookups.
   const purchaseRows = await sql`
     SELECT item_id FROM hh2_purchases WHERE user_fid = ${userFid}
   `;
@@ -75,8 +74,8 @@ export async function POST(req: NextRequest) {
   logger.start();
 
   try {
-    // Verify auth token
-    const claims = await verifyPrivyAuth(req);
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
 
     await enforceRateLimit({
       key: rateLimitKeyFromRequest(req),
@@ -99,13 +98,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify the authenticated user owns this FID
-    verifyFarcasterSigner(claims, userFid);
+    // Verify the authenticated FID matches
+    if (authFid !== userFid) {
+      return NextResponse.json(
+        { ok: false, error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
+    }
 
     const price = ITEM_PRICES[itemId];
 
     // Use a database transaction with advisory lock to prevent concurrent double-spending.
-    // pg_try_advisory_xact_lock returns true if lock acquired, false if already held.
     const db = getDb();
     const client = await db.connect();
     try {

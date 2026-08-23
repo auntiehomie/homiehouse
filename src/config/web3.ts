@@ -54,30 +54,6 @@ export const walletConnectConfig = {
   },
 };
 
-// Privy Configuration
-// Set NEXT_PUBLIC_PRIVY_APP_ID in the environment; an empty fallback makes
-// missing configuration visible instead of silently using a dead app.
-export const privyConfig = {
-  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || '',
-  config: {
-    appearance: {
-      loginMethods: ['farcaster', 'wallet', 'email'] as ('farcaster' | 'wallet' | 'email')[],
-      theme: 'dark' as const,
-      accentColor: '#E87722' as `#${string}`,
-      logo: 'https://1481393129444737075.vercel.app/logo.png',
-    },
-    embeddedWallets: {
-      ethereum: {
-        // 'all-users' is required for Farcaster embedded signers:
-        // every Farcaster-logged-in user needs an embedded wallet before
-        // requestFarcasterSignerFromWarpcast() can be called.
-        createOnLogin: 'all-users' as const,
-        showWalletUIs: true,
-      },
-    },
-  },
-};
-
 // Piñata Configuration
 export const pinataConfig = {
   jwt: process.env.PINATA_JWT || '',
@@ -127,8 +103,7 @@ export const supportedChains = {
 // Environment validation
 export function validateWeb3Config(): void {
   const requiredEnvVars = [
-    'NEXT_PUBLIC_PRIVY_APP_ID',
-    'PINATA_JWT',
+      'PINATA_JWT',
     'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID',
   ];
 

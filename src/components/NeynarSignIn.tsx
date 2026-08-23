@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useNeynarContext } from '@/hooks/useNeynarCompat';
 
 export default function NeynarSignIn() {
-  const { login, logout, authenticated } = usePrivy();
+  const { signIn, signOut, isAuthenticated } = useFarcasterAuth();
   const { user } = useNeynarContext();
 
-  if (authenticated && user && user.fid) {
+  if (isAuthenticated && user && user.fid) {
     return (
       <div className="flex items-center gap-2">
         {user.pfp_url && (
@@ -27,7 +27,7 @@ export default function NeynarSignIn() {
         </div>
         {/* Sign out — icon on mobile, text on sm+ */}
         <button
-          onClick={logout}
+          onClick={signOut}
           title="Sign out"
           className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors text-xs shrink-0"
         >
@@ -43,7 +43,7 @@ export default function NeynarSignIn() {
 
   return (
     <button
-      onClick={login}
+      onClick={async () => { if (user?.fid) await signIn(user.fid); }}
       className="px-4 py-2 rounded-lg bg-white text-black font-semibold text-sm hover:bg-zinc-200 transition-colors shrink-0"
     >
       Sign in

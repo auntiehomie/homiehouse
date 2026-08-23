@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import HHLogo from '@/components/HHLogo';
 
 const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07';
@@ -62,13 +62,8 @@ const TOKENOMICS = [
 
 export default function Hh2Client() {
   const router = useRouter();
-  const { user } = usePrivy();
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const userFid: number | null = farcasterAccount?.fid ? Number(farcasterAccount.fid) : null;
-
-  // Auto-fill wallet from Privy embedded/linked wallet
-  const privyWallet = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'wallet') as any;
-  const privyWalletAddress: string = privyWallet?.address ?? '';
+  const { fid: userFid } = useFarcasterAuth();
+  const [privyWalletAddress, setPrivyWalletAddress] = useState('');
 
   const [userPoints, setUserPoints] = useState<number | null>(null);
   const [claimable, setClaimable] = useState(0);
@@ -78,12 +73,20 @@ export default function Hh2Client() {
   const [claiming, setClaiming] = useState(false);
   const [claimResult, setClaimResult] = useState<{ ok: boolean; txHash?: string; amount?: number; error?: string } | null>(null);
 
-  // Pre-fill wallet address from Privy once available
+  // Auto-fill wallet from stored profile
   useEffect(() => {
-    if (privyWalletAddress && !walletAddress) {
-      setWalletAddress(privyWalletAddress);
+    const storedProfile = localStorage.getItem('hh_profile');
+    if (storedProfile) {
+      try {
+        const profile = JSON.parse(storedProfile);
+        const addresses = profile.verified_addresses?.eth_addresses || [];
+        if (addresses.length > 0 && !walletAddress) {
+          setWalletAddress(addresses[0]);
+          setPrivyWalletAddress(addresses[0]);
+        }
+      } catch {}
     }
-  }, [privyWalletAddress, walletAddress]);
+  }, []);
 
   useEffect(() => {
     if (!userFid) return;
@@ -246,7 +249,7 @@ export default function Hh2Client() {
                         onClick={() => setWalletAddress(privyWalletAddress)}
                         style={{ marginTop: 6, fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
-                        Use my connected wallet ({privyWalletAddress.slice(0, 6)}…{privyWalletAddress.slice(-4)})
+                        Use my stored wallet ({privyWalletAddress.slice(0, 6)}…{privyWalletAddress.slice(-4)})
                       </button>
                     )}
                   </div>

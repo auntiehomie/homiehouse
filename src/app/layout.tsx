@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import PrivyAuthProvider from "../components/PrivyAuthProvider";
 import { FarcasterAuthProvider } from "../lib/farcaster-auth";
-import PrivyAuthSync from "../components/PrivyAuthSync";
 import BottomNav from "../components/BottomNav";
 import ThemeSync from "../components/ThemeSync";
 import LazyClientComponents from "../components/LazyClientComponents";
@@ -128,10 +126,8 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" href="/splash.png" />
       </head>
       <body className={`antialiased`}>
-        <PrivyAuthProvider>
-          <FarcasterAuthProvider>
-            <PrivyAuthSync />
-            <PageTransition>
+        <FarcasterAuthProvider>
+          <PageTransition>
               <div className="pb-20 lg:pb-0">
                 {children}
               </div>
@@ -139,8 +135,7 @@ export default function RootLayout({
             <BottomNav />
             <ThemeSync />
             <LazyClientComponents />
-          </FarcasterAuthProvider>
-        </PrivyAuthProvider>
+        </FarcasterAuthProvider>
         <Analytics />
       </body>
     </html>

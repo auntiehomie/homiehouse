@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { rateLimit } from '@/lib/ratelimit';
-import { verifyPrivyAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,8 +15,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify auth token
-    const claims = await verifyPrivyAuth(req);
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
 
     const body = await req.json();
     const { text, fid, embeds = [], scheduled_time, channelKey } = body;
@@ -33,8 +33,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    // Verify the authenticated user owns this FID
-    verifyFarcasterSigner(claims, userFid);
+    // Verify the authenticated FID matches
+    if (authFid !== userFid) {
+      return NextResponse.json(
+        { ok: false, error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
+    }
 
     const scheduledDate = new Date(scheduled_time);
     if (scheduledDate <= new Date()) {
@@ -44,8 +49,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Use app-managed signer — never accept private keys from client
-    const signerUuid = 'app-managed';
     const channelId = channelKey || null;
     const embedsJson = JSON.stringify(Array.isArray(embeds) ? embeds : []);
     const scheduledAt = scheduledDate.toISOString();
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
     const rows = await sql`
       INSERT INTO scheduled_casts
         (user_fid, signer_uuid, text, embeds, channel_id, scheduled_time, status)
-      VALUES (${userFid}, ${signerUuid}, ${text}, ${embedsJson}::jsonb, ${channelId}, ${scheduledAt}::timestamptz, 'pending')
+      VALUES (${userFid}, 'app-managed', ${text}, ${embedsJson}::jsonb, ${channelId}, ${scheduledAt}::timestamptz, 'pending')
       RETURNING *
     `;
 
@@ -73,8 +76,8 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    // Verify auth token
-    const claims = await verifyPrivyAuth(req);
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
 
     const { searchParams } = new URL(req.url);
     const fidParam = searchParams.get('fid');
@@ -91,8 +94,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    // Verify the authenticated user owns this FID
-    verifyFarcasterSigner(claims, userFid);
+    // Verify the authenticated FID matches
+    if (authFid !== userFid) {
+      return NextResponse.json(
+        { ok: false, error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
+    }
 
     const rows = await sql`
       SELECT * FROM scheduled_casts
@@ -112,8 +120,8 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    // Verify auth token
-    const claims = await verifyPrivyAuth(req);
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
 
     const body = await req.json();
     const { id, fid, cast_hash } = body;
@@ -127,8 +135,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    // Verify the authenticated user owns this FID
-    verifyFarcasterSigner(claims, userFid);
+    // Verify the authenticated FID matches
+    if (authFid !== userFid) {
+      return NextResponse.json(
+        { ok: false, error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
+    }
 
     const castHash = cast_hash || null;
     const rows = await sql`
@@ -157,8 +170,8 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    // Verify auth token
-    const claims = await verifyPrivyAuth(req);
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -173,10 +186,14 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
     }
 
-    // Verify the authenticated user owns this FID
-    verifyFarcasterSigner(claims, userFid);
+    // Verify the authenticated FID matches
+    if (authFid !== userFid) {
+      return NextResponse.json(
+        { ok: false, error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
+    }
 
-    // cancelAll=true must be checked BEFORE the id check — no id needed for bulk cancel
     const cancelAll = searchParams.get('cancelAll') === 'true';
     if (cancelAll) {
       const cancelled = await sql`

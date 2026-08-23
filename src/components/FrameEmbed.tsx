@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import type { FrameData } from '@/app/api/frame/route';
 import { openMiniApp } from './MiniAppViewer';
@@ -18,10 +18,9 @@ export default function FrameEmbed({ url, castHash }: Props) {
   const [loading, setLoading] = useState(false);
   const [interactError, setInteractError] = useState<string | null>(null);
 
-  const { user } = usePrivy();
+  const { fid: rawFid } = useFarcasterAuth();
   const { getPrivateKeyHex } = useFarcasterWrites();
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const userFid: number = farcasterAccount?.fid ?? 0;
+  const userFid: number = rawFid ?? 0;
 
   useEffect(() => {
     setProbing(true);

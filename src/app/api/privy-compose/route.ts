@@ -3,7 +3,7 @@ import { publishCast } from '@/lib/farcaster-writes';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateCastText, validateEmbeds, validateChannelKey } from '@/lib/validation';
-import { verifyPrivyAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 
 export async function POST(request: NextRequest) {
@@ -11,20 +11,14 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
-    // Verify auth token
-    const claims = await verifyPrivyAuth(request);
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(request);
     
     const body = await request.json();
     const { text, embeds, channelKey, parentUrl, parentCastHash, isQuoteCast, fid } = body;
     
     // Rate limit: 20 compose requests per minute per user
-    const userId = claims?.userId || 'unknown';
-    await enforceRateLimit({ key: `compose:${userId}`, limit: 20, windowSeconds: 60, label: 'compose' });
-    
-    // Verify signer ownership if a specific FID is provided
-    if (fid) {
-      verifyFarcasterSigner(claims, Number(fid));
-    }
+    await enforceRateLimit({ key: `compose:${authFid}`, limit: 20, windowSeconds: 60, label: 'compose' });
 
     logger.info('Compose request', {
       textLength: text?.length,
@@ -33,7 +27,7 @@ export async function POST(request: NextRequest) {
       hasParent: !!parentUrl,
       hasParentCastHash: !!parentCastHash,
       isQuoteCast: !!isQuoteCast,
-      fid,
+      fid: fid || authFid,
     });
 
     // Validate inputs
@@ -44,8 +38,8 @@ export async function POST(request: NextRequest) {
       validateChannelKey(channelKey);
     }
 
-    // Require fid from the client (from Privy user object)
-    const castFid = fid ? Number(fid) : 0;
+    // Use provided fid or auth fid
+    const castFid = fid ? Number(fid) : authFid;
 
     logger.info('Publishing cast', { fid: castFid });
 
@@ -75,7 +69,6 @@ export async function POST(request: NextRequest) {
       parentCastHash: parentCastHash && !isQuoteCast ? parentCastHash : undefined,
       parentUrl: parentUrl || undefined,
       channelKey: channelKey || undefined,
-      // Use app-managed signer only — never accept private keys from client
     });
 
     logger.success('Cast published successfully', { hash: result.castHash });

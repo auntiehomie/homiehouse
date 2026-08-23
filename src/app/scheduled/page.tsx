@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+import { getAuthHeaders } from "@/lib/client-auth";
 
 interface ScheduledCast {
   id: string;
@@ -33,10 +34,8 @@ function formatRelative(iso: string) {
 
 export default function ScheduledPage() {
   const router = useRouter();
-  const { user, getAccessToken } = usePrivy();
+  const { fid: userFid } = useFarcasterAuth();
   const { submitCast } = useFarcasterWrites();
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const userFid: number | null = farcasterAccount?.fid ?? null;
 
   const [casts, setCasts] = useState<ScheduledCast[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,9 +49,9 @@ export default function ScheduledPage() {
     if (!userFid) return;
     if (showLoading) setLoading(true);
     try {
-      const token = await getAccessToken();
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`/api/schedule-cast?fid=${userFid}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders ? { ...authHeaders } : {},
       });
       const data = await res.json();
       if (data.ok) setCasts(data.scheduled_casts || []);
@@ -72,10 +71,10 @@ export default function ScheduledPage() {
     setCancelling(id);
     setCancelError(prev => ({ ...prev, [id]: '' }));
     try {
-      const token = await getAccessToken();
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders ? { ...authHeaders } : {},
       });
       const data = await res.json();
       if (data.ok) {
@@ -94,10 +93,10 @@ export default function ScheduledPage() {
     if (!userFid) return;
     setCancellingAll(true);
     try {
-      const token = await getAccessToken();
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`/api/schedule-cast?fid=${userFid}&cancelAll=true`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders ? { ...authHeaders } : {},
       });
       const data = await res.json();
       if (data.ok) {
@@ -125,10 +124,10 @@ export default function ScheduledPage() {
       });
 
       // Mark as published in DB
-      const patchToken = await getAccessToken();
+      const authHeaders = getAuthHeaders();
       await fetch('/api/schedule-cast', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${patchToken}` },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ id: cast.id, fid: userFid, cast_hash: result.castHash }),
       });
 

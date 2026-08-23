@@ -2,7 +2,7 @@
 
 import React, { ReactNode, useState } from 'react';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 
 interface FarcasterSignerGateProps {
   children: ReactNode;
@@ -16,19 +16,21 @@ interface FarcasterSignerGateProps {
  * no Warpcast approval URL flow needed.
  */
 export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateProps) {
-  const { authenticated, login } = usePrivy();
+  const { isAuthenticated, signIn, fid } = useFarcasterAuth();
   const { hasActiveSigner, requestSigner } = useFarcasterWrites();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!authenticated) {
+  if (!isAuthenticated) {
     return (
       <div className="farcaster-signer-gate">
         {fallback ?? (
           <div style={{ padding: '16px', textAlign: 'center' }}>
             <p>Sign in to post to Farcaster</p>
             <button
-              onClick={() => login()}
+              onClick={async () => {
+                if (fid) await signIn(fid);
+              }}
               style={{ marginTop: '8px', padding: '8px 16px', cursor: 'pointer' }}
             >
               Sign In

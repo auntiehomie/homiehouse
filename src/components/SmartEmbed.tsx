@@ -6,7 +6,7 @@ import FrameEmbed from './FrameEmbed';
 import UrlPreview from './UrlPreview';
 import { openMiniApp } from './MiniAppViewer';
 import { buildJfs, getSignerForFid } from '@/lib/snap-jfs';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useRouter } from 'next/navigation';
 
 type Result = 'frame' | 'snap' | 'url';
@@ -27,11 +27,9 @@ export default function SmartEmbed({ url, castHash }: Props) {
   const [snapUrl, setSnapUrl] = useState(url);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user } = usePrivy();
+  const { fid: rawFid } = useFarcasterAuth();
   const router = useRouter();
-
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const fid: number = farcasterAccount?.fid ?? 0;
+  const fid: number = rawFid ?? 0;
 
   useEffect(() => {
     setResult('url');

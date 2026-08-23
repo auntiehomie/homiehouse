@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from 'qrcode.react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { provisionSignerWithMnemonic } from '@/lib/fc-key-add';
 
 export default function WelcomeModal() {
-  const { user } = usePrivy();
+  const { fid: authFid } = useFarcasterAuth();
   const [show, setShow] = useState(false);
   const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -29,8 +29,7 @@ export default function WelcomeModal() {
   }, []);
 
   function getFid(): number | null {
-    const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
-    if (farcasterAccount?.fid) return farcasterAccount.fid;
+    if (authFid) return authFid;
     try {
       const stored = localStorage.getItem("hh_profile");
       return stored ? JSON.parse(stored)?.fid ?? null : null;

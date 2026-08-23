@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
 
 interface AppEntry {
   id: string;
@@ -36,9 +36,7 @@ const SKELETON_APPS: AppEntry[] = Array.from({ length: 8 }, (_, i) => ({
 }));
 
 export default function AppsPage() {
-  const { user } = usePrivy();
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const userFid = farcasterAccount?.fid;
+  const { fid: userFid } = useFarcasterAuth();
 
   const [activeTab, setActiveTab] = useState<Tab>("trending");
   const [trendingApps, setTrendingApps] = useState<AppEntry[]>([]);

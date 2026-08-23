@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useRouter } from 'next/navigation';
 import SnapRenderer, { type SnapData, type SnapAction } from './SnapRenderer';
 import UrlPreview from './UrlPreview';
@@ -22,11 +22,9 @@ export default function SnapEmbed({ url, castHash }: SnapEmbedProps) {
 
   // Probe timeout — show UrlPreview sooner rather than waiting the full 8 s
   const PROBE_TIMEOUT_MS = 4000;
-  const { user } = usePrivy();
+  const { fid: rawFid } = useFarcasterAuth();
   const router = useRouter();
-
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const fid: number = farcasterAccount?.fid ?? 0;
+  const fid: number = rawFid ?? 0;
 
   // Probe URL for snap content. Show UrlPreview immediately; swap if snap is found.
   useEffect(() => {

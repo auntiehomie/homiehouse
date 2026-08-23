@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from "next/link";
 import HHLogo from '@/components/HHLogo';
 import { useSearchParams } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import AgentChat from '@/components/AgentChat';
 import FeedCurationChat from '@/components/FeedCurationChat';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
@@ -16,10 +16,7 @@ function AskHomieContent() {
   const [starterQuestion, setStarterQuestion] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
-  // Get FID directly from Privy — same pattern as SmartEmbed / SnapEmbed
-  const { user } = usePrivy();
-  const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
-  const fid: number = farcasterAccount?.fid ?? 0;
+  const { fid } = useFarcasterAuth();
   const userId = fid ? `fid_${fid}` : undefined;
 
   useEffect(() => {

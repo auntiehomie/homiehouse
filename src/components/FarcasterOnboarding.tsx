@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import { ed25519 } from "@noble/curves/ed25519";
 
 // ── Farcaster EIP-712 domains ─────────────────────────────────────────────────
@@ -19,7 +19,6 @@ const KEY_REGISTRY_DOMAIN = {
   verifyingContract: "0x00000000Fc1237824fb747aBDE0FF18990E59b7e",
 };
 
-// fname domain is on Ethereum mainnet (chainId 1) — just for signing, no tx
 const FNAME_DOMAIN = {
   name: "Farcaster name verification",
   version: "1",
@@ -27,11 +26,9 @@ const FNAME_DOMAIN = {
   verifyingContract: "0xe3Be01D99bAa8dB9905b33a3cA391238234B79D1",
 };
 
-type Step = "welcome" | "username" | "signing" | "creating" | "done" | "starter" | "error";
+type Step = "welcome" | "username" | "signing" | "creating" | "done" | "starter" | "error" | "no-wallet";
 
-// ── Starter Pack — channel picks for a brand-new, empty-following-graph account ──
-// Same channel set already used as topic pills in learn/page.tsx's LEARNING_CHANNELS,
-// so the choices line up with content that's actually populated elsewhere in the app.
+// ── Starter Pack ──
 const STARTER_CHANNELS = [
   { id: "farcaster", label: "Farcaster", emoji: "🟣", description: "Protocol news & the core community" },
   { id: "defi", label: "DeFi", emoji: "💧", description: "Decentralized finance, yields, protocols" },
@@ -145,8 +142,7 @@ function UsernameStep({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function FarcasterOnboarding() {
-  const { user } = usePrivy();
-  const { wallets } = useWallets();
+  const { fid: authFid } = useFarcasterAuth();
 
   const [show, setShow] = useState(false);
   const [step, setStep] = useState<Step>("welcome");
@@ -179,22 +175,34 @@ export default function FarcasterOnboarding() {
     }
   }
 
-  // Get the user's Privy embedded wallet provider
+  // Get browser wallet provider (MetaMask, Rainbow, etc.)
   async function getEthProvider() {
-    // Try Privy embedded wallet first
-    const embedded = wallets.find((w) => w.walletClientType === "privy");
-    if (embedded) {
-      await embedded.switchChain(10); // Optimism
-      const provider = await embedded.getEthereumProvider();
-      return { provider, address: embedded.address };
+    if (typeof window === 'undefined' || !(window as any).ethereum) {
+      throw new Error("No wallet detected. Please install MetaMask or another browser wallet.");
     }
-    // Fallback: external wallet
-    const external = wallets[0];
-    if (external) {
-      const provider = await external.getEthereumProvider();
-      return { provider, address: external.address };
+    const provider = (window as any).ethereum;
+
+    // Request accounts
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
+    if (!accounts || accounts.length === 0) {
+      throw new Error("No accounts found. Please unlock your wallet.");
     }
-    throw new Error("No wallet found. Please connect a wallet in Settings → Wallet.");
+    const address = accounts[0];
+
+    // Switch to Optimism
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0xa" }], // 10 = Optimism
+      });
+    } catch (switchErr: any) {
+      if (switchErr.code === 4902) {
+        throw new Error("Please add the Optimism network to your wallet.");
+      }
+      throw switchErr;
+    }
+
+    return { provider, address };
   }
 
   async function createAccount() {
@@ -249,7 +257,7 @@ export default function FarcasterOnboarding() {
         },
       );
 
-      // 5. Sign Add EIP-712 (KeyRegistry, Optimism) — includes SKR metadata bytes
+      // 5. Sign Add EIP-712 (KeyRegistry, Optimism)
       const keyAddSig = await signTypedData(
         provider,
         custodyAddress,
@@ -277,7 +285,7 @@ export default function FarcasterOnboarding() {
         },
       );
 
-      // 6. Sign UserNameProof EIP-712 (fname, Ethereum mainnet domain — no tx required)
+      // 6. Sign UserNameProof EIP-712 (fname, Ethereum mainnet domain)
       const fnameSig = await signTypedData(
         provider,
         custodyAddress,
@@ -358,11 +366,6 @@ export default function FarcasterOnboarding() {
     });
   }
 
-  // Saves picks into the SAME localStorage key FeedCurationChat writes to —
-  // there's no protocol-level "follow a channel" write in this codebase yet,
-  // so this reuses the existing client-side interest-scoring mechanism
-  // (FeedList.tsx's getUserInterests/scoreCast) that already personalizes the
-  // feed. A brand-new account otherwise has zero signal and an empty feed.
   function finishOnboarding(picks: Set<string>) {
     if (picks.size > 0) {
       try {
@@ -371,7 +374,7 @@ export default function FarcasterOnboarding() {
         const merged = [...new Set([...existing, ...picks])];
         localStorage.setItem("hh_feed_interests", JSON.stringify(merged));
       } catch {
-        // localStorage unavailable — not fatal, just skip personalization seeding
+        // localStorage unavailable — not fatal
       }
     }
     setShow(false);
@@ -420,7 +423,14 @@ export default function FarcasterOnboarding() {
               ))}
             </div>
             <button
-              onClick={() => setStep("username")}
+              onClick={() => {
+                // Check if browser wallet is available
+                if (typeof window !== 'undefined' && (window as any).ethereum) {
+                  setStep("username");
+                } else {
+                  setStep("no-wallet");
+                }
+              }}
               style={{
                 width: "100%", padding: 14, borderRadius: 12, border: "none",
                 background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)",
@@ -440,6 +450,33 @@ export default function FarcasterOnboarding() {
               I already have a Farcaster account
             </button>
           </>
+        )}
+
+        {/* No wallet */}
+        {step === "no-wallet" && (
+          <div style={{ textAlign: "center", padding: "16px 0" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🦊</div>
+            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Wallet required</h2>
+            <p style={{ color: "var(--muted-on-dark)", fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
+              Creating a Farcaster account requires a browser wallet (MetaMask, Rainbow, etc.) to sign on-chain registration messages. Please install a wallet extension and try again.
+            </p>
+            <button
+              onClick={() => window.open("https://metamask.io", "_blank")}
+              style={{
+                width: "100%", padding: 14, borderRadius: 12, border: "none",
+                background: "var(--btn-primary-bg)", color: "var(--btn-primary-color)",
+                fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 8,
+              }}
+            >
+              Get MetaMask →
+            </button>
+            <button
+              onClick={() => setShow(false)}
+              style={{ background: "transparent", border: "none", color: "var(--muted-on-dark)", cursor: "pointer", fontSize: 13, padding: 8 }}
+            >
+              Dismiss
+            </button>
+          </div>
         )}
 
         {/* Username */}
@@ -544,7 +581,7 @@ export default function FarcasterOnboarding() {
           </div>
         )}
 
-        {/* Starter Pack — pick channels so the first feed isn't empty */}
+        {/* Starter Pack */}
         {step === "starter" && (
           <div style={{ padding: "4px 0" }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>

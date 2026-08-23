@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import Image from "next/image";
 import AppShell from "@/components/AppShell";
@@ -551,7 +550,7 @@ type ActivePanel = null | "account" | "themes" | "notifications" | "wallet";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { logout, authenticated } = usePrivy();
+  const { signOut, isAuthenticated } = useFarcasterAuth();
 
   const [activeTheme, setActiveTheme] = useState("default");
   const [premiumUnlocked, setPremiumUnlocked] = useState(false);
@@ -889,8 +888,7 @@ export default function SettingsPage() {
             <Card>
                 <SettingRow
                   onClick={() => {
-                    // Privy logout if authenticated
-                    if (authenticated) logout();
+                    if (isAuthenticated) signOut();
                     // Clear Farcaster local state regardless
                     try {
                       const profile = localStorage.getItem('hh_profile');
@@ -906,7 +904,7 @@ export default function SettingsPage() {
                   danger
                   icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>}
                   label="Sign Out"
-                  sublabel={authenticated ? "Disconnect wallet & clear Farcaster session" : "Clear Farcaster session"}
+                  sublabel={isAuthenticated ? "Sign out & clear Farcaster session" : "Clear Farcaster session"}
                 />
             </Card>
           </div>
