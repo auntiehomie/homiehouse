@@ -1,14 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-
 interface PricingCardProps {
   userFid?: number | null;
   isPro?: boolean;
 }
 
 export default function PricingCard({ userFid, isPro = false }: PricingCardProps) {
-  const router = useRouter();
 
   const features = [
     { icon: '💬', label: 'Unlimited Ask Homie queries' },
@@ -78,22 +75,19 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
           </div>
         ) : (
           <button
-            onClick={() => {
-              // Placeholder checkout — redirect to Stripe when integrated
-              router.push('/api/stripe/checkout');
-            }}
+            disabled
             style={{
               width: '100%', padding: '12px', borderRadius: 10,
-              background: 'var(--accent)', color: '#fff',
-              border: 'none', fontWeight: 700, fontSize: 14,
-              cursor: 'pointer', transition: 'opacity 0.15s',
+              background: 'var(--surface)', color: 'var(--muted-on-dark)',
+              border: '1px solid var(--border)', fontWeight: 700, fontSize: 14,
+              cursor: 'not-allowed', opacity: 0.6,
             }}
           >
-            Subscribe to Pro
+            Coming Soon
           </button>
         )}
         <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', textAlign: 'center', marginTop: 8 }}>
-          Secure payment via Stripe · Cancel anytime
+          Billing via Stripe · Coming soon
         </div>
       </div>
     </div>
