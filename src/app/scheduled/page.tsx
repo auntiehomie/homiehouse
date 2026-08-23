@@ -33,7 +33,7 @@ function formatRelative(iso: string) {
 
 export default function ScheduledPage() {
   const router = useRouter();
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const { submitCast } = useFarcasterWrites();
   const farcasterAccount = (user?.linkedAccounts ?? []).find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
@@ -50,7 +50,10 @@ export default function ScheduledPage() {
     if (!userFid) return;
     if (showLoading) setLoading(true);
     try {
-      const res = await fetch(`/api/schedule-cast?fid=${userFid}`);
+      const token = await getAccessToken();
+      const res = await fetch(`/api/schedule-cast?fid=${userFid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (data.ok) setCasts(data.scheduled_casts || []);
     } catch {}
@@ -69,7 +72,11 @@ export default function ScheduledPage() {
     setCancelling(id);
     setCancelError(prev => ({ ...prev, [id]: '' }));
     try {
-      const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, { method: 'DELETE' });
+      const token = await getAccessToken();
+      const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (data.ok) {
         setCasts(prev => prev.filter(c => c.id !== id));
@@ -87,7 +94,11 @@ export default function ScheduledPage() {
     if (!userFid) return;
     setCancellingAll(true);
     try {
-      const res = await fetch(`/api/schedule-cast?fid=${userFid}&cancelAll=true`, { method: 'DELETE' });
+      const token = await getAccessToken();
+      const res = await fetch(`/api/schedule-cast?fid=${userFid}&cancelAll=true`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (data.ok) {
         // Reload to reflect the cancelled casts
@@ -114,9 +125,10 @@ export default function ScheduledPage() {
       });
 
       // Mark as published in DB
+      const patchToken = await getAccessToken();
       await fetch('/api/schedule-cast', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${patchToken}` },
         body: JSON.stringify({ id: cast.id, fid: userFid, cast_hash: result.castHash }),
       });
 

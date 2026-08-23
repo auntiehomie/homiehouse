@@ -42,7 +42,7 @@ function splitIntoThread(text: string, limit: number): string[] {
 export default function ComposeModal() {
   const pathname = usePathname();
   const hideFab = FAB_HIDDEN_PATHS.some(p => pathname === p || pathname?.startsWith(p + '/'));
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
   const farcasterAccount = user?.linkedAccounts?.find((a: any) => a.type === 'farcaster') as any;
   const userFid: number | null = farcasterAccount?.fid ?? null;
@@ -349,10 +349,11 @@ export default function ComposeModal() {
 
         body.scheduled_time = scheduledDate.toISOString();
         
+        const token = await getAccessToken();
         console.log('[ComposeModal] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
         const res = await fetch("/api/schedule-cast", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify(body),
         });
 

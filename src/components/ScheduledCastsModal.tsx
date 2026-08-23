@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface ScheduledCast {
   id: string;
@@ -15,6 +16,7 @@ export default function ScheduledCastsModal() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scheduledCasts, setScheduledCasts] = useState<ScheduledCast[]>([]);
+  const { getAccessToken } = usePrivy();
   const [userFid, setUserFid] = useState<number | null>(null);
 
   // Load user fid from stored profile
@@ -55,7 +57,10 @@ export default function ScheduledCastsModal() {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/schedule-cast?fid=${userFid}`);
+      const token = await getAccessToken();
+      const res = await fetch(`/api/schedule-cast?fid=${userFid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
 
       if (data.ok) {
@@ -72,8 +77,10 @@ export default function ScheduledCastsModal() {
     if (!userFid) return;
 
     try {
+      const token = await getAccessToken();
       const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const data = await res.json();
