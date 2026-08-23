@@ -110,6 +110,11 @@ export async function recordReply(params: {
   commandType?: string;
   replyText?: string;
 }): Promise<boolean> {
+  // Guard: reject empty/null parentHash early
+  if (!params.parentHash || !params.parentHash.trim()) {
+    console.error('[bot-reply-storage] recordReply called with empty parentHash, skipping');
+    return false;
+  }
   try {
     await ensureTable();
     const db = getDb();
@@ -146,7 +151,9 @@ export async function recordReplyBatch(params: {
   commandType?: string;
   replyText?: string;
 }): Promise<void> {
-  for (const key of params.trackingKeys) {
+  // Filter out null/empty tracking keys before recording
+  const validKeys = params.trackingKeys.filter(k => k && k.trim());
+  for (const key of validKeys) {
     await recordReply({
       parentHash: key,
       replyHash: params.replyHash,
