@@ -50,10 +50,10 @@ export async function GET(req: NextRequest) {
       `;
       if (sponsoredRows.length > 0) {
         sponsored = sponsoredRows[0];
-        // Increment impression count
+        // Increment impression count and decrement budget
         await sql`
           UPDATE sponsored_casts
-          SET impression_count = impression_count + 1
+          SET impression_count = impression_count + 1, budget_remaining = budget_remaining - 1
           WHERE id = ${(sponsored as any).id}
         `;
       }
