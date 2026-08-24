@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 interface ShopItem {
   id: string;
@@ -57,10 +58,14 @@ export default function ShopPage() {
           }
 
           // Check owned items from purchases
-          const ownedRes = await fetch(`/api/hh2-purchase?fid=${fid}`);
+          const authHeaders = getAuthHeaders();
+          const ownedRes = await fetch(`/api/hh2-purchase?fid=${fid}`, {
+            headers: authHeaders ?? undefined,
+          });
           const ownedData = await ownedRes.json();
           if (mounted && ownedData.ok) {
             setOwnedItems(new Set(ownedData.owned_items ?? []));
+            setBalance(ownedData.balance);
           }
         }
       } catch (err) {
@@ -84,14 +89,14 @@ export default function ShopPage() {
     try {
       const res = await fetch('/api/hh2-purchase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(getAuthHeaders() ?? {}) },
         body: JSON.stringify({ fid: userFid, itemId }),
       });
       const data = await res.json();
 
       if (data.ok) {
         setPurchaseState(prev => ({ ...prev, [itemId]: 'success' }));
-        setBalance(data.balance_remaining);
+        if (typeof data.balance_remaining === 'number') setBalance(data.balance_remaining);
         setOwnedItems(prev => new Set([...prev, itemId]));
       } else {
         setPurchaseState(prev => ({ ...prev, [itemId]: 'error' }));
