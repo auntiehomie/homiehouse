@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useNeynarContext } from "@/hooks/useNeynarCompat";
 import NeynarSignIn from "@/components/NeynarSignIn";
 import HHLogo from "@/components/HHLogo";
+import AuthenticatedHome from "@/components/AuthenticatedHome";
 
 // ─── Static sample module (shows value before auth) ───────────────────────────
 
@@ -112,16 +112,11 @@ function CastCard({ cast }: { cast: any }) {
 export default function HomeClient() {
   const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useNeynarContext();
-  const router = useRouter();
   const [casts, setCasts] = useState<any[]>([]);
   const [learnerCount, setLearnerCount] = useState(0);
   const [castsLoading, setCastsLoading] = useState(true);
 
   useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    if (mounted && isAuthenticated) router.replace('/learn');
-  }, [mounted, isAuthenticated, router]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -136,7 +131,7 @@ export default function HomeClient() {
       .catch(() => {});
   }, [mounted]);
 
-  if (!mounted || isAuthenticated) {
+  if (!mounted) {
     return (
       <div style={{ minHeight: '100dvh', background: '#09090b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <style>{`@keyframes hhSpin{to{transform:rotate(360deg)}}`}</style>
@@ -144,6 +139,8 @@ export default function HomeClient() {
       </div>
     );
   }
+
+  if (isAuthenticated) return <AuthenticatedHome />;
 
   return (
     <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
