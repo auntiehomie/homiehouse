@@ -35,6 +35,7 @@ async function migrate() {
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_hh2_purchases_user_fid ON hh2_purchases(user_fid);`;
   await sql`CREATE INDEX IF NOT EXISTS idx_hh2_purchases_item_id ON hh2_purchases(item_id);`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_hh2_purchases_unique_item ON hh2_purchases(user_fid, item_id);`;
   console.log('  ✓ hh2_purchases');
 
   // ── pro_subscribers ───────────────────────────────────────────────────────
