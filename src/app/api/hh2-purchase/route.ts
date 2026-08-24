@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sql, getDb } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
@@ -23,9 +23,28 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const rows = await sql`SELECT item_id FROM hh2_purchases WHERE user_fid = ${userFid}`;
+    const db = getDb();
+    const [purchases, progress, claims] = await Promise.all([
+      db.query('SELECT item_id, purchased_at FROM hh2_purchases WHERE user_fid = $1 ORDER BY purchased_at ASC', [userFid]),
+      db.query('SELECT completed_ids FROM learning_progress WHERE fid = $1', [userFid]),
+      db.query('SELECT COALESCE(SUM(amount), 0) AS total FROM hh2_claims WHERE fid = $1', [userFid]),
+    ]);
+    const rows = purchases.rows;
     const ownedItems = (rows as any[]).map((r: any) => r.item_id);
-    return NextResponse.json({ ok: true, owned_items: ownedItems });
+    const earned = (progress.rows[0]?.completed_ids ?? []).length * 10;
+    const claimed = Number(claims.rows[0]?.total ?? 0);
+    const spent = rows.reduce((sum: number, row: any) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
+    return NextResponse.json({
+      ok: true,
+      owned_items: ownedItems,
+      balance: earned - claimed - spent,
+      spend_summary: {
+        purchase_count: rows.length,
+        total_spent: spent,
+        first_spent_at: rows[0]?.purchased_at ?? null,
+        repeat_spender: rows.length > 1,
+      },
+    });
   } catch (err: any) {
     console.error('[hh2-purchase] GET error:', err?.message);
     return NextResponse.json({ ok: false, error: 'Failed to fetch purchases' }, { status: 500 });
@@ -45,23 +64,17 @@ const ITEM_PRICES: Record<string, number> = {
 const VALID_ITEM_IDS = new Set(Object.keys(ITEM_PRICES));
 
 // HH2 balance check helper — sums (completed_ids * 10) - (claimed) - (spent)
-async function getUserHH2Balance(userFid: number): Promise<number> {
-  const rows = await sql`
-    SELECT completed_ids FROM learning_progress WHERE fid = ${userFid}
-  `;
-  const completedIds: string[] = rows[0]?.completed_ids ?? [];
+async function getUserHH2Balance(client: import('pg').PoolClient, userFid: number): Promise<number> {
+  const progress = await client.query('SELECT completed_ids FROM learning_progress WHERE fid = $1', [userFid]);
+  const completedIds: string[] = progress.rows[0]?.completed_ids ?? [];
   const earned = completedIds.length * 10;
 
-  const claimedRows = await sql`
-    SELECT COALESCE(SUM(amount), 0) AS total FROM hh2_claims WHERE fid = ${userFid}
-  `;
-  const claimed = Number(claimedRows[0]?.total ?? 0);
+  const claimedRows = await client.query('SELECT COALESCE(SUM(amount), 0) AS total FROM hh2_claims WHERE fid = $1', [userFid]);
+  const claimed = Number(claimedRows.rows[0]?.total ?? 0);
 
-  const purchaseRows = await sql`
-    SELECT item_id FROM hh2_purchases WHERE user_fid = ${userFid}
-  `;
+  const purchaseRows = await client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [userFid]);
   let spent = 0;
-  for (const row of purchaseRows as any[]) {
+  for (const row of purchaseRows.rows) {
     spent += ITEM_PRICES[row.item_id] ?? 0;
   }
 
@@ -133,13 +146,13 @@ export async function POST(req: NextRequest) {
       if (existing.rows.length > 0) {
         await client.query('COMMIT');
         return NextResponse.json(
-          { ok: false, error: 'You already own this item' },
-          { status: 409 }
+          { ok: true, item_id: itemId, already_owned: true },
+          { status: 200 }
         );
       }
 
       // Check balance
-      const balance = await getUserHH2Balance(userFid);
+      const balance = await getUserHH2Balance(client, userFid);
       logger.info('Balance check', { userFid, balance, price });
 
       if (balance < price) {
