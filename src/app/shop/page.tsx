@@ -60,7 +60,7 @@ export default function ShopPage() {
           // Check owned items from purchases
           const authHeaders = getAuthHeaders();
           const ownedRes = await fetch(`/api/hh2-purchase?fid=${fid}`, {
-            headers: authHeaders ?? undefined,
+            headers: authHeaders ? { ...authHeaders } : undefined,
           });
           const ownedData = await ownedRes.json();
           if (mounted && ownedData.ok) {
