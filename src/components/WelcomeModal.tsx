@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { QRCodeSVG } from 'qrcode.react';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { provisionSignerWithMnemonic } from '@/lib/fc-key-add';
+import { getStoredFid } from '@/lib/client-auth';
 
 export default function WelcomeModal() {
   const { fid: authFid } = useFarcasterAuth();
@@ -14,6 +15,14 @@ export default function WelcomeModal() {
   const [phrase, setPhrase] = useState('');
   const [provisioning, setProvisioning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [standalone, setStandalone] = useState(false);
+
+  useEffect(() => {
+    setStandalone(
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true ||
+      window.matchMedia('(display-mode: standalone)').matches
+    );
+  }, []);
 
   useEffect(() => {
     const handleShowModal = (event: any) => {
@@ -40,7 +49,7 @@ export default function WelcomeModal() {
     setChecking(true);
     setError(null);
     try {
-      const fid = getFid();
+      const fid = authFid ?? getStoredFid();
       if (!fid) { setError('Could not find your Farcaster ID.'); return; }
 
       const key = `signer_${fid}`;
@@ -77,6 +86,27 @@ export default function WelcomeModal() {
       setChecking(false);
     }
   };
+
+  useEffect(() => {
+    if (!show || !standalone || !approvalUrl) return;
+    const checkOnReturn = () => {
+      if (document.visibilityState !== 'visible') return;
+      const fid = authFid ?? getStoredFid();
+      if (fid) window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));
+    };
+    document.addEventListener('visibilitychange', checkOnReturn);
+    window.addEventListener('pageshow', checkOnReturn);
+    return () => {
+      document.removeEventListener('visibilitychange', checkOnReturn);
+      window.removeEventListener('pageshow', checkOnReturn);
+    };
+  }, [show, standalone, approvalUrl, authFid]);
+
+  useEffect(() => {
+    const approved = () => setShow(false);
+    window.addEventListener('hh:signer:approved', approved);
+    return () => window.removeEventListener('hh:signer:approved', approved);
+  }, []);
 
   const handleProvisionWithPhrase = async () => {
     setError(null);
@@ -167,13 +197,23 @@ export default function WelcomeModal() {
                   </p>
                   <a
                     href={approvalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    target={standalone ? undefined : '_blank'}
+                    rel={standalone ? undefined : 'noopener noreferrer'}
+                    onClick={(event) => {
+                      if (!standalone) return;
+                      event.preventDefault();
+                      window.location.assign(approvalUrl);
+                    }}
                     className="btn primary"
                     style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: 12, width: '100%' }}
                   >
-                    Approve in Farcaster →
+                    {standalone ? 'Open Farcaster to approve →' : 'Approve in Farcaster →'}
                   </a>
+                  {standalone && (
+                    <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: '-4px 0 12px' }}>
+                      Come back to HomieHouse after approving. We’ll check automatically.
+                    </p>
+                  )}
                 </>
               )}
               <button

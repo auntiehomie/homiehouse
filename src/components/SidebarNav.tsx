@@ -8,8 +8,17 @@ import NotificationBadge from './NotificationBadge';
 const NAV_ITEMS = [
   {
     href: '/',
-    label: 'Feed',
+    label: 'Home',
     exact: true,
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11.5 12 4l9 7.5M5.5 10.5V20h13v-9.5M9.5 20v-6h5v6" />
+      </svg>
+    ),
+  },
+  {
+    href: '/feed',
+    label: 'Feed',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

@@ -52,6 +52,15 @@ export default function BottomNav() {
       <div className="max-w-screen-xl mx-auto px-1 py-1">
         <div className="flex items-center justify-around">
 
+          {/* Home */}
+          <Link href="/" className={cls("/")} aria-label="Home">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11.5 12 4l9 7.5M5.5 10.5V20h13v-9.5M9.5 20v-6h5v6" />
+            </svg>
+            <span>Home</span>
+            <div className={dot("/")} />
+          </Link>
+
           {/* Learn */}
           <Link href="/learn" className={cls("/learn")} aria-label="Learn">
             <div style={{ position: 'relative' }}>
