@@ -74,8 +74,8 @@ export default function AuthenticatedHome() {
             </p>
           </div>
           <Link href={nextModule ? `/learn/module?id=${encodeURIComponent(nextModule.id)}` : '/learn'} style={{
-            padding: '10px 16px', borderRadius: 10, background: 'var(--accent)', color: '#fff',
-            textDecoration: 'none', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+            padding: '10px 16px', borderRadius: 10, background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)',
+            border: '1px solid var(--border)', textDecoration: 'none', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
           }}>
             {nextModule ? 'Continue learning →' : 'Start learning →'}
           </Link>

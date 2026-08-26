@@ -1299,7 +1299,7 @@ function LearnPageContent() {
       {/* HH2 earning callout */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-        padding: '12px 18px', borderRadius: 12, marginBottom: 28,
+        padding: '12px 18px', borderRadius: 12, marginBottom: 12,
         background: 'linear-gradient(135deg, rgba(251,191,36,0.15) 0%, rgba(245,158,11,0.08) 100%)',
         border: '1px solid rgba(251,191,36,0.4)',
       }}>
@@ -1311,6 +1311,23 @@ function LearnPageContent() {
           </span>
         </div>
       </div>
+
+      {/* Keep token education visible before a learner creates a plan. */}
+      <Link href="/hh2" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+        padding: '14px 16px', borderRadius: 12, marginBottom: 28,
+        background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none',
+      }}>
+        <div>
+          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--text-on-dark)' }}>
+            Learn about the HomieHouse token
+          </span>
+          <span style={{ display: 'block', marginTop: 3, fontSize: 12, lineHeight: 1.5, color: 'var(--muted-on-dark)' }}>
+            See what HH2 is, how learning rewards work, and how to claim or use your tokens.
+          </span>
+        </div>
+        <span aria-hidden="true" style={{ color: '#fbbf24', fontSize: 20, flexShrink: 0 }}>→</span>
+      </Link>
 
       {error && (
         <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: 14, marginBottom: 20 }}>
