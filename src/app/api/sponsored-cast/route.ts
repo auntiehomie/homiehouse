@@ -35,22 +35,18 @@ export async function GET(req: NextRequest) {
 
     const sponsored = rows[0];
 
-    // Increment impression count and decrement budget
+    // Increment impression count and decrement budget atomically (prevents over-spend)
     await sql`
       UPDATE sponsored_casts
       SET impression_count = impression_count + 1, budget_remaining = budget_remaining - 1
-      WHERE id = ${sponsored.id}
+      WHERE id = ${sponsored.id} AND budget_remaining > 0
     `;
 
     return NextResponse.json({
       ok: true,
       sponsored: {
         id: sponsored.id,
-        sponsor_fid: sponsored.sponsor_fid,
         cast_hash: sponsored.cast_hash,
-        impressions: sponsored.impression_count + 1,
-        clicks: sponsored.click_count,
-        budget_remaining: sponsored.budget_remaining,
       },
     });
   } catch (err: any) {

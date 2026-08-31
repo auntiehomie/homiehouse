@@ -4,6 +4,7 @@ import { createWalletClient, http, parseUnits, isAddress } from 'viem';
 import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sql } from '@/lib/db';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 
 const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
 const HH2_PER_MODULE = 10;
@@ -71,6 +72,9 @@ export async function GET(req: NextRequest) {
 // POST /api/claim-hh2 — send all unclaimed HH2 to a wallet in one transaction
 export async function POST(req: NextRequest) {
   try {
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
+
     const { fid, walletAddress } = await req.json();
 
     const userFid = Number(fid);
@@ -79,6 +83,14 @@ export async function POST(req: NextRequest) {
     }
     if (!walletAddress || !isAddress(walletAddress)) {
       return NextResponse.json({ ok: false, error: 'Invalid wallet address' }, { status: 400 });
+    }
+
+    // Verify the authenticated FID matches the request
+    if (authFid !== userFid) {
+      return NextResponse.json(
+        { ok: false, error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
     }
 
     // Find completed modules for this FID

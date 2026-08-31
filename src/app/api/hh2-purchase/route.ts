@@ -146,8 +146,8 @@ export async function POST(req: NextRequest) {
       if (existing.rows.length > 0) {
         await client.query('COMMIT');
         return NextResponse.json(
-          { ok: true, item_id: itemId, already_owned: true },
-          { status: 200 }
+          { ok: false, error: 'You already own this item.', already_owned: true },
+          { status: 409 }
         );
       }
 

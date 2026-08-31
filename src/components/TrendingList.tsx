@@ -15,11 +15,7 @@ interface TrendingListProps {
 
 interface SponsoredCast {
   id: number;
-  sponsor_fid: number;
   cast_hash: string;
-  impressions: number;
-  clicks: number;
-  budget_remaining: number;
 }
 
 function SponsoredCastCard({ sponsored }: { sponsored: SponsoredCast }) {
@@ -61,7 +57,7 @@ function SponsoredCastCard({ sponsored }: { sponsored: SponsoredCast }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-bold truncate">Sponsored Cast</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">FID {sponsored.sponsor_fid}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Promoted content</div>
           </div>
         </div>
 
@@ -71,10 +67,6 @@ function SponsoredCastCard({ sponsored }: { sponsored: SponsoredCast }) {
           color: 'var(--muted-on-dark)',
         }}>
           Tap to view this promoted cast on Farcaster.
-        </div>
-
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted-on-dark)' }}>
-          💰 Budget remaining: {sponsored.budget_remaining} USDC
         </div>
       </div>
     </Link>

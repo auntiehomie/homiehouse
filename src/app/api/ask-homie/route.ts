@@ -5,6 +5,23 @@ import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
+import { sql } from '@/lib/db';
+
+// Check if a user has active Pro subscription
+async function checkProStatus(userFid: number): Promise<boolean> {
+  try {
+    const rows = await sql`
+      SELECT id FROM pro_subscribers
+      WHERE user_fid = ${userFid}
+      AND status = 'active'
+      AND (expires_at IS NULL OR expires_at > NOW())
+      LIMIT 1
+    `;
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
 
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
@@ -278,12 +295,8 @@ export async function POST(req: NextRequest) {
   logger.start();
 
   try {
-    // SECURITY: Rate limit (30 per hour per IP)
+    // SECURITY: Rate limit — free tier 10/hr, Pro tier 60/hr
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success: rlOk } = rateLimit(`ask-homie:${ip}`, 30, 3600);
-    if (!rlOk) {
-      return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
-    }
 
     const {
       messages,
@@ -296,6 +309,19 @@ export async function POST(req: NextRequest) {
       feedback,
       eli5 = false,
     } = await req.json();
+
+    // Check Pro status if userFid provided
+    const userFidForPro = userContext?.fid ? Number(userContext.fid) : 0;
+    const isPro = userFidForPro > 0 && await checkProStatus(userFidForPro);
+    const rateLimitCount = isPro ? 60 : 10;
+    const { success: rlOk } = rateLimit(`ask-homie:${ip}`, rateLimitCount, 3600);
+    if (!rlOk) {
+      return NextResponse.json({
+        error: isPro
+          ? 'Rate limited. Try again later.'
+          : 'Rate limit reached (10/hour for free users). Upgrade to Pro for 60/hour.',
+      }, { status: 429 });
+    }
 
     logger.info('Processing AI request', { 
       mode, 

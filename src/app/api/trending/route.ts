@@ -50,12 +50,17 @@ export async function GET(req: NextRequest) {
       `;
       if (sponsoredRows.length > 0) {
         sponsored = sponsoredRows[0];
-        // Increment impression count and decrement budget
+        // Increment impression count and decrement budget atomically (prevents over-spend)
         await sql`
           UPDATE sponsored_casts
           SET impression_count = impression_count + 1, budget_remaining = budget_remaining - 1
-          WHERE id = ${(sponsored as any).id}
+          WHERE id = ${(sponsored as any).id} AND budget_remaining > 0
         `;
+        // Only expose non-sensitive fields to the client
+        sponsored = {
+          id: (sponsored as any).id,
+          cast_hash: (sponsored as any).cast_hash,
+        };
       }
     } catch (sponsorErr) {
       // Non-critical — don't fail the whole trending response
