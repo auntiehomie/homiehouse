@@ -209,6 +209,11 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  // Pre-fill FID input when profile loads
+  useEffect(() => {
+    if (profile?.fid) setFidInput(String(profile.fid));
+  }, [profile?.fid]);
+
   async function importByFid() {
     const fid = parseInt(fidInput.trim(), 10);
     if (!fid || isNaN(fid) || fid <= 0) { setError("Enter a valid FID number"); return; }
