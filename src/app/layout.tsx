@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { FarcasterAuthProvider } from "../lib/farcaster-auth";
-import BottomNav from "../components/BottomNav";
+import MobileNav from "../components/MobileNav";
 import ThemeSync from "../components/ThemeSync";
 import LazyClientComponents from "../components/LazyClientComponents";
 import PageTransition from "../components/PageTransition";
@@ -130,11 +130,11 @@ export default function RootLayout({
         <WagmiProviders>
           <FarcasterAuthProvider>
             <PageTransition>
-              <div className="pb-20 lg:pb-0">
+              <div className="pt-14 lg:pt-0">
                 {children}
               </div>
             </PageTransition>
-            <BottomNav />
+            <MobileNav />
             <ThemeSync />
             <LazyClientComponents />
           </FarcasterAuthProvider>
