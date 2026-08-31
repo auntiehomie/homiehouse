@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import ListsClient from '@/app/_page-clients/ListsClient';
+import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'Lists | HomieHouse',
@@ -13,8 +14,10 @@ export const metadata: Metadata = {
 
 export default function ListsPage() {
   return (
-    <Suspense>
-      <ListsClient />
-    </Suspense>
+    <SentryErrorBoundary label="Lists">
+      <Suspense>
+        <ListsClient />
+      </Suspense>
+    </SentryErrorBoundary>
   );
 }

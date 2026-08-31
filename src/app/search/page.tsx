@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import SearchClient from '@/app/_page-clients/SearchClient';
+import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'Search | HomieHouse',
@@ -13,8 +14,10 @@ export const metadata: Metadata = {
 
 export default function SearchPage() {
   return (
-    <Suspense>
-      <SearchClient />
-    </Suspense>
+    <SentryErrorBoundary label="Search">
+      <Suspense>
+        <SearchClient />
+      </Suspense>
+    </SentryErrorBoundary>
   );
 }

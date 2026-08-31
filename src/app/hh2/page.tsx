@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Hh2Client from '@/app/_page-clients/Hh2Client';
+import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'HH2 Points | HomieHouse',
@@ -13,8 +14,10 @@ export const metadata: Metadata = {
 
 export default function Hh2Page() {
   return (
-    <Suspense>
-      <Hh2Client />
-    </Suspense>
+    <SentryErrorBoundary label="HH2">
+      <Suspense>
+        <Hh2Client />
+      </Suspense>
+    </SentryErrorBoundary>
   );
 }

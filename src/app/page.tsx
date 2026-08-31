@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import HomeClient from '@/app/_page-clients/HomeClient';
+import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -29,8 +30,10 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <Suspense>
-      <HomeClient />
-    </Suspense>
+    <SentryErrorBoundary label="Home">
+      <Suspense>
+        <HomeClient />
+      </Suspense>
+    </SentryErrorBoundary>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import FeedClient from '@/app/_page-clients/FeedClient';
+import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'Feed | HomieHouse',
@@ -13,8 +14,10 @@ export const metadata: Metadata = {
 
 export default function FeedPage() {
   return (
-    <Suspense>
-      <FeedClient />
-    </Suspense>
+    <SentryErrorBoundary label="Feed">
+      <Suspense>
+        <FeedClient />
+      </Suspense>
+    </SentryErrorBoundary>
   );
 }

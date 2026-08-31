@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import TrendingClient from '@/app/_page-clients/TrendingClient';
+import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'Trending | HomieHouse',
@@ -13,8 +14,10 @@ export const metadata: Metadata = {
 
 export default function TrendingPage() {
   return (
-    <Suspense>
-      <TrendingClient />
-    </Suspense>
+    <SentryErrorBoundary label="Trending">
+      <Suspense>
+        <TrendingClient />
+      </Suspense>
+    </SentryErrorBoundary>
   );
 }
