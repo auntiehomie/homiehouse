@@ -1,17 +1,21 @@
-"use client";
+'use client';
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount, useChainId } from "wagmi";
+import { base } from "wagmi/chains";
 
 function truncate(addr: string) {
   return addr.slice(0, 6) + "…" + addr.slice(-4);
 }
 
-export default function WalletPage() {
+export default function WalletSettingsPage() {
   const router = useRouter();
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
   const [wallets, setWallets] = useState<any[]>([]);
 
-  // Load wallets from stored profile
   useEffect(() => {
     try {
       const stored = localStorage.getItem('hh_profile');
@@ -40,42 +44,86 @@ export default function WalletPage() {
       </header>
 
       <main style={{ maxWidth: 600, margin: "0 auto", padding: "24px 16px" }}>
-        <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--muted-on-dark)" }}>
-          Wallets linked to your Farcaster account
-        </p>
-
-        {wallets.length === 0 ? (
-          <div style={{ padding: "40px 16px", textAlign: "center", color: "var(--muted-on-dark)", fontSize: 14 }}>
-            No verified wallets found for your Farcaster account.
-          </div>
-        ) : (
-          <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
-            {wallets.map((w: any) => (
-              <div
-                key={w.address}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "14px 16px",
-                }}
-              >
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--bg-dark)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted-on-dark)" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-5z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a1 1 0 100 2 1 1 0 000-2z" />
-                  </svg>
+        {/* Connected wallet section */}
+        <div style={{ marginBottom: 28 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--muted-on-dark)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Connected Wallet
+          </h2>
+          {isConnected ? (
+            <div style={{
+              background: "var(--surface)", borderRadius: 14,
+              border: "1px solid var(--border)", overflow: "hidden",
+            }}>
+              <div style={{ padding: "16px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--bg-dark)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: 18 }}> 🔑</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-on-dark)", fontFamily: "monospace" }}>
-                    {truncate(w.address)}
+                  <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "monospace" }}>
+                    {truncate(address!)}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginTop: 2 }}>
-                    Verified address
+                    {chainId === base.id ? "Base" : `Chain ID: ${chainId}`}
                   </div>
                 </div>
+                <ConnectButton label="Disconnect" />
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div style={{
+              background: "var(--surface)", borderRadius: 14,
+              border: "1px solid var(--border)", padding: "24px", textAlign: "center",
+            }}>
+              <p style={{ fontSize: 14, color: "var(--muted-on-dark)", margin: "0 0 16px" }}>
+                No wallet connected. Connect to send and receive HH2.
+              </p>
+              <ConnectButton label="Connect Wallet" />
+            </div>
+          )}
+        </div>
+
+        {/* Farcaster-linked wallets */}
+        <div>
+          <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--muted-on-dark)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Farcaster-Linked Wallets
+          </h2>
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--muted-on-dark)" }}>
+            Addresses verified to your Farcaster account. Connect a wallet above to interact with them.
+          </p>
+          {wallets.length === 0 ? (
+            <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--muted-on-dark)", fontSize: 14, background: "var(--surface)", borderRadius: 12, border: "1px solid var(--border)" }}>
+              No verified wallets found for your Farcaster account.
+            </div>
+          ) : (
+            <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
+              {wallets.map((w: any, i: number, arr: any[]) => (
+                <div
+                  key={w.address}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "14px 16px",
+                    borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none",
+                  }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--bg-dark)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted-on-dark)" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a1 1 0 100 2 1 1 0 000-2z" />
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "monospace" }}>
+                      {truncate(w.address)}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginTop: 2 }}>
+                      Verified on Farcaster
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

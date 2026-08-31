@@ -4,12 +4,17 @@
  * Updated for wagmi v3 / viem v2 (configureChains removed; use http() transports)
  */
 
-import { createConfig, http } from 'wagmi';
+import { getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { http } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
 
-// Wagmi v3 config — no configureChains, no provider subpaths.
+// RainbowKit + wagmi v3 config — getDefaultConfig wires up wallet connectors
+// (MetaMask, Rainbow, WalletConnect, Coinbase, Trust, etc.).
 // Transports are per-chain; fall back to the public RPC when API keys are absent.
-export const wagmiConfig = createConfig({
+export const wagmiConfig = getDefaultConfig({
+  appName: 'HomieHouse',
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
+  ssr: true,
   chains: [mainnet, polygon, optimism, arbitrum, base],
   transports: {
     [mainnet.id]: http(

@@ -6,6 +6,7 @@ import ThemeSync from "../components/ThemeSync";
 import LazyClientComponents from "../components/LazyClientComponents";
 import PageTransition from "../components/PageTransition";
 import { Analytics } from '@vercel/analytics/next';
+import WagmiProviders from "@/components/WagmiProviders";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -126,8 +127,9 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" href="/splash.png" />
       </head>
       <body className={`antialiased`}>
-        <FarcasterAuthProvider>
-          <PageTransition>
+        <WagmiProviders>
+          <FarcasterAuthProvider>
+            <PageTransition>
               <div className="pb-20 lg:pb-0">
                 {children}
               </div>
@@ -135,7 +137,8 @@ export default function RootLayout({
             <BottomNav />
             <ThemeSync />
             <LazyClientComponents />
-        </FarcasterAuthProvider>
+          </FarcasterAuthProvider>
+        </WagmiProviders>
         <Analytics />
       </body>
     </html>
