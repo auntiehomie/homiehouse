@@ -466,49 +466,54 @@ main { margin-top: 1rem; }
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  
+
   /* Larger text on mobile for readability */
   body {
     font-size: 16px; /* Prevents zoom on iOS */
   }
-  
+
   /* Better spacing on mobile */
   h1 {
     font-size: 2rem;
     line-height: 1.2;
   }
-  
+
   h2 {
     font-size: 1.5rem;
     line-height: 1.3;
   }
-  
+
   h3 {
     font-size: 1.25rem;
     line-height: 1.4;
   }
-  
+
   /* Touch-friendly inputs */
   input, textarea, select, button {
     font-size: 16px; /* Prevents zoom on iOS */
     touch-action: manipulation;
   }
-  
+
   /* Reduce padding on mobile */
   .surface {
     padding: 0.875rem;
     border-radius: 12px;
   }
-  
+
   /* Full-width buttons on mobile */
   .btn {
     padding: 0.75rem 1rem;
   }
-  
+
   /* Better word wrapping on mobile */
   p, div, span {
     word-wrap: break-word;
     overflow-wrap: break-word;
+  }
+
+  /* Prevent wide elements from causing horizontal scroll */
+  img, video, iframe, table, .surface, .wallet-dashboard, .channels-list {
+    max-width: 100%;
   }
 }
 
@@ -776,6 +781,26 @@ nav a:not(.no-underline):hover { color: var(--accent); }
     background: #ffffff;
     border-top: 1px solid rgba(0, 0, 0, 0.1);
   }
+}
+
+/* Content offset for fixed nav in PWA standalone mode */
+.hh-content-offset {
+  /* Default: clear the 52px fixed top nav */
+  padding-top: 56px;
+}
+
+/* On desktop (lg+), the sidebar is used instead of the top nav */
+@media (min-width: 1024px) {
+  .hh-content-offset {
+    padding-top: 0;
+  }
+}
+
+/* Prevent horizontal overflow on all screen sizes */
+.hh-content-offset {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
 }
 
 /* Safe area for mobile devices with notches */

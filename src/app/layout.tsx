@@ -101,6 +101,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
+  // Allow orientation changes — don't lock to portrait
 };
 
 // Farcaster auth context requires a live React tree and can't run in a
@@ -130,7 +131,7 @@ export default function RootLayout({
         <WagmiProviders>
           <FarcasterAuthProvider>
             <PageTransition>
-              <div className="pt-14 lg:pt-0">
+              <div className="pt-14 lg:pt-0 hh-content-offset">
                 {children}
               </div>
             </PageTransition>

@@ -163,6 +163,8 @@ export default function MobileNav() {
           borderBottom: '1px solid var(--nav-border)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
+          // Extend background into the safe area so the notch/status bar region is opaque
+          paddingTop: 'env(safe-area-inset-top)',
         }}
       >
         <style>{`
@@ -192,6 +194,8 @@ export default function MobileNav() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 8,
+          // Push nav content below the notch/status bar in PWA standalone mode
+          paddingTop: 'env(safe-area-inset-top)',
         }}>
           {/* Left: hamburger */}
           <button

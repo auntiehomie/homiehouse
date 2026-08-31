@@ -9,7 +9,7 @@
   "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0a0a0a",
   "theme_color": "#1c1c1e",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "categories": ["social", "news"],
   "lang": "en",
   "icons": [
