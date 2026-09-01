@@ -6,7 +6,7 @@ import { handleApiError } from '@/lib/errors';
 export const maxDuration = 10;
 
 const MAX_FIDS = 50; // leaderboard is meant to be a small follows-only list, not a global ranking
-const HH2_PER_LESSON = 10; // matches learn/page.tsx's HH2_PER_LESSON — kept in sync manually, both are small/stable
+const HH2_PER_LESSON = 100; // matches LearnClient's HH2_PER_LESSON — kept in sync manually, both are small/stable
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface CompletionRecord {

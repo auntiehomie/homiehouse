@@ -86,7 +86,7 @@ export default function AuthenticatedHome() {
         <div style={{ display: 'flex', gap: 18, marginTop: 10, color: 'var(--muted-on-dark)', fontSize: 12, flexWrap: 'wrap' }}>
           <span><strong style={{ color: 'var(--text-on-dark)' }}>{percent}%</strong> complete</span>
           <span>🔥 <strong style={{ color: 'var(--text-on-dark)' }}>{streak}</strong> day streak</span>
-          <span>🪙 <strong style={{ color: 'var(--text-on-dark)' }}>{progress?.hh2_points ?? completed.length * 10}</strong> HH2 earned</span>
+          <span>🪙 <strong style={{ color: 'var(--text-on-dark)' }}>{progress?.hh2_points ?? completed.length * 100}</strong> HH2 earned</span>
         </div>
       </section>
 

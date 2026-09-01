@@ -10,7 +10,7 @@ import { createApiLogger } from '@/lib/logger';
 const logger = createApiLogger('/claim-hh2');
 
 const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
-const HH2_PER_MODULE = 10;
+const HH2_PER_MODULE = 100;
 const HH2_DECIMALS = 18;
 
 const ERC20_ABI = [

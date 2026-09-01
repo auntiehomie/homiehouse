@@ -14,8 +14,8 @@ const EARN_METHODS = [
   {
     icon: '📚',
     title: 'Complete Learning Modules',
-    points: '10 HH2 per module',
-    description: 'Work through your personalized Web3 learning path. Each module you finish earns 10 HH2 points.',
+    points: '100 HH2 per module',
+    description: 'Work through your personalized Web3 learning path. Each module you finish earns 100 HH2 points.',
     cta: 'Go to Learning Hub',
     href: '/learn',
     soon: false,

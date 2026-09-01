@@ -741,7 +741,7 @@ function LearnPageContent() {
   const [peerCount, setPeerCount] = useState<number | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const HH2_PER_LESSON = 10;
+  const HH2_PER_LESSON = 100;
 
   // Deep-link pre-selection
   useEffect(() => {
@@ -1305,9 +1305,9 @@ function LearnPageContent() {
       }}>
         <span style={{ fontSize: 20 }}>🪙</span>
         <div>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>Earn 10 HH2 per completed module</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24' }}>Earn 100 HH2 per completed module</span>
           <span style={{ fontSize: 12, color: 'rgba(251,191,36,0.7)', display: 'block', marginTop: 1 }}>
-            Complete the quiz (75% to pass) to unlock your reward
+            Complete the quiz (75% to pass) to earn 100 HH2
           </span>
         </div>
       </div>

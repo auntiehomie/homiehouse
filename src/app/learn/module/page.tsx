@@ -327,6 +327,9 @@ function CompleteCard({ mod, onShare, onBack }: { mod: LearningModule; onShare: 
           <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: '0 0 6px', lineHeight: 1.6 }}>
             You've completed <strong style={{ color: 'var(--text-on-dark)' }}>{mod.title}</strong>.
           </p>
+          <p style={{ fontSize: 16, color: '#fbbf24', fontWeight: 700, margin: '0 0 6px' }}>
+            🪙 +100 HH2 earned!
+          </p>
           <p style={{ fontSize: 15, color: 'var(--accent)', fontWeight: 600, margin: 0 }}>
             Ready to go deeper?
           </p>
@@ -545,8 +548,12 @@ function ModuleLessonContent() {
   }, [moduleId, mod]);
 
   // Mark complete when reaching the complete card — retries after the time gate clears
+  // Only awards HH2 if quiz score is 75%+ (quizPassed). If quiz not passed, the
+  // complete card is never shown (see handleContinue logic above), so this effect
+  // only fires when the user has already passed.
   useEffect(() => {
     if (currentCard?.type !== 'complete' || alreadyDone) return;
+    if (!quizPassed) return; // safety guard — should never reach here without passing
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
     const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
     const timer = setTimeout(() => {
