@@ -253,9 +253,9 @@ export async function POST(req: NextRequest) {
 
     // ── Cache check — return stored lesson if available ──────────────────────
     const redis = getRedis();
-    // v4: regenerate every module through the Haiku-primary path with the
-    // fixed JSON parser (v3 cached fallback template content from parse failure).
-    const cacheKey = moduleId ? `lesson:v4:${moduleId}${eli5 ? ':eli5' : ''}` : null;
+    // v5: regenerate every module with increased maxTokens (8000) so the
+    // full lesson JSON isn't truncated mid-object.
+    const cacheKey = moduleId ? `lesson:v5:${moduleId}${eli5 ? ':eli5' : ''}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
@@ -534,7 +534,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     try {
       const { message, provider } = await llmChat({
         messages: [{ role: 'user', content: enrichedPrompt }],
-        maxTokens: 2500,
+        maxTokens: 8000,
         temperature: 0.7,
         timeoutMs: 55000,
       });
@@ -561,7 +561,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
             role: 'user',
             content: prompt + '\n\nIMPORTANT: Reply with ONLY the JSON object described above — start with { and end with }. No prose, no markdown, no code fences.',
           }],
-          maxTokens: 2500,
+          maxTokens: 8000,
           temperature: 0.4,
           timeoutMs: 55000,
         });
