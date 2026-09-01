@@ -384,7 +384,6 @@ Tokens with no fundamental utility — value is purely social/cultural consensus
 - **EOA (Externally Owned Account)**: A wallet controlled by a private key. MetaMask, Rainbow, Rabby. Simple, widely supported.
 - **Smart contract wallet**: Controlled by code — Safe (multisig), Argent (social recovery), Coinbase Smart Wallet. More features, slightly more complexity.
 - **Hardware wallet**: Ledger, Trezor, GridPlus Lattice. Private key never leaves the device. Best security for large holdings.
-- **MPC wallet**: Private key split between you and a provider (e.g. Turnkey, Magic). More user-friendly recovery, some trust tradeoffs.
 
 ## How transactions work (EIP-1559)
 Since the London hard fork, Ethereum transactions have:

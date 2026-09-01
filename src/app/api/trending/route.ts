@@ -4,7 +4,7 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateLimit, validateFid } from '@/lib/validation';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
-import { sql } from '@/lib/db';
+import { fetchSponsoredCast } from '@/lib/sponsored';
 
 export async function GET(req: NextRequest) {
   const logger = createApiLogger('/trending');
@@ -41,27 +41,7 @@ export async function GET(req: NextRequest) {
     // Optionally inject a sponsored cast at position 3 (index 2)
     let sponsored = null;
     try {
-      const sponsoredRows = await sql`
-        SELECT id, sponsor_fid, cast_hash, impression_count, click_count, budget_remaining
-        FROM sponsored_casts
-        WHERE budget_remaining > 0
-        ORDER BY budget_remaining DESC, created_at DESC
-        LIMIT 1
-      `;
-      if (sponsoredRows.length > 0) {
-        sponsored = sponsoredRows[0];
-        // Increment impression count and decrement budget atomically (prevents over-spend)
-        await sql`
-          UPDATE sponsored_casts
-          SET impression_count = impression_count + 1, budget_remaining = budget_remaining - 1
-          WHERE id = ${(sponsored as any).id} AND budget_remaining > 0
-        `;
-        // Only expose non-sensitive fields to the client
-        sponsored = {
-          id: (sponsored as any).id,
-          cast_hash: (sponsored as any).cast_hash,
-        };
-      }
+      sponsored = await fetchSponsoredCast();
     } catch (sponsorErr) {
       // Non-critical — don't fail the whole trending response
       logger.warn?.('Failed to fetch sponsored cast', sponsorErr);
