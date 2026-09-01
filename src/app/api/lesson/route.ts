@@ -103,16 +103,46 @@ function fallbackLesson(title: string, description: string, objectives: string[]
  */
 function parseLessonJson(raw: string): LessonContent | null {
   if (!raw) return null;
+
+  // Strategy 1: Direct parse after stripping code fences
   const stripped = raw
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```\s*$/, '')
     .trim();
+  const candidates: string[] = [stripped];
 
-  const candidates = [stripped];
-  // Also try the outermost {...} span in case there's prose around it.
-  const first = stripped.indexOf('{');
-  const last = stripped.lastIndexOf('}');
-  if (first >= 0 && last > first) candidates.push(stripped.slice(first, last + 1));
+  // Strategy 2: Extract outermost {...} span
+  const firstBrace = stripped.indexOf('{');
+  const lastBrace = stripped.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(stripped.slice(firstBrace, lastBrace + 1));
+  }
+
+  // Strategy 3: Walk forward from each '{' trying to parse — handles prose
+  // before/after JSON and nested objects. Finds the first valid JSON object
+  // that looks like a lesson.
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] !== '{') continue;
+    // Walk forward to find the matching closing brace
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let j = i; j < raw.length; j++) {
+      const ch = raw[j];
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') depth++;
+      if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          candidates.push(raw.slice(i, j + 1));
+          break;
+        }
+      }
+    }
+  }
 
   for (const c of candidates) {
     try {
