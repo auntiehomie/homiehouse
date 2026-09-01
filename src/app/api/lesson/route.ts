@@ -3,6 +3,9 @@ import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { rateLimit } from '@/lib/ratelimit';
+import { createApiLogger } from '@/lib/logger';
+
+const logger = createApiLogger('/lesson');
 
 function getRedis(): Redis | null {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -190,11 +193,11 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
     // Never let verification empty the quiz; if it flagged everything, keep the original set.
     if (result.length === 0) return quiz;
     if (result.length !== quiz.length) {
-      console.error(`[lesson] quiz verification dropped ${quiz.length - result.length} question(s)`);
+      logger.warn(`quiz verification dropped ${quiz.length - result.length} question(s)`);
     }
     return result;
   } catch (err: any) {
-    console.error('[lesson] quiz verification failed, keeping original:', err?.message);
+    logger.warn('quiz verification failed, keeping original', err?.message);
     return quiz;
   }
 }
@@ -214,7 +217,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (getLLMProviders().length === 0) {
-      console.error('[lesson] No AI provider configured, returning fallback');
+      logger.warn('No AI provider configured, returning fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives));
     }
 
@@ -227,7 +230,7 @@ export async function POST(req: NextRequest) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
         if (cached) {
-          console.error(`[lesson] cache hit: ${moduleId}`);
+          logger.info(`cache hit: ${moduleId}`);
           return NextResponse.json(cached);
         }
       } catch {}
@@ -508,15 +511,15 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       content = message.content?.trim() ?? '';
       usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
     } catch (aiErr: any) {
-      console.error('[lesson] Provider chain failed:', aiErr?.message);
+      logger.error('Provider chain failed', aiErr?.message);
     }
 
     if (!content) {
-      console.error('[lesson] All providers failed, using fallback');
+      logger.warn('All providers failed, using fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
     }
 
-    console.error(`[lesson] generated via ${usedProvider} (${content.length} chars)`);
+    logger.info(`generated via ${usedProvider} (${content.length} chars)`);
 
     let lesson = parseLessonJson(content);
 
@@ -533,14 +536,14 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
           timeoutMs: 55000,
         });
         lesson = parseLessonJson(message.content ?? '');
-        if (lesson) console.error('[lesson] recovered on strict retry');
+        if (lesson) logger.info('recovered on strict retry');
       } catch (retryErr: any) {
-        console.error('[lesson] retry failed:', retryErr?.message);
+        logger.error('retry failed', retryErr?.message);
       }
     }
 
     if (!lesson) {
-      console.error('[lesson] Failed to parse AI response, using fallback');
+      logger.warn('Failed to parse AI response, using fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
     }
 
@@ -558,7 +561,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     return NextResponse.json(lesson);
   } catch (error: any) {
-    console.error('[lesson] Error:', error?.message || error);
+    logger.error('Error', error?.message || error);
     return NextResponse.json(fallbackLesson('', '', []));
   }
 }

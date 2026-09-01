@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { createApiLogger } from '@/lib/logger';
+
+const logger = createApiLogger('/saved-apps');
 
 function validFid(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
@@ -18,7 +21,7 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json({ apps: rows.rows.map((r: any) => r.app_data) });
   } catch (error) {
-    console.error('saved-apps GET failed', error);
+    logger.error('GET failed', error);
     return NextResponse.json({ error: 'Unable to load saved apps' }, { status: 500 });
   }
 }
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('saved-apps POST failed', error);
+    logger.error('POST failed', error);
     return NextResponse.json({ error: 'Unable to save app' }, { status: 500 });
   }
 }
@@ -62,7 +65,7 @@ export async function DELETE(req: NextRequest) {
     );
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('saved-apps DELETE failed', error);
+    logger.error('DELETE failed', error);
     return NextResponse.json({ error: 'Unable to delete saved app' }, { status: 500 });
   }
 }

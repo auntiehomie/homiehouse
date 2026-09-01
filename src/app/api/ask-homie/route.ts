@@ -6,22 +6,10 @@ import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { sql } from '@/lib/db';
+import { isProUser } from '@/lib/pro';
 
-// Check if a user has active Pro subscription
-async function checkProStatus(userFid: number): Promise<boolean> {
-  try {
-    const rows = await sql`
-      SELECT id FROM pro_subscribers
-      WHERE user_fid = ${userFid}
-      AND status = 'active'
-      AND (expires_at IS NULL OR expires_at > NOW())
-      LIMIT 1
-    `;
-    return rows.length > 0;
-  } catch {
-    return false;
-  }
-}
+// Module-level logger for helper functions
+const logger = createApiLogger('/ask-homie');
 
 // Increase timeout for agent tool calls and processing
 export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
@@ -94,12 +82,12 @@ async function fetchCastData(castHash: string) {
   try {
     const jwt = process.env.PINATA_JWT;
     if (!jwt) {
-      console.error('PINATA_JWT not configured');
+      logger.warn('PINATA_JWT not configured');
       return null;
     }
 
     const url = `https://api.pinata.cloud/v3/farcaster/casts/${encodeURIComponent(castHash)}`;
-    console.log(`Fetching cast ${castHash} from Pinata API`);
+    logger.info(`Fetching cast ${castHash} from Pinata API`);
 
     const response = await fetch(url, {
       headers: {
@@ -109,16 +97,16 @@ async function fetchCastData(castHash: string) {
     });
 
     if (!response.ok) {
-      console.error(`Cast fetch failed: ${response.status} ${response.statusText}`);
+      logger.error(`Cast fetch failed: ${response.status} ${response.statusText}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`Cast fetched successfully: ${castHash}`);
+    logger.info(`Cast fetched successfully: ${castHash}`);
     // Pinata returns { data: { ... } } or { cast: { ... } }
     return data?.data ?? data.cast;
   } catch (error) {
-    console.error('Error fetching cast:', error);
+    logger.error('Error fetching cast', error);
     return null;
   }
 }
@@ -128,12 +116,12 @@ async function fetchUserProfile(username: string) {
   try {
     const jwt = process.env.PINATA_JWT;
     if (!jwt) {
-      console.error('PINATA_JWT not configured');
+      logger.warn('PINATA_JWT not configured');
       return null;
     }
 
     const url = `https://api.pinata.cloud/v3/farcaster/users/by_username?username=${encodeURIComponent(username)}`;
-    console.log(`Fetching profile for ${username} from Pinata API`);
+    logger.info(`Fetching profile for ${username} from Pinata API`);
 
     const response = await fetch(url, {
       headers: {
@@ -143,16 +131,16 @@ async function fetchUserProfile(username: string) {
     });
 
     if (!response.ok) {
-      console.error(`Profile fetch failed: ${response.status} ${response.statusText}`);
+      logger.error(`Profile fetch failed: ${response.status} ${response.statusText}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`Profile fetched successfully for ${username}`);
+    logger.info(`Profile fetched successfully for ${username}`);
     // Pinata returns { data: { ... } } or { user: { ... } }
     return data?.data ?? data.user;
   } catch (error) {
-    console.error('Error fetching profile:', error);
+    logger.error('Error fetching profile', error);
     return null;
   }
 }
@@ -179,7 +167,7 @@ export async function POST(req: NextRequest) {
 
     // Check Pro status if userFid provided
     const userFidForPro = userContext?.fid ? Number(userContext.fid) : 0;
-    const isPro = userFidForPro > 0 && await checkProStatus(userFidForPro);
+    const isPro = userFidForPro > 0 && await isProUser(userFidForPro);
     const rateLimitCount = isPro ? 60 : 10;
     const { success: rlOk } = rateLimit(`ask-homie:${ip}`, rateLimitCount, 3600);
     if (!rlOk) {
@@ -213,10 +201,9 @@ export async function POST(req: NextRequest) {
 
     // Log cast context if present
     if (castContext) {
-      console.log('📋 Cast context received:', {
+      logger.info('Cast context received', {
         author: castContext.author?.username || castContext.author,
         textPreview: castContext.text?.slice(0, 100),
-        fullContext: castContext
       });
     }
 
@@ -225,7 +212,7 @@ export async function POST(req: NextRequest) {
     let fetchedCastData = null;
     
     if (castHash) {
-      console.log(`Cast reference detected in agent mode: ${castHash}`);
+      logger.info('Cast reference detected in agent mode', { castHash });
       fetchedCastData = await fetchCastData(castHash);
     }
 

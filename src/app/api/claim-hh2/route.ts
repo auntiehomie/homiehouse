@@ -5,6 +5,9 @@ import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sql } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { createApiLogger } from '@/lib/logger';
+
+const logger = createApiLogger('/claim-hh2');
 
 const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
 const HH2_PER_MODULE = 10;
@@ -64,7 +67,7 @@ export async function GET(req: NextRequest) {
       claims: claimedRows,
     });
   } catch (err: any) {
-    console.error('[claim-hh2] GET error:', err?.message);
+    logger.error('GET error', err?.message);
     return NextResponse.json({ ok: false, error: 'Failed to check claimable HH2' }, { status: 500 });
   }
 }
@@ -140,7 +143,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, claimed: unclaimedIds.length, amount: totalHH2, txHash });
   } catch (err: any) {
-    console.error('[claim-hh2] POST error:', err?.message);
+    logger.error('POST error', err?.message);
     return NextResponse.json(
       { ok: false, error: err?.message || 'Failed to claim HH2' },
       { status: 500 }

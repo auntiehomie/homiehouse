@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { isProUser } from '@/lib/pro';
 
-// Reusable helper — any API route can call this to gate Pro features
-export async function isProUser(userFid: number): Promise<boolean> {
-  try {
-    const rows = await sql`
-      SELECT id FROM pro_subscribers
-      WHERE user_fid = ${userFid}
-      AND status = 'active'
-      AND (expires_at IS NULL OR expires_at > NOW())
-      LIMIT 1
-    `;
-    return rows.length > 0;
-  } catch {
-    return false;
-  }
-}
+// Re-export for backward compatibility
+export { isProUser };
 
 // GET /api/pro-status?fid=123 — check if a user has Pro status
 export async function GET(req: NextRequest) {

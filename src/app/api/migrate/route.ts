@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSql } from '@/lib/db';
+import { createApiLogger } from '@/lib/logger';
+
+const logger = createApiLogger('/migrate');
 
 // POST /api/migrate
 // Protected by MIGRATE_SECRET env var.
@@ -180,7 +183,7 @@ export async function POST(request: Request) {
       tables: ['users', 'saved_casts', 'cast_notes', 'saved_mini_apps', 'push_subscriptions', 'learning_progress', 'hh2_claims', 'scheduled_casts', 'hh2_purchases', 'pro_subscribers', 'sponsored_casts'],
     });
   } catch (err: any) {
-    console.error('[migrate] error:', err);
+    logger.error('error', err);
     return NextResponse.json(
       { error: err?.message ?? 'Migration failed' },
       { status: 500 }

@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { createApiLogger } from '@/lib/logger';
+import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
+
+const logger = createApiLogger('/sponsored-cast');
 
 // GET /api/sponsored-cast — return a single sponsored cast for the trending feed
 // Picks the sponsored cast with the most remaining budget that hasn't been shown recently.
 export async function GET(req: NextRequest) {
   try {
+    await enforceRateLimit({ key: rateLimitKeyFromRequest(req), limit: 60, windowSeconds: 60, label: 'sponsored-cast' });
+
     const { searchParams } = new URL(req.url);
     const excludeHash = searchParams.get('exclude') || '';
 
@@ -50,7 +56,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    console.error('[sponsored-cast] GET error:', err?.message);
+    logger.error('GET error', err?.message);
     return NextResponse.json({ ok: false, error: 'Failed to fetch sponsored cast' }, { status: 500 });
   }
 }
@@ -71,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('[sponsored-cast] POST error:', err?.message);
+    logger.error('POST error', err?.message);
     return NextResponse.json({ ok: false, error: 'Failed to record click' }, { status: 500 });
   }
 }
