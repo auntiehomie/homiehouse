@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
-import { useNeynarContext } from '@/hooks/useNeynarCompat';
+import { useFarcasterUser } from '@/hooks/useFarcasterUser';
 import { ChannelSidebar } from './ChannelStrip';
 import NotificationBadge from './NotificationBadge';
 import HHLogo from './HHLogo';
@@ -110,7 +110,7 @@ export default function MobileNav() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { isAuthenticated } = useNeynarContext();
+  const { isAuthenticated } = useFarcasterUser();
   const [hasLearnPlan, setHasLearnPlan] = useState(true);
   const [profileUser, setProfileUser] = useState<string | null>(null);
 

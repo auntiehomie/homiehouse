@@ -63,7 +63,7 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
       };
       localStorage.setItem('hh_profile', JSON.stringify(hhProfile));
 
-      // Dispatch auth changed so FarcasterAuthProvider + useNeynarCompat pick it up
+      // Dispatch auth changed so FarcasterAuthProvider + useFarcasterAuth pick it up
       window.dispatchEvent(new Event('hh:auth:changed'));
 
       // Trigger signer creation / check

@@ -17,7 +17,7 @@ export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
     title: 'Farcaster Protocol',
     keywords: [
       'farcaster', 'cast', 'warpcast', 'fid', 'hub', 'channel', 'frame',
-      'mini app', 'miniapp', 'neynar', 'signer', 'snapchain', 'hubs', 'merkle',
+      'mini app', 'miniapp', 'signer', 'snapchain', 'hubs', 'merkle',
       'farcaster id', 'custody address', 'key registry', 'reaction', 'recast',
       'follow', 'direct cast', 'dc', 'notification', 'embed', 'parent cast',
     ],
@@ -39,7 +39,7 @@ Farcaster is a sufficiently decentralized social network protocol built by Dan R
 - **Direct Casts (DCs)**: Encrypted 1:1 or group messages. Server is currently operated by Warpcast/Merkle.
 
 ## Infrastructure
-- **Hubs**: Nodes that replicate and store all Farcaster messages. Anyone can run one. Examples: Hypersnap (haatz.quilibrium.com), Neynar's hubs, Merkle's hubs.
+- **Hubs**: Nodes that replicate and store all Farcaster messages. Anyone can run one. Examples: Hypersnap (haatz.quilibrium.com), Pinata's hubs, Merkle's hubs.
 - **Snapchain**: The current hub protocol — a DAG-based consensus replacing the original Merkle-tree approach. Faster sync, better conflict resolution.
 - **Consensus**: Hubs gossip messages peer-to-peer. There is no global ordering of casts (unlike a blockchain) — hubs converge on the same state eventually.
 
@@ -56,7 +56,6 @@ Farcaster is a sufficiently decentralized social network protocol built by Dan R
 
 ## Key Players
 - **Warpcast**: Main client by Merkle Manufactory (the Farcaster core team). iOS, Android, web.
-- **Neynar**: Developer API platform — makes building on Farcaster easy. Widely used.
 - **Supercast, Herocast, Yup, Jam**: Alternative Farcaster clients with different UX focuses.
 - **Hypersnap**: Open-source Farcaster hub implementation. Runs a full hub node, exposes search API.
 
@@ -87,7 +86,7 @@ Farcaster is a sufficiently decentralized social network protocol built by Dan R
 - Check popular channels: /farcaster, /ethereum, /base, /ai, /privacy
 - Look at who the people you follow interact with
 - Search for topics you care about
-- Neynar's social graph API surfaces mutual follows and power users
+- Pinata's social graph API surfaces mutual follows and power users
 
 ## Key things to know as a new user
 - Your username is NOT your identity — your FID is. You can change your username anytime.
@@ -385,7 +384,7 @@ Tokens with no fundamental utility — value is purely social/cultural consensus
 - **EOA (Externally Owned Account)**: A wallet controlled by a private key. MetaMask, Rainbow, Rabby. Simple, widely supported.
 - **Smart contract wallet**: Controlled by code — Safe (multisig), Argent (social recovery), Coinbase Smart Wallet. More features, slightly more complexity.
 - **Hardware wallet**: Ledger, Trezor, GridPlus Lattice. Private key never leaves the device. Best security for large holdings.
-- **MPC wallet**: Private key split between you and a provider (e.g. Privy, Turnkey). More user-friendly recovery, some trust tradeoffs.
+- **MPC wallet**: Private key split between you and a provider (e.g. Turnkey, Magic). More user-friendly recovery, some trust tradeoffs.
 
 ## How transactions work (EIP-1559)
 Since the London hard fork, Ethereum transactions have:

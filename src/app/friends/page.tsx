@@ -1,6 +1,6 @@
 'use client';
 
-import { useNeynarContext } from '@/hooks/useNeynarCompat';
+import { useFarcasterUser } from '@/hooks/useFarcasterUser';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
@@ -14,7 +14,7 @@ interface Friend {
 }
 
 export default function FriendsPage() {
-  const { user, isAuthenticated } = useNeynarContext();
+  const { user, isAuthenticated } = useFarcasterUser();
   const router = useRouter();
   
   const [friends, setFriends] = useState<Friend[]>([]);

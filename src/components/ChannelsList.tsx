@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 
 export default function ChannelsList() {
-  const { user, isAuthenticated } = useNeynarContext();
+  const { user, isAuthenticated } = useFarcasterUser();
   const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

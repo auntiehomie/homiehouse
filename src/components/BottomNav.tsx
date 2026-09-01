@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
-  const { isAuthenticated } = useNeynarContext();
+  const { isAuthenticated } = useFarcasterUser();
   const [hasLearnPlan, setHasLearnPlan] = useState(true);
   const [profileUser, setProfileUser] = useState<string | null>(null);
 

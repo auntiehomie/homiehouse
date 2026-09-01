@@ -1,16 +1,16 @@
 'use client';
 
 /**
- * Compatibility shim: replaces `useNeynarContext` from @neynar/react.
- * Components that used Neynar's context now read from localStorage (hh_profile)
+ * Farcaster auth context hook.
+ * Reads the user's Farcaster profile from localStorage (hh_profile)
  * which is populated by Farcaster auth on login.
  *
- * Usage: import { useNeynarContext } from '@/hooks/useNeynarCompat';
+ * Usage: import { useFarcasterUser } from '@/hooks/useFarcasterUser';
  */
 
 import { useState, useEffect } from 'react';
 
-interface NeynarCompatUser {
+interface FarcasterAuthUser {
   fid: number;
   username: string;
   display_name: string;
@@ -20,13 +20,13 @@ interface NeynarCompatUser {
   verified_addresses?: { eth_addresses?: string[] };
 }
 
-interface NeynarCompatContext {
-  user: NeynarCompatUser | null;
+interface FarcasterAuthContext {
+  user: FarcasterAuthUser | null;
   isAuthenticated: boolean;
 }
 
-export function useNeynarContext(): NeynarCompatContext {
-  const [user, setUser] = useState<NeynarCompatUser | null>(() => {
+export function useFarcasterUser(): FarcasterAuthContext {
+  const [user, setUser] = useState<FarcasterAuthUser | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
       const stored = localStorage.getItem('hh_profile');

@@ -105,7 +105,7 @@ async function fallbackNotifications(endpoint: string): Promise<any> {
   }
 }
 
-// neynarFetch alias removed — use hypersnapFetch directly
+// Legacy fetch alias removed — use hypersnapFetch directly
 
 // ─── Read endpoints ──────────────────────────────────────────────────────────
 

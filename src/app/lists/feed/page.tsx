@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 
 interface Curator {
   fid: number;
@@ -30,7 +30,7 @@ interface FeedItem {
 const PAGE_SIZE = 20;
 
 export default function UnifiedListFeedPage() {
-  const { user } = useNeynarContext();
+  const { user } = useFarcasterUser();
   const router = useRouter();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);

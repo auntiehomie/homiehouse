@@ -639,8 +639,8 @@ When asked to find casts or see what someone is posting:
 - When asked for "most engaged cast", use get_user_casts and report the mostEngaged cast from the results
 
 Search strategy for multi-topic questions:
-- When a user asks about "X and Y" (e.g., "neynar and hypersnap"), call search_farcaster_casts TWICE — once for "X" and once for "Y" separately, then combine what you find
-- For company/product names, also call get_user_casts on their likely Farcaster handles (e.g., for "neynar" try get_user_casts with username "neynar"; for "hypersnap" try username "hypersnap")
+- When a user asks about "X and Y" (e.g., "pinata and hypersnap"), call search_farcaster_casts TWICE — once for "X" and once for "Y" separately, then combine what you find
+- For company/product names, also call get_user_casts on their likely Farcaster handles (e.g., for "pinata" try get_user_casts with username "pinata"; for "hypersnap" try username "hypersnap")
 - If search returns little, try related terms or shorter versions of the query
 
 Be accurate, cite what you know, and admit when you're not certain.`;

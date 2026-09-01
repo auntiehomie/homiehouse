@@ -2,18 +2,18 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import FeedTrendingTabs from "@/components/FeedTrendingTabs";
 import SidebarNav from "@/components/SidebarNav";
 import LearningHeroCard from "@/components/LearningHeroCard";
-import NeynarSignIn from "@/components/NeynarSignIn";
+import SignInButton from "@/components/SignInButton";
 import HHLogo from "@/components/HHLogo";
 import NotificationBadge from "@/components/NotificationBadge";
 
 export default function FeedClient() {
   const [mounted, setMounted] = useState(false);
-  const { isAuthenticated } = useNeynarContext();
+  const { isAuthenticated } = useFarcasterAuth();
   const { fid: viewerFid } = useFarcasterAuth();
   const [isPro, setIsPro] = useState(false);
 
@@ -90,7 +90,7 @@ export default function FeedClient() {
                 <NotificationBadge className="w-4 h-4" />
               </Link>
             )}
-            <NeynarSignIn />
+            <SignInButton />
           </div>
         </div>
       </header>
@@ -110,7 +110,7 @@ export default function FeedClient() {
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>
               👀 Browsing as a guest — sign in to post, like, and follow
             </span>
-            <NeynarSignIn />
+            <SignInButton />
           </div>
         </div>
       )}

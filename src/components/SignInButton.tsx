@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
-import { useNeynarContext } from '@/hooks/useNeynarCompat';
+import { useFarcasterUser } from '@/hooks/useFarcasterUser';
 import FarcasterLogin from './FarcasterLogin';
 
-export default function NeynarSignIn() {
+export default function SignInButton() {
   const { signIn, signOut, isAuthenticated } = useFarcasterAuth();
-  const { user } = useNeynarContext();
+  const { user } = useFarcasterUser();
   const [showLogin, setShowLogin] = useState(false);
 
   if (isAuthenticated && user && user.fid) {

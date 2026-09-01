@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import Link from "next/link";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ function highlight(text: string, query: string): React.ReactNode {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function KbClient() {
-  const { user } = useNeynarContext();
+  const { user } = useFarcasterUser();
   const [casts, setCasts] = useState<SavedCast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

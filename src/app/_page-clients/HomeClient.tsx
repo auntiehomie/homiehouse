@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
-import NeynarSignIn from "@/components/NeynarSignIn";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
+import SignInButton from "@/components/SignInButton";
 import HHLogo from "@/components/HHLogo";
 import AuthenticatedHome from "@/components/AuthenticatedHome";
 
@@ -111,7 +111,7 @@ function CastCard({ cast }: { cast: any }) {
 
 export default function HomeClient() {
   const [mounted, setMounted] = useState(false);
-  const { isAuthenticated } = useNeynarContext();
+  const { isAuthenticated } = useFarcasterUser();
   const [casts, setCasts] = useState<any[]>([]);
   const [learnerCount, setLearnerCount] = useState(0);
   const [castsLoading, setCastsLoading] = useState(true);
@@ -151,7 +151,7 @@ export default function HomeClient() {
           <HHLogo size={30} />
           <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.02em' }}>HomieHouse</span>
         </div>
-        <NeynarSignIn />
+        <SignInButton />
       </header>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
@@ -186,7 +186,7 @@ export default function HomeClient() {
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
             <div style={{ transform: 'scale(1.1)' }}>
-              <NeynarSignIn />
+              <SignInButton />
             </div>
             <span style={{ fontSize: 12, color: '#3f3f46' }}>Sign in with Farcaster · Free · No wallet setup needed</span>
           </div>
@@ -306,7 +306,7 @@ export default function HomeClient() {
                 <p style={{ fontSize: 13, color: '#71717a', marginBottom: 12 }}>
                   Sign in to see your personalized Web3 feed
                 </p>
-                <NeynarSignIn />
+                <SignInButton />
               </div>
             </div>
           </div>

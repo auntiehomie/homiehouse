@@ -394,7 +394,7 @@ FACTUAL CONTEXT — Farcaster Protocol & History:
 - Founded by Dan Romero and Varun Srinivasan (both former Coinbase executives) in 2020; public beta launched 2022
 - Key design philosophy: "sufficiently decentralized" — Farcaster stores identity on-chain (Ethereum/Optimism) but content off-chain via Hubs, enabling low-cost posting while maintaining censorship resistance
 - FID (Farcaster ID): an on-chain integer (e.g. FID 3 = Dan Romero) registered on the Farcaster ID Registry contract on Optimism
-- Hubs: a network of off-chain servers that sync and store all casts (posts), reactions, and links. Anyone can run a Hub (Neynar, Pinata, and others provide managed hubs)
+- Hubs: a network of off-chain servers that sync and store all casts (posts), reactions, and links. Anyone can run a Hub (Pinata, Hypersnap, and others provide managed hubs)
 - Signers: each app (Warpcast, HomieHouse) has a registered signer key authorized to act on behalf of your FID — this is how you post without signing every transaction with your wallet
 - Channels (launched late 2023): topic-based feeds (like /defi, /web3) where casts are organized by shared interest
 - Frames (January 2024): interactive mini-apps embedded in casts — polls, NFT mints, games, swap interfaces — powered by a simple open standard

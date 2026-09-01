@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import Link from "next/link";
 import TrendingList from "@/components/TrendingList";
-import NeynarSignIn from "@/components/NeynarSignIn";
+import SignInButton from "@/components/SignInButton";
 
 export default function TrendingClient() {
   const [mounted, setMounted] = useState(false);
-  const { isAuthenticated } = useNeynarContext();
+  const { isAuthenticated } = useFarcasterUser();
 
   // Wait for client-side mount
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function TrendingClient() {
             </Link>
             <h1 className="text-2xl font-bold">Trending</h1>
           </div>
-          <NeynarSignIn />
+          <SignInButton />
         </div>
       </header>
 

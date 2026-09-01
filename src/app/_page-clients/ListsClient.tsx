@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNeynarContext } from "@/hooks/useNeynarCompat";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -35,7 +35,7 @@ interface ListItem {
 type Tab = "mine" | "discover" | "following";
 
 export default function ListsClient() {
-  const { user } = useNeynarContext();
+  const { user } = useFarcasterUser();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("mine");
 
