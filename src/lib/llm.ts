@@ -47,6 +47,29 @@ export function getLLMProviders(): LLMProvider[] {
     });
   }
 
+  // ─── OpenRouter — Anthropic Haiku (fast, cheap, high quality) ──────────────
+  if (process.env.OPENROUTER_API_KEY) {
+    const orClient = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+    });
+
+    // Claude Haiku 4.5 — fast, cheap ($0.001/$0.005 per 1M), excellent for structured JSON
+    providers.push({
+      name: 'openrouter-haiku',
+      client: orClient,
+      model: 'anthropic/claude-haiku-4.5',
+      visionModel: 'anthropic/claude-haiku-4.5',
+    });
+
+    // GLM 5.2 — strong general-purpose, 256k context, tool support
+    providers.push({
+      name: 'openrouter-glm',
+      client: orClient,
+      model: 'z-ai/glm-5.2',
+    });
+  }
+
   // ─── OpenRouter free models (diverse families for redundancy) ──────────────
   if (process.env.OPENROUTER_API_KEY) {
     const client = new OpenAI({
@@ -54,9 +77,9 @@ export function getLLMProviders(): LLMProvider[] {
       baseURL: 'https://openrouter.ai/api/v1',
     });
 
-    // GLM 5.2 — strong general-purpose model, 256k context, tool support
+    // GLM 5.2 free — same model, free tier for rate-limit headroom
     providers.push({
-      name: 'openrouter-glm',
+      name: 'openrouter-glm-free',
       client,
       model: 'z-ai/glm-5.2:free',
     });
@@ -75,13 +98,6 @@ export function getLLMProviders(): LLMProvider[] {
       model: 'google/gemma-4-31b-it:free',
       visionModel: 'google/gemma-4-31b-it:free',
     });
-
-    // Nemotron 3 Super 120B — NVIDIA's large model, 262k context, deep reasoning
-    providers.push({
-      name: 'openrouter-nemotron',
-      client,
-      model: 'nvidia/nemotron-3-super-120b-a12b:free',
-    });
   }
 
   return providers;
@@ -95,6 +111,8 @@ export interface LLMChatParams {
   toolChoice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
   /** Use the provider's vision model instead of its text model */
   vision?: boolean;
+  /** Per-provider timeout in ms (default 8000). Pass a higher value for long-generation tasks like lesson creation. */
+  timeoutMs?: number;
 }
 
 export interface LLMResponse {
@@ -113,13 +131,12 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
   }
 
   const errors: string[] = [];
+  const perProviderTimeout = params.timeoutMs ?? 8000;
   for (const p of providers) {
     const controller = new AbortController();
-    // Agent tool loops and Vercel cold starts need a little more room than the
-    // original 25s budget. Keep this bounded while increasing it by 1.5x.
-    // 8s per-provider timeout — 6 providers × 8s = 48s worst case,
-    // safely under Vercel's 60s function timeout.
-    const timer = setTimeout(() => controller.abort(), 8000);
+    // Default 8s per-provider keeps total wait under Vercel's 60s limit.
+    // Callers generating long content (lessons, plans) pass timeoutMs=55000.
+    const timer = setTimeout(() => controller.abort(), perProviderTimeout);
     try {
       const response = await p.client.chat.completions.create(
         {

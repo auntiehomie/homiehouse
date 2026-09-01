@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
@@ -166,6 +165,7 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
       messages: [{ role: 'user', content: verifyPrompt }],
       maxTokens: 700,
       temperature: 0,
+      timeoutMs: 30000,
     });
     const raw = (message.content ?? '')
       .replace(/^```(?:json)?\s*/i, '')
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
     }
 
-    if (getLLMProviders().length === 0 && !process.env.PERPLEXITY_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+    if (getLLMProviders().length === 0) {
       console.error('[lesson] No AI provider configured, returning fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives));
     }
@@ -494,61 +494,21 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       }
     }
 
-    // ── Tier 1: Claude (Anthropic) — PRIMARY writer for warm, high-quality prose.
-    // Lessons generate once per module and cache for 30 days, so the cost stays
-    // low. Model overridable via LESSON_ANTHROPIC_MODEL (default Sonnet).
-    if (process.env.ANTHROPIC_API_KEY) {
-      try {
-        const { default: Anthropic } = await import('@anthropic-ai/sdk');
-        const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const res = await anthropic.messages.create({
-          model: process.env.LESSON_ANTHROPIC_MODEL || 'claude-sonnet-5',
-          max_tokens: 2500,
-          temperature: 0.7,
-          messages: [{ role: 'user', content: enrichedPrompt }],
-        });
-        const block = res.content[0];
-        content = block?.type === 'text' ? block.text.trim() : '';
-        if (content) usedProvider = 'anthropic';
-      } catch (anthErr: any) {
-        console.error('[lesson] Anthropic (primary) failed, falling back:', anthErr?.message);
-      }
-    }
-
-    // ── Tier 2: Perplexity Sonar — real-time web search baked in ──────────────
-    if (!content && process.env.PERPLEXITY_API_KEY) {
-      const perplexityClient = new OpenAI({
-        apiKey: process.env.PERPLEXITY_API_KEY,
-        baseURL: 'https://api.perplexity.ai',
+    // ── Single unified provider chain via llmChat ───────────────────────────
+    // Provider order: Haiku 4.5 (fast, cheap, great for structured JSON) →
+    // GLM 5.2 (paid) → GLM 5.2 (free) → GPT-OSS → Gemma. 55s timeout per
+    // provider so lesson generation has room to breathe.
+    try {
+      const { message, provider } = await llmChat({
+        messages: [{ role: 'user', content: enrichedPrompt }],
+        maxTokens: 2500,
+        temperature: 0.7,
+        timeoutMs: 55000,
       });
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 25000);
-      try {
-        const res = await perplexityClient.chat.completions.create(
-          { model: 'sonar', messages: [{ role: 'user', content: enrichedPrompt }], max_tokens: 2500, temperature: 0.5 },
-          { signal: ctrl.signal },
-        );
-        clearTimeout(t);
-        content = res.choices[0]?.message?.content?.trim() ?? '';
-        if (content) usedProvider = 'perplexity-sonar';
-      } catch {
-        clearTimeout(t);
-      }
-    }
-
-    // ── Tier 3: free provider stack (Cerebras → Groq → Gemini → OpenRouter) ────
-    if (!content) {
-      try {
-        const { message, provider } = await llmChat({
-          messages: [{ role: 'user', content: enrichedPrompt }],
-          maxTokens: 2500,
-          temperature: 0.5,
-        });
-        content = message.content?.trim() ?? '';
-        usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
-      } catch (aiErr: any) {
-        console.error('[lesson] Free providers failed:', aiErr?.message);
-      }
+      content = message.content?.trim() ?? '';
+      usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
+    } catch (aiErr: any) {
+      console.error('[lesson] Provider chain failed:', aiErr?.message);
     }
 
     if (!content) {
@@ -560,8 +520,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     let lesson = parseLessonJson(content);
 
-    // One strict retry via the free stack before giving up — small models
-    // sometimes wrap the JSON in prose or truncate on the first attempt.
+    // Strict retry via llmChat — small models sometimes wrap JSON in prose.
     if (!lesson && getLLMProviders().length > 0) {
       try {
         const { message } = await llmChat({
@@ -571,6 +530,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
           }],
           maxTokens: 2500,
           temperature: 0.4,
+          timeoutMs: 55000,
         });
         lesson = parseLessonJson(message.content ?? '');
         if (lesson) console.error('[lesson] recovered on strict retry');

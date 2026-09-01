@@ -482,6 +482,7 @@ Requirements:
       messages: [{ role: 'system', content: 'You are a Web3 / decentralization education expert. Create a personalized learning plan as a JSON object.' }, { role: 'user', content: prompt }],
       temperature: 0.7,
       maxTokens: 4000,
+      timeoutMs: 55000,
     });
     const content = response.message.content ?? '';
 
