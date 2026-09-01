@@ -5,17 +5,15 @@
  * `openai` SDK with different baseURLs. Providers are tried in order until one
  * succeeds.
  *
- * Current provider selection (Aug 2026):
- * - Cerebras and Groq dropped: no more free tier (Cerebras 402, Groq delisted all free Llama models)
- * - Gemini direct API kept: generous free tier, fast, reliable
- * - OpenRouter free models: 4 diverse model families for redundancy + rate limit headroom
+ * Current provider selection (Sep 2026):
+ * - OpenRouter paid models: Anthropic Haiku 4.5 (primary) + GLM 5.2 (backup)
+ * - Gemini direct API: free tier, reliable, but reasoning model that sometimes
+ *   puts text in the reasoning field instead of content
+ * - OpenRouter free models: GLM 5.2 free, GPT-OSS, Gemma for redundancy
  *
  * Configure via env vars:
+ *   OPENROUTER_API_KEY — https://openrouter.ai (paid + free models)
  *   GEMINI_API_KEY     — https://aistudio.google.com (free tier)
- *   OPENROUTER_API_KEY — https://openrouter.ai (free models)
- *
- * Per the project's model policy we deliberately do NOT fall back to Claude or
- * OpenAI paid — only free, open models.
  */
 
 import OpenAI from 'openai';
@@ -33,21 +31,7 @@ export interface LLMProvider {
 export function getLLMProviders(): LLMProvider[] {
   const providers: LLMProvider[] = [];
 
-  // ─── Gemini direct API (fastest, Google infra, generous free tier) ───────────
-  if (process.env.GEMINI_API_KEY) {
-    const client = new OpenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    });
-    providers.push({
-      name: 'gemini',
-      client,
-      model: 'gemini-2.5-flash',
-      visionModel: 'gemini-2.5-flash',
-    });
-  }
-
-  // ─── OpenRouter — Anthropic Haiku (fast, cheap, high quality) ──────────────
+  // ─── OpenRouter — Anthropic Haiku + GLM 5.2 (paid, primary) ────────────────
   if (process.env.OPENROUTER_API_KEY) {
     const orClient = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
@@ -70,7 +54,23 @@ export function getLLMProviders(): LLMProvider[] {
     });
   }
 
-  // ─── OpenRouter free models (diverse families for redundancy) ──────────────
+  // ─── Gemini direct API (free tier, reliable backup) ─────────────────────────
+  // Placed after Haiku/GLM because Gemini 2.5 Flash is a reasoning model that
+  // sometimes returns content in the reasoning field instead of content.
+  if (process.env.GEMINI_API_KEY) {
+    const client = new OpenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    });
+    providers.push({
+      name: 'gemini',
+      client,
+      model: 'gemini-2.5-flash',
+      visionModel: 'gemini-2.5-flash',
+    });
+  }
+
+  // ─── OpenRouter free models (redundancy + rate-limit headroom) ──────────────
   if (process.env.OPENROUTER_API_KEY) {
     const client = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
@@ -84,11 +84,11 @@ export function getLLMProviders(): LLMProvider[] {
       model: 'z-ai/glm-5.2:free',
     });
 
-    // GPT-OSS 20B — OpenAI open weights, fast, 131k context
+    // GPT-OSS 20B — OpenAI open weights (paid slug; the :free variant 404s)
     providers.push({
       name: 'openrouter-gpt-oss',
       client,
-      model: 'openai/gpt-oss-20b:free',
+      model: 'openai/gpt-oss-20b',
     });
 
     // Gemma 4 31B — Google model via OpenRouter, 262k context, vision capable
@@ -123,11 +123,15 @@ export interface LLMResponse {
 /**
  * Run a chat completion, trying each configured provider in order until one
  * succeeds. Throws only if every provider fails (or none are configured).
+ *
+ * Some reasoning models (Gemini 2.5 Flash, GLM 5.2) return text in a
+ * `reasoning` field with `content` set to null/undefined. We extract the
+ * reasoning text into `content` so callers can always read `message.content`.
  */
 export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
   const providers = getLLMProviders();
   if (providers.length === 0) {
-    throw new Error('No LLM provider configured (set GROQ_API_KEY, GEMINI_API_KEY, or OPENROUTER_API_KEY)');
+    throw new Error('No LLM provider configured (set OPENROUTER_API_KEY or GEMINI_API_KEY)');
   }
 
   const errors: string[] = [];
@@ -151,13 +155,17 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
       clearTimeout(timer);
       const message = response.choices[0]?.message;
       if (!message) throw new Error('empty response');
-      // Some reasoning models (e.g. GLM 5.2) return content in reasoning fields
-      // with undefined/null in the standard content field. Treat as failure so
-      // the fallback chain continues to the next provider.
+
+      // Reasoning models (Gemini 2.5 Flash, GLM 5.2) sometimes put text in
+      // `reasoning` with `content` as null. Extract it so callers always get
+      // a usable string in `message.content`.
+      if (!message.content && (message as any)?.reasoning) {
+        message.content = (message as any).reasoning;
+      }
+
       const hasContent = message.content ||
-        (message as any)?.tool_calls?.length ||
-        (message as any)?.reasoning;
-      if (!hasContent) throw new Error('empty content (reasoning model returned no text)');
+        (message as any)?.tool_calls?.length;
+      if (!hasContent) throw new Error('empty content (model returned no text)');
       return { message, provider: p.name };
     } catch (err: any) {
       clearTimeout(timer);
