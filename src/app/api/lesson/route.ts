@@ -253,9 +253,9 @@ export async function POST(req: NextRequest) {
 
     // ── Cache check — return stored lesson if available ──────────────────────
     const redis = getRedis();
-    // v3: regenerate every module through the Claude-primary path (v2 cached the
-    // dry free-model prose). Each module regenerates once, then caches 30 days.
-    const cacheKey = moduleId ? `lesson:v3:${moduleId}${eli5 ? ':eli5' : ''}` : null;
+    // v4: regenerate every module through the Haiku-primary path with the
+    // fixed JSON parser (v3 cached fallback template content from parse failure).
+    const cacheKey = moduleId ? `lesson:v4:${moduleId}${eli5 ? ':eli5' : ''}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
