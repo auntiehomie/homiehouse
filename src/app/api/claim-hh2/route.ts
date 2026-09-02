@@ -3,7 +3,7 @@ import { rateLimit } from '@/lib/ratelimit';
 import { createWalletClient, http, parseUnits, isAddress } from 'viem';
 import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sql } from '@/lib/db';
+import { sql, getSql } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { createApiLogger } from '@/lib/logger';
 
@@ -12,6 +12,49 @@ const logger = createApiLogger('/claim-hh2');
 const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
 const HH2_PER_MODULE = 100;
 const HH2_DECIMALS = 18;
+
+// Auto-create tables on first use — no migration command needed.
+const ENSURE_TABLES = `
+CREATE TABLE IF NOT EXISTS learning_progress (
+  fid INTEGER PRIMARY KEY,
+  plan JSONB,
+  completed_ids JSONB DEFAULT '[]',
+  completions JSONB DEFAULT '{}',
+  hh2_points INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS hh2_claims (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  fid INTEGER NOT NULL,
+  module_id TEXT NOT NULL,
+  wallet_address TEXT NOT NULL,
+  tx_hash TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  claimed_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(fid, module_id)
+);
+CREATE TABLE IF NOT EXISTS hh2_purchases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_fid INTEGER NOT NULL,
+  item_id TEXT NOT NULL,
+  purchased_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_fid, item_id)
+);
+`;
+
+let tablesReady = false;
+async function ensureTables() {
+  if (tablesReady) return;
+  try {
+    const s = getSql();
+    for (const stmt of ENSURE_TABLES.split(';').map(s => s.trim()).filter(Boolean)) {
+      await s.query(stmt);
+    }
+    tablesReady = true;
+  } catch (e) {
+    // Best-effort — if it fails, the query itself will throw a clearer error
+  }
+}
 
 const ERC20_ABI = [
   {
@@ -42,6 +85,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    await ensureTables();
 
     // Rate limit: 30 requests/minute per IP
     const forwarded = req.headers.get('x-forwarded-for');
@@ -75,6 +119,7 @@ export async function GET(req: NextRequest) {
 // POST /api/claim-hh2 — send all unclaimed HH2 to a wallet in one transaction
 export async function POST(req: NextRequest) {
   try {
+    await ensureTables();
     // Verify auth via signer key headers
     const authFid = await verifyFarcasterSignerAuth(req);
 
