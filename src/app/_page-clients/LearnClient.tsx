@@ -9,6 +9,10 @@ import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
 import { getEli5Mode } from '@/lib/eli5';
+import { useAccount, useReadContract, useChainId } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { base as baseChain } from 'wagmi/chains';
+import { formatUnits } from 'viem';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -743,6 +747,33 @@ function LearnPageContent() {
 
   const HH2_PER_LESSON = 100;
 
+  // ── On-chain HH2 balance ────────────────────────────────────────────────
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const isOnBase = chainId === baseChain.id;
+
+  const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
+  const HH2_ABI = [
+    { inputs: [{ name: 'account', type: 'address' }], name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
+    { inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], stateMutability: 'view', type: 'function' },
+  ] as const;
+
+  const { data: hh2Raw, data: hh2Decimals } = useReadContract({
+    address: HH2_CONTRACT,
+    abi: HH2_ABI,
+    functionName: 'balanceOf',
+    args: [(address ?? '0x0000000000000000000000000000000000000000') as `0x${string}`],
+    chainId: baseChain.id,
+    query: { enabled: !!address },
+  }) as { data: bigint | undefined };
+  const { data: decRaw } = useReadContract({
+    address: HH2_CONTRACT,
+    abi: HH2_ABI,
+    functionName: 'decimals',
+    chainId: baseChain.id,
+  }) as { data: bigint | undefined };
+  const onChainBalance = hh2Raw && decRaw ? Number(formatUnits(hh2Raw, Number(decRaw))) : 0;
+
   // Deep-link pre-selection
   useEffect(() => {
     const t = searchParams.get('track') as Track | null;
@@ -1128,11 +1159,27 @@ function LearnPageContent() {
             <TooltipTrigger termKey="fid"><span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>Progress</span></TooltipTrigger>
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{done}/{total} modules · {pct}%</span>
           </div>
-          {/* HH2 points earned */}
+          {/* HH2 points earned + on-chain balance */}
           {hh2Points > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
-              <TooltipTrigger termKey="hh2"><span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span></TooltipTrigger>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
+            <div style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <TooltipTrigger termKey="hh2"><span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span></TooltipTrigger>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
+              </div>
+              {/* On-chain balance row */}
+              {isConnected ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
+                  <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet balance{!isOnBase ? ' (switch to Base)' : ''}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: isOnBase ? '#fbbf24' : 'var(--muted-on-dark)' }}>
+                    {isOnBase ? onChainBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} HH2
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
+                  <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet not connected</span>
+                  <Link href="/hh2" style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600, textDecoration: 'none' }}>Connect →</Link>
+                </div>
+              )}
             </div>
           )}
           {/* Daily streak */}
