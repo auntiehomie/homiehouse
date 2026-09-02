@@ -66,7 +66,7 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'HomieHouse',
     title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.',
+    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
     url: BASE_URL,
     images: [
       {
@@ -80,7 +80,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.',
+    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
     images: ['/api/og'],
   },
   robots: {

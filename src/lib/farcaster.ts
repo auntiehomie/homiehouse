@@ -171,7 +171,7 @@ export function openUrl(url: string) {
   if (typeof window !== "undefined") window.open(url, "_blank");
 }
 
-export function openMiniApp(miniAppUrl: string) {
+export function openMiniApp(miniAppUrl: string, _title?: string) {
   const sdk = getSdk();
   if (sdk?.actions?.openMiniApp) return sdk.actions.openMiniApp(miniAppUrl);
   if (typeof window !== "undefined") window.open(miniAppUrl, "_blank");

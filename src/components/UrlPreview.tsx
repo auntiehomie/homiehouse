@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { openMiniApp } from './MiniAppViewer';
+import { openMiniApp } from '@/lib/farcaster';
 
 // Sites that set X-Frame-Options: DENY or CSP frame-ancestors: none.
 // Opening these in our iframe just shows a blank page, so send to a browser tab instead.

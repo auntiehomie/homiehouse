@@ -75,7 +75,6 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-  { href: '/snaps', label: 'Snaps', icon: <span className="text-lg leading-none" style={{ filter: 'grayscale(1)' }}>🫰</span> },
   {
     href: '/shop', label: 'Shop', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

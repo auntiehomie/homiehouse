@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getEli5Mode } from '@/lib/eli5';
+import { useAccount, useChainId, useSwitchChain } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { base as baseChain } from 'wagmi/chains';
+import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
@@ -315,11 +319,22 @@ function QuizCard({
   );
 }
 
-function CompleteCard({ mod, onShare, onBack }: { mod: LearningModule; onShare: () => void; onBack: () => void }) {
+type ClaimStatus = 'idle' | 'sending' | 'success' | 'failed' | 'not-connected' | 'wrong-chain' | 'already-claimed';
+
+function CompleteCard({ mod, onShare, onBack, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
+  mod: LearningModule;
+  onShare: () => void;
+  onBack: () => void;
+  claimStatus: ClaimStatus;
+  claimTxHash: string | null;
+  claimError: string | null;
+  switchPending: boolean;
+  onSwitchChain: () => void;
+}) {
   return (
     <CardBody>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, textAlign: 'center' }}>
-        <div style={{ fontSize: 64 }}>🎉</div>
+        <div style={{ fontSize: 64, animation: 'celebrateBounce 0.6s cubic-bezier(0.18,0.89,0.32,1.28)' }}>🎉</div>
         <div>
           <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-on-dark)', margin: '0 0 8px' }}>
             Give yourself a pat on the back!
@@ -330,10 +345,74 @@ function CompleteCard({ mod, onShare, onBack }: { mod: LearningModule; onShare: 
           <p style={{ fontSize: 16, color: '#fbbf24', fontWeight: 700, margin: '0 0 6px' }}>
             🪙 +100 HH2 earned!
           </p>
-          <p style={{ fontSize: 15, color: 'var(--accent)', fontWeight: 600, margin: 0 }}>
-            Ready to go deeper?
-          </p>
         </div>
+
+        {/* ── HH2 auto-claim status ─────────────────────────────────────── */}
+        {claimStatus === 'sending' && (
+          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 320 }}>
+            <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(251,191,36,0.3)', borderTopColor: '#fbbf24', animation: 'hhSpin 0.8s linear infinite', flexShrink: 0 }} />
+            <p style={{ fontSize: 14, color: '#fbbf24', margin: 0, fontWeight: 600 }}>Sending 100 HH2 to your wallet…</p>
+          </div>
+        )}
+
+        {claimStatus === 'success' && claimTxHash && (
+          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#22c55e', margin: '0 0 6px' }}>✅ 100 HH2 sent to your wallet!</p>
+            <a href={`https://basescan.org/tx/${claimTxHash}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--muted-on-dark)', wordBreak: 'break-all' }}>
+              View on Basescan ↗
+            </a>
+          </div>
+        )}
+
+        {claimStatus === 'already-claimed' && (
+          <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: 14, color: '#86efac', margin: 0 }}>✅ HH2 already claimed for this module</p>
+          </div>
+        )}
+
+        {claimStatus === 'failed' && (
+          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: 14, color: '#fca5a5', margin: '0 0 4px', fontWeight: 600 }}>⚠️ Auto-claim didn't go through</p>
+            <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>{claimError || 'Visit /hh2 to claim your HH2 manually.'}</p>
+          </div>
+        )}
+
+        {claimStatus === 'not-connected' && (
+          <div style={{ width: '100%', maxWidth: 320 }}>
+            <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', marginBottom: 12 }}>
+              <p style={{ fontSize: 14, color: '#a5b4fc', margin: '0 0 4px', fontWeight: 600 }}>🔗 Connect your wallet for auto-claim</p>
+              <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>Connect to receive 100 HH2 on Base automatically.</p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <ConnectButton />
+            </div>
+          </div>
+        )}
+
+        {claimStatus === 'wrong-chain' && (
+          <div style={{ width: '100%', maxWidth: 320 }}>
+            <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', marginBottom: 12 }}>
+              <p style={{ fontSize: 14, color: '#fbbf24', margin: 0, fontWeight: 600 }}>Switch to Base to claim your HH2</p>
+            </div>
+            <button
+              onClick={onSwitchChain}
+              disabled={switchPending}
+              style={{
+                width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+                background: switchPending ? 'rgba(251,191,36,0.5)' : '#fbbf24',
+                color: '#000', fontSize: 15, fontWeight: 700,
+                cursor: switchPending ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {switchPending ? 'Switching…' : 'Switch to Base →'}
+            </button>
+          </div>
+        )}
+
+        <p style={{ fontSize: 15, color: 'var(--accent)', fontWeight: 600, margin: '0 0 4px' }}>
+          Ready to go deeper?
+        </p>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
           <button
             onClick={onShare}
@@ -423,8 +502,20 @@ function ModuleLessonContent() {
     quizToastTimer.current = setTimeout(() => setQuizToast(null), 2800);
   }, []);
 
+  // Wallet + auto-claim state
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain, isPending: switchPending } = useSwitchChain();
+  const isOnBase = chainId === baseChain.id;
+
   // Completion
   const [alreadyDone, setAlreadyDone] = useState(false);
+
+  // HH2 auto-claim state
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
+  const [claimTxHash, setClaimTxHash] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const claimFired = useRef(false);
 
   useEffect(() => {
     if (!moduleId) { router.replace('/learn'); return; }
@@ -563,6 +654,65 @@ function ModuleLessonContent() {
     return () => clearTimeout(timer);
   }, [currentCard, alreadyDone, handleComplete]);
 
+  // ── HH2 auto-claim ──────────────────────────────────────────────────────
+  const doClaim = useCallback(async () => {
+    const fid = getStoredFid();
+    if (!fid || !address) {
+      setClaimStatus('failed');
+      setClaimError('Missing FID or wallet address.');
+      return;
+    }
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) {
+      setClaimStatus('failed');
+      setClaimError('Not authenticated — connect your Farcaster account.');
+      return;
+    }
+    setClaimStatus('sending');
+    try {
+      const res = await fetch('/api/claim-hh2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ fid, walletAddress: address }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setClaimStatus('success');
+        setClaimTxHash(data.txHash ?? null);
+      } else if ((data.error ?? '').toLowerCase().includes('nothing to claim') || (data.error ?? '').toLowerCase().includes('no completed')) {
+        setClaimStatus('already-claimed');
+      } else {
+        setClaimStatus('failed');
+        setClaimError(data.error ?? 'Claim failed');
+      }
+    } catch {
+      setClaimStatus('failed');
+      setClaimError('Network error — try again on /hh2');
+    }
+  }, [address]);
+
+  // Auto-claim when the complete card is reached and wallet is on Base
+  useEffect(() => {
+    if (currentCard?.type !== 'complete') {
+      claimFired.current = false;
+      return;
+    }
+    if (claimFired.current) return;
+
+    if (!isConnected) {
+      setClaimStatus('not-connected');
+      return;
+    }
+    if (!isOnBase) {
+      setClaimStatus('wrong-chain');
+      return;
+    }
+
+    claimFired.current = true;
+    const timer = setTimeout(() => doClaim(), 1000);
+    return () => clearTimeout(timer);
+  }, [currentCard, isConnected, isOnBase, doClaim]);
+
   const quizCards = cards.filter((c): c is Extract<CardDef, { type: 'quiz' }> => c.type === 'quiz');
   const totalQuestions = quizCards.length;
   const correctAnswers = quizCards.filter(
@@ -634,11 +784,14 @@ function ModuleLessonContent() {
       overscrollBehavior: 'none',
     }}>
       {/* Progress bar */}
-      <div style={{ height: 3, background: 'var(--surface)', flexShrink: 0 }}>
+      <div style={{ height: 3, background: 'var(--surface)', flexShrink: 0, overflow: 'hidden' }}>
         <div style={{
-          height: '100%', background: 'var(--accent)',
+          height: '100%',
           width: `${progress * 100}%`,
+          background: 'linear-gradient(90deg, var(--accent) 0%, rgba(99,102,241,0.6) 50%, var(--accent) 100%)',
+          backgroundSize: '200% 100%',
           transition: 'width 0.3s ease',
+          animation: 'shimmer 2s linear infinite',
         }} />
       </div>
 
@@ -675,9 +828,13 @@ function ModuleLessonContent() {
 
       {/* Card content */}
       <style>{`
-        @keyframes cardSlideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes cardSlideInLeft  { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
-        @keyframes quizToastIn { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        @keyframes cardSlideInRight { from { opacity: 0; transform: translateX(40px) scale(0.98); } to { opacity: 1; transform: translateX(0) scale(1); } }
+        @keyframes cardSlideInLeft  { from { opacity: 0; transform: translateX(-40px) scale(0.98); } to { opacity: 1; transform: translateX(0) scale(1); } }
+        @keyframes quizToastBounce { 0% { opacity: 0; transform: translate(-50%, -20px) scale(0.8); } 60% { opacity: 1; transform: translate(-50%, 4px) scale(1.05); } 100% { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+        @keyframes quizToastShake { 0% { opacity: 0; transform: translate(-50%, -14px); } 20% { opacity: 1; transform: translate(-50%, 0); } 30% { transform: translate(-54%, 0); } 45% { transform: translate(-46%, 0); } 60% { transform: translate(-52%, 0); } 75% { transform: translate(-48%, 0); } 100% { transform: translate(-50%, 0); } }
+        @keyframes celebrateBounce { 0% { opacity: 0; transform: scale(0) rotate(-20deg); } 50% { opacity: 1; transform: scale(1.3) rotate(10deg); } 70% { transform: scale(0.9) rotate(-5deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+        @keyframes hhSpin { to { transform: rotate(360deg); } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
       `}</style>
       <div
         style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}
@@ -719,7 +876,16 @@ function ModuleLessonContent() {
                 />
               )}
               {currentCard.type === 'complete' && mod && (
-                <CompleteCard mod={mod} onShare={handleShare} onBack={() => router.push('/learn')} />
+                <CompleteCard
+                  mod={mod}
+                  onShare={handleShare}
+                  onBack={() => router.push('/learn')}
+                  claimStatus={claimStatus}
+                  claimTxHash={claimTxHash}
+                  claimError={claimError}
+                  switchPending={switchPending}
+                  onSwitchChain={() => switchChain({ chainId: baseChain.id })}
+                />
               )}
             </>
           ) : null}
@@ -840,7 +1006,7 @@ function ModuleLessonContent() {
             background: quizToast ? 'rgba(22,163,74,0.97)' : 'rgba(220,38,38,0.97)',
             color: '#fff', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap',
             boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-            animation: 'quizToastIn 0.28s cubic-bezier(0.18,0.89,0.32,1.28)',
+            animation: quizToast ? 'quizToastBounce 0.5s cubic-bezier(0.18,0.89,0.32,1.28)' : 'quizToastShake 0.5s ease-out',
           }}
         >
           <span>{quizToast ? '✅' : '❌'}</span>

@@ -10,7 +10,6 @@ const SdkDevMock = dynamic(() => import("./SdkDevMock"), { ssr: false });
 const SignerInit = dynamic(() => import("./SignerInit"), { ssr: false });
 const WelcomeModal = dynamic(() => import("./WelcomeModal"), { ssr: false });
 const PushNotificationSetup = dynamic(() => import("./PushNotificationSetup"), { ssr: false });
-const MiniAppViewer = dynamic(() => import("./MiniAppViewer"), { ssr: false });
 const UpdateBanner = dynamic(() => import("./UpdateBanner"), { ssr: false });
 const FarcasterOnboarding = dynamic(() => import("./FarcasterOnboarding"), { ssr: false });
 const ComposeModal = dynamic(() => import("./ComposeModal"), { ssr: false });
@@ -23,7 +22,6 @@ export default function LazyClientComponents() {
       <SignerInit />
       <WelcomeModal />
       <PushNotificationSetup />
-      <MiniAppViewer />
       <UpdateBanner />
       <FarcasterOnboarding />
       <ComposeModal />

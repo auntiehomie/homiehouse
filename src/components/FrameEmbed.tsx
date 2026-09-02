@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import type { FrameData } from '@/app/api/frame/route';
-import { openMiniApp } from './MiniAppViewer';
+import { openMiniApp } from '@/lib/farcaster';
 
 interface Props {
   url: string;

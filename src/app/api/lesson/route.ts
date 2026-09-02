@@ -39,6 +39,38 @@ interface LessonContent {
   quiz: QuizQuestion[];
 }
 
+/**
+ * Fisher–Yates shuffle (Durstenfeld variant) returning a new array.
+ * Does not mutate the input.
+ */
+function fisherYates<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Shuffle each quiz question's option order so the correct answer is not
+ * always at the same position (the LLM tends to put it at index 0).
+ *
+ * Called AFTER verifyQuiz (which fixes correctIndex against the original
+ * ordering) and BEFORE caching, so the stored lesson has a randomized answer
+ * position that stays stable across cache hits.
+ */
+function shuffleQuizOptions(quiz: QuizQuestion[]): QuizQuestion[] {
+  return quiz.map((q) => {
+    if (!q.options || q.options.length < 2) return q;
+    const indices = q.options.map((_, i) => i);
+    const shuffled = fisherYates(indices);
+    const newCorrect = shuffled.indexOf(q.correctIndex);
+    const shuffledOptions = shuffled.map((i) => q.options[i]);
+    return { ...q, options: shuffledOptions, correctIndex: newCorrect };
+  });
+}
+
 
 function fallbackLesson(title: string, description: string, objectives: string[]): LessonContent {
   return {
@@ -189,7 +221,7 @@ Ground truth to enforce: a GOVERNANCE token = voting/decision rights in a protoc
 ${questionsBlock}
 
 Return ONLY a JSON array — no markdown, no prose. One object per question:
-[{"q":1,"correct":"A","valid":true}]
+[{"q":1,"correct":"C","valid":true}]
 - "correct": the letter (A/B/C/D) of the one unambiguously correct option.
 - "valid": false if the question has no single correct answer, has more than one correct answer, or is factually broken; otherwise true.`;
 
@@ -255,7 +287,7 @@ export async function POST(req: NextRequest) {
     const redis = getRedis();
     // v5: regenerate every module with increased maxTokens (8000) so the
     // full lesson JSON isn't truncated mid-object.
-    const cacheKey = moduleId ? `lesson:v5:${moduleId}${eli5 ? ':eli5' : ''}` : null;
+    const cacheKey = moduleId ? `lesson:v7:${moduleId}${eli5 ? ':eli5' : ''}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
@@ -474,7 +506,7 @@ Return ONLY valid JSON — no markdown, no code fences. Use this exact structure
     {
       "question": "A specific, knowledge-testing question (not 'what is the purpose of this module')",
       "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctIndex": 0,
+      "correctIndex": 2,
       "explanation": "2-3 sentences: why the correct answer is right AND why each wrong answer is wrong or misleading."
     }
   ]
@@ -491,6 +523,7 @@ Requirements:
 
 QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 - correctIndex is 0-based (0=A, 1=B, 2=C, 3=D). It MUST point to the option that is unambiguously, factually correct.
+- VARY the correctIndex across questions — do NOT put the correct answer at the same index for every question. Mix it up: some questions should have the answer at index 0, others at 1, 2, or 3.
 - Before finalizing each question, re-read the option at correctIndex and confirm it is TRUE and the other three are clearly FALSE. If two options could both be defended as correct, rewrite the question.
 - Watch out for "reversed pair" distractors (e.g. swapping which token does what). Verify the definitions are not backwards. Ground truth to respect: a GOVERNANCE token = voting/decision rights in a protocol; a UTILITY token = access to or payment for a product/service; an LP (liquidity provider) token = a depositor's share of a liquidity pool. Never mark an option correct that assigns these the wrong way round.
 - The "explanation" must restate the correct fact so it can be checked against the option at correctIndex — they must agree.`
@@ -584,7 +617,19 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       // verifyQuiz already fails open, but guard the assignment too
     }
 
-    // ── Cache the (verified) lesson for 30 days ─────────────────────────────
+    // ── Shuffle quiz option order so the correct answer isn't always A ──────
+    // The LLM tends to put the correct option at index 0 regardless of the
+    // prompt instruction to vary it. verifyQuiz pins correctIndex against the
+    // generated ordering; we then shuffle so the stored lesson has a random
+    // answer position that stays stable across cache hits.
+    try {
+      lesson.quiz = shuffleQuizOptions(lesson.quiz);
+    } catch {
+      // shuffle is best-effort; on failure the quiz still works (just maybe
+      // predictable)
+    }
+
+    // ── Cache the (verified + shuffled) lesson for 30 days ──────────────────
     if (redis && cacheKey) {
       try { await redis.set(cacheKey, lesson, { ex: 60 * 60 * 24 * 30 }); } catch {}
     }

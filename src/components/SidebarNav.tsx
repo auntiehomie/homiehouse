@@ -87,11 +87,6 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: '/snaps',
-    label: 'Snaps',
-    icon: <span className="text-lg leading-none" style={{ filter: 'grayscale(1)' }}>🫰</span>,
-  },
-  {
     href: '/shop',
     label: 'Shop',
     icon: (

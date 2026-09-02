@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import SnapRenderer, { type SnapData, type SnapAction } from './SnapRenderer';
 import FrameEmbed from './FrameEmbed';
 import UrlPreview from './UrlPreview';
-import { openMiniApp } from './MiniAppViewer';
+import { openMiniApp } from '@/lib/farcaster';
 import { buildJfs, getSignerForFid } from '@/lib/snap-jfs';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useRouter } from 'next/navigation';
