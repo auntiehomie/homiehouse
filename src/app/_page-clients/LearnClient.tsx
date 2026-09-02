@@ -738,7 +738,7 @@ function LearnPageContent() {
   const [contentVisible, setContentVisible] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const [planPersonalizing, setPlanPersonalizing] = useState(false);
-  const [hh2Points, setHh2Points] = useState(0);
+  // hh2Points is derived from completedIds above — no separate state needed.
   const [streak, setStreak] = useState<{ currentStreak: number; longestStreak: number; freezeAvailable: boolean } | null>(null);
   const [leaderboardEnabled, setLeaderboardEnabled] = useState(false);
   const [leaderboard, setLeaderboard] = useState<Array<{ fid: number; username?: string; pfpUrl?: string; weeklyPoints: number }>>([]);
@@ -746,6 +746,9 @@ function LearnPageContent() {
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const HH2_PER_LESSON = 100;
+  // Derive off-chain points from completedIds so it's always correct,
+  // even on initial load from localStorage before Neon syncs.
+  const hh2Points = completedIds.size * HH2_PER_LESSON;
 
   // ── On-chain HH2 balance ────────────────────────────────────────────────
   const { address, isConnected } = useAccount();
@@ -758,7 +761,7 @@ function LearnPageContent() {
     { inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], stateMutability: 'view', type: 'function' },
   ] as const;
 
-  const { data: hh2Raw, data: hh2Decimals } = useReadContract({
+  const { data: hh2Raw } = useReadContract({
     address: HH2_CONTRACT,
     abi: HH2_ABI,
     functionName: 'balanceOf',
@@ -838,7 +841,7 @@ function LearnPageContent() {
         if (d.completions && Object.keys(d.completions).length > 0) {
           try { localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(d.completions)); } catch {}
         }
-        if (typeof d.hh2_points === 'number') setHh2Points(d.hh2_points);
+
       })
       .catch(() => {});
   // farcasterFid as dep: re-runs once Farcaster auth resolves and the FID becomes non-null
@@ -957,8 +960,8 @@ function LearnPageContent() {
     setCompletedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) { next.delete(id); } else { next.add(id); }
-      setHh2Points(next.size * HH2_PER_LESSON);
-      return next;
+      // hh2Points is derived — no setHh2Points needed
+            return next;
     });
   }, [HH2_PER_LESSON]);
 
@@ -1160,28 +1163,26 @@ function LearnPageContent() {
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{done}/{total} modules · {pct}%</span>
           </div>
           {/* HH2 points earned + on-chain balance */}
-          {hh2Points > 0 && (
-            <div style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <TooltipTrigger termKey="hh2"><span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span></TooltipTrigger>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
-              </div>
-              {/* On-chain balance row */}
-              {isConnected ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
-                  <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet balance{!isOnBase ? ' (switch to Base)' : ''}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: isOnBase ? '#fbbf24' : 'var(--muted-on-dark)' }}>
-                    {isOnBase ? onChainBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} HH2
-                  </span>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
-                  <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet not connected</span>
-                  <Link href="/hh2" style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600, textDecoration: 'none' }}>Connect →</Link>
-                </div>
-              )}
+          <div style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <TooltipTrigger termKey="hh2"><span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span></TooltipTrigger>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
             </div>
-          )}
+            {/* On-chain balance row */}
+            {isConnected ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
+                <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet balance{!isOnBase ? ' (switch to Base)' : ''}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: isOnBase ? '#fbbf24' : 'var(--muted-on-dark)' }}>
+                  {isOnBase ? onChainBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} HH2
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
+                <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet not connected</span>
+                <Link href="/hh2" style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600, textDecoration: 'none' }}>Connect →</Link>
+              </div>
+            )}
+          </div>
           {/* Daily streak */}
           {streak && streak.currentStreak > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)' }}>
