@@ -167,14 +167,31 @@ export async function POST(request: Request) {
 
   try {
     const sql = getSql();
-    // Run each statement individually (neon tagged-template doesn't support multi-statement strings)
+    // Run each statement individually, continue on error
     const statements = SCHEMA
       .split(';')
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const results: Array<{ stmt: string; ok: boolean; error?: string }> = [];
+
     for (const stmt of statements) {
-      await sql.query(stmt);
+      try {
+        await sql.query(stmt);
+        results.push({ stmt: stmt.slice(0, 80), ok: true });
+      } catch (e: any) {
+        // Don't abort — keep going so missing tables get created
+        results.push({ stmt: stmt.slice(0, 80), ok: false, error: e?.message });
+      }
+    }
+
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length > 0) {
+      return NextResponse.json({
+        ok: false,
+        message: `${failed.length} statements failed (non-fatal — rest succeeded)`,
+        results,
+      });
     }
 
     return NextResponse.json({
