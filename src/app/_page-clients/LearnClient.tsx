@@ -1162,8 +1162,8 @@ function LearnPageContent() {
             <TooltipTrigger termKey="fid"><span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>Progress</span></TooltipTrigger>
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{done}/{total} modules · {pct}%</span>
           </div>
-          {/* HH2 points earned + on-chain balance */}
-          <div style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+          {/* HH2 points earned + on-chain balance — clickable to /hh2 */}
+          <Link href="/hh2" style={{ display: 'block', marginBottom: 10, padding: '10px 12px', borderRadius: 8, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', textDecoration: 'none', cursor: 'pointer', transition: 'background 0.15s' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <TooltipTrigger termKey="hh2"><span style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>🪙 HH2 Points Earned</span></TooltipTrigger>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24' }}>{hh2Points.toLocaleString()} HH2</span>
@@ -1171,18 +1171,20 @@ function LearnPageContent() {
             {/* On-chain balance row */}
             {isConnected ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
-                <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet balance{!isOnBase ? ' (switch to Base)' : ''}</span>
+                <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>
+                  {address?.slice(0, 6)}…{address?.slice(-4)}{!isOnBase ? ' · switch to Base' : ''}
+                </span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: isOnBase ? '#fbbf24' : 'var(--muted-on-dark)' }}>
-                  {isOnBase ? onChainBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} HH2
+                  {isOnBase ? onChainBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} HH2 →
                 </span>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(251,191,36,0.15)' }}>
                 <span style={{ fontSize: 11, color: 'rgba(251,191,36,0.6)' }}>Wallet not connected</span>
-                <Link href="/hh2" style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600, textDecoration: 'none' }}>Connect →</Link>
+                <span style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600 }}>Connect →</span>
               </div>
             )}
-          </div>
+          </Link>
           {/* Daily streak */}
           {streak && streak.currentStreak > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.25)' }}>
