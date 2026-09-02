@@ -576,7 +576,7 @@ function ModuleLessonContent() {
     navigate('forward');
   };
 
-  const handleComplete = useCallback(() => {
+  const handleComplete = useCallback(async () => {
     if (!moduleId) return;
     // Require minimum time spent on the module before awarding HH2
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
@@ -602,7 +602,8 @@ function ModuleLessonContent() {
           };
           localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
         }
-        // Sync to Neon for cross-device persistence
+        // Sync to Neon for cross-device persistence — await so the claim
+        // flow can read the updated completed_ids from the database.
         try {
           const fid = (() => {
             const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
@@ -612,28 +613,13 @@ function ModuleLessonContent() {
             const plan = (() => {
               try { return JSON.parse(localStorage.getItem('hh_learning_plan') ?? 'null'); } catch { return null; }
             })();
-            fetch('/api/learning-progress', {
+            await fetch('/api/learning-progress', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ fid, plan, completed_ids: updatedProgress, completions }),
             }).catch(() => {});
           }
         } catch {}
-      }
-      if (mod) {
-        const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
-        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number }> =
-          compRaw ? JSON.parse(compRaw) : {};
-        if (!completions[moduleId]) {
-          completions[moduleId] = {
-            completedAt: new Date().toISOString(),
-            title: mod.title,
-            description: mod.description,
-            difficulty: mod.difficulty,
-            estimatedMinutes: mod.estimatedMinutes,
-          };
-          localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
-        }
       }
     } catch {}
   }, [moduleId, mod]);
@@ -648,8 +634,7 @@ function ModuleLessonContent() {
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
     const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
     const timer = setTimeout(() => {
-      handleComplete();
-      setAlreadyDone(true);
+      handleComplete().then(() => setAlreadyDone(true));
     }, remaining * 1000);
     return () => clearTimeout(timer);
   }, [currentCard, alreadyDone, handleComplete]);
@@ -670,21 +655,36 @@ function ModuleLessonContent() {
     }
     setClaimStatus('sending');
     try {
-      const res = await fetch('/api/claim-hh2', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ fid, walletAddress: address }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setClaimStatus('success');
-        setClaimTxHash(data.txHash ?? null);
-      } else if ((data.error ?? '').toLowerCase().includes('nothing to claim') || (data.error ?? '').toLowerCase().includes('no completed')) {
-        setClaimStatus('already-claimed');
-      } else {
+      // Retry the claim up to 3 times with backoff — the Neon sync from
+      // handleComplete may still be propagating when we fire this.
+      let lastError = '';
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch('/api/claim-hh2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ fid, walletAddress: address }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setClaimStatus('success');
+          setClaimTxHash(data.txHash ?? null);
+          return;
+        }
+        const errLower = (data.error ?? '').toLowerCase();
+        if (errLower.includes('nothing to claim') || errLower.includes('no completed')) {
+          // Sync hasn't landed yet — wait and retry
+          lastError = data.error ?? 'Nothing to claim yet';
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+        // Real error — don't retry
         setClaimStatus('failed');
         setClaimError(data.error ?? 'Claim failed');
+        return;
       }
+      // Exhausted retries — the sync likely didn't propagate in time
+      setClaimStatus('failed');
+      setClaimError(lastError || 'Sync timed out — visit /hh2 to claim manually');
     } catch {
       setClaimStatus('failed');
       setClaimError('Network error — try again on /hh2');
