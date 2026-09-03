@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
 
-const HH2_ADDRESS = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
+const HH2_ADDRESS = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_CHAIN_ID = base.id;
 const UNISWAP_LINK = `https://app.uniswap.org/swap?outputCurrency=${HH2_ADDRESS}&chain=base`;
 const DEXSCREENER_PAIR = `https://dexscreener.com/base/${HH2_ADDRESS}`;

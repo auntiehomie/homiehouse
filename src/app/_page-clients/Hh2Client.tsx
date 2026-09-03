@@ -11,7 +11,7 @@ import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import HHLogo from '@/components/HHLogo';
 
-const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
+const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_CHAIN = 'base';
 const HH2_CHAIN_ID = base.id;
 const DEXSCREENER_LINK = `https://dexscreener.com/${HH2_CHAIN}/${HH2_CONTRACT}`;

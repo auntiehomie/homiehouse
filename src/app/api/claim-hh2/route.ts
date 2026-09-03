@@ -9,7 +9,7 @@ import { createApiLogger } from '@/lib/logger';
 
 const logger = createApiLogger('/claim-hh2');
 
-const HH2_CONTRACT = '0x290bf43aa0406DFd0D878367814Dffa926e9Bb07' as const;
+const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_PER_MODULE = 100;
 const HH2_DECIMALS = 18;
 
