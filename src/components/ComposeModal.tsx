@@ -541,7 +541,7 @@ export default function ComposeModal() {
           </div>
 
           {/* Scrollable body — minHeight:0 prevents iOS Safari flex overflow bug */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 16px 0' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px 0' }}>
             {replyParentName && (
               <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 10 }}>
                 Replying to <strong style={{ color: 'var(--text-on-dark)' }}>@{replyParentName}</strong>
@@ -646,7 +646,7 @@ export default function ComposeModal() {
             {status && <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--muted-on-dark)' }}>{status}</div>}
 
             {/* Bottom breathing room so toolbar doesn't cover content */}
-            <div style={{ height: 72 }} />
+            <div style={{ height: 8 }} />
           </div>
 
           {/* Save draft dialog */}

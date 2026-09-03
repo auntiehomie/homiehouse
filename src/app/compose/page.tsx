@@ -389,7 +389,7 @@ function ComposePageInner() {
       </header>
 
       {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (~100px) + breathing room */}
-      <main style={{ maxWidth: 640, margin: '0 auto', padding: '16px', paddingBottom: 176 }}>
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '12px 16px', paddingBottom: 130 }}>
         {!userFid ? (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>💬</div>
