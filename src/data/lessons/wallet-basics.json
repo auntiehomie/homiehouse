@@ -1,0 +1,60 @@
+{
+    "intro": "This module covers your first crypto wallet. Learn what a crypto wallet is, how it works, and how to set one up safely. Understand the difference between custodial and self-custody wallets.",
+    "concepts": [
+        {
+            "title": "What a seed phrase is and why it must be kept secret",
+            "explanation": "This concept covers: understand what a seed phrase is and why it must be kept secret. Take your time here \u2014 understanding this building block will make the rest of the module click into place.",
+            "analogy": "Think of Your First Crypto Wallet like learning a new city: you start with a map (the overview), then explore each neighborhood (the concepts) one at a time."
+        },
+        {
+            "title": "Set up a self-custody wallet like MetaMask or Coinbase Wallet",
+            "explanation": "This concept covers: set up a self-custody wallet like MetaMask or Coinbase Wallet. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        },
+        {
+            "title": "Know the difference between hot and cold wallets",
+            "explanation": "This concept covers: know the difference between hot and cold wallets. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        }
+    ],
+    "practicalExample": "Try searching Farcaster or Google for \"Your First Crypto Wallet\" to see how practitioners talk about it in the real world. Look for specific tools, projects, or use cases that match what you're learning here.",
+    "quickActions": [
+        "Search Farcaster for \"Your First Crypto Wallet\" and read 3 recent posts",
+        "Write down one question this module raised that you want to dig into later",
+        "Find one project or app that uses Your in the wild and bookmark it"
+    ],
+    "summary": "Your First Crypto Wallet is a core piece of the Web3 stack. Understanding it gives you a foundation for evaluating real projects and making better decisions as a participant in decentralized systems.",
+    "quiz": [
+        {
+            "question": "What is the main purpose of this module on Your First Crypto Wallet?",
+            "options": [
+                "To provide entertainment",
+                "To teach foundational concepts of your first crypto wallet",
+                "To sell crypto",
+                "To replace traditional education"
+            ],
+            "correctIndex": 1,
+            "explanation": "This module is designed to give you a practical foundation in your first crypto wallet as part of your decentralization journey."
+        },
+        {
+            "question": "Why is understanding decentralization important?",
+            "options": [
+                "It helps you make money quickly",
+                "It is required by law",
+                "It lets you understand and participate in systems without central gatekeepers",
+                "It replaces the internet"
+            ],
+            "correctIndex": 2,
+            "explanation": "Decentralization removes single points of control, giving you more ownership and freedom in digital systems."
+        },
+        {
+            "question": "What is the best way to learn about Web3 concepts?",
+            "options": [
+                "Wait until the technology is perfect",
+                "Read theory only",
+                "Combine reading with hands-on experimentation",
+                "Ask someone else to do it for you"
+            ],
+            "correctIndex": 2,
+            "explanation": "The most effective learning combines understanding concepts with practical, hands-on exploration."
+        }
+    ]
+}

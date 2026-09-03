@@ -149,7 +149,7 @@ CREATE INDEX IF NOT EXISTS idx_push_subscriptions_fid ON push_subscriptions(user
 `;
 
 export async function POST(request: Request) {
-  const secret = 'wu_1tNIHDCI1SX7R';
+  const secret = process.env.MIGRATE_SECRET;
 
   if (!secret) {
     return NextResponse.json(

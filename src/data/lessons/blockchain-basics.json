@@ -1,0 +1,60 @@
+{
+    "intro": "This module covers how blockchains work. Dive into the mechanics of a blockchain \u2014 blocks, chains, consensus, and why data stored on-chain is practically immutable.",
+    "concepts": [
+        {
+            "title": "What a block contains and how blocks link together",
+            "explanation": "This concept covers: describe what a block contains and how blocks link together. Take your time here \u2014 understanding this building block will make the rest of the module click into place.",
+            "analogy": "Think of How Blockchains Work like learning a new city: you start with a map (the overview), then explore each neighborhood (the concepts) one at a time."
+        },
+        {
+            "title": "Proof of work vs proof of stake consensus",
+            "explanation": "This concept covers: understand proof of work vs proof of stake consensus. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        },
+        {
+            "title": "Why transactions are final on-chain",
+            "explanation": "This concept covers: explain why transactions are final on-chain. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        }
+    ],
+    "practicalExample": "Try searching Farcaster or Google for \"How Blockchains Work\" to see how practitioners talk about it in the real world. Look for specific tools, projects, or use cases that match what you're learning here.",
+    "quickActions": [
+        "Search Farcaster for \"How Blockchains Work\" and read 3 recent posts",
+        "Write down one question this module raised that you want to dig into later",
+        "Find one project or app that uses How in the wild and bookmark it"
+    ],
+    "summary": "How Blockchains Work is a core piece of the Web3 stack. Understanding it gives you a foundation for evaluating real projects and making better decisions as a participant in decentralized systems.",
+    "quiz": [
+        {
+            "question": "What is the main purpose of this module on How Blockchains Work?",
+            "options": [
+                "To provide entertainment",
+                "To teach foundational concepts of how blockchains work",
+                "To sell crypto",
+                "To replace traditional education"
+            ],
+            "correctIndex": 1,
+            "explanation": "This module is designed to give you a practical foundation in how blockchains work as part of your decentralization journey."
+        },
+        {
+            "question": "Why is understanding decentralization important?",
+            "options": [
+                "It helps you make money quickly",
+                "It is required by law",
+                "It lets you understand and participate in systems without central gatekeepers",
+                "It replaces the internet"
+            ],
+            "correctIndex": 2,
+            "explanation": "Decentralization removes single points of control, giving you more ownership and freedom in digital systems."
+        },
+        {
+            "question": "What is the best way to learn about Web3 concepts?",
+            "options": [
+                "Wait until the technology is perfect",
+                "Read theory only",
+                "Combine reading with hands-on experimentation",
+                "Ask someone else to do it for you"
+            ],
+            "correctIndex": 2,
+            "explanation": "The most effective learning combines understanding concepts with practical, hands-on exploration."
+        }
+    ]
+}

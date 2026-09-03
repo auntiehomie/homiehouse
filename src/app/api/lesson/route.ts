@@ -267,7 +267,7 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`lesson:${ip}`, 5, 3600);
+    const { success: rateLimitOk } = rateLimit(`lesson:${ip}`, 100, 3600);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Too many lesson requests. Please try again later.' }, { status: 429 });
     }

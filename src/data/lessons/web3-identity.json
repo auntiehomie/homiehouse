@@ -1,0 +1,60 @@
+{
+    "intro": "This module covers identity in web3. Learn how your Ethereum address becomes your identity, how ENS names work, and the concept of on-chain reputation.",
+    "concepts": [
+        {
+            "title": "How a public/private key pair creates your identity",
+            "explanation": "This concept covers: understand how a public/private key pair creates your identity. Take your time here \u2014 understanding this building block will make the rest of the module click into place.",
+            "analogy": "Think of Identity in Web3 like learning a new city: you start with a map (the overview), then explore each neighborhood (the concepts) one at a time."
+        },
+        {
+            "title": "Register or understand an ENS (.eth) name",
+            "explanation": "This concept covers: register or understand an ENS (.eth) name. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        },
+        {
+            "title": "What on-chain activity reveals about a wallet",
+            "explanation": "This concept covers: explore what on-chain activity reveals about a wallet. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        }
+    ],
+    "practicalExample": "Try searching Farcaster or Google for \"Identity in Web3\" to see how practitioners talk about it in the real world. Look for specific tools, projects, or use cases that match what you're learning here.",
+    "quickActions": [
+        "Search Farcaster for \"Identity in Web3\" and read 3 recent posts",
+        "Write down one question this module raised that you want to dig into later",
+        "Find one project or app that uses Identity in the wild and bookmark it"
+    ],
+    "summary": "Identity in Web3 is a core piece of the Web3 stack. Understanding it gives you a foundation for evaluating real projects and making better decisions as a participant in decentralized systems.",
+    "quiz": [
+        {
+            "question": "What is the main purpose of this module on Identity in Web3?",
+            "options": [
+                "To provide entertainment",
+                "To teach foundational concepts of identity in web3",
+                "To sell crypto",
+                "To replace traditional education"
+            ],
+            "correctIndex": 1,
+            "explanation": "This module is designed to give you a practical foundation in identity in web3 as part of your decentralization journey."
+        },
+        {
+            "question": "Why is understanding decentralization important?",
+            "options": [
+                "It helps you make money quickly",
+                "It is required by law",
+                "It lets you understand and participate in systems without central gatekeepers",
+                "It replaces the internet"
+            ],
+            "correctIndex": 2,
+            "explanation": "Decentralization removes single points of control, giving you more ownership and freedom in digital systems."
+        },
+        {
+            "question": "What is the best way to learn about Web3 concepts?",
+            "options": [
+                "Wait until the technology is perfect",
+                "Read theory only",
+                "Combine reading with hands-on experimentation",
+                "Ask someone else to do it for you"
+            ],
+            "correctIndex": 2,
+            "explanation": "The most effective learning combines understanding concepts with practical, hands-on exploration."
+        }
+    ]
+}
