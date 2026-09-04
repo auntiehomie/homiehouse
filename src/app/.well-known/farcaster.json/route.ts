@@ -18,7 +18,7 @@ export async function GET() {
       name: "HomieHouse",
       iconUrl: "https://homiehouse.lol/icon-512.png",
       homeUrl: "https://homiehouse.lol/mini/ask-homie",
-      imageUrl: "https://homiehouse.lol/og-image.png",
+      imageUrl: "https://homiehouse.lol/splash.png",
       buttonTitle: "Open HomieHouse",
       splashImageUrl: "https://homiehouse.lol/splash.png",
       splashBackgroundColor: "#1a1a1c"
