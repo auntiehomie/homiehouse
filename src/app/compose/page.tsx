@@ -377,8 +377,8 @@ function ComposePageInner() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
-      <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
           <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -388,8 +388,7 @@ function ComposePageInner() {
         <div style={{ width: 22 }} />
       </header>
 
-      {/* Extra bottom padding = fixed toolbar (~56px) + bottom nav (~100px) + breathing room */}
-      <main style={{ maxWidth: 640, margin: '0 auto', padding: '12px 16px', paddingBottom: 130 }}>
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '12px 16px', flex: 1, minHeight: 0, width: '100%', boxSizing: 'border-box' }}>
         {!userFid ? (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>💬</div>
@@ -593,10 +592,10 @@ function ComposePageInner() {
         )}
       </main>
 
-      {/* Fixed toolbar — always visible above the bottom nav */}
+      {/* Toolbar — directly under content, sits above bottom nav */}
       <div style={{
-        position: 'fixed', bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))', left: 0, right: 0, zIndex: 100,
-        background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
+        flexShrink: 0, background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
+        paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
       }}>
         {/* Channel picker opens upward from here */}
         {showChannelSuggestions && (
@@ -624,7 +623,7 @@ function ComposePageInner() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden', maxWidth: 640, margin: '0 auto' }}>
           {/* Left scrollable actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
             <label
