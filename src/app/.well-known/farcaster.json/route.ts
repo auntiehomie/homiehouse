@@ -20,7 +20,7 @@ export async function GET() {
       homeUrl: "https://homiehouse.lol/mini/ask-homie",
       imageUrl: "https://homiehouse.lol/og-image.png",
       buttonTitle: "Open HomieHouse",
-      splashImageUrl: "https://homiehouse.lol/og-image.png",
+      splashImageUrl: "https://homiehouse.lol/splash.png",
       splashBackgroundColor: "#1a1a1c"
     }
   };
