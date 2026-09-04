@@ -388,7 +388,7 @@ function ComposePageInner() {
         <div style={{ width: 22 }} />
       </header>
 
-      <main style={{ maxWidth: 640, margin: '0 auto', padding: '12px 16px', flex: 1, minHeight: 0, width: '100%', boxSizing: 'border-box' }}>
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '12px 16px', width: '100%', boxSizing: 'border-box' }}>
         {!userFid ? (
           <div style={{ textAlign: 'center', padding: '48px 16px' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>💬</div>
@@ -592,10 +592,10 @@ function ComposePageInner() {
         )}
       </main>
 
-      {/* Toolbar — directly under content, sits above bottom nav */}
+      {/* Toolbar — directly under the cast box */}
       <div style={{
         flexShrink: 0, background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
-        paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
         {/* Channel picker opens upward from here */}
         {showChannelSuggestions && (
