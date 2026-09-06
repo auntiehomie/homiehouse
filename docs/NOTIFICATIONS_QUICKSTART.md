@@ -121,7 +121,7 @@ src/
 
 ### Data Source
 
-Notifications are fetched from the **Neynar API**:
+Notifications are fetched from the **Farcaster API API**:
 - Real-time data from Farcaster network
 - Includes actor details, cast info, timestamps
 - Paginated for performance
@@ -194,11 +194,11 @@ Add more types as needed.
 
 **Possible issues:**
 - Network connectivity
-- Neynar API key
+- Farcaster API API key
 - FID not found
 
 **Solutions:**
-1. Check `.env` for `NEYNAR_API_KEY`
+1. Check `.env` for `FARCASTER_API_KEY`
 2. Verify you're signed in
 3. Check browser console
 4. Click "Retry" button
@@ -266,6 +266,6 @@ For issues or questions:
 
 ---
 
-**Built with:** Next.js, React, TypeScript, Neynar API, date-fns
+**Built with:** Next.js, React, TypeScript, Farcaster API API, date-fns
 
 **Last updated:** January 22, 2026

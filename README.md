@@ -69,22 +69,22 @@ cp .env.example .env.local
 ```
 
 **Required variables:**
-- `NEXT_PUBLIC_NEYNAR_CLIENT_ID` - **REQUIRED** for user authentication
-  - Get it at: https://dev.neynar.com/
+- `NEXT_PUBLIC_FARCASTER_CLIENT_ID` - **REQUIRED** for user authentication
+  - Get it at: https://dev.farcaster-api.com/
   - Sign in → Create/Select App → Copy Client ID
-- `NEYNAR_API_KEY` - Your Neynar API key for Farcaster data
+- `FARCASTER_API_KEY` - Your Farcaster API API key for Farcaster data
 
 **Minimum .env.local setup:**
 ```env
-NEXT_PUBLIC_NEYNAR_CLIENT_ID=your_client_id_here
-NEYNAR_API_KEY=your_api_key_here
+NEXT_PUBLIC_FARCASTER_CLIENT_ID=your_client_id_here
+FARCASTER_API_KEY=your_api_key_here
 ```
 
 ### Server Environment Variables
 
 The `server/` directory needs its own `.env` file with:
-- `NEYNAR_API_KEY` - Neynar API key
-- `NEYNAR_SIGNER_UUID` - Signer UUID for bot interactions
+- `FARCASTER_API_KEY` - Farcaster API API key
+- `FARCASTER_SIGNER_UUID` - Signer UUID for bot interactions
 - `APP_FID` - Your app's Farcaster ID
 - `SUPABASE_URL` - Supabase project URL
 - `SUPABASE_KEY` - Supabase anon/public key
@@ -120,18 +120,18 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Enabling real Farcaster feeds (Neynar)
+## Enabling real Farcaster feeds (Farcaster API)
 
 This project ships with a local dev mock for Farcaster (used when `window.sdk` is not present) so the UI works offline.
 
-If you'd like to show your actual Farcaster home feed in the app, you can enable a server-side proxy to a Farcaster data provider (we include an example proxy to Neynar).
+If you'd like to show your actual Farcaster home feed in the app, you can enable a server-side proxy to a Farcaster data provider (we include an example proxy to Farcaster API).
 
-1. Sign up for Neynar (or another Farcaster data provider) and obtain an API key. Neynar docs: https://neynar.com/ or https://docs.neynar.com/
+1. Sign up for Farcaster API (or another Farcaster data provider) and obtain an API key. Farcaster API docs: https://farcaster-api.com/ or https://docs.farcaster-api.com/
 2. Copy the example env file and add your key:
 
 ```bash
 cp .env.local.example .env.local
-# edit .env.local and set NEYNAR_API_KEY=your_api_key_here
+# edit .env.local and set FARCASTER_API_KEY=your_api_key_here
 ```
 
 3. Restart the dev server:
@@ -140,11 +140,11 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-4. When signed in with AuthKit, the `FeedList` component will request `/api/feed?fid=<your-fid>` and the server will proxy Neynar's feed responses. If `NEYNAR_API_KEY` is not set the endpoint returns 501 and the client will fall back to the host SDK or the dev mock.
+4. When signed in with AuthKit, the `FeedList` component will request `/api/feed?fid=<your-fid>` and the server will proxy Farcaster API's feed responses. If `FARCASTER_API_KEY` is not set the endpoint returns 501 and the client will fall back to the host SDK or the dev mock.
 
 Notes:
 - Using a third-party provider may incur rate limits or costs — check the provider's docs.
-- If you prefer to self-host, you can run a Snapchain node and point `/api/feed` at it instead of Neynar.
+- If you prefer to self-host, you can run a Snapchain node and point `/api/feed` at it instead of Farcaster API.
 
 ## Preparing to deploy to Vercel (recommended)
 
@@ -159,7 +159,7 @@ cp .env.local.example .env.local
 
 2. In the Vercel dashboard for your project, add the following Environment Variables (Production/Preview/Development as appropriate):
 
-- `NEYNAR_API_KEY` — your Neynar API key (required to enable the server-side feed proxy)
+- `FARCASTER_API_KEY` — your Farcaster API API key (required to enable the server-side feed proxy)
 - `FARC_RPC_URL` — optional server RPC URL (e.g. `https://mainnet.optimism.io`) used by the SIWF verifier
 - `NEXT_PUBLIC_FARC_RPC_URL` — optional client RPC URL (same as above)
 
@@ -169,7 +169,7 @@ Quick Git push commands:
 
 ```bash
 git add -A
-git commit -m "Add AuthKit + Neynar proxy and README"
+git commit -m "Add AuthKit + Farcaster API proxy and README"
 git push origin main
 ```
 

@@ -202,13 +202,13 @@ const topics = [
 
 **Check:**
 ```
-Error: Neynar API rate limit exceeded
+Error: Farcaster API API rate limit exceeded
 ```
 
 **Solution:**
 - Increase cache TTL to reduce API calls
 - Add exponential backoff
-- Check your Neynar API plan limits
+- Check your Farcaster API API plan limits
 
 #### Issue: Slow responses
 
@@ -292,8 +292,8 @@ tail -n 100 server/logs/bot.log
 # Check for errors
 grep "Error" server/logs/bot.log
 
-# Test Neynar API connection
-curl -H "api_key: YOUR_KEY" https://api.neynar.com/v2/farcaster/user/bulk?fids=1987078
+# Test Farcaster API API connection
+curl -H "api_key: YOUR_KEY" https://api.farcaster-api.com/v2/farcaster/user/bulk?fids=1987078
 
 # Clear cache (restart server)
 pkill -f "node.*bot"
@@ -392,5 +392,5 @@ If tests fail:
 1. Check [BOT_INTELLIGENCE.md](./BOT_INTELLIGENCE.md) for architecture
 2. Review [AI_FRAMEWORK.md](./AI_FRAMEWORK.md) for AI config
 3. Verify environment variables in `.env`
-4. Check Neynar API status
+4. Check Farcaster API API status
 5. Review server logs for specific errors

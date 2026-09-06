@@ -158,7 +158,7 @@ getComprehensiveContext({
 
 ### API Usage
 
-**Neynar API Calls**
+**Farcaster API API Calls**
 - `fetchTrendingFeed()` - Trending casts
 - `fetchFeed('filter')` - Channel-specific feeds
 - `fetchCastsForUser()` - User's recent activity
@@ -201,9 +201,9 @@ getComprehensiveContext({
 
 ```bash
 # Required for feed intelligence
-NEYNAR_API_KEY=your_key
+FARCASTER_API_KEY=your_key
 APP_FID=1987078
-NEYNAR_SIGNER_UUID=your_uuid
+FARCASTER_SIGNER_UUID=your_uuid
 
 # AI providers (primary/fallbacks)
 ANTHROPIC_API_KEY=your_key  # Claude (primary)
@@ -264,7 +264,7 @@ if (isQuestion || mentionsTopic) {
 1. **Intelligence Activation Rate** - % of responses using feed context
 2. **Cache Hit Rate** - How often cached data is used
 3. **Response Quality** - User engagement with bot replies
-4. **API Usage** - Neynar calls per hour
+4. **API Usage** - Farcaster API calls per hour
 5. **Response Times** - Average latency by type
 
 ## Best Practices
@@ -278,7 +278,7 @@ if (isQuestion || mentionsTopic) {
 
 ### For Developers
 
-1. **Monitor API limits** - Neynar has rate limits
+1. **Monitor API limits** - Farcaster API has rate limits
 2. **Adjust cache TTL** - Balance freshness vs. API usage
 3. **Customize keywords** - Add domain-specific topics
 4. **Test edge cases** - Empty feeds, API errors

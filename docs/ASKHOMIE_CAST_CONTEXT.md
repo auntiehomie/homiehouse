@@ -114,7 +114,7 @@ castContext: {
 **Process:**
 1. Extract keywords (removes stop words, URLs, mentions)
 2. Build search query from top 3 keywords
-3. Call Neynar Search API
+3. Call Farcaster API Search API
 4. Filter for:
    - Recent (last 48 hours)
    - Minimum length (50+ chars)
@@ -123,7 +123,7 @@ castContext: {
 
 **API Call:**
 ```typescript
-GET https://api.neynar.com/v2/farcaster/cast/search
+GET https://api.farcaster-api.com/v2/farcaster/cast/search
   ?q={keywords}
   &limit=10
 ```
@@ -226,9 +226,9 @@ Watch for these log messages:
 **Issue**: Search fails or times out
 
 **Check:**
-1. `NEYNAR_API_KEY` is configured
+1. `FARCASTER_API_KEY` is configured
 2. API key has search permissions
-3. Neynar API status is healthy
+3. Farcaster API API status is healthy
 4. Network connectivity
 
 **Fallback**: System gracefully continues without similar casts.
@@ -237,7 +237,7 @@ Watch for these log messages:
 
 Required:
 ```bash
-NEYNAR_API_KEY=your_key_here
+FARCASTER_API_KEY=your_key_here
 ANTHROPIC_API_KEY=your_key_here  # or OPENAI_API_KEY
 ```
 

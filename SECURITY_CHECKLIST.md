@@ -3,7 +3,7 @@
 ## ✅ Completed
 
 ### Core Utilities Created
-- [x] `src/lib/neynar.ts` - Centralized Neynar API calls
+- [x] `src/lib/farcaster-api.ts` - Centralized Farcaster API API calls
 - [x] `src/lib/errors.ts` - Error handling utilities  
 - [x] `src/lib/auth.ts` - Authentication & authorization
 - [x] `src/lib/validation.ts` - Input validation
@@ -43,7 +43,7 @@
 **✅ ALL 20 ROUTES UPDATED!**
 
 All API routes have been updated with:
-- Centralized Neynar API calls (no API key logging)
+- Centralized Farcaster API API calls (no API key logging)
 - Input validation for all user inputs
 - Structured logging with automatic sanitization
 - Safe error handling (no stack traces in production)
@@ -116,7 +116,7 @@ For each route, follow this pattern (see `route-templates.ts` for examples):
 
 1. **Add imports:**
 ```typescript
-import { neynarFetch } from '@/lib/neynar';
+import { farcaster-apiFetch } from '@/lib/farcaster-api';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validate... } from '@/lib/validation';
@@ -125,12 +125,12 @@ import { validate... } from '@/lib/validation';
 2. **Replace manual API calls with utilities:**
 ```typescript
 // Before:
-const response = await fetch('https://api.neynar.com/...', {
-  headers: { api_key: NEYNAR_API_KEY }
+const response = await fetch('https://api.farcaster-api.com/...', {
+  headers: { api_key: FARCASTER_API_KEY }
 });
 
 // After:
-const data = await neynarFetch('/...');
+const data = await farcaster-apiFetch('/...');
 ```
 
 3. **Add logging:**

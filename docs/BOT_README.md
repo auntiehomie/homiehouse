@@ -32,8 +32,8 @@ npm install
 ### 2. Configure Environment
 
 Your `.env` is already set up with:
-- `NEYNAR_API_KEY` - For Farcaster API
-- `NEYNAR_SIGNER_UUID` - Your approved signer
+- `FARCASTER_API_KEY` - For Farcaster API
+- `FARCASTER_SIGNER_UUID` - Your approved signer
 - `ANTHROPIC_API_KEY` - For Claude AI
 - `APP_FID` - Your Farcaster ID (1987078)
 - `POLL_INTERVAL` - Check every 30 seconds (30000ms)
@@ -59,7 +59,7 @@ npm run dev
 
 ## How It Works
 
-1. **Poll Notifications** - Every 30s, checks Neynar for mentions/replies
+1. **Poll Notifications** - Every 30s, checks Farcaster API for mentions/replies
 2. **Get Context** - Fetches conversation thread (parent cast + recent replies)
 3. **Generate Reply** - Claude analyzes context and creates natural response
 4. **Post Response** - Uses your signer to reply in the thread

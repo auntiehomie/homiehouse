@@ -33,7 +33,7 @@ Prevents excessive API calls and ensures fast response times.
 ```typescript
 async function getUserContext(authorFid, authorUsername) {
   // 1. Check cache
-  // 2. Fetch recent casts via Neynar
+  // 2. Fetch recent casts via Farcaster API
   // 3. Analyze:
   //    - Topics (keywords like crypto, NFT, AI, etc.)
   //    - Style (emoji usage, avg length)
@@ -111,11 +111,11 @@ interface UserProfile {
 
 ### Environment Variables
 ```env
-NEYNAR_API_KEY=your_key
+FARCASTER_API_KEY=your_key
 OPENAI_API_KEY=your_key
 ANTHROPIC_API_KEY=your_key
 APP_FID=your_bot_fid
-NEYNAR_SIGNER_UUID=your_signer
+FARCASTER_SIGNER_UUID=your_signer
 ```
 
 ### Running the Bot

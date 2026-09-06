@@ -8,14 +8,14 @@ January 2025
 
 ## What Was Added
 
-### 1. Search Functions in Neynar Library
-**File:** `src/lib/neynar.ts`
+### 1. Search Functions in Farcaster API Library
+**File:** `src/lib/farcaster-api.ts`
 
-Added two new Neynar API wrapper functions:
+Added two new Farcaster API API wrapper functions:
 
 #### `searchCasts(query: string, limit: number = 10)`
 - Searches for casts matching a keyword or phrase
-- Uses Neynar API endpoint: `/cast/search`
+- Uses Farcaster API API endpoint: `/cast/search`
 - Returns array of matching casts with author info and engagement metrics
 - Max limit: 25 casts
 
@@ -96,7 +96,7 @@ GPT-4o with tools bound
     ↓
 Model decides to call tool
     ↓
-Tool executed: searchCasts() → Neynar API
+Tool executed: searchCasts() → Farcaster API API
     ↓
 Results returned to model
     ↓
@@ -139,7 +139,7 @@ AI: "Based on @dwr's recent casts, they primarily post about:
 ### Dependencies Added
 ```typescript
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { searchCasts, getCastsByUsername } from '../neynar';
+import { searchCasts, getCastsByUsername } from '../farcaster-api';
 ```
 
 ### Tool Calling Support
@@ -156,17 +156,17 @@ import { searchCasts, getCastsByUsername } from '../neynar';
 
 ### Environment Variables Required
 No additional environment variables needed. Uses existing:
-- `NEYNAR_API_KEY` - Already configured for Neynar API access
+- `FARCASTER_API_KEY` - Already configured for Farcaster API API access
 
 ### Limits
 - Search casts: Max 25 results per query
 - User casts: Max 100 results per query
-- Rate limits follow Neynar API restrictions
+- Rate limits follow Farcaster API API restrictions
 
 ## Performance Considerations
 
 ### Tool Execution Time
-- searchCasts: ~500-1000ms (Neynar API latency)
+- searchCasts: ~500-1000ms (Farcaster API API latency)
 - getCastsByUsername: ~700-1200ms (2 API calls: user lookup + feed fetch)
 - Total AI response: +1-2s when using tools
 
@@ -186,7 +186,7 @@ No additional environment variables needed. Uses existing:
 
 ### Monitoring
 - Check Vercel logs for tool execution
-- Monitor Neynar API usage
+- Monitor Farcaster API API usage
 - Track AI response times with tool calls vs without
 
 ## Future Enhancements
@@ -208,7 +208,7 @@ No additional environment variables needed. Uses existing:
 5. **Semantic Search**: Use embeddings for better matching
 
 ## Related Documentation
-- [Neynar API Documentation](https://docs.neynar.com/)
+- [Farcaster API API Documentation](https://docs.farcaster-api.com/)
 - [LangChain Tools Guide](https://js.langchain.com/docs/modules/agents/tools/)
 - [BOT_INTELLIGENCE.md](./BOT_INTELLIGENCE.md) - Agent system architecture
 - [AI_FRAMEWORK.md](./AI_FRAMEWORK.md) - Overall AI implementation
@@ -223,17 +223,17 @@ No additional environment variables needed. Uses existing:
 ### Search Returns No Results
 - Very specific queries may have no matches
 - Try broader keywords
-- Check Neynar API status
+- Check Farcaster API API status
 
 ### Tool Execution Errors
-- Check Neynar API key is valid
+- Check Farcaster API API key is valid
 - Monitor rate limits
 - Verify network connectivity
 
 ## Maintenance Notes
 
 ### When Updating
-- If Neynar API changes, update wrapper functions in neynar.ts
+- If Farcaster API API changes, update wrapper functions in farcaster-api.ts
 - If adding new tools, follow the pattern in agents.ts
 - Update system prompts to guide AI on tool usage
 - Test tool calling with both OpenAI and Claude providers

@@ -8,7 +8,7 @@ const APP_FID = process.env.APP_FID || '1349780';
 if (!ANTHROPIC_API_KEY || !SIGNER_PRIVATE_KEY_HEX) {
     throw new Error('Missing env vars: ANTHROPIC_API_KEY, SIGNER_PRIVATE_KEY_HEX');
 }
-// Warpcast API endpoints (FREE, no Neynar needed)
+// Warpcast API endpoints (FREE, no third-party SDK needed)
 const WARPCAST_API = 'https://hub.warpcast.com';
 let repliedCasts = new Set();
 async function loadRepliedCasts() {

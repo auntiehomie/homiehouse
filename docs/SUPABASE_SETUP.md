@@ -72,7 +72,7 @@ User mentions @homiehouse → cast hash: 0xABC123
 Bot checks:
 1. ✓ In-memory cache (this run)
 2. ✓ Supabase database 
-3. ✓ Neynar API (double-check for existing replies)
+3. ✓ Farcaster API API (double-check for existing replies)
 
 If all clear:
 - Generate reply

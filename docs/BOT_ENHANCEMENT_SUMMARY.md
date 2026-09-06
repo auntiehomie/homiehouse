@@ -114,7 +114,7 @@ For casual chat, it skips heavy intelligence to stay fast.
 All configuration is in `server/.env`:
 
 ```bash
-NEYNAR_API_KEY=your_key        # Required
+FARCASTER_API_KEY=your_key        # Required
 APP_FID=1987078                 # Bot FID
 ANTHROPIC_API_KEY=your_key      # Claude (primary AI)
 OPENAI_API_KEY=your_key         # GPT-4o (images)
@@ -206,7 +206,7 @@ The bot now provides:
 1. **Intelligence Activation Rate** - % using feed context
 2. **Cache Hit Rate** - How often cache is used
 3. **Response Times** - Average by query type
-4. **API Usage** - Neynar calls per hour
+4. **API Usage** - Farcaster API calls per hour
 5. **User Engagement** - Likes/replies to bot
 
 ### Health Checks
@@ -275,13 +275,13 @@ Potential additions:
 **API rate limits:**
 - Increase cache TTL
 - Reduce intelligence activation threshold
-- Check Neynar plan limits
+- Check Farcaster API plan limits
 
 See [BOT_TESTING.md](./BOT_TESTING.md) for detailed troubleshooting.
 
 ## Technical Stack
 
-- **Neynar API** - Farcaster data provider
+- **Farcaster API API** - Farcaster data provider
 - **Claude 3.5 Sonnet** - Primary AI
 - **GPT-4o** - Image analysis
 - **Gemini 2.0** - Link content

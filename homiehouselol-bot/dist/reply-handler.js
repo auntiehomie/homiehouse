@@ -31,7 +31,7 @@ export async function saveReplied(hash) {
         await fs.writeFile(file, JSON.stringify([{ hash, timestamp: Date.now() }], null, 2));
     }
 }
-export async function handleMention(neynar, anthropic, castText, castingFid, replyToHash, appFid) {
+export async function handleMention(farcasterClient, anthropic, castText, castingFid, replyToHash, appFid) {
     // Check if we already replied
     if (repliedCasts.has(replyToHash)) {
         console.log('Already replied to this cast');
@@ -57,7 +57,7 @@ export async function handleMention(neynar, anthropic, castText, castingFid, rep
         });
         const botReply = response.content[0].text;
         // Post the reply
-        await neynar.publishCast({
+        await farcasterClient.publishCast({
             fid: appFid,
             text: botReply,
             reply_to: {

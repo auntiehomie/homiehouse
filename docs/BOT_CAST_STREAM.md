@@ -13,7 +13,7 @@ When someone mentions the bot, it extracts key topics from their message:
 - Identifies the top 5 most relevant keywords
 
 ### 2. **Cast Stream Search**
-Uses the Neynar Search API to find similar casts:
+Uses the Farcaster API Search API to find similar casts:
 - Searches for casts containing those keywords
 - Filters for recent casts (last 48 hours)
 - Prioritizes longer, more substantial content
@@ -55,7 +55,7 @@ AI generates informed, contextual reply
 
 ## Configuration
 
-No additional setup needed! The feature uses your existing `NEYNAR_API_KEY`.
+No additional setup needed! The feature uses your existing `FARCASTER_API_KEY`.
 
 ### Search Parameters
 - **Keyword limit**: Top 5 keywords extracted
@@ -107,15 +107,15 @@ You'll see new log messages:
 
 ## API Usage
 
-Uses Neynar's `searchCasts` endpoint:
+Uses Farcaster API's `searchCasts` endpoint:
 ```typescript
-neynar.searchCasts({
+farcaster-api.searchCasts({
   q: 'search query',
   limit: 10
 })
 ```
 
-**Rate limits**: Same as other Neynar API calls (depends on your plan)
+**Rate limits**: Same as other Farcaster API API calls (depends on your plan)
 
 ## When Search is Skipped
 
@@ -142,8 +142,8 @@ Potential improvements:
 
 ### Search errors
 - Bot gracefully falls back to conversation context
-- Check Neynar API status if persistent
-- Verify `NEYNAR_API_KEY` has search permissions
+- Check Farcaster API API status if persistent
+- Verify `FARCASTER_API_KEY` has search permissions
 
 ## Testing
 

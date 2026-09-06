@@ -69,11 +69,11 @@ You'll need to register your signer in the Farcaster network. This is done throu
 
 ---
 
-## Method 3: Use Neynar (Alternative)
+## Method 3: Use Farcaster Hub (Alternative)
 
 If you prefer not to manage signers yourself:
 
-1. Go to https://neynar.com
+1. Go to https://docs.farcaster.xyz
 2. Create an account
 3. Create a new signer through their dashboard
 4. Copy the signer UUID and API key

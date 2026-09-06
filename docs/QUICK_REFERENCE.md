@@ -131,7 +131,7 @@ tail -f server/logs/bot.log
 
 ### Environment Variables (server/.env)
 ```bash
-NEYNAR_API_KEY=your_key        # Required for feed data
+FARCASTER_API_KEY=your_key        # Required for feed data
 APP_FID=1987078                 # Bot's Farcaster ID
 ANTHROPIC_API_KEY=your_key      # Claude (primary AI)
 OPENAI_API_KEY=your_key         # GPT-4o (images)
@@ -202,7 +202,7 @@ Bot: "worldcoin is building digital identity via biometric orbs.
 **Fix:** Increase cache TTL or reduce context sources
 
 ### API rate limits
-**Check:** Too many Neynar calls?  
+**Check:** Too many Farcaster API calls?  
 **Fix:** Increase cache TTL, reduce intelligence threshold
 
 ## 📚 Documentation

@@ -67,8 +67,8 @@ if (avgLikes > 10) context += "\n- Creates engaging content";
 
 ### 8. **Social Graph** 👥
 ```typescript
-// Who they follow (via Neynar)
-const following = await neynar.fetchUserFollowing(authorFid, { limit: 50 });
+// Who they follow (via Farcaster API)
+const following = await farcaster-api.fetchUserFollowing(authorFid, { limit: 50 });
 const notableFollows = following.users.filter(u => u.power_badge);
 
 if (notableFollows.length > 0) {

@@ -140,7 +140,7 @@ Fetch from /api/notifications
         ↓
 Get FID from localStorage (hh_profile)
         ↓
-Call Neynar API with FID
+Call Farcaster API API with FID
         ↓
 Transform notifications data
         ↓
@@ -201,13 +201,13 @@ Auto-refresh every 30 seconds
 
 Already configured in your `.env`:
 ```
-NEYNAR_API_KEY=your_neynar_api_key_here
+FARCASTER_API_KEY=your_farcaster-api_api_key_here
 ```
 
 ### Dependencies
 
 - `date-fns` - For timestamp formatting
-- Neynar API - For fetching notifications
+- Farcaster API API - For fetching notifications
 - Next.js API routes - For proxying requests
 
 ## Best Practices
@@ -234,14 +234,14 @@ NEYNAR_API_KEY=your_neynar_api_key_here
 **Possible causes:**
 - Not signed in with Privy
 - FID not found in localStorage
-- Neynar API key issue
+- Farcaster API API key issue
 - No recent interactions
 
 **Solutions:**
 1. Verify you're signed in
 2. Check console for errors
 3. Click "Refresh" button
-4. Check Neynar API key in `.env`
+4. Check Farcaster API API key in `.env`
 
 ### Unread Badge Not Updating
 
@@ -258,7 +258,7 @@ NEYNAR_API_KEY=your_neynar_api_key_here
 ### Actor Details Missing
 
 **Possible causes:**
-- Neynar API response structure changed
+- Farcaster API API response structure changed
 - User deleted their account
 - API rate limiting
 
@@ -282,7 +282,7 @@ Potential improvements:
 
 ## API Rate Limits
 
-Neynar API considerations:
+Farcaster API API considerations:
 - Auto-refresh every 30 seconds
 - Badge refresh every 60 seconds
 - Consider implementing exponential backoff

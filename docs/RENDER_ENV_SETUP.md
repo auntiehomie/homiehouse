@@ -16,7 +16,7 @@ SUPABASE_KEY=your_supabase_anon_key_here
 
 ## What was fixed:
 - ✅ Added `dotenv.config()` in db.ts to load environment variables
-- ✅ Fixed reply hash capture from Neynar API response
+- ✅ Fixed reply hash capture from Farcaster API API response
 - ✅ Database now properly tracks all bot replies
 - ✅ Tested and confirmed database writes work locally
 

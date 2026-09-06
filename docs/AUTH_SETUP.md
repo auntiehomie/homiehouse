@@ -6,13 +6,13 @@ If users see a "Failed to connect - We were unable to connect the app" error, it
 
 ## Root Cause
 
-The app uses **Neynar Sign in with Neynar (SIWN)** for authentication, which requires a Client ID to be configured. Without it, the authentication flow cannot initialize.
+The app uses **Farcaster API Sign in with Farcaster API (SIWF)** for authentication, which requires a Client ID to be configured. Without it, the authentication flow cannot initialize.
 
 ## Solution
 
-### Step 1: Get Your Neynar Client ID
+### Step 1: Get Your Farcaster API Client ID
 
-1. Go to https://dev.neynar.com/
+1. Go to https://dev.farcaster-api.com/
 2. Sign in with your Farcaster account
 3. Click "Create App" or select an existing app
 4. Copy your **Client ID** (looks like: `abc123def456...`)
@@ -22,7 +22,7 @@ The app uses **Neynar Sign in with Neynar (SIWN)** for authentication, which req
 Create or edit `.env.local` in your project root:
 
 ```env
-NEXT_PUBLIC_NEYNAR_CLIENT_ID=your_client_id_here
+NEXT_PUBLIC_FARCASTER_CLIENT_ID=your_client_id_here
 ```
 
 **Important**: The variable must start with `NEXT_PUBLIC_` to be available in the browser.
@@ -49,7 +49,7 @@ Don't forget to add the environment variable to your deployment platform:
 ### Vercel
 1. Go to your project settings
 2. Navigate to "Environment Variables"
-3. Add: `NEXT_PUBLIC_NEYNAR_CLIENT_ID` = `your_client_id`
+3. Add: `NEXT_PUBLIC_FARCASTER_CLIENT_ID` = `your_client_id`
 4. Redeploy
 
 ### Other Platforms
@@ -58,7 +58,7 @@ Add the environment variable according to your platform's documentation.
 ## Error Messages You Might See
 
 ### "Configuration Required" Page
-- **Cause**: Missing `NEXT_PUBLIC_NEYNAR_CLIENT_ID`
+- **Cause**: Missing `NEXT_PUBLIC_FARCASTER_CLIENT_ID`
 - **Solution**: Follow steps above
 
 ### "Failed to connect"
@@ -70,8 +70,8 @@ Add the environment variable according to your platform's documentation.
 - **Solution**: Check browser console for errors, verify `.env.local` is in root directory
 
 ### QR Code Doesn't Work
-- **Cause**: Network or Neynar service issue
-- **Solution**: Try again, check https://status.neynar.com/
+- **Cause**: Network or Farcaster API service issue
+- **Solution**: Try again, check https://status.farcaster-api.com/
 
 ## Additional Requirements
 
@@ -81,8 +81,8 @@ Your `.env.local` should also include:
 
 ```env
 # Authentication (Required)
-NEXT_PUBLIC_NEYNAR_CLIENT_ID=your_client_id_here
-NEYNAR_API_KEY=your_api_key_here
+NEXT_PUBLIC_FARCASTER_CLIENT_ID=your_client_id_here
+FARCASTER_API_KEY=your_api_key_here
 
 # Database (Required for bot features)
 SUPABASE_URL=your_supabase_project_url
@@ -95,7 +95,7 @@ PERPLEXITY_API_KEY=your_perplexity_key
 
 # Bot Configuration (Optional)
 APP_FID=your_farcaster_fid
-NEYNAR_SIGNER_UUID=your_signer_uuid
+FARCASTER_SIGNER_UUID=your_signer_uuid
 ```
 
 ## Verification
@@ -106,7 +106,7 @@ Add this temporarily to `src/app/page.tsx`:
 
 ```tsx
 useEffect(() => {
-  console.log('Client ID configured:', !!process.env.NEXT_PUBLIC_NEYNAR_CLIENT_ID);
+  console.log('Client ID configured:', !!process.env.NEXT_PUBLIC_FARCASTER_CLIENT_ID);
 }, []);
 ```
 
@@ -117,15 +117,15 @@ Should log: `Client ID configured: true`
 1. Open browser DevTools (F12)
 2. Go to Network tab
 3. Try to sign in
-4. Look for requests to `neynar.com` - they should not be blocked
+4. Look for requests to `farcaster-api.com` - they should not be blocked
 
 ## Still Having Issues?
 
 1. **Check `.env.local` location**: Must be in project root (same folder as `package.json`)
-2. **Check variable name**: Must be exactly `NEXT_PUBLIC_NEYNAR_CLIENT_ID`
+2. **Check variable name**: Must be exactly `NEXT_PUBLIC_FARCASTER_CLIENT_ID`
 3. **Restart server**: Changes to `.env.local` require a server restart
 4. **Clear browser cache**: Sometimes cached JavaScript doesn't pick up new variables
-5. **Check Neynar status**: Visit https://status.neynar.com/
+5. **Check Farcaster API status**: Visit https://status.farcaster-api.com/
 
 ## For Repository Owner
 
@@ -145,6 +145,6 @@ If you're sharing this project with others:
 
 ## Related Documentation
 
-- [Neynar SIWN Documentation](https://docs.neynar.com/docs/how-to-let-users-connect-farcaster-accounts-with-write-access-for-free-using-sign-in-with-neynar-siwn)
+- [Farcaster API SIWF Documentation](https://docs.farcaster-api.com/docs/how-to-let-users-connect-farcaster-accounts-with-write-access-for-free-using-sign-in-with-farcaster-api-siwn)
 - [Next.js Environment Variables](https://nextjs.org/docs/app/building-your-application/configuring/environment-variables)
-- [NEYNAR_AUTH_MIGRATION.md](./NEYNAR_AUTH_MIGRATION.md) - Migration guide from Privy to Neynar
+- [AUTH_MIGRATION.md](./AUTH_MIGRATION.md) - Migration guide from Privy to Farcaster API
