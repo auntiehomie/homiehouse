@@ -19,7 +19,7 @@
     "@draft-js-plugins/emoji": "^4.6.7",
     "@draft-js-plugins/linkify": "^4.2.2",
     "@draft-js-plugins/mention": "^5.3.0",
-    "@farcaster/hub-nodejs": "^0.15.9",
+    "@farcaster/hub-nodejs": "^0.17.0",
     "@farcaster/jfs": "^0.3.0",
     "@farcaster/miniapp-core": "^0.6.0",
     "@farcaster/miniapp-host": "^0.3.0",
