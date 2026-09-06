@@ -9,7 +9,7 @@ This is a desk-research snapshot. Public web search was unavailable in this runt
 - **Warpcast** remains the default discovery/distribution surface and the baseline for compatibility, but Farcaster is intentionally protocol-level: users can move between clients and developers can build mini apps.
 - **Herocast** is a power-user, open-source desktop/web client rather than a mass-market mobile competitor. Its differentiators are multi-account workflows, scheduling, analytics and keyboard-first UX.
 - **Quorum Mobile needs identity clarification.** The publicly discoverable `QuilibriumNetwork/quorum-mobile` GitHub repository (44 stars on 2026-08-19; created 2026-01-01) does not expose a clear Farcaster product README, and `quorum.social` did not resolve to an operating product. Do not use unverified claims about users, pricing or revenue. It may be a different “Quorum” product or a very new/private app.
-- Farcaster usage is much smaller than mainstream social networks and highly cyclical around crypto launches. A reasonable historical range is approximately **30k–75k daily active users in 2024–25**, with a 2024 peak around 70k–80k and subsequent contraction. **No defensible public 2026 DAU figure was located** in this run. Use Dune/Neynar analytics for a live number before making an investment decision.
+- Farcaster usage is much smaller than mainstream social networks and highly cyclical around crypto launches. A reasonable historical range is approximately **30k-75k daily active users in 2024-25**, with a 2024 peak around 70k-80k and subsequent contraction. **No defensible public 2026 DAU figure was located** in this run. Use Dune/Farcaster data APIs for a live number before making an investment decision.
 - The strongest monetization fit for Homiehouse is **paid utility for creators/communities** (automation, analytics, moderation, CRM and premium rooms), with optional mini-app transaction fees. Ads and protocol-native tips can supplement but should not be the initial core.
 
 ---
@@ -98,7 +98,7 @@ Warpcast was the flagship Farcaster client and is now branded within the Farcast
 
 Public reports during 2024 commonly cited roughly **600k–700k registered users/FIDs** and a peak of roughly **70k–80k DAU** during the Frames/crypto activity surge. Active usage then declined materially from the peak. Because reporting methods differ (casts-only versus any reaction/follow; unique FIDs versus accounts), these are directional.
 
-For 2025–26, use a live query rather than repeat old press numbers. Dune has Farcaster dashboards/queries tracking daily unique FIDs; Neynar and Farcaster data APIs can also produce activity counts. A defensible narrative is: rapid 2024 growth, post-incentive normalization/contraction, with periodic spikes around major launches. No audited, current 2026 DAU total was available in the sources accessible here.
+For 2025-26, use a live query rather than repeat old press numbers. Dune has Farcaster dashboards/queries tracking daily unique FIDs; Farcaster data APIs can also produce activity counts. A defensible narrative is: rapid 2024 growth, post-incentive normalization/contraction, with periodic spikes around major launches. No audited, current 2026 DAU total was available in the sources accessible here.
 
 ### Pricing / revenue approach
 
@@ -194,4 +194,4 @@ Mini-app risks include wallet friction, phishing, signing abuse, platform policy
 - Dune Farcaster dashboards/queries (historical DAU methodology; query availability and definitions change): https://dune.com/queries/6586749 and https://community.dune.com/ (verify live before quoting).
 - GitHub search / `a16z/awesome-farcaster` for client ecosystem discovery: https://github.com/a16z/awesome-farcaster.
 
-**Data-quality note:** This document intentionally labels unavailable or inferred values. Before external publication, refresh Warpcast/Farcaster fee terms, Quorum’s canonical app identity, live DAU/MAU from Dune/Neynar, and each client’s current pricing page.
+**Data-quality note:** This document intentionally labels unavailable or inferred values. Before external publication, refresh Warpcast/Farcaster fee terms, Quorum's canonical app identity, live DAU/MAU from Dune/Farcaster data APIs, and each client's current pricing page.
