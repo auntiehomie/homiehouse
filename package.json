@@ -36,7 +36,7 @@
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@scure/bip32": "^1.7.0",
     "@scure/bip39": "^1.6.0",
-    "@sentry/nextjs": "^9.0.0",
+    "@sentry/nextjs": "^10.71.0",
     "@standard-crypto/farcaster-js": "^7.4.0",
     "@stripe/stripe-js": "^9.13.0",
     "@supabase/supabase-js": "^2.91.1",
