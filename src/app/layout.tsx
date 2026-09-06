@@ -5,6 +5,7 @@ import MobileNav from "../components/MobileNav";
 import ThemeSync from "../components/ThemeSync";
 import LazyClientComponents from "../components/LazyClientComponents";
 import PageTransition from "../components/PageTransition";
+import { QueryProvider } from "../components/QueryProvider";
 import { Analytics } from '@vercel/analytics/next';
 import WagmiProviders from "@/components/WagmiProviders";
 
@@ -130,11 +131,13 @@ export default function RootLayout({
       <body className={`antialiased`}>
         <WagmiProviders>
           <FarcasterAuthProvider>
-            <PageTransition>
-              <div className="pt-14 lg:pt-0 hh-content-offset">
-                {children}
-              </div>
-            </PageTransition>
+            <QueryProvider>
+              <PageTransition>
+                <div className="pt-14 lg:pt-0 hh-content-offset">
+                  {children}
+                </div>
+              </PageTransition>
+            </QueryProvider>
             <MobileNav />
             <ThemeSync />
             <LazyClientComponents />
