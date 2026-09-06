@@ -10,9 +10,19 @@ var addCast = jest.fn();
 jest.mock('@/lib/ai/agents', () => ({
   AgentOrchestrator: jest.fn().mockImplementation(() => ({ processRequest })),
 }));
-jest.mock('@/lib/ai/storage', () => ({
-  UserProfileStorage: { getProfile, getStats, updateProfile, addCast, addFeedback: jest.fn() },
-}));
+jest.mock('@/lib/ai/storage', () => {
+  // Use getter-based properties so the mock vars are resolved lazily
+  // (jest.mock factories run during import, before var assignments execute)
+  return {
+    UserProfileStorage: {
+      getProfile: (...a: unknown[]) => getProfile(...a),
+      getStats: (...a: unknown[]) => getStats(...a),
+      updateProfile: (...a: unknown[]) => updateProfile(...a),
+      addCast: (...a: unknown[]) => addCast(...a),
+      addFeedback: jest.fn(),
+    },
+  };
+});
 jest.mock('@/lib/logger', () => ({
   createApiLogger: () => ({ start: jest.fn(), end: jest.fn(), info: jest.fn(), success: jest.fn(), warn: jest.fn(), error: jest.fn() }),
 }));
