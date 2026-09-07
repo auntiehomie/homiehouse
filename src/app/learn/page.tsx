@@ -32,6 +32,19 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Learn | HomieHouse',
     description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
+    type: 'website',
+    images: [{
+      url: `${BASE_URL}/api/og`,
+      width: 1200,
+      height: 630,
+      alt: 'HomieHouse Learning Hub',
+    }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Learn | HomieHouse',
+    description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
+    images: [`${BASE_URL}/api/og`],
   },
 };
 
