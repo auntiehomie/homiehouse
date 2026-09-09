@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
     type: 'website',
     images: [{
-      url: `${BASE_URL}/api/og`,
+      url: `${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`,
       width: 1200,
       height: 630,
       alt: 'HomieHouse Learning Hub',
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Learn | HomieHouse',
     description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
-    images: [`${BASE_URL}/api/og`],
+    images: [`${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`],
   },
 };
 

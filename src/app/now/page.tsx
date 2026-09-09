@@ -56,7 +56,10 @@ export default function NowPage() {
           </section>
         ))}
       </div>
-      <p className="mt-10 text-sm text-[var(--muted-on-dark)]">This page changes as the work changes. Last updated September 2026.</p>
+      <div className="mt-10 flex flex-wrap gap-4 text-sm text-[var(--muted-on-dark)]">
+        <p>This page changes as the work changes. Last updated September 2026.</p>
+        <a className="text-[var(--accent-soft)] underline underline-offset-4" href="/rss.xml">Subscribe to the RSS feed</a>
+      </div>
     </main>
   );
 }
