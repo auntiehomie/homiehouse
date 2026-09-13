@@ -141,7 +141,11 @@ export default function RootLayout({
             </QueryProvider>
             <MobileNav />
             <ThemeSync />
-            <LazyClientComponents />
+            <LazyClientComponents
+              miniAppClientFid={Number(
+                process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || 0,
+              )}
+            />
           </FarcasterAuthProvider>
         </WagmiProviders>
         <Analytics />

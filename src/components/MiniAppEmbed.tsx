@@ -76,7 +76,15 @@ export function MiniAppEmbed({
         hostRef.current = host;
       }
 
-      host.mountMiniApp(iframe, snapUrl);
+      const cleanup = host.mountMiniApp(iframe, snapUrl);
+
+      return () => {
+        cleanup();
+        hostHandleRef.current = null;
+        if (hostRef) {
+          hostRef.current = null;
+        }
+      };
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : 'Unknown host mount error';
@@ -85,15 +93,7 @@ export function MiniAppEmbed({
       onError?.(msg);
     }
 
-    return () => {
-      hostHandleRef.current = null;
-      if (hostRef) {
-        hostRef.current = null;
-      }
-    };
-    // We intentionally only run this on mount / snapUrl change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapUrl]);
+  }, [hostConfig, hostRef, onError, snapUrl]);
 
   // ------------------------------------------------------------------
   // Iframe event handlers
@@ -117,7 +117,7 @@ export function MiniAppEmbed({
   return (
     <div
       className={`miniapp-embed${className ? ` ${className}` : ''}`}
-      style={{ position: 'relative', display: 'inline-block' }}
+      style={{ position: 'relative', display: 'block', width: '100%', height: '100%' }}
     >
       {/* Loading overlay */}
       {status === 'loading' && (
