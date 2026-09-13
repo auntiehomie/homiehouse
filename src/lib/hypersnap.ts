@@ -291,8 +291,9 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
   const channelId: string | undefined = params.channel_id || undefined;
 
   // 1. Rank via OpenRank (global or channel-scoped), then hydrate through Hypersnap.
-  // Over-fetch hashes so hydration failures don't shrink the list below `limit`.
-  const hashes = await fetchTrendingCastHashes(Math.min(limit * 2, 50), channelId);
+  // Keep a small buffer for hydration failures without doubling the number of
+  // downstream cast requests on every cold load.
+  const hashes = await fetchTrendingCastHashes(Math.min(limit + 5, 50), channelId);
   if (hashes.length > 0) {
     const casts = await hydrateCastsByHash(hashes);
     if (casts.length > 0) return { casts: casts.slice(0, limit) };
