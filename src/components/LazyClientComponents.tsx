@@ -14,8 +14,13 @@ const UpdateBanner = dynamic(() => import("./UpdateBanner"), { ssr: false });
 const FarcasterOnboarding = dynamic(() => import("./FarcasterOnboarding"), { ssr: false });
 const ComposeModal = dynamic(() => import("./ComposeModal"), { ssr: false });
 const ScheduledCastsModal = dynamic(() => import("./ScheduledCastsModal"), { ssr: false });
+const MiniAppViewer = dynamic(() => import("./MiniAppViewer"), { ssr: false });
 
-export default function LazyClientComponents() {
+export default function LazyClientComponents({
+  miniAppClientFid = 0,
+}: {
+  miniAppClientFid?: number;
+}) {
   return (
     <>
       <SdkDevMock />
@@ -26,6 +31,7 @@ export default function LazyClientComponents() {
       <FarcasterOnboarding />
       <ComposeModal />
       <ScheduledCastsModal />
+      <MiniAppViewer clientFid={miniAppClientFid} />
     </>
   );
 }

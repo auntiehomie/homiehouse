@@ -1,10 +1,14 @@
 import { exposeToIframe } from '@farcaster/miniapp-host';
 import type { MiniAppHost, MiniAppClientEvent } from '@farcaster/miniapp-core';
 import { Context } from '@farcaster/miniapp-core';
+import { signInToMiniApp } from './miniapp-auth';
 
 export interface MiniAppHostConfig {
   context?: Partial<Context.MiniAppContext>;
   overrides?: Partial<Omit<MiniAppHost, 'ethProviderRequestV2'>>;
+  ethProvider?: Parameters<typeof exposeToIframe>[0]['ethProvider'];
+  requestSignInApproval?: (url: string, domain: string) => Promise<void>;
+  onSignInComplete?: () => void;
 }
 export type MiniAppCleanup = () => void;
 export interface FrameActionPayload { action: string; data?: Record<string, unknown>; }
@@ -33,7 +37,13 @@ async function asyncNoop<T = void>(): Promise<T> {
 export function createMiniAppHost(
   config: MiniAppHostConfig = {},
 ): MiniAppHostHandle {
-  const { context, overrides } = config;
+  const {
+    context,
+    overrides,
+    ethProvider,
+    requestSignInApproval,
+    onSignInComplete,
+  } = config;
 
   const iframeEndpoints = new WeakMap<
     HTMLIFrameElement,
@@ -41,7 +51,7 @@ export function createMiniAppHost(
   >();
 
   function buildSdk(
-    _snapOrigin: string,
+    snapOrigin: string,
   ): Omit<MiniAppHost, 'ethProviderRequestV2'> {
     const ctx = buildDefaultContext(context);
 
@@ -55,7 +65,15 @@ export function createMiniAppHost(
       },
       signIn: (options) => {
         if (overrides?.signIn) return overrides.signIn(options);
-        throw new Error('signIn not implemented');
+        if (!requestSignInApproval) {
+          throw new Error('Farcaster sign-in is unavailable in this host');
+        }
+        return signInToMiniApp({
+          miniAppUrl: snapOrigin,
+          expectedFid: ctx.user.fid,
+          options,
+          requestApproval: requestSignInApproval,
+        }).finally(onSignInComplete);
       },
       signManifest: (options) => {
         if (overrides?.signManifest) return overrides.signManifest(options);
@@ -137,6 +155,7 @@ export function createMiniAppHost(
     const { endpoint, cleanup } = exposeToIframe({
       iframe,
       sdk,
+      ethProvider,
       miniAppOrigin: snapOrigin,
     });
 
