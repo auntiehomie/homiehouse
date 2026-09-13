@@ -7,7 +7,8 @@ import { handleApiError } from '@/lib/errors';
 import { getDb } from '@/lib/db';
 import { llmChat } from '@/lib/llm';
 import { fetchCryptoNews } from '@/lib/ai/news';
-import { buildPostSystem, pickPostMode, postInstruction, pickFreshTopic, type PostMode } from '@/lib/ai/persona';
+import { buildPostSystem, pickPostMode, postInstruction, pickFreshTopic, type PostMode, type PostModeDef, type KBArticle } from '@/lib/ai/persona';
+import { pickKBTopic } from '@/lib/ai/kb-topics';
 import { rateLimit } from '@/lib/ratelimit';
 
 export const maxDuration = 60;
@@ -96,24 +97,32 @@ function similarity(a: string, b: string): number {
 function tooSimilar(text: string, recentTexts: string[], threshold = 0.4): boolean {
   return recentTexts.some((r) => similarity(text, r) >= threshold);
 }
-function cleanPost(text: string): string {
+function cleanPost(text: string, _mode?: PostMode): string {
+  // X has a 280 char limit per post regardless of mode.
   return text.trim().replace(/^["']|["']$/g, '').slice(0, 280).trim();
 }
 
-async function writeXPost(system: string, instruction: string): Promise<string> {
+/** Split LLM output on a thread separator for deep-dive threading. */
+function splitThreadCasts(content: string): string[] {
+  const parts = content.split(/\n?\n?---\n?\n?/);
+  if (parts.length < 2) return [content];
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
+
+async function writeXPost(system: string, instruction: string, mode?: PostMode): Promise<string> {
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const model = process.env.AGENT_POST_MODEL || 'claude-sonnet-5';
       const res = await anthropic.messages.create({
         model,
-        max_tokens: 160,
+        max_tokens: 800,
         temperature: 0.85,
         system,
         messages: [{ role: 'user', content: instruction }],
       });
       const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text);
+      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, mode);
       throw new Error('empty Anthropic response');
     } catch (err: any) {
       console.warn('[agent/x-post] Anthropic post failed, using free providers:', err?.message);
@@ -124,10 +133,10 @@ async function writeXPost(system: string, instruction: string): Promise<string> 
       { role: 'system', content: system },
       { role: 'user', content: instruction },
     ],
-    maxTokens: 160,
+    maxTokens: 800,
     temperature: 0.85,
   });
-  return cleanPost(message.content || '');
+  return cleanPost(message.content || '', mode);
 }
 
 export async function GET(request: NextRequest) {
@@ -154,14 +163,15 @@ export async function GET(request: NextRequest) {
     const lastSource = recentPosts[0]?.source as PostMode | undefined;
     const lastMode: PostMode | null =
       lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'news-take' ||
-      lastSource === 'chill' || lastSource === 'question'
+      lastSource === 'chill' || lastSource === 'question' ||
+      lastSource === 'culture' || lastSource === 'deep-dive'
         ? lastSource : null;
 
     let chosen = pickPostMode(lastMode);
     // trend-take needs a Farcaster cast, which doesn't make sense to react to
     // on X — treat it the same as "no trend found" and fall back to a tip.
     if (chosen.needsTrend) {
-      chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
+      chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
     }
 
     // news-take works the same on X as on Farcaster — it's a reaction to a
@@ -172,20 +182,27 @@ export async function GET(request: NextRequest) {
       if (article) {
         news = article;
       } else {
-        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
+        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
       }
+    }
+
+    let kbArticle: KBArticle | undefined;
+    if (chosen.needsKB) {
+      kbArticle = pickKBTopic(recentTopics);
     }
 
     const system = buildPostSystem(); // no cross-platform memory context yet — see strategy doc
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    let content = await writeXPost(system, postInstruction(chosen.mode, { topic, news }));
+    let content = await writeXPost(system, postInstruction(chosen.mode, { topic, news, kbArticle }), chosen.mode);
 
     if (content && tooSimilar(content, recentTexts)) {
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
+      if (chosen.needsKB) kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || '']);
       const retry = await writeXPost(
         system,
-        postInstruction(chosen.mode, { topic, news }) +
-          '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT.'
+        postInstruction(chosen.mode, { topic, news, kbArticle }) +
+          '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT.',
+        chosen.mode
       );
       if (retry) content = retry;
     }
@@ -198,6 +215,43 @@ export async function GET(request: NextRequest) {
     const dryRun = new URL(request.url).searchParams.get('dry') === '1';
     if (dryRun) {
       return NextResponse.json({ ok: true, dryRun: true, mode: chosen.mode, content });
+    }
+
+    // Deep-dive mode: if the LLM used "---" to separate multiple casts,
+    // publish them as a threaded reply chain. X has 280 chars per cast.
+    // Falls back to single tweet if anything goes wrong.
+    if (chosen.mode === 'deep-dive') {
+      const casts = splitThreadCasts(content);
+      if (casts.length > 1) {
+        try {
+          const firstText = casts[0].slice(0, 280);
+          const { id: firstId } = await postToX(firstText);
+          await recordXUsage('post');
+          await saveXPost({ xPostId: firstId, text: firstText, source: chosen.mode, topic: kbArticle?.title?.slice(0, 80) || topic });
+
+          let replyToId = firstId;
+          for (let i = 1; i < casts.length && i < 3; i++) {
+            const replyText = casts[i].slice(0, 280);
+            const { id: replyId } = await postToX(replyText, replyToId);
+            await saveXPost({ xPostId: replyId, text: replyText, source: chosen.mode, topic: kbArticle?.title?.slice(0, 80) || topic });
+            replyToId = replyId;
+          }
+
+          console.log(`[agent/x-post] Posted thread (${chosen.mode}): ${casts.length} tweets`);
+          return NextResponse.json({
+            ok: true,
+            mode: chosen.mode,
+            threaded: true,
+            casts: casts.length,
+            content: firstText,
+            xPostId: firstId,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (threadErr: any) {
+          console.warn('[agent/x-post] Thread publish failed, falling back to single tweet:', threadErr?.message);
+          content = content.slice(0, 280);
+        }
+      }
     }
 
     const { id } = await postToX(content);

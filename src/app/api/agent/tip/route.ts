@@ -14,7 +14,10 @@ import {
   postInstruction,
   pickFreshTopic,
   type PostMode,
+  type PostModeDef,
+  type KBArticle,
 } from '@/lib/ai/persona';
+import { pickKBTopic } from '@/lib/ai/kb-topics';
 
 export const maxDuration = 60;
 
@@ -63,12 +66,18 @@ async function pickRelevantTrend(casts: any[]): Promise<any | null> {
   }
 }
 
-function cleanPost(text: string): string {
-  return text
-    .trim()
-    .replace(/^["']|["']$/g, '') // strip wrapping quotes some models add
-    .slice(0, 280)
-    .trim();
+function cleanPost(text: string, mode?: PostMode): string {
+  const trimmed = text.trim().replace(/^["']|["']$/g, '');
+  switch (mode) {
+    case 'deep-dive':
+      return trimmed.slice(0, 640).trim();
+    case 'culture':
+    case 'trend-take':
+    case 'news-take':
+      return trimmed.slice(0, 320).trim();
+    default:
+      return trimmed.slice(0, 280).trim();
+  }
 }
 
 // ─── Near-duplicate detection ─────────────────────────────────────────────────
@@ -89,6 +98,13 @@ function tooSimilar(text: string, recentTexts: string[], threshold = 0.4): boole
   return recentTexts.some((r) => similarity(text, r) >= threshold);
 }
 
+/** Split LLM output on a thread separator for deep-dive threading. */
+function splitThreadCasts(content: string): string[] {
+  const parts = content.split(/\n?\n?---\n?\n?/);
+  if (parts.length < 2) return [content];
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
+
 /**
  * Generate a post.
  *
@@ -98,7 +114,7 @@ function tooSimilar(text: string, recentTexts: string[], threshold = 0.4): boole
  * errors, so autonomous posting can never break from a missing/expired paid key.
  * (Replies stay fully on the free stack — they run far more often.)
  */
-async function writePost(system: string, instruction: string): Promise<string> {
+async function writePost(system: string, instruction: string, mode?: PostMode): Promise<string> {
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -107,13 +123,13 @@ async function writePost(system: string, instruction: string): Promise<string> {
       const model = process.env.AGENT_POST_MODEL || 'claude-haiku-4-5-20251001';
       const res = await anthropic.messages.create({
         model,
-        max_tokens: 400,
+        max_tokens: 800,
         temperature: 0.85,
         system,
         messages: [{ role: 'user', content: instruction }],
       });
       const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text);
+      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, mode);
       throw new Error('empty Anthropic response');
     } catch (err: any) {
       console.warn('[agent/tip] Anthropic post failed, using free providers:', err?.message);
@@ -125,10 +141,10 @@ async function writePost(system: string, instruction: string): Promise<string> {
       { role: 'system', content: system },
       { role: 'user', content: instruction },
     ],
-    maxTokens: 500,
+    maxTokens: 800,
     temperature: 0.85,
   });
-  return cleanPost(message.content || '');
+  return cleanPost(message.content || '', mode);
 }
 
 export async function GET(request: NextRequest) {
@@ -163,7 +179,8 @@ export async function GET(request: NextRequest) {
     const lastSource = recentPosts[0]?.source as PostMode | undefined;
     const lastMode: PostMode | null =
       lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'news-take' ||
-      lastSource === 'chill' || lastSource === 'question'
+      lastSource === 'chill' || lastSource === 'question' ||
+      lastSource === 'culture' || lastSource === 'deep-dive'
         ? lastSource : null;
 
     let chosen = pickPostMode(lastMode);
@@ -186,7 +203,7 @@ export async function GET(request: NextRequest) {
         };
       } else {
         console.log('[agent/tip] no relevant trend — falling back to tip mode');
-        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
+        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
       }
     }
 
@@ -200,21 +217,27 @@ export async function GET(request: NextRequest) {
         news = article;
       } else {
         console.log('[agent/tip] no crypto news found — falling back to tip mode');
-        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false };
+        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
       }
     }
 
+    let kbArticle: KBArticle | undefined;
+    if (chosen.needsKB) {
+      kbArticle = pickKBTopic(recentTopics);
+    }
+
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    let content = await writePost(system, postInstruction(chosen.mode, { topic, trend, news }));
+    let content = await writePost(system, postInstruction(chosen.mode, { topic, trend, news, kbArticle }), chosen.mode);
 
     // If it came out too close to a recent post, try once more with a different
     // topic (for tips) and an explicit "don't repeat yourself" nudge.
     if (content && tooSimilar(content, recentTexts)) {
       console.log('[agent/tip] first draft too similar to a recent post — retrying');
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
-      const retryInstruction = postInstruction(chosen.mode, { topic, trend, news }) +
+      if (chosen.needsKB) kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || '']);
+      const retryInstruction = postInstruction(chosen.mode, { topic, trend, news, kbArticle }) +
         '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.';
-      const retry = await writePost(system, retryInstruction);
+      const retry = await writePost(system, retryInstruction, chosen.mode);
       if (retry) content = retry;
     }
 
@@ -234,6 +257,66 @@ export async function GET(request: NextRequest) {
     }
 
     const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
+
+    // Deep-dive mode: if the LLM used "---" to separate multiple casts,
+    // publish them as a threaded reply chain. Falls back to single cast if
+    // anything goes wrong or there's no separator.
+    if (chosen.mode === 'deep-dive') {
+      const casts = splitThreadCasts(content);
+      if (casts.length > 1) {
+        try {
+          const firstText = casts[0].slice(0, 640);
+          const { castHash: firstHash } = await publishCast({
+            text: firstText,
+            fid: HOMIEHOUSELOL_FID,
+            ...(signerKey ? { signerPrivateKey: signerKey } : {}),
+          });
+
+          await savePost({
+            fid: HOMIEHOUSELOL_FID,
+            castHash: firstHash,
+            text: firstText,
+            source: chosen.mode,
+            topic: kbArticle?.title?.slice(0, 80) || topic || undefined,
+          });
+
+          let parentHash = firstHash;
+          for (let i = 1; i < casts.length && i < 3; i++) {
+            const replyText = casts[i].slice(0, 640);
+            const { castHash: replyHash } = await publishCast({
+              text: replyText,
+              fid: HOMIEHOUSELOL_FID,
+              parentCastHash: parentHash,
+              parentCastFid: HOMIEHOUSELOL_FID,
+              ...(signerKey ? { signerPrivateKey: signerKey } : {}),
+            });
+            await savePost({
+              fid: HOMIEHOUSELOL_FID,
+              castHash: replyHash,
+              text: replyText,
+              source: chosen.mode,
+              topic: kbArticle?.title?.slice(0, 80) || topic || undefined,
+            });
+            parentHash = replyHash;
+          }
+
+          console.log(`[agent/tip] Posted thread (${chosen.mode}): ${casts.length} casts → ${firstHash}`);
+          return NextResponse.json({
+            ok: true,
+            mode: chosen.mode,
+            threaded: true,
+            casts: casts.length,
+            content: firstText,
+            castHash: firstHash,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (threadErr: any) {
+          console.warn('[agent/tip] Thread publish failed, falling back to single cast:', threadErr?.message);
+          content = content.slice(0, 640);
+        }
+      }
+    }
+
     const { castHash } = await publishCast({
       text: content,
       fid: HOMIEHOUSELOL_FID,
@@ -245,7 +328,7 @@ export async function GET(request: NextRequest) {
       castHash,
       text: content,
       source: chosen.mode,
-      topic: topic || trend?.text?.slice(0, 80) || news?.headline?.slice(0, 80) || undefined,
+      topic: topic || trend?.text?.slice(0, 80) || news?.headline?.slice(0, 80) || kbArticle?.title?.slice(0, 80) || undefined,
     });
 
     console.log(`[agent/tip] Posted (${chosen.mode}): "${content}" → ${castHash}`);
