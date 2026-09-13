@@ -2,9 +2,9 @@
 type SDK = any;
 
 function getSdk(): SDK | undefined {
-  // Some hosts expose `sdk` on window.
-  // Access via (window as any).sdk to avoid TypeScript errors.
   if (typeof window === "undefined") return undefined;
+  // Local development can install a mock on window. Production Farcaster
+  // clients communicate through the imported SDK used by openMiniApp below.
   return (window as any).sdk;
 }
 
@@ -23,9 +23,14 @@ export function getCapabilities(): string[] {
   return sdk?.getCapabilities ? sdk.getCapabilities() : [];
 }
 
-export function isInMiniApp(): boolean {
+export async function isInMiniApp(): Promise<boolean> {
   const sdk = getSdk();
-  return !!(sdk && sdk.isInMiniApp && sdk.isInMiniApp());
+  if (!sdk?.isInMiniApp) return false;
+  try {
+    return !!(await sdk.isInMiniApp());
+  } catch {
+    return false;
+  }
 }
 
 export async function postCast(text: string): Promise<{ ok: boolean; error?: string }> {
@@ -171,10 +176,26 @@ export function openUrl(url: string) {
   if (typeof window !== "undefined") window.open(url, "_blank");
 }
 
-export function openMiniApp(miniAppUrl: string, _title?: string) {
-  const sdk = getSdk();
-  if (sdk?.actions?.openMiniApp) return sdk.actions.openMiniApp(miniAppUrl);
-  if (typeof window !== "undefined") window.open(miniAppUrl, "_blank");
+export async function openMiniApp(miniAppUrl: string, title?: string): Promise<void> {
+  void title;
+  // Load the production SDK only when a user opens a Mini App so ordinary feed
+  // browsing does not pay for it in the initial client bundle.
+  const sdk = getSdk() ?? (await import('@farcaster/miniapp-sdk')).sdk;
+  try {
+    const inMiniApp = sdk?.isInMiniApp ? await sdk.isInMiniApp() : false;
+    if (inMiniApp && sdk?.actions?.openMiniApp) {
+      // The Farcaster SDK expects an options object. Using the native action
+      // preserves the host session and supplies user context to the next app.
+      await sdk.actions.openMiniApp({ url: miniAppUrl });
+      return;
+    }
+  } catch {
+    // Fall through to a normal browser tab outside a Farcaster client or when
+    // the host declines app-to-app navigation.
+  }
+  if (typeof window !== "undefined") {
+    window.open(miniAppUrl, "_blank", "noopener,noreferrer");
+  }
 }
 
 export function inspectSDK() {

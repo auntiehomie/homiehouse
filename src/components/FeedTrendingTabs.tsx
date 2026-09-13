@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import FeedList from "./FeedList";
-import TrendingList from "./TrendingList";
+import TrendingList, { prefetchTrending } from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
 import ChannelStrip from "./ChannelStrip";
 import { TooltipTrigger } from "@/lib/progressive-disclosure";
@@ -22,6 +22,10 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
   const [showCurationSettings, setShowCurationSettings] = useState(false);
+
+  useEffect(() => {
+    prefetchTrending();
+  }, []);
 
   return (
     <div>

@@ -28,24 +28,23 @@ export async function GET(req: NextRequest) {
 
     logger.info('Request params', { limit, timeWindow, viewerFid, channelId });
 
-    // Fetch trending feed using shared utility
-    const data = await fetchTrendingFeed({
-      limit,
-      time_window: timeWindow,
-      viewer_fid: viewerFid,
-      channel_id: channelId || undefined,
-    });
+    // Trending and sponsorship are independent reads, so start them together.
+    // viewer_fid is intentionally not forwarded: the current ranking is shared,
+    // not personalized, and excluding it keeps every user on the same CDN key.
+    const [data, sponsored] = await Promise.all([
+      fetchTrendingFeed({
+        limit,
+        time_window: timeWindow,
+        channel_id: channelId || undefined,
+      }),
+      fetchSponsoredCast().catch((sponsorErr) => {
+        // Non-critical — don't fail the whole trending response
+        logger.warn?.('Failed to fetch sponsored cast', sponsorErr);
+        return null;
+      }),
+    ]);
 
     const casts = data?.casts || [];
-
-    // Optionally inject a sponsored cast at position 3 (index 2)
-    let sponsored = null;
-    try {
-      sponsored = await fetchSponsoredCast();
-    } catch (sponsorErr) {
-      // Non-critical — don't fail the whole trending response
-      logger.warn?.('Failed to fetch sponsored cast', sponsorErr);
-    }
 
     logger.success('Trending casts fetched', { count: casts.length, sponsored: !!sponsored });
     logger.end();

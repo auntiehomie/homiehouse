@@ -18,6 +18,47 @@ interface SponsoredCast {
   cast_hash: string;
 }
 
+interface TrendingResponse {
+  data?: any[];
+  sponsored?: SponsoredCast | null;
+}
+
+// Start loading Trending as soon as the feed screen mounts, then reuse the
+// same promise when the user opens the tab. This also deduplicates remounts.
+const trendingRequests = new Map<string, Promise<TrendingResponse>>();
+
+function trendingUrl(limit: number, channelId?: string): string {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (channelId) params.set('channel_id', channelId);
+  return `/api/trending?${params.toString()}`;
+}
+
+function requestTrending(limit: number, channelId?: string): Promise<TrendingResponse> {
+  const url = trendingUrl(limit, channelId);
+  const existing = trendingRequests.get(url);
+  if (existing) return existing;
+
+  const request = fetch(url)
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`Trending request failed (${res.status})`);
+      return res.json() as Promise<TrendingResponse>;
+    })
+    .catch((error) => {
+      trendingRequests.delete(url);
+      throw error;
+    });
+
+  trendingRequests.set(url, request);
+  window.setTimeout(() => {
+    if (trendingRequests.get(url) === request) trendingRequests.delete(url);
+  }, 60_000);
+  return request;
+}
+
+export function prefetchTrending(limit = 10): void {
+  void requestTrending(limit).catch(() => {});
+}
+
 function SponsoredCastCard({ sponsored }: { sponsored: SponsoredCast }) {
   const handleClick = () => {
     fetch('/api/sponsored-cast', {
@@ -83,22 +124,7 @@ export default function TrendingList({ limit = 10, channelId }: TrendingListProp
     setSponsored(null);
     (async () => {
       try {
-        const params = new URLSearchParams({ limit: String(limit) });
-        if (channelId) params.set("channel_id", channelId);
-
-        // Get FID from localStorage if available
-        const storedProfile = localStorage.getItem("hh_profile");
-        if (storedProfile) {
-          try {
-            const profile = JSON.parse(storedProfile);
-            if (profile?.fid) {
-              params.set("viewer_fid", String(profile.fid));
-            }
-          } catch {}
-        }
-
-        const res = await fetch(`/api/trending?${params.toString()}`);
-        const data = await res.json();
+        const data = await requestTrending(limit, channelId);
         const casts = data?.data ?? [];
         if (mounted) {
           setItems(Array.isArray(casts) ? casts : []);

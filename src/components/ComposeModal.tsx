@@ -1,13 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import { getAuthHeaders } from "@/lib/client-auth";
 import Image from "next/image";
-
-const FAB_HIDDEN_PATHS = ['/learn', '/compose', '/settings'];
 
 // Module-level cache so channels are fetched once per session, not on every modal open
 let cachedChannels: any[] | null = null;
@@ -41,8 +38,6 @@ function splitIntoThread(text: string, limit: number): string[] {
 }
 
 export default function ComposeModal() {
-  const pathname = usePathname();
-  const hideFab = FAB_HIDDEN_PATHS.some(p => pathname === p || pathname?.startsWith(p + '/'));
   const { fid: userFid } = useFarcasterAuth();
   const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
 
@@ -508,21 +503,6 @@ export default function ComposeModal() {
 
   return (
     <>
-      {!hideFab && (
-        <button
-          aria-label="Open compose"
-          title="Compose"
-          onClick={() => setOpen(true)}
-          className="btn primary"
-          style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10 }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" fill="white" />
-            <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="white" />
-          </svg>
-        </button>
-      )}
-
       {open && (
         <div
           role="dialog"
