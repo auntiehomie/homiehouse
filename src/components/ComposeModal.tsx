@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import { getAuthHeaders } from "@/lib/client-auth";
+import {
+  OPEN_COMPOSE_MODAL_EVENT,
+  type ComposeCastResult,
+  type OpenComposeModalDetail,
+} from '@/lib/compose-modal-events';
 import Image from "next/image";
 
 // Module-level cache so channels are fetched once per session, not on every modal open
@@ -68,6 +73,10 @@ export default function ComposeModal() {
   const [isLongForm, setIsLongForm] = useState(false);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
+  const [requestedEmbeds, setRequestedEmbeds] = useState<string[]>([]);
+  const composeCompletionRef = useRef<
+    ((cast: ComposeCastResult | null) => void) | null
+  >(null);
 
   const CAST_LIMIT = 320;
   const LONG_FORM_LIMIT = 10000;
@@ -78,21 +87,49 @@ export default function ComposeModal() {
 
   // Listen for custom event to open compose with pre-filled text
   useEffect(() => {
-    const handleOpenCompose = (e: CustomEvent) => {
-      const { text: prefilledText, parentCastHash, parentCastFid, replyingToName } = e.detail || {};
-      if (prefilledText) setText(prefilledText);
+    const handleOpenCompose = (e: CustomEvent<OpenComposeModalDetail>) => {
+      const {
+        text: prefilledText,
+        embeds,
+        channelKey,
+        parentCastHash,
+        parentCastFid,
+        replyingToName,
+        onComplete,
+      } = e.detail || {};
+
+      // A second request dismisses the first one instead of leaving its
+      // Mini App RPC promise pending forever.
+      composeCompletionRef.current?.(null);
+      composeCompletionRef.current =
+        typeof onComplete === 'function' ? onComplete : null;
+      setText(prefilledText ?? '');
+      setRequestedEmbeds(
+        Array.isArray(embeds)
+          ? embeds.filter((url): url is string => typeof url === 'string').slice(0, 2)
+          : [],
+      );
+      setSelectedChannel(typeof channelKey === 'string' ? channelKey : '');
       setReplyParentHash(parentCastHash ?? null);
       setReplyParentFid(parentCastFid ?? null);
       setReplyParentName(replyingToName ?? null);
       setOpen(true);
     };
 
-    window.addEventListener('openComposeModal' as any, handleOpenCompose as EventListener);
+    window.addEventListener(OPEN_COMPOSE_MODAL_EVENT, handleOpenCompose as EventListener);
     
     return () => {
-      window.removeEventListener('openComposeModal' as any, handleOpenCompose as EventListener);
+      window.removeEventListener(OPEN_COMPOSE_MODAL_EVENT, handleOpenCompose as EventListener);
+      composeCompletionRef.current?.(null);
+      composeCompletionRef.current = null;
     };
   }, []);
+
+  function finishComposeRequest(cast: ComposeCastResult | null) {
+    const complete = composeCompletionRef.current;
+    composeCompletionRef.current = null;
+    complete?.(cast);
+  }
 
   const FALLBACK_CHANNELS = [
     { id: 'base', name: 'Base' },
@@ -306,20 +343,24 @@ export default function ComposeModal() {
       const body: any = { text: castText, fid: userFid };
 
       // Build embeds array
-      const embeds: any[] = [];
+      const embeds: { url: string }[] = requestedEmbeds.map(url => ({ url }));
 
       // Add image embed if provided
       if (imageUrl.trim()) {
-        embeds.push({ url: imageUrl.trim() });
+        if (!embeds.some(embed => embed.url === imageUrl.trim())) {
+          embeds.push({ url: imageUrl.trim() });
+        }
       }
 
       // Add URL embed if we have a preview (URL is already in the text; just attach as embed)
       if (urlPreview && detectedUrl) {
-        embeds.push({ url: detectedUrl });
+        if (!embeds.some(embed => embed.url === detectedUrl)) {
+          embeds.push({ url: detectedUrl });
+        }
       }
 
       if (embeds.length > 0) {
-        body.embeds = embeds;
+        body.embeds = embeds.slice(0, 2);
       }
 
       // Add channel if selected
@@ -367,6 +408,7 @@ export default function ComposeModal() {
         }
         
         if (data.ok) {
+          finishComposeRequest(null);
           setStatus("✓ Cast scheduled successfully!");
           setText("");
           setImageUrl("");
@@ -393,6 +435,7 @@ export default function ComposeModal() {
 
         // Post first part
         let prevHash: string;
+        let firstHash: string;
         if (replyParentHash && replyParentFid) {
           const { castHash } = await reply({
             text: threadParts[0],
@@ -401,6 +444,7 @@ export default function ComposeModal() {
             embeds: body.embeds,
           });
           prevHash = castHash;
+          firstHash = castHash;
         } else {
           const { castHash } = await submitCast({
             text: threadParts[0],
@@ -409,6 +453,7 @@ export default function ComposeModal() {
             parentUrl: body.parentUrl,
           });
           prevHash = castHash;
+          firstHash = castHash;
         }
 
         // Chain remaining parts as self-replies
@@ -423,6 +468,12 @@ export default function ComposeModal() {
         }
 
         setStatus(isThread ? `✓ Thread posted (${threadParts.length} casts)!` : "✓ Posted successfully!");
+        finishComposeRequest({
+          hash: firstHash,
+          text: castText,
+          embeds: body.embeds?.map((embed: { url: string }) => embed.url),
+          channelKey: body.channelKey,
+        });
         setText("");
         setImageUrl("");
         setUploadedImage(null);
@@ -432,6 +483,7 @@ export default function ComposeModal() {
         setReplyParentFid(null);
         setReplyParentName(null);
         setIsLongForm(false);
+        setRequestedEmbeds([]);
         setTimeout(() => {
           setOpen(false);
           setStatus(null);
@@ -477,6 +529,7 @@ export default function ComposeModal() {
   }
 
   function doClose() {
+    finishComposeRequest(null);
     setShowDraftDialog(false);
     setHasDraft(false);
     setOpen(false);
@@ -489,6 +542,7 @@ export default function ComposeModal() {
     setReplyParentHash(null);
     setReplyParentFid(null);
     setReplyParentName(null);
+    setRequestedEmbeds([]);
   }
 
   function closeModal() {
@@ -507,7 +561,7 @@ export default function ComposeModal() {
         <div
           role="dialog"
           aria-modal="true"
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

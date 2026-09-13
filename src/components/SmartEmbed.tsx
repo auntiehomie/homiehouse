@@ -8,6 +8,7 @@ import { openMiniApp } from '@/lib/farcaster';
 import { buildJfs, getSignerForFid } from '@/lib/snap-jfs';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useRouter } from 'next/navigation';
+import { openComposeModal } from '@/lib/compose-modal-events';
 
 type Result = 'frame' | 'snap' | 'url';
 
@@ -82,7 +83,7 @@ export default function SmartEmbed({ url, castHash }: Props) {
         router.push(`/profile?user=${action.params?.username || action.params?.fid}`);
         return;
       case 'compose_cast':
-        window.dispatchEvent(new CustomEvent('hh:compose', { detail: { text: action.params?.text ?? '' } }));
+        openComposeModal({ text: action.params?.text ?? '' });
         return;
       case 'open_snap': {
         const newUrl = action.params?.url as string;

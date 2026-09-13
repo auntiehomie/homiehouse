@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { getMiniAppIdentity } from '@/lib/miniapp-auth';
+import { requestMiniAppComposeCast } from '@/lib/compose-modal-events';
 import { MiniAppEmbed } from './MiniAppEmbed';
 
 interface OpenMiniAppDetail {
@@ -204,14 +205,15 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
           text?: string;
           embeds?: string[];
           close?: boolean;
+          channelKey?: string;
         }) => {
-          window.dispatchEvent(
-            new CustomEvent('hh:compose', {
-              detail: { text: options.text ?? '', embeds: options.embeds ?? [] },
-            }),
-          );
-          if (options.close) close();
-          return options.close ? undefined : { cast: null };
+          const result = await requestMiniAppComposeCast(options);
+
+          if (options.close) {
+            close();
+            return undefined;
+          }
+          return result ?? { cast: null };
         }) as MiniAppHost['composeCast'],
         openMiniApp: async ({ url }: { url: string }) => {
           navigateToMiniApp(url);

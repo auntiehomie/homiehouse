@@ -162,8 +162,8 @@ export function MiniAppEmbed({
           ref={iframeRef}
           src={snapUrl}
           title={title}
-          sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-presentation allow-downloads"
-          allow="camera; microphone; clipboard-write"
+          sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-presentation allow-downloads"
+          allow="camera; microphone; clipboard-read; clipboard-write; web-share"
           onLoad={handleIframeLoad}
           onError={handleIframeError}
           style={{
