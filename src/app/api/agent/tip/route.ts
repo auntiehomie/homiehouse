@@ -1,13 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit } from '@/lib/ratelimit';
-import Anthropic from '@anthropic-ai/sdk';
-import { fetchTrendingFeed } from '@/lib/hypersnap';
-import { publishCast } from '@/lib/farcaster-writes';
-import { verifyCronSecret } from '@/lib/auth';
-import { handleApiError } from '@/lib/errors';
-import { buildFullMemoryContext, savePost, getRecentPosts } from '@/lib/agent-memory';
-import { llmChat } from '@/lib/llm';
-import { fetchCryptoNews } from '@/lib/ai/news';
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/ratelimit";
+import Anthropic from "@anthropic-ai/sdk";
+import { fetchTrendingFeed } from "@/lib/hypersnap";
+import { publishCast } from "@/lib/farcaster-writes";
+import { verifyCronSecret } from "@/lib/auth";
+import { handleApiError } from "@/lib/errors";
+import {
+  buildFullMemoryContext,
+  savePost,
+  getRecentPosts,
+} from "@/lib/agent-memory";
+import { llmChat } from "@/lib/llm";
+import { fetchCryptoNews } from "@/lib/ai/news";
 import {
   buildPostSystem,
   pickPostMode,
@@ -16,14 +20,14 @@ import {
   type PostMode,
   type PostModeDef,
   type KBArticle,
-} from '@/lib/ai/persona';
-import { pickKBTopic } from '@/lib/ai/kb-topics';
+} from "@/lib/ai/persona";
+import { pickKBTopic } from "@/lib/ai/kb-topics";
 
 export const maxDuration = 60;
 
 const HOMIEHOUSELOL_FID = parseInt(
-  process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || '0',
-  10
+  process.env.HOMIEHOUSELOL_FID || process.env.APP_FID || "0",
+  10,
 );
 
 const RELEVANCE_SYSTEM = `You filter trending Farcaster posts for ones relevant to crypto, DeFi, NFTs, tokens, wallets, security, blockchain, AI/agents, or web3/decentralization. Given a numbered list of cast texts, return ONLY a JSON array of the 0-based indices that are relevant, e.g. [0,2,5]. Return [] if none. No other text.`;
@@ -33,21 +37,21 @@ async function pickRelevantTrend(casts: any[]): Promise<any | null> {
   if (!casts.length) return null;
   const castList = casts
     .slice(0, 20)
-    .map((c: any, i: number) => `[${i}] ${(c.text || '').slice(0, 120)}`)
-    .join('\n');
+    .map((c: any, i: number) => `[${i}] ${(c.text || "").slice(0, 120)}`)
+    .join("\n");
 
   try {
     const { message } = await llmChat({
       messages: [
-        { role: 'system', content: RELEVANCE_SYSTEM },
-        { role: 'user', content: castList },
+        { role: "system", content: RELEVANCE_SYSTEM },
+        { role: "user", content: castList },
       ],
       maxTokens: 64,
       temperature: 0,
     });
-    const raw = (message.content || '')
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```\s*$/, '')
+    const raw = (message.content || "")
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/, "")
       .trim();
     const indices: number[] = JSON.parse(raw);
     if (!Array.isArray(indices) || !indices.length) return null;
@@ -67,13 +71,13 @@ async function pickRelevantTrend(casts: any[]): Promise<any | null> {
 }
 
 function cleanPost(text: string, mode?: PostMode): string {
-  const trimmed = text.trim().replace(/^["']|["']$/g, '');
+  const trimmed = text.trim().replace(/^["']|["']$/g, "");
   switch (mode) {
-    case 'deep-dive':
+    case "deep-dive":
       return trimmed.slice(0, 640).trim();
-    case 'culture':
-    case 'trend-take':
-    case 'news-take':
+    case "culture":
+    case "trend-take":
+    case "news-take":
       return trimmed.slice(0, 320).trim();
     default:
       return trimmed.slice(0, 280).trim();
@@ -84,7 +88,9 @@ function cleanPost(text: string, mode?: PostMode): string {
 // Word-overlap (Jaccard) check so the agent doesn't re-post the same idea reworded
 // (e.g. two "block explorers / etherscan" tips a day apart).
 function contentWords(s: string): Set<string> {
-  return new Set((s.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 3));
+  return new Set(
+    (s.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 3),
+  );
 }
 function similarity(a: string, b: string): number {
   const x = contentWords(a);
@@ -94,7 +100,11 @@ function similarity(a: string, b: string): number {
   for (const w of x) if (y.has(w)) inter++;
   return inter / (x.size + y.size - inter);
 }
-function tooSimilar(text: string, recentTexts: string[], threshold = 0.4): boolean {
+function tooSimilar(
+  text: string,
+  recentTexts: string[],
+  threshold = 0.4,
+): boolean {
   return recentTexts.some((r) => similarity(text, r) >= threshold);
 }
 
@@ -114,53 +124,66 @@ function splitThreadCasts(content: string): string[] {
  * errors, so autonomous posting can never break from a missing/expired paid key.
  * (Replies stay fully on the free stack — they run far more often.)
  */
-async function writePost(system: string, instruction: string, mode?: PostMode): Promise<string> {
+async function writePost(
+  system: string,
+  instruction: string,
+  mode?: PostMode,
+): Promise<string> {
   if (process.env.ANTHROPIC_API_KEY) {
     try {
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const anthropic = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
       // Keep the default on a currently supported model. Override with
       // AGENT_POST_MODEL when intentionally selecting another Anthropic model.
-      const model = process.env.AGENT_POST_MODEL || 'claude-haiku-4-5-20251001';
+      const model = process.env.AGENT_POST_MODEL || "claude-haiku-4-5-20251001";
       const res = await anthropic.messages.create({
         model,
         max_tokens: 800,
         temperature: 0.85,
         system,
-        messages: [{ role: 'user', content: instruction }],
+        messages: [{ role: "user", content: instruction }],
       });
       const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, mode);
-      throw new Error('empty Anthropic response');
+      if (block?.type === "text" && block.text.trim())
+        return cleanPost(block.text, mode);
+      throw new Error("empty Anthropic response");
     } catch (err: any) {
-      console.warn('[agent/tip] Anthropic post failed, using free providers:', err?.message);
+      console.warn(
+        "[agent/tip] Anthropic post failed, using free providers:",
+        err?.message,
+      );
     }
   }
 
   const { message } = await llmChat({
     messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: instruction },
+      { role: "system", content: system },
+      { role: "user", content: instruction },
     ],
     maxTokens: 800,
     temperature: 0.85,
   });
-  return cleanPost(message.content || '', mode);
+  return cleanPost(message.content || "", mode);
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const ip =
+      request.headers.get("x-forwarded-for") ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
     const { success: rateLimitOk } = rateLimit(`agent-tip:${ip}`, 20, 3600);
     if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+      return NextResponse.json({ error: "Rate limited" }, { status: 429 });
     }
 
     verifyCronSecret(request, process.env.CRON_SECRET);
 
     if (!HOMIEHOUSELOL_FID) {
       return NextResponse.json(
-        { ok: false, error: 'HOMIEHOUSELOL_FID (or APP_FID) not configured' },
-        { status: 500 }
+        { ok: false, error: "HOMIEHOUSELOL_FID (or APP_FID) not configured" },
+        { status: 500 },
       );
     }
 
@@ -175,13 +198,18 @@ export async function GET(request: NextRequest) {
       recentPosts = await getRecentPosts(HOMIEHOUSELOL_FID, 12);
     } catch {}
     const recentTexts = recentPosts.map((p) => p.text).filter(Boolean);
-    const recentTopics = recentPosts.map((p) => p.topic || '').filter(Boolean);
+    const recentTopics = recentPosts.map((p) => p.topic || "").filter(Boolean);
     const lastSource = recentPosts[0]?.source as PostMode | undefined;
     const lastMode: PostMode | null =
-      lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'news-take' ||
-      lastSource === 'chill' || lastSource === 'question' ||
-      lastSource === 'culture' || lastSource === 'deep-dive'
-        ? lastSource : null;
+      lastSource === "tip" ||
+      lastSource === "trend-take" ||
+      lastSource === "news-take" ||
+      lastSource === "chill" ||
+      lastSource === "question" ||
+      lastSource === "culture" ||
+      lastSource === "deep-dive"
+        ? lastSource
+        : null;
 
     let chosen = pickPostMode(lastMode);
 
@@ -194,30 +222,45 @@ export async function GET(request: NextRequest) {
         const casts: any[] = trendData?.casts ?? trendData?.data?.casts ?? [];
         trendCast = await pickRelevantTrend(casts);
       } catch (err: any) {
-        console.warn('[agent/tip] trend fetch failed:', err?.message);
+        console.warn("[agent/tip] trend fetch failed:", err?.message);
       }
       if (trendCast) {
         trend = {
-          author: trendCast.author?.username || 'someone',
-          text: (trendCast.text || '').slice(0, 300),
+          author: trendCast.author?.username || "someone",
+          text: (trendCast.text || "").slice(0, 300),
         };
       } else {
-        console.log('[agent/tip] no relevant trend — falling back to tip mode');
-        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
+        console.log("[agent/tip] no relevant trend — falling back to tip mode");
+        chosen = {
+          mode: "tip",
+          weight: 0,
+          needsTrend: false,
+          needsNews: false,
+          needsKB: false,
+        };
       }
     }
 
     // If the chosen mode wants a real news story, resolve one via Perplexity's
     // web-search-backed sonar model — else fall back to a tip (same pattern as
     // the trend fallback above, and gracefully covers a missing PERPLEXITY_API_KEY).
-    let news: { headline: string; summary: string; source?: string } | undefined;
+    let news:
+      { headline: string; summary: string; source?: string } | undefined;
     if (chosen.needsNews) {
       const article = await fetchCryptoNews();
       if (article) {
         news = article;
       } else {
-        console.log('[agent/tip] no crypto news found — falling back to tip mode');
-        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
+        console.log(
+          "[agent/tip] no crypto news found — falling back to tip mode",
+        );
+        chosen = {
+          mode: "tip",
+          weight: 0,
+          needsTrend: false,
+          needsNews: false,
+          needsKB: false,
+        };
       }
     }
 
@@ -226,34 +269,54 @@ export async function GET(request: NextRequest) {
       kbArticle = pickKBTopic(recentTopics);
     }
 
-    let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    let content = await writePost(system, postInstruction(chosen.mode, { topic, trend, news, kbArticle }), chosen.mode);
+    let topic =
+      chosen.mode === "tip" ? pickFreshTopic(recentTopics) : undefined;
+    let content = await writePost(
+      system,
+      postInstruction(chosen.mode, { topic, trend, news, kbArticle }),
+      chosen.mode,
+    );
 
     // If it came out too close to a recent post, try once more with a different
     // topic (for tips) and an explicit "don't repeat yourself" nudge.
     if (content && tooSimilar(content, recentTexts)) {
-      console.log('[agent/tip] first draft too similar to a recent post — retrying');
-      if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
-      if (chosen.needsKB) kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || '']);
-      const retryInstruction = postInstruction(chosen.mode, { topic, trend, news, kbArticle }) +
-        '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.';
+      console.log(
+        "[agent/tip] first draft too similar to a recent post — retrying",
+      );
+      if (chosen.mode === "tip")
+        topic = pickFreshTopic([...recentTopics, topic || ""]);
+      if (chosen.needsKB)
+        kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || ""]);
+      const retryInstruction =
+        postInstruction(chosen.mode, { topic, trend, news, kbArticle }) +
+        "\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.";
       const retry = await writePost(system, retryInstruction, chosen.mode);
       if (retry) content = retry;
     }
 
-    if (!content) throw new Error('LLM returned an empty post');
+    if (!content) throw new Error("LLM returned an empty post");
 
     // Still a near-duplicate? Skip this run rather than post a repeat.
     if (tooSimilar(content, recentTexts)) {
-      console.log('[agent/tip] skipping — still too similar to a recent post');
-      return NextResponse.json({ ok: true, skipped: 'duplicate', mode: chosen.mode, content });
+      console.log("[agent/tip] skipping — still too similar to a recent post");
+      return NextResponse.json({
+        ok: true,
+        skipped: "duplicate",
+        mode: chosen.mode,
+        content,
+      });
     }
 
     // Dry-run: generate and return the post WITHOUT publishing. Lets you preview
     // the voice safely (e.g. ?dry=1) before trusting the cron to post for real.
-    const dryRun = new URL(request.url).searchParams.get('dry') === '1';
+    const dryRun = new URL(request.url).searchParams.get("dry") === "1";
     if (dryRun) {
-      return NextResponse.json({ ok: true, dryRun: true, mode: chosen.mode, content });
+      return NextResponse.json({
+        ok: true,
+        dryRun: true,
+        mode: chosen.mode,
+        content,
+      });
     }
 
     const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
@@ -261,7 +324,7 @@ export async function GET(request: NextRequest) {
     // Deep-dive mode: if the LLM used "---" to separate multiple casts,
     // publish them as a threaded reply chain. Falls back to single cast if
     // anything goes wrong or there's no separator.
-    if (chosen.mode === 'deep-dive') {
+    if (chosen.mode === "deep-dive") {
       const casts = splitThreadCasts(content);
       if (casts.length > 1) {
         try {
@@ -300,7 +363,9 @@ export async function GET(request: NextRequest) {
             parentHash = replyHash;
           }
 
-          console.log(`[agent/tip] Posted thread (${chosen.mode}): ${casts.length} casts → ${firstHash}`);
+          console.log(
+            `[agent/tip] Posted thread (${chosen.mode}): ${casts.length} casts → ${firstHash}`,
+          );
           return NextResponse.json({
             ok: true,
             mode: chosen.mode,
@@ -311,7 +376,10 @@ export async function GET(request: NextRequest) {
             timestamp: new Date().toISOString(),
           });
         } catch (threadErr: any) {
-          console.warn('[agent/tip] Thread publish failed, falling back to single cast:', threadErr?.message);
+          console.warn(
+            "[agent/tip] Thread publish failed, falling back to single cast:",
+            threadErr?.message,
+          );
           content = content.slice(0, 640);
         }
       }
@@ -328,10 +396,17 @@ export async function GET(request: NextRequest) {
       castHash,
       text: content,
       source: chosen.mode,
-      topic: topic || trend?.text?.slice(0, 80) || news?.headline?.slice(0, 80) || kbArticle?.title?.slice(0, 80) || undefined,
+      topic:
+        topic ||
+        trend?.text?.slice(0, 80) ||
+        news?.headline?.slice(0, 80) ||
+        kbArticle?.title?.slice(0, 80) ||
+        undefined,
     });
 
-    console.log(`[agent/tip] Posted (${chosen.mode}): "${content}" → ${castHash}`);
+    console.log(
+      `[agent/tip] Posted (${chosen.mode}): "${content}" → ${castHash}`,
+    );
 
     return NextResponse.json({
       ok: true,
@@ -341,7 +416,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error('[agent/tip] Error:', error?.message);
-    return handleApiError(error, 'GET /agent/tip');
+    console.error("[agent/tip] Error:", error?.message);
+    return handleApiError(error, "GET /agent/tip");
   }
 }

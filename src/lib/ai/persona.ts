@@ -47,7 +47,7 @@ HARD RULES
 
 // ─── Reply-specific system prompt ─────────────────────────────────────────────
 
-export function buildReplySystem(memoryContext = '', userContext = ''): string {
+export function buildReplySystem(memoryContext = "", userContext = ""): string {
   return `${HOMIE_VOICE}
 
 RIGHT NOW: someone mentioned you and you're writing a reply.
@@ -59,7 +59,7 @@ RIGHT NOW: someone mentioned you and you're writing a reply.
 
 // ─── Post-specific system prompt ──────────────────────────────────────────────
 
-export function buildPostSystem(memoryContext = ''): string {
+export function buildPostSystem(memoryContext = ""): string {
   return `${HOMIE_VOICE}
 
 RIGHT NOW: you're writing a standalone post for your own feed (not a reply).
@@ -75,7 +75,14 @@ RIGHT NOW: you're writing a standalone post for your own feed (not a reply).
 // takes, culture commentary, and occasional deep-dives — like a real person's
 // feed, not a content calendar.
 
-export type PostMode = 'tip' | 'trend-take' | 'news-take' | 'chill' | 'question' | 'culture' | 'deep-dive';
+export type PostMode =
+  | "tip"
+  | "trend-take"
+  | "news-take"
+  | "chill"
+  | "question"
+  | "culture"
+  | "deep-dive";
 
 export interface PostModeDef {
   mode: PostMode;
@@ -89,13 +96,55 @@ export interface PostModeDef {
 }
 
 export const POST_MODES: PostModeDef[] = [
-  { mode: 'trend-take', weight: 20, needsTrend: true,  needsNews: false, needsKB: false }, // react to what's happening on Farcaster
-  { mode: 'news-take',  weight: 15, needsTrend: false, needsNews: true,  needsKB: false }, // react to real crypto news from the web
-  { mode: 'tip',        weight: 15, needsTrend: false, needsNews: false, needsKB: false }, // an offhand useful thing
-  { mode: 'chill',      weight: 15, needsTrend: false, needsNews: false, needsKB: false }, // relatable, no lesson
-  { mode: 'question',   weight: 10, needsTrend: false, needsNews: false, needsKB: false }, // spark replies
-  { mode: 'culture',    weight: 15, needsTrend: false, needsNews: false, needsKB: true  }, // react to a KB article — real-person take, not a summary
-  { mode: 'deep-dive',  weight: 10, needsTrend: false, needsNews: false, needsKB: true  }, // longer breakdown of a KB topic, can thread
+  {
+    mode: "trend-take",
+    weight: 20,
+    needsTrend: true,
+    needsNews: false,
+    needsKB: false,
+  }, // react to what's happening on Farcaster
+  {
+    mode: "news-take",
+    weight: 15,
+    needsTrend: false,
+    needsNews: true,
+    needsKB: false,
+  }, // react to real crypto news from the web
+  {
+    mode: "tip",
+    weight: 15,
+    needsTrend: false,
+    needsNews: false,
+    needsKB: false,
+  }, // an offhand useful thing
+  {
+    mode: "chill",
+    weight: 15,
+    needsTrend: false,
+    needsNews: false,
+    needsKB: false,
+  }, // relatable, no lesson
+  {
+    mode: "question",
+    weight: 10,
+    needsTrend: false,
+    needsNews: false,
+    needsKB: false,
+  }, // spark replies
+  {
+    mode: "culture",
+    weight: 15,
+    needsTrend: false,
+    needsNews: false,
+    needsKB: true,
+  }, // react to a KB article — real-person take, not a summary
+  {
+    mode: "deep-dive",
+    weight: 10,
+    needsTrend: false,
+    needsNews: false,
+    needsKB: true,
+  }, // longer breakdown of a KB topic, can thread
 ];
 
 /** Weighted-random pick of a post mode. `avoid` deprioritizes the last mode used. */
@@ -127,41 +176,41 @@ export function postInstruction(
     trend?: { author: string; text: string };
     news?: { headline: string; summary: string; source?: string };
     kbArticle?: KBArticle;
-  }
+  },
 ): string {
   switch (mode) {
-    case 'trend-take':
+    case "trend-take":
       return `People on Farcaster are talking about this right now — someone said: "${opts.trend?.text}"
 
 React to it like a real person scrolling their feed: your honest opinion, a "honestly..." take, agreement, a little pushback, or a relatable aside. It's a standalone post — do NOT @ anyone or quote them, just riff on the vibe/topic. NOT a lesson. Sound like you're saying what you actually think. Max 320 chars.`;
 
-    case 'news-take':
-      return `Real crypto news, just happened: "${opts.news?.headline}" — ${opts.news?.summary}${opts.news?.source ? ` (via ${opts.news.source})` : ''}
+    case "news-take":
+      return `Real crypto news, just happened: "${opts.news?.headline}" — ${opts.news?.summary}${opts.news?.source ? ` (via ${opts.news.source})` : ""}
 
 React to it like a real person who just saw the headline: your honest take, gut reaction, a little skepticism if warranted, or genuine interest. Standalone post — don't just restate the headline, say what YOU think about it. No price predictions or financial advice. Max 320 chars.`;
 
-    case 'tip':
+    case "tip":
       return `Drop ONE genuinely useful crypto thing about "${opts.topic}" — but casually, like you're telling a friend, not writing a how-to.
 
 Lead with the point or a small opinion, not "X is..." or "X lets you...". No steps, no listicle. One offhand, specific, human sentence or two. Max 280 chars.`;
 
-    case 'chill':
+    case "chill":
       return `Post something relatable about crypto/web3 life — no teaching.
 A mistake everyone's made, the market being boring, gm energy, a small win, the grind, being terminally online. Make people go "lol same." Real and a little funny. Max 280 chars.`;
 
-    case 'question':
+    case "question":
       return `Ask your community a genuine, low-stakes question to spark replies.
 Their crypto journey, an opinion, a "what finally clicked for you" type thing. Warm and curious, not engagement-bait. Max 280 chars.`;
 
-    case 'culture':
-      return `You read something interesting: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — basically: ${opts.kbArticle.summary}` : ''}
+    case "culture":
+      return `You read something interesting: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — basically: ${opts.kbArticle.summary}` : ""}
 
-React to it like a real person who just scrolled past an article and had a thought. NOT a summary. Your reaction, your opinion, what it made you think of, a hot take, something it reminds you of. Sound like you're texting a friend. The core idea should be clear to someone who hasn't read the article, but the post is YOUR reaction, not a recap.${opts.kbArticle?.source ? ` Source was ${opts.kbArticle.source}.` : ''} Max 320 chars.`;
+React to it like a real person who just scrolled past an article and had a thought. NOT a summary. Your reaction, your opinion, what it made you think of, a hot take, something it reminds you of. Sound like you're texting a friend. The core idea should be clear to someone who hasn't read the article, but the post is YOUR reaction, not a recap.${opts.kbArticle?.source ? ` Source was ${opts.kbArticle.source}.` : ""} Max 320 chars.`;
 
-    case 'deep-dive':
-      return `You're going to actually explain something that caught your eye: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — ${opts.kbArticle.summary}` : ''}
+    case "deep-dive":
+      return `You're going to actually explain something that caught your eye: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — ${opts.kbArticle.summary}` : ""}
 
-Break it down in your voice — casual, plainspoken, like you're explaining to a smart friend who just asked "wait what's that about." Don't be academic. Use concrete examples, analogies, the "ok so here's what this actually means" energy.${opts.kbArticle?.source ? ` Originally from ${opts.kbArticle.source}.` : ''}
+Break it down in your voice — casual, plainspoken, like you're explaining to a smart friend who just asked "wait what's that about." Don't be academic. Use concrete examples, analogies, the "ok so here's what this actually means" energy.${opts.kbArticle?.source ? ` Originally from ${opts.kbArticle.source}.` : ""}
 
 This can be up to 640 characters, or a thread of 2-3 casts if it genuinely needs the space. If threading:
 - First cast: hook them — the interesting bit, the "wait what" angle, the setup. End naturally, not with "1/3" bait.
@@ -173,21 +222,21 @@ This can be up to 640 characters, or a thread of 2-3 casts if it genuinely needs
 // ─── Rotating tip topics (used by the 'tip' mode) ─────────────────────────────
 
 export const DAILY_TOPICS = [
-  'how blockchain wallets actually work and why your seed phrase is sacred',
-  'what DeFi liquidity pools are and how AMMs price tokens',
-  'how AI is showing up in web3 and what\'s actually useful vs hype',
-  'wallet security: hardware wallets, seed phrases, and spotting phishing',
-  'Layer 2s: how Base and Optimism make Ethereum cheap to use',
-  'smart contract risk: what an exploit looks like and how to stay safe',
-  'on-chain privacy: what is and isn\'t public by default',
-  'NFTs beyond art: tickets, memberships, and actual utility',
-  'gas fees in plain english: what they are and how to pay less',
-  'token approvals: why you should revoke old ones (and how)',
-  'what a DAO is and how on-chain voting actually plays out',
-  'stablecoins: how they hold a dollar and where the risk hides',
-  'bridges: why moving funds between chains is the sketchy part',
-  'reading a block explorer so you can check things yourself',
-  'custodial vs self-custody: who actually holds your coins',
+  "how blockchain wallets actually work and why your seed phrase is sacred",
+  "what DeFi liquidity pools are and how AMMs price tokens",
+  "how AI is showing up in web3 and what's actually useful vs hype",
+  "wallet security: hardware wallets, seed phrases, and spotting phishing",
+  "Layer 2s: how Base and Optimism make Ethereum cheap to use",
+  "smart contract risk: what an exploit looks like and how to stay safe",
+  "on-chain privacy: what is and isn't public by default",
+  "NFTs beyond art: tickets, memberships, and actual utility",
+  "gas fees in plain english: what they are and how to pay less",
+  "token approvals: why you should revoke old ones (and how)",
+  "what a DAO is and how on-chain voting actually plays out",
+  "stablecoins: how they hold a dollar and where the risk hides",
+  "bridges: why moving funds between chains is the sketchy part",
+  "reading a block explorer so you can check things yourself",
+  "custodial vs self-custody: who actually holds your coins",
 ];
 
 /**
@@ -199,7 +248,9 @@ export const DAILY_TOPICS = [
  * memory), falling back to any topic only if all have been used lately.
  */
 export function pickFreshTopic(recentTopics: string[] = []): string {
-  const used = new Set(recentTopics.map((t) => (t || '').toLowerCase().trim()).filter(Boolean));
+  const used = new Set(
+    recentTopics.map((t) => (t || "").toLowerCase().trim()).filter(Boolean),
+  );
   const fresh = DAILY_TOPICS.filter((t) => !used.has(t.toLowerCase()));
   const pool = fresh.length ? fresh : DAILY_TOPICS;
   return pool[Math.floor(Math.random() * pool.length)];
