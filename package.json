@@ -11,7 +11,8 @@
     "setup-agent-signer": "npx tsx scripts/setup-agent-signer.ts",
     "migrate-db": "npx tsx scripts/migrate-db.ts",
     "test": "jest --passWithNoTests",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -79,6 +80,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
