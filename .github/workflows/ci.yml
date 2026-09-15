@@ -50,6 +50,8 @@ jobs:
     defaults:
       run:
         working-directory: ./
+    env:
+      NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ci-mock-project-id
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
