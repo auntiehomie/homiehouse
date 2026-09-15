@@ -4,12 +4,15 @@ import { postToX } from '@/lib/x-client';
 import { checkXBudget, recordXUsage } from '@/lib/x-budget';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db';
 import { llmChat } from '@/lib/llm';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import { buildPostSystem, pickPostMode, postInstruction, pickFreshTopic, type PostMode, type PostModeDef, type KBArticle } from '@/lib/ai/persona';
 import { pickKBTopic } from '@/lib/ai/kb-topics';
 import { rateLimit } from '@/lib/ratelimit';
+
+const logger = createApiLogger('/agent/x-post');
 
 export const maxDuration = 60;
 
@@ -61,7 +64,7 @@ async function getRecentXPosts(limit = 8): Promise<XAgentPost[]> {
     );
     return rows;
   } catch (err) {
-    console.warn('[agent/x-post] getRecentXPosts failed:', (err as Error).message);
+    logger.warn('getRecentXPosts failed', err);
     return [];
   }
 }
@@ -75,7 +78,7 @@ async function saveXPost(params: { xPostId?: string; text: string; source: strin
       [params.xPostId ?? null, params.text, params.source, params.topic ?? null]
     );
   } catch (err) {
-    console.warn('[agent/x-post] saveXPost failed:', (err as Error).message);
+    logger.warn('saveXPost failed', err);
   }
 }
 
@@ -125,7 +128,7 @@ async function writeXPost(system: string, instruction: string, mode?: PostMode):
       if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, mode);
       throw new Error('empty Anthropic response');
     } catch (err: any) {
-      console.warn('[agent/x-post] Anthropic post failed, using free providers:', err?.message);
+      logger.warn('Anthropic post failed, using free providers', err);
     }
   }
   const { message } = await llmChat({
@@ -153,7 +156,7 @@ export async function GET(request: NextRequest) {
 
     const budget = await checkXBudget('post');
     if (!budget.allowed) {
-      console.log(`[agent/x-post] Skipping — ${budget.reason}`);
+      logger.info(`Skipping — ${budget.reason}`);
       return NextResponse.json({ ok: true, skipped: 'budget', ...budget });
     }
 
@@ -237,7 +240,7 @@ export async function GET(request: NextRequest) {
             replyToId = replyId;
           }
 
-          console.log(`[agent/x-post] Posted thread (${chosen.mode}): ${casts.length} tweets`);
+          logger.success(`Posted thread (${chosen.mode}): ${casts.length} tweets`);
           return NextResponse.json({
             ok: true,
             mode: chosen.mode,
@@ -248,7 +251,7 @@ export async function GET(request: NextRequest) {
             timestamp: new Date().toISOString(),
           });
         } catch (threadErr: any) {
-          console.warn('[agent/x-post] Thread publish failed, falling back to single tweet:', threadErr?.message);
+          logger.warn('Thread publish failed, falling back to single tweet', threadErr);
           content = content.slice(0, 280);
         }
       }
@@ -261,10 +264,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, mode: chosen.mode, content, xPostId: id, timestamp: new Date().toISOString() });
   } catch (error: any) {
     if (error?.message?.includes('X API not configured')) {
-      console.log('[agent/x-post] Not configured — skipping (this is expected until X credentials are provisioned)');
+      logger.info('Not configured — skipping (this is expected until X credentials are provisioned)');
       return NextResponse.json({ ok: true, skipped: 'not-configured' });
     }
-    console.error('[agent/x-post] Error:', error?.message);
+    logger.error('Unhandled error', error);
     return handleApiError(error, 'GET /agent/x-post');
   }
 }

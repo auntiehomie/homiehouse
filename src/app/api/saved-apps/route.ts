@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { createApiLogger } from '@/lib/logger';
+import { rateLimit } from '@/lib/ratelimit';
+
+const logger = createApiLogger('/saved-apps');
 
 // GET /api/saved-apps?fid=123
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') || 'unknown';
+  const { success } = rateLimit(`saved-apps:${ip}`, 60, 60);
+  if (!success) return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+
   const fid = req.nextUrl.searchParams.get('fid');
   if (!fid || !/^\d+$/.test(fid)) return NextResponse.json({ error: 'fid required' }, { status: 400 });
   try {
@@ -14,7 +22,7 @@ export async function GET(req: NextRequest) {
     `;
     return NextResponse.json({ apps });
   } catch (error) {
-    console.error('saved-apps GET error:', error);
+    logger.error('GET', error);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
   }
 }
@@ -35,7 +43,7 @@ export async function POST(req: NextRequest) {
     `;
     return NextResponse.json({ saved: true, app });
   } catch (error) {
-    console.error('saved-apps POST error:', error);
+    logger.error('POST', error);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
   }
 }
@@ -51,7 +59,7 @@ export async function DELETE(req: NextRequest) {
     await sql`DELETE FROM saved_mini_apps WHERE user_fid = ${Number(fid)} AND app_id = ${String(app_id)}`;
     return NextResponse.json({ deleted: true });
   } catch (error) {
-    console.error('saved-apps DELETE error:', error);
+    logger.error('DELETE', error);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
+import { createApiLogger } from '@/lib/logger';
 import Anthropic from '@anthropic-ai/sdk';
 import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
@@ -19,6 +20,7 @@ import {
 } from '@/lib/ai/persona';
 import { pickKBTopic } from '@/lib/ai/kb-topics';
 
+const logger = createApiLogger('/agent/tip');
 export const maxDuration = 60;
 
 const HOMIEHOUSELOL_FID = parseInt(
@@ -132,7 +134,7 @@ async function writePost(system: string, instruction: string, mode?: PostMode): 
       if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, mode);
       throw new Error('empty Anthropic response');
     } catch (err: any) {
-      console.warn('[agent/tip] Anthropic post failed, using free providers:', err?.message);
+      logger.warn('Anthropic post failed, using free providers', err);
     }
   }
 
@@ -194,7 +196,7 @@ export async function GET(request: NextRequest) {
         const casts: any[] = trendData?.casts ?? trendData?.data?.casts ?? [];
         trendCast = await pickRelevantTrend(casts);
       } catch (err: any) {
-        console.warn('[agent/tip] trend fetch failed:', err?.message);
+        logger.warn('Trend fetch failed', err);
       }
       if (trendCast) {
         trend = {
@@ -202,7 +204,7 @@ export async function GET(request: NextRequest) {
           text: (trendCast.text || '').slice(0, 300),
         };
       } else {
-        console.log('[agent/tip] no relevant trend — falling back to tip mode');
+        logger.info('No relevant trend — falling back to tip mode');
         chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
       }
     }
@@ -216,7 +218,7 @@ export async function GET(request: NextRequest) {
       if (article) {
         news = article;
       } else {
-        console.log('[agent/tip] no crypto news found — falling back to tip mode');
+        logger.info('No crypto news found — falling back to tip mode');
         chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
       }
     }
@@ -232,7 +234,7 @@ export async function GET(request: NextRequest) {
     // If it came out too close to a recent post, try once more with a different
     // topic (for tips) and an explicit "don't repeat yourself" nudge.
     if (content && tooSimilar(content, recentTexts)) {
-      console.log('[agent/tip] first draft too similar to a recent post — retrying');
+      logger.info('First draft too similar to a recent post — retrying');
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
       if (chosen.needsKB) kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || '']);
       const retryInstruction = postInstruction(chosen.mode, { topic, trend, news, kbArticle }) +
@@ -245,7 +247,7 @@ export async function GET(request: NextRequest) {
 
     // Still a near-duplicate? Skip this run rather than post a repeat.
     if (tooSimilar(content, recentTexts)) {
-      console.log('[agent/tip] skipping — still too similar to a recent post');
+      logger.info('Skipping — still too similar to a recent post');
       return NextResponse.json({ ok: true, skipped: 'duplicate', mode: chosen.mode, content });
     }
 
@@ -300,7 +302,7 @@ export async function GET(request: NextRequest) {
             parentHash = replyHash;
           }
 
-          console.log(`[agent/tip] Posted thread (${chosen.mode}): ${casts.length} casts → ${firstHash}`);
+          logger.success(`Posted thread (${chosen.mode}): ${casts.length} casts → ${firstHash}`);
           return NextResponse.json({
             ok: true,
             mode: chosen.mode,
@@ -311,7 +313,7 @@ export async function GET(request: NextRequest) {
             timestamp: new Date().toISOString(),
           });
         } catch (threadErr: any) {
-          console.warn('[agent/tip] Thread publish failed, falling back to single cast:', threadErr?.message);
+          logger.warn('Thread publish failed, falling back to single cast', threadErr);
           content = content.slice(0, 640);
         }
       }
@@ -331,7 +333,7 @@ export async function GET(request: NextRequest) {
       topic: topic || trend?.text?.slice(0, 80) || news?.headline?.slice(0, 80) || kbArticle?.title?.slice(0, 80) || undefined,
     });
 
-    console.log(`[agent/tip] Posted (${chosen.mode}): "${content}" → ${castHash}`);
+    logger.success(`Posted (${chosen.mode}): "${content}" → ${castHash}`);
 
     return NextResponse.json({
       ok: true,
@@ -341,7 +343,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
-    console.error('[agent/tip] Error:', error?.message);
+    logger.error('Unhandled error', error);
     return handleApiError(error, 'GET /agent/tip');
   }
 }

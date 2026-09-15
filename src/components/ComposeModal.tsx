@@ -333,8 +333,6 @@ export default function ComposeModal() {
         return;
       }
 
-      console.log("Posting with:", { userFid, hasActiveSigner, text, isScheduled, scheduleTime });
-
       // Split into thread parts (long-form also threads instead of truncating)
       const threadParts = splitIntoThread(text.trim(), CAST_LIMIT);
       const castText = threadParts[0];
@@ -366,9 +364,6 @@ export default function ComposeModal() {
       // Add channel if selected
       if (selectedChannel) {
         body.channelKey = selectedChannel;
-        console.log('[ComposeModal] Adding channel to post:', selectedChannel);
-      } else {
-        console.log('[ComposeModal] No channel selected');
       }
 
       // If scheduled, save to database instead of posting immediately
@@ -385,24 +380,17 @@ export default function ComposeModal() {
         body.scheduled_time = scheduledDate.toISOString();
         
         const authHeaders = getAuthHeaders();
-        console.log('[ComposeModal] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
         const res = await fetch("/api/schedule-cast", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(body),
         });
 
-        console.log(`[ComposeModal] Schedule response status: ${res.status} ${res.statusText}`);
-        
         let data;
         try {
           data = await res.json();
-          console.log('[ComposeModal] Schedule response body:', data);
         } catch (parseErr) {
-          console.error('[ComposeModal] Failed to parse schedule response:', parseErr);
-          const text = await res.text();
-          console.error('[ComposeModal] Raw schedule response:', text);
-          setStatus(`Server error (${res.status}): Could not parse response. Check console.`);
+          setStatus(`Server error (${res.status}): Could not parse response.`);
           setLoading(false);
           return;
         }
@@ -425,7 +413,6 @@ export default function ComposeModal() {
           const errorMsg = data.error || data.message || "unknown error";
           const errorCode = data.code || '';
           const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
-          console.error('[ComposeModal] Schedule API error:', { status: res.status, error: errorMsg, code: errorCode });
           setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
             } else {
