@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 async function ensureTable(db: ReturnType<typeof getDb>) {
   await db.query(`
@@ -21,6 +23,8 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
 // POST /api/push/subscribe  { fid, subscription }
 export async function POST(req: NextRequest) {
   try {
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
 
     // Rate limit: 30 requests/minute per IP
     const forwarded = req.headers.get('x-forwarded-for');
@@ -32,6 +36,14 @@ export async function POST(req: NextRequest) {
     const { fid, subscription } = await req.json();
     if (!fid || !subscription?.endpoint) {
       return NextResponse.json({ error: 'fid and subscription required' }, { status: 400 });
+    }
+
+    // Verify the authenticated FID matches the request FID
+    if (authFid !== fid) {
+      return NextResponse.json(
+        { error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
     }
 
     const db = getDb();
@@ -48,6 +60,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error('[push/subscribe] POST error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -56,9 +71,20 @@ export async function POST(req: NextRequest) {
 // DELETE /api/push/subscribe  { fid, endpoint }
 export async function DELETE(req: NextRequest) {
   try {
+    // Verify auth via signer key headers
+    const authFid = await verifyFarcasterSignerAuth(req);
+
     const { fid, endpoint } = await req.json();
     if (!fid || !endpoint) {
       return NextResponse.json({ error: 'fid and endpoint required' }, { status: 400 });
+    }
+
+    // Verify the authenticated FID matches the request FID
+    if (authFid !== fid) {
+      return NextResponse.json(
+        { error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
     }
 
     const db = getDb();
@@ -70,6 +96,9 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error('[push/subscribe] DELETE error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

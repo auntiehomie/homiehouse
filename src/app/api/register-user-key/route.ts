@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
+import { cacheApprovedSigner } from '@/lib/auth';
 
 const WARPCAST_API = 'https://api.warpcast.com';
 
@@ -49,6 +50,13 @@ export async function POST(req: NextRequest) {
     }
 
     const result = data.result?.signedKeyRequest || data;
+
+    // Cache approved signer for future auth verification
+    if (result.state === 'completed' && result.userFid && result.key) {
+      try {
+        await cacheApprovedSigner(result.userFid, result.key, result.token);
+      } catch { /* non-critical */ }
+    }
 
     return NextResponse.json({
       ok: true,

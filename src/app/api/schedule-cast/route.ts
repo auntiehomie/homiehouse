@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { rateLimit } from '@/lib/ratelimit';
 import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,6 +67,12 @@ export async function POST(req: NextRequest) {
       message: `Cast scheduled for ${scheduledDate.toLocaleString()}`,
     });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: error.status }
+      );
+    }
     console.error('Error in schedule-cast POST:', error?.message ?? error);
     return NextResponse.json(
       { ok: false, error: error?.message || 'Failed to schedule cast' },
@@ -110,6 +117,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, scheduled_casts: rows });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: error.status }
+      );
+    }
     console.error('Error in schedule-cast GET:', error?.message ?? error);
     return NextResponse.json(
       { ok: false, error: error?.message || 'Failed to fetch scheduled casts' },
@@ -160,6 +173,12 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ok: true, cast_hash });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: error.status }
+      );
+    }
     console.error('Error in schedule-cast PATCH:', error?.message ?? error);
     return NextResponse.json(
       { ok: false, error: error?.message || 'Failed to mark as published' },
@@ -228,6 +247,12 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true, message: 'Scheduled cast cancelled' });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: error.status }
+      );
+    }
     console.error('Error in schedule-cast DELETE:', error?.message ?? error);
     return NextResponse.json(
       { ok: false, error: error?.message || 'Failed to cancel scheduled cast' },

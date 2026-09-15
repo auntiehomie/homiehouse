@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "prebuild": "rm -rf .next",
     "start": "next start",
     "lint": "eslint",
     "smoke-test": "npx tsx scripts/smoke-test.ts",

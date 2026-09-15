@@ -5,6 +5,7 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateUuid } from '@/lib/validation';
 import { rateLimit } from '@/lib/ratelimit';
+import { cacheApprovedSigner } from '@/lib/auth';
 
 // Signer registration uses the Farcaster Signed Key Request protocol directly.
 // No API key required — uses direct Warpcast/Farcaster contract flow.
@@ -182,6 +183,16 @@ export async function GET(req: NextRequest) {
 
     const statusData = await statusRes.json();
     const skr = statusData.result?.signedKeyRequest || statusData;
+
+    // Cache approved signer for future auth verification
+    if (skr.state === 'completed' && skr.userFid && skr.key) {
+      try {
+        await cacheApprovedSigner(skr.userFid, skr.key, signerToken);
+        logger.info('Signer cached in user_signers table', { fid: skr.userFid });
+      } catch (cacheErr: any) {
+        logger.warn('Failed to cache approved signer', { message: cacheErr?.message });
+      }
+    }
 
     logger.success('Signer status retrieved', {
       state: skr.state,

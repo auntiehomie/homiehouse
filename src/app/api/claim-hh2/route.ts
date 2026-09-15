@@ -5,6 +5,7 @@ import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sql, getSql } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
 const logger = createApiLogger('/claim-hh2');
@@ -188,6 +189,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, claimed: unclaimedIds.length, amount: totalHH2, txHash });
   } catch (err: any) {
+    if (err instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: err.status }
+      );
+    }
     logger.error('POST error', err?.message);
     return NextResponse.json(
       { ok: false, error: err?.message || 'Failed to claim HH2' },

@@ -1,28 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
-import { handleApiError } from '@/lib/errors';
+import { handleApiError, AuthError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
 
 // GET /api/hh2-purchase?fid=123 — return owned item IDs
 export async function GET(req: NextRequest) {
-  const authFid = await verifyFarcasterSignerAuth(req);
-  const { searchParams } = new URL(req.url);
-  const userFid = Number(searchParams.get('fid'));
-  if (!userFid || isNaN(userFid) || userFid <= 0) {
-    return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
-  }
-
-  // Verify the authenticated FID matches
-  if (authFid !== userFid) {
-    return NextResponse.json(
-      { ok: false, error: 'FID does not match authenticated user' },
-      { status: 403 }
-    );
-  }
-
   try {
+    const authFid = await verifyFarcasterSignerAuth(req);
+    const { searchParams } = new URL(req.url);
+    const userFid = Number(searchParams.get('fid'));
+    if (!userFid || isNaN(userFid) || userFid <= 0) {
+      return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
+    }
+
+    // Verify the authenticated FID matches
+    if (authFid !== userFid) {
+      return NextResponse.json(
+        { ok: false, error: 'FID does not match authenticated user' },
+        { status: 403 }
+      );
+    }
+
     const db = getDb();
     const [purchases, progress, claims] = await Promise.all([
       db.query('SELECT item_id, purchased_at FROM hh2_purchases WHERE user_fid = $1 ORDER BY purchased_at ASC', [userFid]),
@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
     console.error('[hh2-purchase] GET error:', err?.message);
     return NextResponse.json({ ok: false, error: 'Failed to fetch purchases' }, { status: 500 });
   }
