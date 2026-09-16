@@ -19,6 +19,10 @@
     {
       "path": "/api/agent/engagement-check",
       "schedule": "0 6,18 * * *"
+    },
+    {
+      "path": "/api/agent/kb-sync",
+      "schedule": "0 12 * * *"
     }
   ]
 }

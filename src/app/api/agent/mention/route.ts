@@ -11,6 +11,7 @@ import { buildFullMemoryContext, savePost } from '@/lib/agent-memory';
 import { recordMention, buildUserMemoryContext, learnFromInteraction } from '@/lib/agent-user-memory';
 import { llmChat } from '@/lib/llm';
 import { buildReplySystem } from '@/lib/ai/persona';
+import { getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
 
 export const maxDuration = 60;
 
@@ -118,13 +119,14 @@ async function generateReply(
   memoryContext: string,
   threadContext: string,
   userContext: string,
+  kbContext: string,
 ): Promise<string | null> {
   try {
     const userContent = threadContext
       ? `Thread context (oldest → newest):\n${threadContext}\n\n@${authorUsername} then mentioned you: "${castText.slice(0, 400)}"\n\nWrite a helpful reply under 280 chars that fits this conversation. Use a tool if you need real-time data.`
       : `@${authorUsername} mentioned you and said: "${castText.slice(0, 500)}"\n\nWrite a helpful reply under 280 chars. Use a tool if you need real-time data to answer well.`;
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: buildReplySystem(memoryContext, userContext) },
+      { role: 'system', content: buildReplySystem(memoryContext, userContext, kbContext) },
       { role: 'user', content: userContent },
     ];
 
@@ -333,7 +335,10 @@ export async function GET(request: NextRequest) {
         const threadContext = await fetchThreadChain(cast.parent_hash);
         if (threadContext) console.log(`[agent/mention] thread context (${threadContext.split('\n').length} turns)`);
         const userContext = authorFid ? await buildUserMemoryContext(authorFid) : '';
-        const reply = await generateReply(cast.text || '', authorUsername, memoryContext, threadContext, userContext);
+        // Fetch relevant KB articles from the dynamically synced DB table
+        const kbArticles = await getRelevantKBArticles(cast.text || '', 3);
+        const kbContext = formatKBContext(kbArticles);
+        const reply = await generateReply(cast.text || '', authorUsername, memoryContext, threadContext, userContext, kbContext);
 
         // If all LLM providers failed, generateReply returns null.
         // DO NOT post a fallback "hey" — record as deferred and skip.

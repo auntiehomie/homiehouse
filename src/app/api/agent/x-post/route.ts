@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import { postToX } from '@/lib/x-client';
 import { checkXBudget, recordXUsage } from '@/lib/x-budget';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db';
-import { llmChat } from '@/lib/llm';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import { buildPostSystem, pickPostMode, postInstruction, pickFreshTopic, type PostMode, type PostModeDef, type KBArticle } from '@/lib/ai/persona';
 import { pickKBTopic } from '@/lib/ai/kb-topics';
 import { rateLimit } from '@/lib/ratelimit';
+import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
 
 const logger = createApiLogger('/agent/x-post');
 
@@ -82,66 +81,6 @@ async function saveXPost(params: { xPostId?: string; text: string; source: strin
   }
 }
 
-// ─── Dedup — identical logic to agent/tip/route.ts, duplicated rather than
-// imported so this scaffold can't accidentally change the live Farcaster
-// posting behavior. ───────────────────────────────────────────────────────
-
-function contentWords(s: string): Set<string> {
-  return new Set((s.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 3));
-}
-function similarity(a: string, b: string): number {
-  const x = contentWords(a);
-  const y = contentWords(b);
-  if (!x.size || !y.size) return 0;
-  let inter = 0;
-  for (const w of x) if (y.has(w)) inter++;
-  return inter / (x.size + y.size - inter);
-}
-function tooSimilar(text: string, recentTexts: string[], threshold = 0.4): boolean {
-  return recentTexts.some((r) => similarity(text, r) >= threshold);
-}
-function cleanPost(text: string, _mode?: PostMode): string {
-  // X has a 280 char limit per post regardless of mode.
-  return text.trim().replace(/^["']|["']$/g, '').slice(0, 280).trim();
-}
-
-/** Split LLM output on a thread separator for deep-dive threading. */
-function splitThreadCasts(content: string): string[] {
-  const parts = content.split(/\n?\n?---\n?\n?/);
-  if (parts.length < 2) return [content];
-  return parts.map((p) => p.trim()).filter(Boolean);
-}
-
-async function writeXPost(system: string, instruction: string, mode?: PostMode): Promise<string> {
-  if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const model = process.env.AGENT_POST_MODEL || 'claude-sonnet-5';
-      const res = await anthropic.messages.create({
-        model,
-        max_tokens: 800,
-        temperature: 0.85,
-        system,
-        messages: [{ role: 'user', content: instruction }],
-      });
-      const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, mode);
-      throw new Error('empty Anthropic response');
-    } catch (err: any) {
-      logger.warn('Anthropic post failed, using free providers', err);
-    }
-  }
-  const { message } = await llmChat({
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: instruction },
-    ],
-    maxTokens: 800,
-    temperature: 0.85,
-  });
-  return cleanPost(message.content || '', mode);
-}
-
 export async function GET(request: NextRequest) {
   try {
     verifyCronSecret(request, process.env.CRON_SECRET);
@@ -196,16 +135,20 @@ export async function GET(request: NextRequest) {
 
     const system = buildPostSystem(); // no cross-platform memory context yet — see strategy doc
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    let content = await writeXPost(system, postInstruction(chosen.mode, { topic, news, kbArticle }), chosen.mode);
+    let content = await writeAgentPost(
+      system,
+      postInstruction(chosen.mode, { topic, news, kbArticle }),
+      { maxLen: 280, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
+    );
 
     if (content && tooSimilar(content, recentTexts)) {
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
       if (chosen.needsKB) kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || '']);
-      const retry = await writeXPost(
+      const retry = await writeAgentPost(
         system,
         postInstruction(chosen.mode, { topic, news, kbArticle }) +
           '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT.',
-        chosen.mode
+        { maxLen: 280, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
       );
       if (retry) content = retry;
     }

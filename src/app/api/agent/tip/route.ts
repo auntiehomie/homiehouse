@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import { createApiLogger } from '@/lib/logger';
-import Anthropic from '@anthropic-ai/sdk';
 import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { buildFullMemoryContext, savePost, getRecentPosts } from '@/lib/agent-memory';
 import { llmChat } from '@/lib/llm';
+import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import {
   buildPostSystem,
@@ -18,7 +18,7 @@ import {
   type PostModeDef,
   type KBArticle,
 } from '@/lib/ai/persona';
-import { pickKBTopic } from '@/lib/ai/kb-topics';
+import { pickFreshKBArticle } from '@/lib/kb-sync';
 
 const logger = createApiLogger('/agent/tip');
 export const maxDuration = 60;
@@ -66,87 +66,6 @@ async function pickRelevantTrend(casts: any[]): Promise<any | null> {
   } catch {
     return null;
   }
-}
-
-function cleanPost(text: string, mode?: PostMode): string {
-  const trimmed = text.trim().replace(/^["']|["']$/g, '');
-  switch (mode) {
-    case 'deep-dive':
-      return trimmed.slice(0, 640).trim();
-    case 'culture':
-    case 'trend-take':
-    case 'news-take':
-      return trimmed.slice(0, 320).trim();
-    default:
-      return trimmed.slice(0, 280).trim();
-  }
-}
-
-// ─── Near-duplicate detection ─────────────────────────────────────────────────
-// Word-overlap (Jaccard) check so the agent doesn't re-post the same idea reworded
-// (e.g. two "block explorers / etherscan" tips a day apart).
-function contentWords(s: string): Set<string> {
-  return new Set((s.toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => w.length > 3));
-}
-function similarity(a: string, b: string): number {
-  const x = contentWords(a);
-  const y = contentWords(b);
-  if (!x.size || !y.size) return 0;
-  let inter = 0;
-  for (const w of x) if (y.has(w)) inter++;
-  return inter / (x.size + y.size - inter);
-}
-function tooSimilar(text: string, recentTexts: string[], threshold = 0.4): boolean {
-  return recentTexts.some((r) => similarity(text, r) >= threshold);
-}
-
-/** Split LLM output on a thread separator for deep-dive threading. */
-function splitThreadCasts(content: string): string[] {
-  const parts = content.split(/\n?\n?---\n?\n?/);
-  if (parts.length < 2) return [content];
-  return parts.map((p) => p.trim()).filter(Boolean);
-}
-
-/**
- * Generate a post.
- *
- * Prefers Claude when ANTHROPIC_API_KEY is set — posting is low-volume (a couple
- * a day) so the cost is negligible and the voice is noticeably better. Falls back
- * to the free provider stack (Groq/Gemini/OpenRouter) if there's no key or Claude
- * errors, so autonomous posting can never break from a missing/expired paid key.
- * (Replies stay fully on the free stack — they run far more often.)
- */
-async function writePost(system: string, instruction: string, mode?: PostMode): Promise<string> {
-  if (process.env.ANTHROPIC_API_KEY) {
-    try {
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      // Keep the default on a currently supported model. Override with
-      // AGENT_POST_MODEL when intentionally selecting another Anthropic model.
-      const model = process.env.AGENT_POST_MODEL || 'claude-haiku-4-5-20251001';
-      const res = await anthropic.messages.create({
-        model,
-        max_tokens: 800,
-        temperature: 0.85,
-        system,
-        messages: [{ role: 'user', content: instruction }],
-      });
-      const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, mode);
-      throw new Error('empty Anthropic response');
-    } catch (err: any) {
-      logger.warn('Anthropic post failed, using free providers', err);
-    }
-  }
-
-  const { message } = await llmChat({
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: instruction },
-    ],
-    maxTokens: 800,
-    temperature: 0.85,
-  });
-  return cleanPost(message.content || '', mode);
 }
 
 export async function GET(request: NextRequest) {
@@ -225,21 +144,48 @@ export async function GET(request: NextRequest) {
 
     let kbArticle: KBArticle | undefined;
     if (chosen.needsKB) {
-      kbArticle = pickKBTopic(recentTopics);
+      const dbArticle = await pickFreshKBArticle(recentTopics);
+      if (dbArticle) {
+        kbArticle = {
+          title: dbArticle.title,
+          summary: dbArticle.summary || '',
+          source: dbArticle.source || undefined,
+          tags: dbArticle.tags,
+        };
+      }
     }
 
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    let content = await writePost(system, postInstruction(chosen.mode, { topic, trend, news, kbArticle }), chosen.mode);
+    const maxPostLength = chosen.mode === 'deep-dive'
+      ? 640
+      : chosen.mode === 'culture' || chosen.mode === 'trend-take' || chosen.mode === 'news-take'
+        ? 320
+        : 280;
+    let content = await writeAgentPost(
+      system,
+      postInstruction(chosen.mode, { topic, trend, news, kbArticle }),
+      { maxLen: maxPostLength },
+    );
 
     // If it came out too close to a recent post, try once more with a different
     // topic (for tips) and an explicit "don't repeat yourself" nudge.
     if (content && tooSimilar(content, recentTexts)) {
       logger.info('First draft too similar to a recent post — retrying');
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
-      if (chosen.needsKB) kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || '']);
+      if (chosen.needsKB) {
+        const retryArticle = await pickFreshKBArticle([...recentTopics, kbArticle?.title || '']);
+        if (retryArticle) {
+          kbArticle = {
+            title: retryArticle.title,
+            summary: retryArticle.summary || '',
+            source: retryArticle.source || undefined,
+            tags: retryArticle.tags,
+          };
+        }
+      }
       const retryInstruction = postInstruction(chosen.mode, { topic, trend, news, kbArticle }) +
         '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.';
-      const retry = await writePost(system, retryInstruction, chosen.mode);
+      const retry = await writeAgentPost(system, retryInstruction, { maxLen: maxPostLength });
       if (retry) content = retry;
     }
 
