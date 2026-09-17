@@ -56,9 +56,18 @@ test.describe('HomieHouse smoke tests', () => {
   });
 
   test('API health: og image endpoint', async ({ request }) => {
-    const response = await request.get('/api/og');
-    expect(response.status()).toBe(200);
-    expect(response.headers()['content-type']).toContain('image');
+    // Edge routes compile on first hit in dev mode — retry on timeout/connection error
+    let response;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await request.get('/api/og', { timeout: 30_000 });
+        if (response.ok()) break;
+      } catch {
+        // First hit may timeout while edge function compiles
+      }
+    }
+    expect(response?.status()).toBe(200);
+    expect(response?.headers()['content-type']).toContain('image');
   });
 
   test('API health: og content endpoint', async ({ request }) => {

@@ -10,6 +10,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
+    // Edge routes (like /api/og) compile on first hit in dev mode — give extra time
+    navigationTimeout: 30_000,
+    timeout: 30_000,
   },
   projects: [
     {
