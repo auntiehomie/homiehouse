@@ -59,14 +59,16 @@ export async function GET() {
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
               background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)',
-              borderRadius: 20, padding: '6px 16px', width: 'fit-content',
+              borderRadius: 20, padding: '6px 16px',
             }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#34d399', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                 Your home on Farcaster
               </span>
             </div>
-            <div style={{ fontSize: 56, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em' }}>
-              Learn Web3.{'\n'}Connect with{'\n'}your community.
+            <div style={{ fontSize: 56, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em', display: 'flex', flexDirection: 'column' }}>
+              Learn Web3.
+              Connect with
+              your community.
             </div>
             <div style={{ fontSize: 22, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, maxWidth: 640 }}>
               Personalized learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.
