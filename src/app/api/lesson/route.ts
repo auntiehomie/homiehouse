@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { rateLimit } from '@/lib/ratelimit';
 import { createApiLogger } from '@/lib/logger';
+import { getSafetyLesson } from '@/lib/safety-curriculum';
 
 const logger = createApiLogger('/lesson');
 
@@ -230,7 +231,7 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
       messages: [{ role: 'user', content: verifyPrompt }],
       maxTokens: 700,
       temperature: 0,
-      timeoutMs: 30000,
+      timeoutMs: 15000,
     });
     const raw = (message.content ?? '')
       .replace(/^```(?:json)?\s*/i, '')
@@ -276,6 +277,28 @@ export async function POST(req: NextRequest) {
 
     if (!title) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
+    }
+
+    // Curated foundation lessons are reviewed, stable, and available without
+    // waiting on a model or search provider. AI remains available for the long
+    // tail of personalized modules.
+    const curated = typeof moduleId === 'string' ? getSafetyLesson(moduleId) : undefined;
+    if (curated) {
+      const lesson: LessonContent = {
+        intro: curated.intro,
+        concepts: curated.concepts,
+        practicalExample: curated.practicalExample,
+        quickActions: curated.quickActions,
+        summary: curated.summary,
+        quiz: curated.quiz,
+      };
+      return NextResponse.json(lesson, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+          'Server-Timing': 'lesson;dur=0;desc="curated"',
+          'X-HomieHouse-Lesson-Source': 'curated',
+        },
+      });
     }
 
     if (getLLMProviders().length === 0) {
@@ -535,10 +558,14 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     // Optional Tavily web-search enrichment — built once and shared by every
     // generation tier so the latest facts inform whichever model writes.
     let enrichedPrompt = prompt;
-    if (process.env.TAVILY_API_KEY) {
+    // Most foundational lessons do not benefit from a live search. Reserve
+    // enrichment for case studies and fast-moving protocol topics so an
+    // optional provider cannot add latency to every course.
+    const needsLiveResearch = isHyperliquid || tagSet.includes('case-study') || tagSet.includes('current');
+    if (process.env.TAVILY_API_KEY && needsLiveResearch) {
       const searchQuery = [title, ...(tags ?? []).slice(0, 2), 'blockchain cryptocurrency 2026'].join(' ');
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 8000);
+      const t = setTimeout(() => ctrl.abort(), 3000);
       try {
         const r = await fetch('https://api.tavily.com/search', {
           method: 'POST',
@@ -567,9 +594,9 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     try {
       const { message, provider } = await llmChat({
         messages: [{ role: 'user', content: enrichedPrompt }],
-        maxTokens: 8000,
+        maxTokens: 5500,
         temperature: 0.7,
-        timeoutMs: 55000,
+        timeoutMs: 35000,
       });
       content = message.content?.trim() ?? '';
       usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
@@ -594,9 +621,9 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
             role: 'user',
             content: prompt + '\n\nIMPORTANT: Reply with ONLY the JSON object described above — start with { and end with }. No prose, no markdown, no code fences.',
           }],
-          maxTokens: 8000,
+          maxTokens: 5500,
           temperature: 0.4,
-          timeoutMs: 55000,
+          timeoutMs: 35000,
         });
         lesson = parseLessonJson(message.content ?? '');
         if (lesson) logger.info('recovered on strict retry');
@@ -608,13 +635,6 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     if (!lesson) {
       logger.warn('Failed to parse AI response, using fallback');
       return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
-    }
-
-    // ── Second-pass quiz verification — correct wrong answers, drop bad Qs ───
-    try {
-      lesson.quiz = await verifyQuiz(lesson.quiz, topicContext);
-    } catch {
-      // verifyQuiz already fails open, but guard the assignment too
     }
 
     // ── Shuffle quiz option order so the correct answer isn't always A ──────
@@ -632,6 +652,23 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     // ── Cache the (verified + shuffled) lesson for 30 days ──────────────────
     if (redis && cacheKey) {
       try { await redis.set(cacheKey, lesson, { ex: 60 * 60 * 24 * 30 }); } catch {}
+
+      // Do the independent fact-check after the response path. The first
+      // learner no longer waits up to 15 extra seconds; verified questions
+      // replace the warm cache for everyone who follows.
+      const initialLesson = lesson;
+      after(async () => {
+        try {
+          const verifiedQuiz = await verifyQuiz(initialLesson.quiz, topicContext);
+          await redis.set(cacheKey, { ...initialLesson, quiz: verifiedQuiz }, { ex: 60 * 60 * 24 * 30 });
+        } catch {
+          // The already-cached lesson remains available if verification fails.
+        }
+      });
+    } else {
+      // Local/dev deployments without Redis retain the original correctness
+      // behavior because there is no warm cache to update later.
+      lesson.quiz = await verifyQuiz(lesson.quiz, topicContext);
     }
 
     return NextResponse.json(lesson);

@@ -48,6 +48,7 @@ const CloseIcon = (
 const NAV_ITEMS = [
   { href: '/', label: 'Feed', exact: true, icon: FeedIcon },
   { href: '/learn', label: 'Learn', icon: LearnIcon },
+  { href: '/community', label: 'Community', icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🛡️</span> },
   { href: '/hh2', label: 'HH2 Token', icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🪙</span> },
   {
     href: '/wallet', label: 'Wallet', icon: (

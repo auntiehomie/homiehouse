@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import LearnClient from '@/app/_page-clients/LearnClient';
 import SentryErrorBoundary from '@/components/SentryErrorBoundary';
+import { SAFETY_MODULES } from '@/lib/safety-curriculum';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -11,7 +12,7 @@ const learnJsonLd = {
   '@type': 'EducationalOrganization',
   name: 'HomieHouse Learning Hub',
   url: `${BASE_URL}/learn`,
-  description: 'AI-built Web3 learning plans with daily streaks, bite-sized DeFi lessons, and interactive quizzes.',
+  description: 'Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.',
 };
 
 const learnCollectionJsonLd = {
@@ -19,16 +20,16 @@ const learnCollectionJsonLd = {
   '@type': 'CollectionPage',
   name: 'Learning Hub | HomieHouse',
   url: `${BASE_URL}/learn`,
-  hasPart: [
-    { '@type': 'Article', headline: 'DeFi Fundamentals', url: `${BASE_URL}/learn` },
-    { '@type': 'Article', headline: 'Web3 Essentials', url: `${BASE_URL}/learn` },
-    { '@type': 'Article', headline: 'Farcaster & Decentralized Social', url: `${BASE_URL}/learn` },
-  ],
+  hasPart: SAFETY_MODULES.map((module) => ({
+    '@type': 'LearningResource',
+    headline: module.title,
+    url: `${BASE_URL}/learn/library/${module.id}`,
+  })),
 };
 
 export const metadata: Metadata = {
   title: 'Learn | HomieHouse',
-  description: 'AI-built Web3 learning plans, daily streak tracking, and bite-sized DeFi lessons on HomieHouse.',
+  description: 'Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.',
   openGraph: {
     title: 'Learn | HomieHouse',
     description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',

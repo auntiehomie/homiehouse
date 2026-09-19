@@ -8,7 +8,7 @@ const LS_PROGRESS_KEY = 'hh_learning_progress';
 const LS_DISMISSED_KEY = 'hh_learn_card_dismissed';
 
 interface LearningPlan {
-  track: 'learner' | 'creator' | 'financial' | 'all';
+  track: 'learner' | 'creator' | 'financial' | 'survival' | 'all';
   level: 'beginner' | 'intermediate' | 'advanced';
   summary: string;
   modules: { id: string }[];
@@ -18,6 +18,7 @@ const TRACK_LABELS: Record<string, string> = {
   learner: 'Learner',
   creator: 'Creator',
   financial: 'Financial',
+  survival: 'Crypto Safety',
   all: 'All Tracks',
 };
 
@@ -25,6 +26,7 @@ const TRACK_ICONS: Record<string, string> = {
   learner: '🧠',
   creator: '✍️',
   financial: '📈',
+  survival: '🛡️',
   all: '🌐',
 };
 
@@ -142,7 +144,8 @@ export default function LearningHeroCard() {
   const tracks: Array<{ key: string; label: string; icon: string; desc: string }> = [
     { key: 'learner', label: 'Learner', icon: '🧠', desc: 'Understand the ecosystem' },
     { key: 'creator', label: 'Creator', icon: '✍️', desc: 'Build your audience' },
-    { key: 'financial', label: 'Financial', icon: '📈', desc: 'Grow your wealth' },
+    { key: 'financial', label: 'Financial', icon: '📈', desc: 'Understand digital assets' },
+    { key: 'survival', label: 'Crypto Safety', icon: '🛡️', desc: 'Stay in the game' },
   ];
 
   return (
