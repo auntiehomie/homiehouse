@@ -29,14 +29,14 @@ interface LearningModule {
 }
 
 interface LearningPlan {
-  track: 'learner' | 'creator' | 'financial' | 'all';
+  track: 'learner' | 'creator' | 'financial' | 'survival' | 'all';
   level: 'beginner' | 'intermediate' | 'advanced';
   summary: string;
   modules: LearningModule[];
 }
 
 type PageState = 'quiz' | 'generating' | 'plan';
-type Track = 'learner' | 'creator' | 'financial' | 'all';
+type Track = 'learner' | 'creator' | 'financial' | 'survival' | 'all';
 type Level = 'beginner' | 'intermediate' | 'advanced';
 type LearnTab = 'plan' | 'completed' | 'homie' | 'feed';
 
@@ -780,7 +780,7 @@ function LearnPageContent() {
   // Deep-link pre-selection
   useEffect(() => {
     const t = searchParams.get('track') as Track | null;
-    const valid: Track[] = ['learner', 'creator', 'financial', 'all'];
+    const valid: Track[] = ['learner', 'creator', 'financial', 'survival', 'all'];
     if (t && valid.includes(t)) setTrack(t);
     if (searchParams.get('tab') === 'homie') setActiveTab('homie');
   }, [searchParams]);
@@ -1033,6 +1033,7 @@ function LearnPageContent() {
     { id: 'learner',   emoji: '🧠', title: 'Learner',          subtitle: 'I want to understand how this all works' },
     { id: 'creator',   emoji: '🛠️', title: 'Creator',          subtitle: 'I want to build and create things on-chain' },
     { id: 'financial', emoji: '💰', title: 'Financial',        subtitle: 'I want to grow and manage my assets' },
+    { id: 'survival',  emoji: '🛡️', title: 'Crypto Safety',     subtitle: 'I want to participate without losing my shirt' },
     { id: 'all',       emoji: '✨', title: 'All of the above', subtitle: 'I want the full picture' },
   ];
   const levelOptions: { label: string; description: string; level: Level }[] = [

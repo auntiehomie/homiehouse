@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import { llmChat } from '@/lib/llm';
+import { SAFETY_MODULES } from '@/lib/safety-curriculum';
 
 // Free-tier-only AI provider chain (Cerebras → Groq → Gemini → OpenRouter)
 // Per docs/AI_PROVIDER_STRATEGY.md: we deliberately do NOT fall back to paid OpenAI/Claude.
@@ -20,7 +21,7 @@ interface LearningModule {
 }
 
 interface LearningPlan {
-  track: 'learner' | 'creator' | 'financial' | 'all';
+  track: 'learner' | 'creator' | 'financial' | 'survival' | 'all';
   level: 'beginner' | 'intermediate' | 'advanced';
   summary: string;
   modules: LearningModule[];
@@ -389,11 +390,24 @@ const FALLBACK_PLAN: LearningPlan = {
   ],
 };
 
+const SAFETY_PLAN: LearningPlan = {
+  track: 'survival',
+  level: 'beginner',
+  summary: 'Learn the habits that help you participate in crypto without letting one scam, signature, or oversized bet knock you out of the ecosystem.',
+  modules: SAFETY_MODULES,
+};
+
+function fallbackForTrack(track: string): LearningPlan {
+  if (track === 'survival') return SAFETY_PLAN;
+  if (track === 'financial') return FALLBACK_FINANCIAL_PLAN;
+  return FALLBACK_PLAN;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const track = searchParams.get('track') ?? 'learner';
   const level = searchParams.get('level') ?? 'beginner';
-  const fallback = track === 'financial' ? FALLBACK_FINANCIAL_PLAN : FALLBACK_PLAN;
+  const fallback = fallbackForTrack(track);
   return NextResponse.json({ ...fallback, track, level });
 }
 
@@ -412,6 +426,12 @@ export async function POST(req: NextRequest) {
         { error: 'track and level are required' },
         { status: 400 },
       );
+    }
+
+    // The safety curriculum is intentionally curated rather than generated:
+    // financial-safety guidance should be consistent, source-backed, and fast.
+    if (track === 'survival') {
+      return NextResponse.json({ ...SAFETY_PLAN, level });
     }
 
     const financialTrackGuidance = track === 'financial' || track === 'all' ? `
@@ -481,8 +501,8 @@ Requirements:
     const response = await llmChat({
       messages: [{ role: 'system', content: 'You are a Web3 / decentralization education expert. Create a personalized learning plan as a JSON object.' }, { role: 'user', content: prompt }],
       temperature: 0.7,
-      maxTokens: 4000,
-      timeoutMs: 55000,
+      maxTokens: 3000,
+      timeoutMs: 25000,
     });
     const content = response.message.content ?? '';
 
@@ -497,7 +517,7 @@ Requirements:
       plan = JSON.parse(cleaned) as LearningPlan;
     } catch (parseError) {
       console.error('[learning-plan] Failed to parse AI response, using fallback', parseError);
-      const fallback = track === 'financial' ? FALLBACK_FINANCIAL_PLAN : FALLBACK_PLAN;
+      const fallback = fallbackForTrack(track);
       return NextResponse.json({ ...fallback, track, level });
     }
 
