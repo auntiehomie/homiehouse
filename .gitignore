@@ -1,7 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+# Unanchored so nested packages (homiehouselol-bot/) are covered too.
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -41,3 +42,9 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Local databases — homiehouselol-bot/memory.db was committed with real user
+# conversations and profiles in it.
+*.db
+*.sqlite
+*.sqlite3
