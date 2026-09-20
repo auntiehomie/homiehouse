@@ -1,51 +1,60 @@
-import type { Metadata } from 'next';
-import { Suspense } from 'react';
-import LearnClient from '@/app/_page-clients/LearnClient';
-import SentryErrorBoundary from '@/components/SentryErrorBoundary';
-import { SAFETY_MODULES } from '@/lib/safety-curriculum';
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import LearnClient from "@/app/_page-clients/LearnClient";
+import SentryErrorBoundary from "@/components/SentryErrorBoundary";
+import { SAFETY_MODULES } from "@/lib/safety-curriculum";
+import { serializeJsonLd } from "@/lib/json-ld";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://homiehouse.lol";
 
 // JSON-LD structured data for learning hub
 const learnJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'EducationalOrganization',
-  name: 'HomieHouse Learning Hub',
+  "@context": "https://schema.org",
+  "@type": "EducationalOrganization",
+  name: "HomieHouse Learning Hub",
   url: `${BASE_URL}/learn`,
-  description: 'Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.',
+  description:
+    "Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.",
 };
 
 const learnCollectionJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'CollectionPage',
-  name: 'Learning Hub | HomieHouse',
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  name: "Learning Hub | HomieHouse",
   url: `${BASE_URL}/learn`,
   hasPart: SAFETY_MODULES.map((module) => ({
-    '@type': 'LearningResource',
+    "@type": "LearningResource",
     headline: module.title,
     url: `${BASE_URL}/learn/library/${module.id}`,
   })),
 };
 
 export const metadata: Metadata = {
-  title: 'Learn | HomieHouse',
-  description: 'Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.',
+  title: "Learn | HomieHouse",
+  description:
+    "Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.",
   openGraph: {
-    title: 'Learn | HomieHouse',
-    description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
-    type: 'website',
-    images: [{
-      url: `${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`,
-      width: 1200,
-      height: 630,
-      alt: 'HomieHouse Learning Hub',
-    }],
+    title: "Learn | HomieHouse",
+    description:
+      "AI-built Web3 learning plans with daily streaks and leaderboards.",
+    type: "website",
+    images: [
+      {
+        url: `${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`,
+        width: 1200,
+        height: 630,
+        alt: "HomieHouse Learning Hub",
+      },
+    ],
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Learn | HomieHouse',
-    description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
-    images: [`${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`],
+    card: "summary_large_image",
+    title: "Learn | HomieHouse",
+    description:
+      "AI-built Web3 learning plans with daily streaks and leaderboards.",
+    images: [
+      `${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`,
+    ],
   },
 };
 
@@ -57,11 +66,13 @@ export default function LearnPage() {
       </Suspense>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(learnJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(learnJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(learnCollectionJsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(learnCollectionJsonLd),
+        }}
       />
     </SentryErrorBoundary>
   );

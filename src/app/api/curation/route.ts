@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handleApiError } from '@/lib/errors';
-import { createApiLogger } from '@/lib/logger';
-import { validateFid } from '@/lib/validation';
+import { handleApiError } from "@/lib/errors";
+import { createApiLogger } from "@/lib/logger";
+import { verifyFarcasterSignerAuth } from "@/lib/auth";
+import { validateFid } from "@/lib/validation";
 
 export async function GET(request: NextRequest) {
-  const logger = createApiLogger('/curation');
+  const logger = createApiLogger("/curation");
   logger.start();
 
   try {
     const { searchParams } = new URL(request.url);
-    const fidParam = searchParams.get("fid");
+    const authFid = await verifyFarcasterSignerAuth(request);
+    const fidParam = String(authFid);
     const type = searchParams.get("type");
 
     if (!fidParam) {
-      return NextResponse.json({ ok: false, error: "FID required" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "FID required" },
+        { status: 400 },
+      );
     }
 
     // Validate FID
     const fid = validateFid(fidParam);
-    logger.info('Fetching curation preferences', { fid, type });
+    logger.info("Fetching curation preferences", { fid, type });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
     let url = `${serverUrl}/api/curation?fid=${fid}`;
@@ -29,40 +34,46 @@ export async function GET(request: NextRequest) {
     const res = await fetch(url);
     const data = await res.json();
 
-    logger.success('Preferences fetched', { count: data?.preferences?.length || 0 });
+    logger.success("Preferences fetched", {
+      count: data?.preferences?.length || 0,
+    });
     logger.end();
     return NextResponse.json(data);
   } catch (error: any) {
-    logger.error('Failed to fetch curation preferences', error);
-    return handleApiError(error, 'GET /curation');
+    logger.error("Failed to fetch curation preferences", error);
+    return handleApiError(error, "GET /curation");
   }
 }
 
 export async function POST(request: NextRequest) {
-  const logger = createApiLogger('/curation POST');
+  const logger = createApiLogger("/curation POST");
   logger.start();
 
   try {
+    const fid = await verifyFarcasterSignerAuth(request);
     const body = await request.json();
-    const { fid, preference_type, preference_value, action, priority } = body;
+    const { preference_type, preference_value, action, priority } = body;
 
     if (!preference_type || !preference_value || !action) {
       return NextResponse.json(
         { ok: false, error: "Missing required fields" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    if (!fid) {
-      return NextResponse.json({ ok: false, error: 'fid is required' }, { status: 400 });
-    }
-
-    const validatedFid = Number(fid);
+    const validatedFid = fid;
     if (!validatedFid || isNaN(validatedFid)) {
-      return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Invalid fid" },
+        { status: 400 },
+      );
     }
 
-    logger.info('Adding curation preference', { fid: validatedFid, preference_type, action });
+    logger.info("Adding curation preference", {
+      fid: validatedFid,
+      preference_type,
+      action,
+    });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
     const res = await fetch(`${serverUrl}/api/curation`, {
@@ -78,35 +89,32 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await res.json();
-    logger.success('Preference added', { preferenceId: data?.preference?.id });
+    logger.success("Preference added", { preferenceId: data?.preference?.id });
     logger.end();
     return NextResponse.json(data);
   } catch (error: any) {
-    logger.error('Failed to add curation preference', error);
-    return handleApiError(error, 'POST /curation');
+    logger.error("Failed to add curation preference", error);
+    return handleApiError(error, "POST /curation");
   }
 }
 
 export async function PUT(request: NextRequest) {
-  const logger = createApiLogger('/curation PUT');
+  const logger = createApiLogger("/curation PUT");
   logger.start();
 
   try {
+    const fid = await verifyFarcasterSignerAuth(request);
     const body = await request.json();
-    const { id, fid, ...updates } = body;
+    const { id, ...updates } = body;
 
     if (!id) {
       return NextResponse.json(
         { ok: false, error: "Preference ID required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    if (!fid) {
-      return NextResponse.json({ ok: false, error: 'fid is required' }, { status: 400 });
-    }
-
-    logger.info('Updating curation preference', { id, fid });
+    logger.info("Updating curation preference", { id, fid });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
     const res = await fetch(`${serverUrl}/api/curation`, {
@@ -116,36 +124,40 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await res.json();
-    logger.success('Preference updated', { id });
+    logger.success("Preference updated", { id });
     logger.end();
     return NextResponse.json(data);
   } catch (error: any) {
-    logger.error('Failed to update preference', error);
-    return handleApiError(error, 'PUT /curation');
+    logger.error("Failed to update preference", error);
+    return handleApiError(error, "PUT /curation");
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const logger = createApiLogger('/curation DELETE');
+  const logger = createApiLogger("/curation DELETE");
   logger.start();
 
   try {
+    const authFid = await verifyFarcasterSignerAuth(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-    const fidParam = searchParams.get("fid");
+    const fidParam = String(authFid);
 
     if (!id) {
       return NextResponse.json(
         { ok: false, error: "Preference ID required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!fidParam) {
-      return NextResponse.json({ ok: false, error: 'fid is required' }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "fid is required" },
+        { status: 400 },
+      );
     }
 
-    logger.info('Deleting curation preference', { id, fid: fidParam });
+    logger.info("Deleting curation preference", { id, fid: fidParam });
 
     const serverUrl = process.env.SERVER_URL || "http://localhost:3001";
     const res = await fetch(`${serverUrl}/api/curation?id=${id}`, {
@@ -153,11 +165,11 @@ export async function DELETE(request: NextRequest) {
     });
 
     const data = await res.json();
-    logger.success('Preference deleted', { id });
+    logger.success("Preference deleted", { id });
     logger.end();
     return NextResponse.json(data);
   } catch (error: any) {
-    logger.error('Failed to delete preference', error);
-    return handleApiError(error, 'DELETE /curation');
+    logger.error("Failed to delete preference", error);
+    return handleApiError(error, "DELETE /curation");
   }
 }

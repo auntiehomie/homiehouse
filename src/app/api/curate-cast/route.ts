@@ -1,77 +1,76 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit } from '@/lib/ratelimit';
-import { getDb } from '@/lib/db';
-import { handleApiError } from '@/lib/errors';
-import { createApiLogger } from '@/lib/logger';
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/ratelimit";
+import { getDb } from "@/lib/db";
+import { verifyFarcasterSignerAuth } from "@/lib/auth";
+import { handleApiError } from "@/lib/errors";
+import { createApiLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
-  const logger = createApiLogger('/curate-cast');
+  const logger = createApiLogger("/curate-cast");
   logger.start();
 
   try {
-
     // Rate limit: 30 requests/minute per IP
-    const forwarded = request.headers.get('x-forwarded-for');
-    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const forwarded = request.headers.get("x-forwarded-for");
+    const ip = forwarded?.split(",")[0]?.trim() || "unknown";
     const { success: rateLimitOk } = rateLimit(`curate-cast:${ip}`, 30, 60);
     if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+      return NextResponse.json({ error: "Rate limited" }, { status: 429 });
     }
     const db = getDb();
+    const validatedFid = await verifyFarcasterSignerAuth(request);
     const body = await request.json();
-    const { fid, listName, castHash, castData, notes } = body;
+    const { listName, castHash, castData, notes } = body;
 
-    if (!fid || !listName || !castHash) {
+    if (!listName || !castHash) {
       return NextResponse.json(
-        { error: 'fid, listName, and castHash are required' },
-        { status: 400 }
+        { error: "listName and castHash are required" },
+        { status: 400 },
       );
     }
 
-    const validatedFid = Number(fid);
-    if (!validatedFid || isNaN(validatedFid)) {
-      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
-    }
-
-    logger.info('Curating cast', { fid: validatedFid, listName, castHash });
+    logger.info("Curating cast", { fid: validatedFid, listName, castHash });
 
     // Find or create list
     let listId: number;
     const { rows: existingLists } = await db.query(
       `SELECT id FROM curated_lists WHERE fid = $1 AND list_name = $2`,
-      [validatedFid, listName]
+      [validatedFid, listName],
     );
 
     if (existingLists.length > 0) {
       listId = existingLists[0].id;
-      logger.info('Found existing list', { listId });
+      logger.info("Found existing list", { listId });
     } else {
       try {
         const { rows: newList } = await db.query(
           `INSERT INTO curated_lists (fid, list_name, description, is_public)
            VALUES ($1, $2, $3, false)
            RETURNING id, list_name`,
-          [validatedFid, listName, `Curated collection: ${listName}`]
+          [validatedFid, listName, `Curated collection: ${listName}`],
         );
         listId = newList[0].id;
-        logger.info('Created new list', { listId });
+        logger.info("Created new list", { listId });
       } catch (err: any) {
-        logger.error('Failed to create list', err);
-        return NextResponse.json({ error: 'Failed to create list' }, { status: 500 });
+        logger.error("Failed to create list", err);
+        return NextResponse.json(
+          { error: "Failed to create list" },
+          { status: 500 },
+        );
       }
     }
 
     // Check if already in list
     const { rows: existingItem } = await db.query(
       `SELECT id FROM curated_list_items WHERE list_id = $1 AND cast_hash = $2`,
-      [listId, castHash]
+      [listId, castHash],
     );
 
     if (existingItem.length > 0) {
-      logger.info('Cast already in list', { castHash, listId });
+      logger.info("Cast already in list", { castHash, listId });
       return NextResponse.json({
         success: true,
-        message: 'Cast already in list',
+        message: "Cast already in list",
         listId,
         listName,
         alreadyAdded: true,
@@ -93,10 +92,10 @@ export async function POST(request: NextRequest) {
           castData?.timestamp || null,
           validatedFid,
           notes || null,
-        ]
+        ],
       );
 
-      logger.success('Cast added to list', { listId, castHash });
+      logger.success("Cast added to list", { listId, castHash });
       logger.end();
 
       return NextResponse.json({
@@ -108,11 +107,14 @@ export async function POST(request: NextRequest) {
         alreadyAdded: false,
       });
     } catch (err: any) {
-      logger.error('Failed to add cast to list', err);
-      return NextResponse.json({ error: 'Failed to add cast to list' }, { status: 500 });
+      logger.error("Failed to add cast to list", err);
+      return NextResponse.json(
+        { error: "Failed to add cast to list" },
+        { status: 500 },
+      );
     }
   } catch (error: any) {
-    logger.error('Failed to curate cast', error);
-    return handleApiError(error, 'POST /curate-cast');
+    logger.error("Failed to curate cast", error);
+    return handleApiError(error, "POST /curate-cast");
   }
 }

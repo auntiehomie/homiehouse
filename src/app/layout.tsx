@@ -6,84 +6,99 @@ import ThemeSync from "../components/ThemeSync";
 import LazyClientComponents from "../components/LazyClientComponents";
 import PageTransition from "../components/PageTransition";
 import { QueryProvider } from "../components/QueryProvider";
-import { Analytics } from '@vercel/analytics/next';
+import { Analytics } from "@vercel/analytics/next";
 import WagmiProviders from "@/components/WagmiProviders";
+import { serializeJsonLd } from "@/lib/json-ld";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://homiehouse.lol";
 
 // JSON-LD structured data for SEO
 const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'WebSite',
-  name: 'HomieHouse',
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "HomieHouse",
   url: BASE_URL,
-  description: 'A Farcaster social client — browse your feed, compose casts, and explore the decentralized web.',
+  description:
+    "A Farcaster social client — browse your feed, compose casts, and explore the decentralized web.",
   potentialAction: {
-    '@type': 'SearchAction',
+    "@type": "SearchAction",
     target: {
-      '@type': 'EntryPoint',
+      "@type": "EntryPoint",
       urlTemplate: `${BASE_URL}/search?q={search_term_string}`,
     },
-    'query-input': 'required name=search_term_string',
+    "query-input": "required name=search_term_string",
   },
 };
 
 export const metadata: Metadata = {
   title: {
-    default: 'HomieHouse',
-    template: '%s | HomieHouse',
+    default: "HomieHouse",
+    template: "%s | HomieHouse",
   },
   icons: {
     icon: [
-      { url: '/hh-logo.svg', type: 'image/svg+xml' },
-      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: "/hh-logo.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
-    shortcut: '/hh-logo.svg',
+    shortcut: "/hh-logo.svg",
   },
-  manifest: '/manifest.json',
-  applicationName: 'HomieHouse',
+  manifest: "/manifest.json",
+  applicationName: "HomieHouse",
   appleWebApp: {
     capable: true,
-    title: 'HomieHouse',
-    statusBarStyle: 'black-translucent',
+    title: "HomieHouse",
+    statusBarStyle: "black-translucent",
   },
-  description: 'HomieHouse — Your Farcaster social hub. Browse feeds, compose casts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.',
+  description:
+    "HomieHouse — Your Farcaster social hub. Browse feeds, compose casts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.",
   keywords: [
-    'Farcaster', 'social client', 'decentralized social', 'casts', 'web3 social',
-    'Ask Homie', 'AI assistant', 'knowledge base', 'crypto social', 'Farcaster client',
-    'decentralized web', 'blockchain social', 'HomieHouse'
+    "Farcaster",
+    "social client",
+    "decentralized social",
+    "casts",
+    "web3 social",
+    "Ask Homie",
+    "AI assistant",
+    "knowledge base",
+    "crypto social",
+    "Farcaster client",
+    "decentralized web",
+    "blockchain social",
+    "HomieHouse",
   ],
   metadataBase: new URL(BASE_URL),
   alternates: {
     canonical: BASE_URL,
-    types: { 'application/rss+xml': `${BASE_URL}/rss.xml` },
+    types: { "application/rss+xml": `${BASE_URL}/rss.xml` },
   },
   openGraph: {
-    type: 'website',
-    siteName: 'HomieHouse',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
+    type: "website",
+    siteName: "HomieHouse",
+    title: "HomieHouse — Your home on Farcaster",
+    description:
+      "Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.",
     url: BASE_URL,
     images: [
       {
-        url: '/api/og',
+        url: "/api/og",
         width: 1200,
         height: 630,
-        alt: 'HomieHouse — Learn Web3. Connect with your community.',
+        alt: "HomieHouse — Learn Web3. Connect with your community.",
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
-    images: ['/api/og'],
+    card: "summary_large_image",
+    title: "HomieHouse — Your home on Farcaster",
+    description:
+      "Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.",
+    images: ["/api/og"],
   },
   robots: {
     index: true,
@@ -91,26 +106,25 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
     },
   },
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 5,
-  viewportFit: 'cover',
+  viewportFit: "cover",
   // Allow orientation changes — don't lock to portrait
 };
 
 // Farcaster auth context requires a live React tree and can't run in a
 // static build worker — force-dynamic prevents Next.js from attempting to
 // statically prerender any page through this layout.
-export const dynamic = 'force-dynamic';
-
+export const dynamic = "force-dynamic";
 
 export default function RootLayout({
   children,
@@ -120,10 +134,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{__html: `(function(){try{var t=localStorage.getItem('hh_theme');if(!t||t==='default')return;if(t==='custom'){var c=JSON.parse(localStorage.getItem('hh_custom_theme')||'{}'),s=document.documentElement.style;[['bgDark','--bg-dark'],['surface','--surface'],['textOnDark','--text-on-dark'],['accent','--accent'],['navBg','--nav-bg'],['btnPrimaryBg','--btn-primary-bg'],['btnPrimaryColor','--btn-primary-color']].forEach(function(p){if(c[p[0]])s.setProperty(p[1],c[p[0]]);});}else{document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`}} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('hh_theme');if(!t||t==='default')return;if(t==='custom'){var c=JSON.parse(localStorage.getItem('hh_custom_theme')||'{}'),s=document.documentElement.style;[['bgDark','--bg-dark'],['surface','--surface'],['textOnDark','--text-on-dark'],['accent','--accent'],['navBg','--nav-bg'],['btnPrimaryBg','--btn-primary-bg'],['btnPrimaryColor','--btn-primary-color']].forEach(function(p){if(c[p[0]])s.setProperty(p[1],c[p[0]]);});}else{document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`,
+          }}
+        />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
         {/* iOS PWA splash screens — required for clean launch experience */}
         <meta name="mobile-web-app-capable" content="yes" />

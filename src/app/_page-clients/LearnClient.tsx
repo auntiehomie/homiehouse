@@ -13,6 +13,7 @@ import { useAccount, useReadContract, useChainId } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { formatUnits } from 'viem';
+import { getAuthHeaders } from "@/lib/client-auth";
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -828,7 +829,7 @@ function LearnPageContent() {
   useEffect(() => {
     const fid = getFid();
     if (!fid) return;
-    fetch(`/api/learning-progress?fid=${fid}`)
+    fetch(`/api/learning-progress`, { headers: { ...(getAuthHeaders() ?? {}) } })
       .then(r => r.json())
       .then(d => {
         if (d.streak) setStreak(d.streak);
@@ -845,7 +846,7 @@ function LearnPageContent() {
       })
       .catch(() => {});
   // farcasterFid as dep: re-runs once Farcaster auth resolves and the FID becomes non-null
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [farcasterFid]);
 
   // Load the leaderboard opt-in preference once on mount.
@@ -895,7 +896,7 @@ function LearnPageContent() {
       }
     })();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [leaderboardEnabled, farcasterFid]);
 
   // "N people you follow are also on this track" — fetch the user's following
@@ -925,7 +926,7 @@ function LearnPageContent() {
       }
     })();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [plan?.track, farcasterFid]);
 
   // Debounced save: whenever plan or completedIds change, sync to Neon after 2s
@@ -940,15 +941,15 @@ function LearnPageContent() {
       })();
       fetch('/api/learning-progress', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid, plan, completed_ids: [...completedIds], completions, hh2_points: completedIds.size * HH2_PER_LESSON }),
+        headers: { 'Content-Type': 'application/json', ...(getAuthHeaders() ?? {}) },
+        body: JSON.stringify({ plan, completed_ids: [...completedIds], completions, hh2_points: completedIds.size * HH2_PER_LESSON }),
       })
         .then(r => r.json())
         .then(d => { if (d?.streak) setStreak(d.streak); })
         .catch(() => {});
     }, 2000);
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [plan, completedIds]);
 
   const navigateToModule = useCallback((id: string) => {

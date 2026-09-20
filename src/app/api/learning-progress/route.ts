@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { sql, getSql } from '@/lib/db';
-import { getStreak, recordActivity } from '@/lib/learning-streak';
+import { NextRequest, NextResponse } from "next/server";
+import { sql, getSql } from "@/lib/db";
+import { getStreak, recordActivity } from "@/lib/learning-streak";
+import { verifyFarcasterSignerAuth } from "@/lib/auth";
+import { handleApiError } from "@/lib/errors";
 
 export const maxDuration = 10;
 
@@ -38,7 +40,9 @@ async function ensureTables() {
   if (tablesReady) return;
   try {
     const s = getSql();
-    for (const stmt of ENSURE_TABLES.split(';').map(s => s.trim()).filter(Boolean)) {
+    for (const stmt of ENSURE_TABLES.split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)) {
       await s.query(stmt);
     }
     tablesReady = true;
@@ -49,14 +53,10 @@ async function ensureTables() {
 
 // GET /api/learning-progress?fid=12345
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const fid = parseInt(searchParams.get('fid') ?? '', 10);
-
-  if (!fid || isNaN(fid)) {
-    return NextResponse.json({ error: 'fid required' }, { status: 400 });
-  }
-
   try {
+    // completed_ids drives HH2 entitlement in /api/claim-hh2 and /api/hh2-purchase,
+    // so progress is readable and writable only by the authenticated owner.
+    const fid = await verifyFarcasterSignerAuth(req);
     await ensureTables();
     const [rows, streak] = await Promise.all([
       sql`
@@ -80,23 +80,22 @@ export async function GET(req: NextRequest) {
       streak,
     });
   } catch (err: any) {
-    console.error('[learning-progress] GET error:', err?.message);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    console.error("[learning-progress] GET error:", err?.message);
+    return handleApiError(err, "GET /learning-progress");
   }
 }
 
 // POST /api/learning-progress
-// Body: { fid, plan, completed_ids, completions, hh2_points }
+// Body: { plan, completed_ids, completions, hh2_points }
 export async function POST(req: NextRequest) {
   try {
+    // The fid is taken from the verified signer, never the body: this table is
+    // the source of truth for HH2 token entitlement.
+    const fid = await verifyFarcasterSignerAuth(req);
     await ensureTables();
-    const { fid, plan, completed_ids, completions, hh2_points } = await req.json();
+    const { plan, completed_ids, completions, hh2_points } = await req.json();
 
-    if (!fid) {
-      return NextResponse.json({ error: 'fid required' }, { status: 400 });
-    }
-
-    const points = typeof hh2_points === 'number' ? hh2_points : 0;
+    const points = typeof hh2_points === "number" ? hh2_points : 0;
 
     await sql`
       INSERT INTO learning_progress (fid, plan, completed_ids, completions, hh2_points, updated_at)
@@ -122,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, streak });
   } catch (err: any) {
-    console.error('[learning-progress] POST error:', err?.message);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    console.error("[learning-progress] POST error:", err?.message);
+    return handleApiError(err, "POST /learning-progress");
   }
 }

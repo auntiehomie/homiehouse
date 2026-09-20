@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useFarcasterUser } from "@/hooks/useFarcasterUser";
+import { getAuthHeaders } from "@/lib/client-auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -58,7 +59,9 @@ export default function ListsClient() {
     const fetchLists = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/curated-lists?fid=${user.fid}`);
+        const auth = getAuthHeaders();
+        if (!auth) return;
+        const response = await fetch(`/api/curated-lists`, { headers: { ...auth } });
         if (response.ok) {
           const data = await response.json();
           setLists(data.lists || []);
@@ -85,7 +88,7 @@ export default function ListsClient() {
   // Fetch followed lists
   const fetchFollowing = () => {
     if (!user?.fid) return;
-    fetch(`/api/curated-lists/followed?fid=${user.fid}`)
+    fetch(`/api/curated-lists/followed?fid=${user.fid}`, { headers: { ...(getAuthHeaders() ?? {}) } })
       .then((r) => r.json())
       .then((data) => {
         const followed: CuratedList[] = data.lists || [];
@@ -101,13 +104,13 @@ export default function ListsClient() {
   // Following state also needed on the Discover tab (to show "Following" vs "Follow")
   useEffect(() => {
     if (user?.fid) fetchFollowing();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [user?.fid]);
 
   const fetchListItems = async (listId: number) => {
     setItemsLoading(true);
     try {
-      const response = await fetch(`/api/curated-lists/${listId}/items`);
+      const response = await fetch(`/api/curated-lists/${listId}/items`, { headers: { ...(getAuthHeaders() ?? {}) } });
       if (response.ok) {
         const data = await response.json();
         setListItems(data.items || []);
@@ -133,7 +136,7 @@ export default function ListsClient() {
     try {
       const response = await fetch(`/api/curated-lists/${selectedList.id}/items`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(getAuthHeaders() ?? {}) },
         body: JSON.stringify({ itemId })
       });
 
@@ -151,8 +154,8 @@ export default function ListsClient() {
     try {
       const res = await fetch("/api/curated-lists", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: list.id, fid: user.fid, isPublic: !list.is_public }),
+        headers: { "Content-Type": "application/json", ...(getAuthHeaders() ?? {}) },
+        body: JSON.stringify({ id: list.id, isPublic: !list.is_public }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -171,12 +174,12 @@ export default function ListsClient() {
     const isFollowing = followedIds.has(list.id);
     try {
       if (isFollowing) {
-        await fetch(`/api/curated-lists/${list.id}/follow?followerFid=${user.fid}`, { method: "DELETE" });
+        await fetch(`/api/curated-lists/${list.id}/follow`, { method: "DELETE", headers: { ...(getAuthHeaders() ?? {}) } });
       } else {
         await fetch(`/api/curated-lists/${list.id}/follow`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ followerFid: user.fid }),
+          headers: { "Content-Type": "application/json", ...(getAuthHeaders() ?? {}) },
+          body: JSON.stringify({}),
         });
       }
       fetchFollowing();

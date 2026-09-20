@@ -7,6 +7,7 @@ import EmbedRenderer, { findFarcasterCastUrls, parseFarcasterCastUrl } from './E
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 import ParentCastBadge from './ParentCastBadge';
 import { fetchFeed } from "../lib/farcaster";
+import { getAuthHeaders } from "@/lib/client-auth";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import { FeedType } from "./FeedTrendingTabs";
@@ -260,9 +261,8 @@ export default function FeedList({
     try {
       const res = await fetch("/api/curate-cast", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(getAuthHeaders() ?? {}) },
         body: JSON.stringify({
-          fid: profile.fid,
           listName: curateListName.trim(),
           castHash,
           castData: {
@@ -458,7 +458,7 @@ export default function FeedList({
     }, { threshold: 0.1 });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [hasMore, loadingMore, cursor]);
 
   // Must be before any early returns — hooks can't be called conditionally
@@ -480,7 +480,7 @@ export default function FeedList({
         .sort((a, b) => b._interestScore - a._interestScore);
     }
     return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [items, mutedUsers, hiddenCasts, seeLessAuthors]);
 
   if (items === null)
