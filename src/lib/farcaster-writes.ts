@@ -71,10 +71,9 @@ function getBotFid(): number {
 
 /**
  * The operational signer is normally supplied directly in
- * HOMIEHOUSELOL_SIGNER_KEY. If the signer was provisioned by the existing
- * /api/provision-bot-signer flow, derive the same deterministic key from the
- * server-only custody mnemonic as a compatibility fallback. The mnemonic is
- * never returned, logged, or accepted from a request.
+ * HOMIEHOUSELOL_SIGNER_KEY. Older installations may derive the same dedicated
+ * key from the server-only custody mnemonic as a compatibility fallback. No
+ * HTTP route exposes or provisions that private key.
  */
 function deriveProvisionedSignerFromMnemonic(): string | null {
   const mnemonic = process.env.APP_MNEMONIC?.trim().replace(/^['"]|['"]$/g, '');
