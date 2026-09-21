@@ -10,7 +10,12 @@
  */
 
 import { useEffect } from 'react'
+import { ed25519 } from '@noble/curves/ed25519'
 import { useFarcasterAuth } from '@/lib/farcaster-auth'
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
 
 function resolveFid(farcasterFid: number | null): number | undefined {
   // 1. FarcasterAuth context (localStorage hh_profile)
@@ -78,8 +83,18 @@ async function initSigner(fid: number) {
       }
     }
 
-    // No signer yet — create one
-    const res = await fetch('/api/signer', { method: 'POST' })
+    // No signer yet — generate the keypair in the browser. Only the public key
+    // is sent to the registration endpoint; private key material stays local.
+    const privateKeyBytes = ed25519.utils.randomPrivateKey()
+    const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes)
+    const privateKeyHex = bytesToHex(privateKeyBytes)
+    const publicKeyHex = `0x${bytesToHex(publicKeyBytes)}`
+
+    const res = await fetch('/api/signer', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ public_key: publicKeyHex }),
+    })
     const signerData = await res.json()
     if (!signerData.ok) {
       console.error('[SignerInit] Failed to create signer:', signerData.error)
@@ -93,7 +108,7 @@ async function initSigner(fid: number) {
     localStorage.setItem(key, JSON.stringify({
       signer_uuid: signerData.signer_uuid,
       public_key: signerData.public_key,
-      private_key: signerData.private_key,   // stored client-side only
+      private_key: privateKeyHex,
       status: 'pending_approval',
       signer_approval_url: signerData.signer_approval_url,
     }))

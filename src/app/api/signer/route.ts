@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mnemonicToAccount } from "viem/accounts";
-import { ed25519 } from "@noble/curves/ed25519";
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateUuid } from '@/lib/validation';
 import { rateLimit } from '@/lib/ratelimit';
 import { cacheApprovedSigner } from '@/lib/auth';
+import { validateSignerRegistrationBody } from '@/lib/signer-registration';
 
 // Signer registration uses the Farcaster Signed Key Request protocol directly.
 // No API key required — uses direct Warpcast/Farcaster contract flow.
@@ -33,9 +33,9 @@ const SIGNED_KEY_REQUEST_TYPE = [
 
 /**
  * POST /api/signer
- * Creates a new Ed25519 signer and registers it via Warpcast API.
+ * Registers a browser-generated Ed25519 public key via Warpcast API.
  * Returns signer_approval_url for the user to open in Warpcast to approve.
- * WARNING: This handles sensitive data (mnemonics) - logging is carefully controlled.
+ * The corresponding private key must never leave the user's browser.
  */
 export async function POST(req: NextRequest) {
   const logger = createApiLogger('/signer POST');
@@ -59,15 +59,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    logger.info('Creating new Ed25519 signer (direct Farcaster protocol)');
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: 'A JSON body containing public_key is required' },
+        { status: 400 }
+      );
+    }
 
-    // Step 1: Generate a fresh Ed25519 keypair
-    const privateKeyBytes = ed25519.utils.randomPrivateKey();
-    const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
-    const publicKeyHex = `0x${Buffer.from(publicKeyBytes).toString('hex')}` as `0x${string}`;
-    const privateKeyHex = Buffer.from(privateKeyBytes).toString('hex');
+    const validatedBody = validateSignerRegistrationBody(body);
+    if (!validatedBody.ok) {
+      return NextResponse.json(
+        { ok: false, error: validatedBody.error },
+        { status: 400 }
+      );
+    }
+    const publicKeyHex = validatedBody.publicKey;
 
-    // Step 2: Sign the key registration payload with the app's EIP-712 key
+    logger.info('Registering browser-generated Ed25519 public key (direct Farcaster protocol)');
+
+    // Sign the public-key registration payload with the app's EIP-712 key.
     const deadline = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24h
     const appFid = parseInt(APP_FID);
 
@@ -98,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     logger.info('EIP-712 signature generated');
 
-    // Step 3: Register via Warpcast API
+    // Register via Warpcast API.
     const registerRes = await fetch(`${WARPCAST_API}/v2/signed-key-requests`, {
       method: 'POST',
       headers: {
@@ -136,7 +149,6 @@ export async function POST(req: NextRequest) {
       ok: true,
       signer_uuid: result.token,           // token acts as signer identifier
       public_key: publicKeyHex,
-      private_key: privateKeyHex,          // stored client-side only, never logged
       status: 'pending_approval',
       signer_approval_url: result.deeplinkUrl,
     });
