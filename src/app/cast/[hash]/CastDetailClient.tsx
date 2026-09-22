@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
@@ -42,6 +42,7 @@ function ActionBtn({
 
 export default function CastDetailClient() {
   const params = useParams();
+  const router = useRouter();
   const hash = params?.hash as string;
   const [cast, setCast] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +61,17 @@ export default function CastDetailClient() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const { hasActiveSigner, requestSigner, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn, submitCast } = useFarcasterWrites();
+
+  const handleBack = useCallback(() => {
+    try {
+      const saved = sessionStorage.getItem('hh_feed_return');
+      if (saved) {
+        router.back();
+        return;
+      }
+    } catch {}
+    router.push('/feed');
+  }, [router]);
 
   const showToast = useCallback((msg: string, ok: boolean) => {
     setToast({ msg, ok });
@@ -251,7 +263,7 @@ export default function CastDetailClient() {
           <div style={{ fontSize: 32, marginBottom: 16 }}>😔</div>
           <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Cast Not Found</div>
           <div style={{ color: 'var(--muted-on-dark, #999)', marginBottom: 24 }}>{error || 'Unable to load this cast'}</div>
-          <Link href="/feed" style={{ color: 'var(--muted-on-dark, #999)' }}>← Back to Feed</Link>
+          <button type="button" onClick={handleBack} className="btn">← Back to Feed</button>
         </div>
       </div>
     );
@@ -295,12 +307,13 @@ export default function CastDetailClient() {
 
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px' }}>
         {/* Back */}
-        <Link
-          href="/feed"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted-on-dark, #999)', textDecoration: 'none', marginBottom: 20, fontSize: 14 }}
+        <button
+          type="button"
+          onClick={handleBack}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted-on-dark, #999)', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', marginBottom: 20, fontSize: 14 }}
         >
           ← Back
-        </Link>
+        </button>
 
         {/* Parent thread context */}
         {parentChain.length > 0 && (
