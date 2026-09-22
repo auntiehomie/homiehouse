@@ -6,6 +6,7 @@ import UrlPreview from './UrlPreview';
 import EmbedRenderer, { findFarcasterCastUrls, parseFarcasterCastUrl } from './EmbedRenderer';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 import ParentCastBadge from './ParentCastBadge';
+import AICurationSuggestions from './AICurationSuggestions';
 import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
@@ -162,6 +163,7 @@ export default function FeedList({
   const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
+  const [curationFid, setCurationFid] = useState<number | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [curateLoading, setCurateLoading] = useState(false);
   const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
@@ -180,6 +182,25 @@ export default function FeedList({
     } catch {
       return null;
     }
+  };
+
+  const openCastDetail = (castHash: string) => {
+    const cacheKey = `hh_feed_${feedType}_${selectedChannel ?? 'all'}`;
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        items: Array.isArray(items) ? items.slice(0, 100) : items,
+        cursor,
+        ts: Date.now(),
+      }));
+      sessionStorage.setItem('hh_feed_return', JSON.stringify({
+        scrollY: window.scrollY,
+        feedType,
+        selectedChannel,
+        castHash,
+        ts: Date.now(),
+      }));
+    } catch {}
+    router.push(`/cast/${castHash}`);
   };
 
   const handleLike = async (castHash: string, authorFid: number) => {
@@ -278,6 +299,7 @@ export default function FeedList({
         alert(data.alreadyAdded ? `Already in "${curateListName}"` : `✅ ${data.message}`);
         setCurateListName("");
         setCuratingCast(null);
+        setCurationFid(null);
       } else {
         alert(`Failed to curate: ${data.error || 'Unknown error'}`);
       }
@@ -331,9 +353,19 @@ export default function FeedList({
     setCursor(null);
     setHasMore(true);
 
-    // Restore from sessionStorage cache immediately (skip skeleton) unless pull-to-refresh
+    let restoredReturn = false;
+
+    // Restore from sessionStorage cache immediately (skip skeleton) unless pull-to-refresh.
+    // When returning from cast detail, keep that exact snapshot instead of
+    // replacing it with a fresh first page before scroll restoration completes.
     if (!isManualRefresh) {
       try {
+        const returnRaw = sessionStorage.getItem('hh_feed_return');
+        const returnState = returnRaw ? JSON.parse(returnRaw) : null;
+        const isReturn = returnState
+          && Date.now() - Number(returnState.ts || 0) < 10 * 60 * 1000
+          && returnState.feedType === feedType
+          && (returnState.selectedChannel ?? null) === selectedChannel;
         const raw = sessionStorage.getItem(cacheKey);
         if (raw) {
           const { items: ci, cursor: cc, ts } = JSON.parse(raw);
@@ -341,6 +373,7 @@ export default function FeedList({
             setItems(ci);
             setCursor(cc ?? null);
             setHasMore(!!cc);
+            restoredReturn = !!isReturn;
           } else {
             setItems(null);
           }
@@ -350,6 +383,10 @@ export default function FeedList({
       } catch {
         setItems(null);
       }
+    }
+
+    if (restoredReturn) {
+      return () => { mounted = false; };
     }
 
     (async () => {
@@ -407,6 +444,34 @@ export default function FeedList({
       mounted = false;
     };
   }, [feedType, selectedChannel, refreshKey]);
+
+  const restoredScrollRef = useRef(false);
+  useEffect(() => {
+    if (items === null || restoredScrollRef.current) return;
+    try {
+      const raw = sessionStorage.getItem('hh_feed_return');
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (
+        Date.now() - Number(saved.ts || 0) > 10 * 60 * 1000
+        || saved.feedType !== feedType
+        || (saved.selectedChannel ?? null) !== selectedChannel
+      ) return;
+
+      restoredScrollRef.current = true;
+      sessionStorage.removeItem('hh_feed_return');
+      const target = Math.max(0, Number(saved.scrollY) || 0);
+      let attempts = 0;
+      const restore = () => {
+        window.scrollTo({ top: target, behavior: 'auto' });
+        attempts += 1;
+        if (attempts < 20 && Math.abs(window.scrollY - target) > 2) {
+          requestAnimationFrame(restore);
+        }
+      };
+      requestAnimationFrame(restore);
+    } catch {}
+  }, [items, feedType, selectedChannel]);
 
   // loadMore: fetch next page and append
   const loadMore = async () => {
@@ -768,7 +833,7 @@ export default function FeedList({
             )}
             {!textIsOnlyFcCastUrls && (
             <div
-              onClick={() => router.push(`/cast/${key}`)}
+              onClick={() => openCastDetail(key)}
               style={{
                 marginTop: 2,
                 wordBreak: 'break-word',
@@ -847,13 +912,14 @@ export default function FeedList({
               alignItems: 'center'
             }}>
               <span>
-                <Link
-                  href={`/cast/${key}`}
-                  style={{ color: 'var(--muted-on-dark)', textDecoration: 'none' }}
+                <button
+                  type="button"
+                  onClick={() => openCastDetail(key)}
+                  style={{ color: 'var(--muted-on-dark)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}
                   className="hover:underline"
                 >
                   {timeLabel}
-                </Link>
+                </button>
                 {it.channel?.id && (
                   <Link
                     href={`/channel/${it.channel.id}`}
@@ -925,7 +991,22 @@ export default function FeedList({
               {/* Curate */}
               <ActionBtn
                 active={curatingCast === key}
-                onClick={() => setCuratingCast(curatingCast === key ? null : key)}
+                onClick={() => {
+                  if (curatingCast === key) {
+                    setCuratingCast(null);
+                    setCurateListName('');
+                    setCurationFid(null);
+                    return;
+                  }
+                  const profile = getProfile();
+                  if (!profile?.fid) {
+                    alert('Please sign in to curate casts');
+                    return;
+                  }
+                  setCurationFid(Number(profile.fid));
+                  setCurateListName('');
+                  setCuratingCast(key);
+                }}
                 icon={
                   <svg width="15" height="15" viewBox="0 0 24 24" fill={curatingCast === key ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
                 }
@@ -1019,14 +1100,26 @@ export default function FeedList({
 
             {curatingCast === key && (
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                {curationFid ? (
+                  <AICurationSuggestions
+                    fid={curationFid}
+                    cast={{
+                      text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+                      channelId: it.channel?.id,
+                      authorUsername,
+                    }}
+                    onChoose={setCurateListName}
+                  />
+                ) : null}
                 <input
                   type="text"
                   value={curateListName}
                   onChange={(e) => setCurateListName(e.target.value)}
                   placeholder="Enter list name (e.g., 'Favorite Crypto Takes')"
                   autoFocus
-                  onKeyPress={(e) => {
+                  onKeyDown={(e) => {
                     if (e.key === 'Enter' && curateListName.trim()) {
+                      e.preventDefault();
                       handleCurateCast(key, {
                         authorFid: authorObj?.fid,
                         text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
@@ -1054,6 +1147,7 @@ export default function FeedList({
                     onClick={() => {
                       setCuratingCast(null);
                       setCurateListName("");
+                      setCurationFid(null);
                     }}
                     disabled={curateLoading}
                   >

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import FeedList from "./FeedList";
 import TrendingList, { prefetchTrending } from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
-import ChannelStrip from "./ChannelStrip";
 import { TooltipTrigger } from "@/lib/progressive-disclosure";
 
 export type FeedType = 'following' | 'global';
@@ -15,7 +14,7 @@ interface FeedTrendingTabsProps {
   defaultFeedType?: FeedType;
 }
 
-export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType = 'following' }: FeedTrendingTabsProps = {}) {
+export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType = 'global' }: FeedTrendingTabsProps = {}) {
   const [tab, setTab] = useState<'feed'|'trending'>(defaultTab);
   const [feedType, setFeedType] = useState<FeedType>(defaultFeedType);
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
@@ -25,6 +24,20 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
 
   useEffect(() => {
     prefetchTrending();
+
+    // A cast-detail round trip should restore the view the person came from.
+    // Fresh feed visits still begin on Global.
+    try {
+      const raw = sessionStorage.getItem('hh_feed_return');
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (Date.now() - Number(saved.ts || 0) > 10 * 60 * 1000) return;
+      if (saved.feedType === 'following' || saved.feedType === 'global') {
+        setTab('feed');
+        setFeedType(saved.feedType);
+        setSelectedChannel(typeof saved.selectedChannel === 'string' ? saved.selectedChannel : null);
+      }
+    } catch {}
   }, []);
 
   return (
@@ -49,18 +62,18 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
           <>
             <div className="w-px bg-zinc-700 h-5 mx-1 shrink-0" />
             <button
-              onClick={() => { setFeedType('following'); setSelectedChannel(null); }}
-              className={"btn text-xs shrink-0 " + (feedType === 'following' ? 'primary' : '')}
-              style={{ padding: '6px 12px', minWidth: 'auto' }}
-            >
-              <TooltipTrigger termKey="cast">Following</TooltipTrigger>
-            </button>
-            <button
               onClick={() => { setFeedType('global'); setSelectedChannel(null); }}
               className={"btn text-xs shrink-0 " + (feedType === 'global' ? 'primary' : '')}
               style={{ padding: '6px 12px', minWidth: 'auto' }}
             >
               <TooltipTrigger termKey="cast">Global</TooltipTrigger>
+            </button>
+            <button
+              onClick={() => { setFeedType('following'); setSelectedChannel(null); }}
+              className={"btn text-xs shrink-0 " + (feedType === 'following' ? 'primary' : '')}
+              style={{ padding: '6px 12px', minWidth: 'auto' }}
+            >
+              <TooltipTrigger termKey="cast">Following</TooltipTrigger>
             </button>
           </>
         )}
@@ -75,13 +88,6 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
           >
             Clear
           </button>
-        </div>
-      )}
-
-      {/* Channel strip: visible on mobile/tablet, hidden on desktop (shown in sidebar) */}
-      {tab === 'feed' && (
-        <div className="lg:hidden">
-          <ChannelStrip />
         </div>
       )}
 

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import FeedTrendingTabs from "@/components/FeedTrendingTabs";
 import SidebarNav from "@/components/SidebarNav";
@@ -43,7 +42,7 @@ export default function FeedClient() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
-      <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+      <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0 flex items-center gap-2">
             <Link href="/learn">

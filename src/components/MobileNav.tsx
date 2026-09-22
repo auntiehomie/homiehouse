@@ -160,7 +160,6 @@ export default function MobileNav() {
           top: 0, left: 0, right: 0,
           zIndex: 9500,
           background: 'var(--nav-bg)',
-          borderBottom: '1px solid var(--nav-border)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           // Extend background into the safe area so the notch/status bar region is opaque
