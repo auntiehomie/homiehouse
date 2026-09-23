@@ -11,6 +11,7 @@
 export interface FarcasterAuthHeaders {
   'x-farcaster-fid': string;
   'x-signer-key': string;
+  'x-signer-uuid'?: string;
 }
 
 /**
@@ -35,6 +36,9 @@ export function getAuthHeaders(): FarcasterAuthHeaders | null {
     return {
       'x-farcaster-fid': String(fid),
       'x-signer-key': signer.private_key,
+      ...(typeof signer.signer_uuid === 'string' && signer.signer_uuid
+        ? { 'x-signer-uuid': signer.signer_uuid }
+        : {}),
     };
   } catch {
     return null;
