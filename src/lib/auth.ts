@@ -11,7 +11,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { getPublicKey as ed25519GetPublicKey } from '@noble/ed25519';
+import { getPublicKeyAsync as ed25519GetPublicKey } from '@noble/ed25519';
 import { AuthError } from './errors';
 import { sql } from './db';
 
@@ -80,7 +80,7 @@ export async function cacheApprovedSigner(
  * Derive the Ed25519 public key from a private key hex string.
  * Returns the hex-encoded public key (with 0x prefix).
  */
-function derivePublicKey(privateKeyHex: string): string {
+async function derivePublicKey(privateKeyHex: string): Promise<string> {
   // Normalize: strip 0x prefix if present
   const cleanHex = privateKeyHex.startsWith('0x')
     ? privateKeyHex.slice(2)
@@ -97,7 +97,7 @@ function derivePublicKey(privateKeyHex: string): string {
 
   try {
     const privateKeyBytes = Buffer.from(cleanHex, 'hex');
-    const publicKeyBytes = ed25519GetPublicKey(privateKeyBytes);
+    const publicKeyBytes = await ed25519GetPublicKey(privateKeyBytes);
     return `0x${Buffer.from(publicKeyBytes).toString('hex')}`;
   } catch {
     throw new AuthError(
@@ -156,7 +156,7 @@ export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<n
 
   // Derive the public key from the provided private key
   // This validates the key is a real Ed25519 key (not arbitrary garbage)
-  const publicKeyHex = derivePublicKey(signerKey);
+  const publicKeyHex = await derivePublicKey(signerKey);
 
   // Verify the signer exists in our cache of approved signers
   try {
@@ -215,7 +215,7 @@ export async function verifyFarcasterSigner(
 
   // If signerKey provided, verify it properly
   if (signerKey) {
-    const publicKeyHex = derivePublicKey(signerKey);
+    const publicKeyHex = await derivePublicKey(signerKey);
     try {
       await ensureSignersTable();
       const rows = await sql`
