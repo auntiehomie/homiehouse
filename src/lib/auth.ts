@@ -12,10 +12,16 @@
 
 import { NextRequest } from 'next/server';
 import { getPublicKeyAsync as ed25519GetPublicKey } from '@noble/ed25519';
+import { decodeFunctionResult, encodeFunctionData, parseAbi } from 'viem';
 import { AuthError } from './errors';
 import { sql } from './db';
 
 const WARPCAST_API = 'https://api.warpcast.com';
+const KEY_REGISTRY = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
+const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
+const keyRegistryAbi = parseAbi([
+  'function keyDataOf(uint256 fid, bytes key) view returns ((uint8 state, uint32 keyType))',
+]);
 
 // ── Table lifecycle ──────────────────────────────────────────────────────────
 
@@ -123,38 +129,74 @@ async function recoverApprovedSigner(
   publicKeyHex: string,
   signerToken: string | null,
 ): Promise<boolean> {
-  if (!signerToken || signerToken.length > 512) return false;
+  if (signerToken && signerToken.length <= 512) {
+    try {
+      const response = await fetch(
+        `${WARPCAST_API}/v2/signed-key-request?token=${encodeURIComponent(signerToken)}`,
+        {
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(5000),
+        },
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const request = data.result?.signedKeyRequest || data;
+        const recoveredFid = Number(request.userFid);
+        const recoveredKey = typeof request.key === 'string'
+          ? request.key.toLowerCase()
+          : '';
 
+        if (
+          request.state === 'completed'
+          && recoveredFid === fid
+          && recoveredKey === publicKeyHex.toLowerCase()
+        ) {
+          await cacheApprovedSigner(fid, publicKeyHex, signerToken);
+          return true;
+        }
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[auth] signed-key request recovery failed:', message);
+    }
+  }
+
+  // Older HomieHouse signer records may not retain a usable request token.
+  // The Farcaster Key Registry remains the protocol source of truth, so check
+  // the derived public key directly against the FID's active onchain keys.
   try {
-    const response = await fetch(
-      `${WARPCAST_API}/v2/signed-key-request?token=${encodeURIComponent(signerToken)}`,
-      {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(5000),
-      },
-    );
+    const callData = encodeFunctionData({
+      abi: keyRegistryAbi,
+      functionName: 'keyDataOf',
+      args: [BigInt(fid), publicKeyHex as `0x${string}`],
+    });
+    const response = await fetch(OP_RPC, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_call',
+        params: [{ to: KEY_REGISTRY, data: callData }, 'latest'],
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
     if (!response.ok) return false;
 
-    const data = await response.json();
-    const request = data.result?.signedKeyRequest || data;
-    const recoveredFid = Number(request.userFid);
-    const recoveredKey = typeof request.key === 'string'
-      ? request.key.toLowerCase()
-      : '';
+    const payload = await response.json();
+    if (typeof payload.result !== 'string') return false;
+    const keyData = decodeFunctionResult({
+      abi: keyRegistryAbi,
+      functionName: 'keyDataOf',
+      data: payload.result as `0x${string}`,
+    });
+    if (keyData.state !== 1 || keyData.keyType !== 1) return false;
 
-    if (
-      request.state !== 'completed'
-      || recoveredFid !== fid
-      || recoveredKey !== publicKeyHex.toLowerCase()
-    ) {
-      return false;
-    }
-
-    await cacheApprovedSigner(fid, publicKeyHex, signerToken);
+    await cacheApprovedSigner(fid, publicKeyHex, signerToken ?? undefined);
     return true;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn('[auth] could not recover approved signer:', message);
+    console.warn('[auth] onchain signer recovery failed:', message);
     return false;
   }
 }
