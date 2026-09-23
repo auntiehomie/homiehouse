@@ -15,6 +15,8 @@ import { getPublicKeyAsync as ed25519GetPublicKey } from '@noble/ed25519';
 import { AuthError } from './errors';
 import { sql } from './db';
 
+const WARPCAST_API = 'https://api.warpcast.com';
+
 // ── Table lifecycle ──────────────────────────────────────────────────────────
 
 let signersTableReady = false;
@@ -108,6 +110,55 @@ async function derivePublicKey(privateKeyHex: string): Promise<string> {
   }
 }
 
+/**
+ * Rehydrate the local signer cache from Farcaster's signed-key request.
+ *
+ * The cache can be empty after a database reset or migration even though the
+ * browser still holds a valid approved signer. The signed-key request token is
+ * safe to use as a lookup identifier; approval is accepted only when Farcaster
+ * reports the same FID and public key derived from the supplied private key.
+ */
+async function recoverApprovedSigner(
+  fid: number,
+  publicKeyHex: string,
+  signerToken: string | null,
+): Promise<boolean> {
+  if (!signerToken || signerToken.length > 512) return false;
+
+  try {
+    const response = await fetch(
+      `${WARPCAST_API}/v2/signed-key-request?token=${encodeURIComponent(signerToken)}`,
+      {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    const request = data.result?.signedKeyRequest || data;
+    const recoveredFid = Number(request.userFid);
+    const recoveredKey = typeof request.key === 'string'
+      ? request.key.toLowerCase()
+      : '';
+
+    if (
+      request.state !== 'completed'
+      || recoveredFid !== fid
+      || recoveredKey !== publicKeyHex.toLowerCase()
+    ) {
+      return false;
+    }
+
+    await cacheApprovedSigner(fid, publicKeyHex, signerToken);
+    return true;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('[auth] could not recover approved signer:', message);
+    return false;
+  }
+}
+
 // ── Request-level auth ────────────────────────────────────────────────────────
 
 /**
@@ -128,6 +179,7 @@ async function derivePublicKey(privateKeyHex: string): Promise<string> {
 export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<number> {
   const fidHeader = request.headers.get('x-farcaster-fid');
   const signerKey = request.headers.get('x-signer-key');
+  const signerToken = request.headers.get('x-signer-uuid');
 
   if (!fidHeader || !signerKey) {
     // Check for old Bearer token format (backward compat)
@@ -171,8 +223,11 @@ export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<n
     `;
 
     if (rows.length === 0) {
-      // Signer not found or not approved — could be a new signer
-      // that hasn't been cached yet, or an impostor
+      // A valid signer can outlive the database cache. Recover it from the
+      // Farcaster approval record, while still requiring an exact FID/key match.
+      const recovered = await recoverApprovedSigner(fid, publicKeyHex, signerToken);
+      if (recovered) return fid;
+
       throw new AuthError(
         'Invalid or unapproved signer key for this FID',
         401,
