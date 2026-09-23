@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import ComposeInspiration from '@/components/ComposeInspiration';
 
 function ComposePageInner() {
   const router = useRouter();
@@ -702,6 +703,18 @@ function ComposePageInner() {
           </div>
         </div>
       </div>
+
+      {userFid && hasActiveSigner ? (
+        <ComposeInspiration
+          fid={userFid}
+          hasText={text.trim().length > 0}
+          onUseDraft={(draft) => {
+            setText(draft);
+            setStatus('Draft added — make it yours before posting.');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
