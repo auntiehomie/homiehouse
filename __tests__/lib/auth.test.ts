@@ -63,6 +63,33 @@ describe('Farcaster signer authentication', () => {
     expect(mockSql).toHaveBeenCalledTimes(2);
   });
 
+  it('recovers an older signer directly from the Farcaster Key Registry', async () => {
+    mockSql
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        result: `0x${'0'.repeat(63)}1${'0'.repeat(63)}1`,
+      }),
+    });
+
+    const request = new NextRequest('http://localhost/api/compose/suggestions', {
+      method: 'POST',
+      headers: {
+        'x-farcaster-fid': '123',
+        'x-signer-key': `0x${'01'.repeat(32)}`,
+      },
+    });
+
+    await expect(verifyFarcasterSignerAuth(request)).resolves.toBe(123);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(mockSql).toHaveBeenCalledTimes(2);
+  });
+
   it('rejects malformed signer keys before querying for approval', async () => {
     const request = new NextRequest('http://localhost/api/compose/suggestions', {
       method: 'POST',
