@@ -14,6 +14,7 @@ import { FeedType } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { forgetRecentInteraction, rememberRecentInteraction } from '@/lib/recent-interactions';
 
 // Heavy markdown libs loaded lazily — not needed until a cast with markdown renders
 const LazyMarkdown = dynamic(
@@ -157,6 +158,7 @@ export default function FeedList({
   const [replyLoading, setReplyLoading] = useState(false);
   const [showRecastModal, setShowRecastModal] = useState<string | null>(null);
   const [showRecastAuthorFid, setShowRecastAuthorFid] = useState<number>(0);
+  const [showRecastSnapshot, setShowRecastSnapshot] = useState<{ text: string; authorUsername?: string; channelId?: string } | null>(null);
   const [showQuoteModal, setShowQuoteModal] = useState<string | null>(null);
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -203,16 +205,22 @@ export default function FeedList({
     router.push(`/cast/${castHash}`);
   };
 
-  const handleLike = async (castHash: string, authorFid: number) => {
+  const handleLike = async (
+    castHash: string,
+    authorFid: number,
+    snapshot: { text: string; authorUsername?: string; channelId?: string },
+  ) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
     setActionLoading(`like-${castHash}`);
     try {
       if (likedCasts.has(castHash)) {
         await unlikeCast({ targetCastHash: castHash, targetCastFid: authorFid });
         setLikedCasts(prev => { const next = new Set(prev); next.delete(castHash); return next; });
+        forgetRecentInteraction('like', castHash);
       } else {
         await likeCast({ targetCastHash: castHash, targetCastFid: authorFid });
         setLikedCasts(prev => new Set([...prev, castHash]));
+        rememberRecentInteraction({ type: 'like', castHash, authorFid, ...snapshot });
       }
     } catch (error: any) {
       console.error('Like error:', error);
@@ -222,16 +230,22 @@ export default function FeedList({
     }
   };
 
-  const handleRecast = async (castHash: string, authorFid: number) => {
+  const handleRecast = async (
+    castHash: string,
+    authorFid: number,
+    snapshot: { text: string; authorUsername?: string; channelId?: string } | null,
+  ) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
     setActionLoading(`recast-${castHash}`);
     try {
       if (recastedCasts.has(castHash)) {
         await removeRecast({ targetCastHash: castHash, targetCastFid: authorFid });
         setRecastedCasts(prev => { const next = new Set(prev); next.delete(castHash); return next; });
+        forgetRecentInteraction('recast', castHash);
       } else {
         await recastFn({ targetCastHash: castHash, targetCastFid: authorFid });
         setRecastedCasts(prev => new Set([...prev, castHash]));
+        if (snapshot) rememberRecentInteraction({ type: 'recast', castHash, authorFid, ...snapshot });
       }
     } catch (error: any) {
       console.error('Recast error:', error);
@@ -951,7 +965,11 @@ export default function FeedList({
               <ActionBtn
                 active={likedCasts.has(key)}
                 disabled={actionLoading === `like-${key}`}
-                onClick={() => handleLike(key, authorObj?.fid ?? 0)}
+                onClick={() => handleLike(key, authorObj?.fid ?? 0, {
+                  text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+                  authorUsername,
+                  channelId: it.channel?.id,
+                })}
                 icon={
                   <svg width="15" height="15" viewBox="0 0 24 24" fill={likedCasts.has(key) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
                 }
@@ -962,7 +980,15 @@ export default function FeedList({
               <ActionBtn
                 active={recastedCasts.has(key)}
                 disabled={actionLoading === `recast-${key}`}
-                onClick={() => { setShowRecastModal(key); setShowRecastAuthorFid(authorObj?.fid ?? 0); }}
+                onClick={() => {
+                  setShowRecastModal(key);
+                  setShowRecastAuthorFid(authorObj?.fid ?? 0);
+                  setShowRecastSnapshot({
+                    text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+                    authorUsername,
+                    channelId: it.channel?.id,
+                  });
+                }}
                 icon={
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>
                 }
@@ -1231,7 +1257,7 @@ export default function FeedList({
               {recastedCasts.has(showRecastModal) ? (
                 <button
                   onClick={async () => {
-                    await handleRecast(showRecastModal, showRecastAuthorFid);
+                    await handleRecast(showRecastModal, showRecastAuthorFid, showRecastSnapshot);
                     setShowRecastModal(null);
                   }}
                   className="btn"
@@ -1252,7 +1278,7 @@ export default function FeedList({
               ) : (
                 <button
                   onClick={async () => {
-                    await handleRecast(showRecastModal, showRecastAuthorFid);
+                    await handleRecast(showRecastModal, showRecastAuthorFid, showRecastSnapshot);
                     setShowRecastModal(null);
                   }}
                   className="btn primary"
