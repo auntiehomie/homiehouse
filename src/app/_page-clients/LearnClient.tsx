@@ -13,6 +13,7 @@ import { useAccount, useReadContract, useChainId } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { formatUnits } from 'viem';
+import { prefetchLesson } from '@/lib/lesson-client-cache';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -803,6 +804,27 @@ function LearnPageContent() {
     if (plan) { try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...completedIds])); } catch { } }
   }, [completedIds, plan]);
 
+  // Warm the next lesson while the learner is reviewing their plan. The API's
+  // server cache still owns freshness; this removes the navigation-time wait on
+  // repeat visits and turns a cache hit into an instant module open.
+  useEffect(() => {
+    if (!plan || pageState !== 'plan') return;
+    const nextModule = plan.modules.find(module => !completedIds.has(module.id));
+    if (!nextModule) return;
+
+    const warmLesson = () => prefetchLesson(nextModule, getEli5Mode());
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const idleId = idleWindow.requestIdleCallback(warmLesson, { timeout: 1200 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+    const timer = globalThis.setTimeout(warmLesson, 300);
+    return () => globalThis.clearTimeout(timer);
+  }, [plan, completedIds, pageState]);
+
   useEffect(() => {
     fetch('/api/learner-count').then(r => r.json()).then(d => setLearnerCount(d.count || 0)).catch(() => {});
   }, []);
@@ -953,8 +975,10 @@ function LearnPageContent() {
 
   const navigateToModule = useCallback((id: string) => {
     setNavigating(true);
-    setTimeout(() => router.push(`/learn/module?id=${id}`), 200);
-  }, [router]);
+    const module = plan?.modules.find(item => item.id === id);
+    if (module) prefetchLesson(module, getEli5Mode());
+    router.push(`/learn/module?id=${encodeURIComponent(id)}`);
+  }, [plan, router]);
 
   const toggleModule = useCallback((id: string) => {
     setCompletedIds((prev) => {
@@ -1156,6 +1180,27 @@ function LearnPageContent() {
             ✨ Personalizing your plan based on your goals…
           </div>
         )}
+
+        <div style={{
+          marginBottom: 16, padding: '14px 16px', borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(52,211,153,.09), rgba(99,102,241,.09))',
+          border: '1px solid rgba(99,102,241,.24)',
+        }}>
+          <p style={{ margin: '0 0 10px', color: 'var(--text-on-dark)', fontSize: 14, fontWeight: 750 }}>
+            Learn it → spot it in your feed → explain it back
+          </p>
+          <p style={{ margin: 0, color: 'var(--muted-on-dark)', fontSize: 12, lineHeight: 1.6 }}>
+            HomieHouse turns Farcaster conversations into a personal curriculum, gives you a place to ask questions, then helps you share what clicked with the community.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
+            <button onClick={() => setActiveTab('feed')} style={{ padding: '7px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 12, fontWeight: 650, cursor: 'pointer' }}>
+              Explore the learning feed
+            </button>
+            <button onClick={() => setActiveTab('homie')} style={{ padding: '7px 11px', borderRadius: 8, border: '1px solid rgba(99,102,241,.35)', background: 'rgba(99,102,241,.1)', color: '#c7d2fe', fontSize: 12, fontWeight: 650, cursor: 'pointer' }}>
+              Ask Homie a question
+            </button>
+          </div>
+        </div>
 
         {/* Progress — shown at top so it's immediately visible */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
