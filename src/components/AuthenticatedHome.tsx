@@ -65,12 +65,15 @@ export default function AuthenticatedHome() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <p style={{ margin: '0 0 6px', color: '#6ee7b7', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>Your learning journey</p>
+            <p style={{ margin: '0 0 6px', color: '#6ee7b7', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>Your learning layer for Farcaster</p>
             <h2 style={{ margin: '0 0 7px', fontSize: 20, color: 'var(--text-on-dark)' }}>
               {nextModule?.title ?? (modules.length ? 'Learning plan complete!' : 'Build your first learning plan')}
             </h2>
             <p style={{ margin: 0, color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.55 }}>
-              {plan?.summary ?? 'Tell Homie what you want to learn and get a plan made for you.'}
+              {plan?.summary ?? 'Turn the topics in your feed into a personal path, ask questions in plain English, and share what clicks.'}
+            </p>
+            <p style={{ margin: '9px 0 0', color: '#a5b4fc', fontSize: 12, fontWeight: 650 }}>
+              Learn it → spot it in your feed → explain it back
             </p>
           </div>
           <Link href={nextModule ? `/learn/module?id=${encodeURIComponent(nextModule.id)}` : '/learn'} style={{

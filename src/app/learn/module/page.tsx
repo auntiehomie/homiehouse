@@ -7,37 +7,18 @@ import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import {
+  getCachedLesson,
+  loadLesson,
+  type LessonContent,
+  type LessonModuleRequest as LearningModule,
+  type LessonQuizQuestion as QuizQuestion,
+} from '@/lib/lesson-client-cache';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
 const LS_COMPLETIONS_KEY = 'hh_learning_completions';
-
-interface LearningModule {
-  id: string;
-  title: string;
-  description: string;
-  whyItMatters: string;
-  objectives: string[];
-  estimatedMinutes: number;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  tags: string[];
-}
-
-interface QuizQuestion {
-  question: string;
-  options: string[];
-  correctIndex: number;
-  explanation: string;
-}
-
-interface LessonContent {
-  intro: string;
-  concepts: Array<{ title: string; explanation: string; analogy?: string }>;
-  practicalExample: string;
-  quickActions: string[];
-  summary: string;
-  quiz: QuizQuestion[];
-}
+const LS_CARD_POSITION_PREFIX = 'hh_lesson_position:';
 
 // ─── Card types ───────────────────────────────────────────────────────────────
 
@@ -91,12 +72,11 @@ function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
 
 function CardBody({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
+    <div className="hh-lesson-card-scroll" style={{
       flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any,
       display: 'flex', flexDirection: 'column',
     }}>
-      <div style={{
-        margin: 'auto 0',
+      <div className="hh-lesson-card-body" style={{
         padding: '20px 20px 24px',
         display: 'flex', flexDirection: 'column', gap: 18,
         maxWidth: 560, width: '100%', alignSelf: 'center',
@@ -219,7 +199,7 @@ function ActionsCard({ items }: { items: string[] }) {
   );
 }
 
-function SummaryCard({ content }: { content: string }) {
+function SummaryCard({ content, onShare }: { content: string; onShare: () => void }) {
   return (
     <CardBody>
       <div style={{
@@ -230,6 +210,16 @@ function SummaryCard({ content }: { content: string }) {
           {content}
         </p>
       </div>
+      <button
+        onClick={onShare}
+        style={{
+          width: '100%', padding: '13px 16px', borderRadius: 12,
+          background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+          color: '#c7d2fe', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        Share what clicked on Farcaster →
+      </button>
       <div style={{
         padding: '12px 14px', borderRadius: 12,
         background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)',
@@ -531,24 +521,39 @@ function ModuleLessonContent() {
       const progress: string[] = progRaw ? JSON.parse(progRaw) : [];
       setAlreadyDone(progress.includes(moduleId));
 
-      fetch('/api/lesson', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...found, eli5: getEli5Mode() }),
-      })
-        .then(r => r.json())
+      const eli5 = getEli5Mode();
+      const cached = getCachedLesson(found, eli5);
+      if (cached) {
+        setCards(buildCards(cached, found));
+        setLoading(false);
+        return;
+      }
+
+      loadLesson(found, eli5)
         .then(data => {
-          if (data.error) throw new Error(data.error);
-          setCards(buildCards(data as LessonContent, found));
+          setCards(buildCards(data, found));
           setLoading(false);
         })
-        .catch(err => { setError('Failed to load lesson.'); setLoading(false); });
+        .catch(() => { setError('Failed to load lesson.'); setLoading(false); });
     } catch { setError('Could not load module.'); setLoading(false); }
   }, [moduleId, router]);
 
+  useEffect(() => {
+    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    try {
+      const saved = Number(localStorage.getItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`));
+      if (Number.isInteger(saved) && saved > 0 && saved < cards.length - 1) setCardIndex(saved);
+    } catch {}
+  }, [moduleId, cards.length, alreadyDone]);
+
+  useEffect(() => {
+    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    try { localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cardIndex)); } catch {}
+  }, [moduleId, cards.length, cardIndex, alreadyDone]);
+
   const currentCard = cards[cardIndex];
   const totalCards = cards.length;
-  const progress = totalCards > 0 ? (cardIndex / (totalCards - 1)) : 0;
+  const progress = totalCards > 0 ? ((cardIndex + 1) / totalCards) : 0;
 
   const navigate = useCallback((direction: 'forward' | 'back') => {
     if (animating) return;
@@ -588,6 +593,7 @@ function ModuleLessonContent() {
       if (!progress.includes(moduleId)) {
         localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(updatedProgress));
       }
+      localStorage.removeItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`);
       if (mod) {
         const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
         const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number }> =
@@ -740,6 +746,15 @@ function ModuleLessonContent() {
     router.push(`/compose?text=${encodeURIComponent(text)}`);
   };
 
+  const handleShareTakeaway = () => {
+    if (!mod || !currentCard || currentCard.type !== 'summary') return;
+    const takeaway = currentCard.content.length > 180
+      ? `${currentCard.content.slice(0, 177).trimEnd()}…`
+      : currentCard.content;
+    const text = `One thing I learned in “${mod.title}”:\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
+    router.push(`/compose?text=${encodeURIComponent(text)}`);
+  };
+
   const handleBack = () => {
     if (cardIndex > 0) navigate('back');
     else router.push('/learn');
@@ -775,9 +790,7 @@ function ModuleLessonContent() {
   }
 
   return (
-    <div style={{
-      height: '100dvh',
-      paddingTop: 'env(safe-area-inset-top, 0px)',
+    <div className="hh-lesson-shell" style={{
       boxSizing: 'border-box',
       display: 'flex', flexDirection: 'column',
       background: 'var(--bg-dark)', color: 'var(--text-on-dark)',
@@ -808,7 +821,7 @@ function ModuleLessonContent() {
           {cardIndex === 0 ? 'Back' : 'Previous'}
         </button>
 
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', minWidth: 0, flex: 1, padding: '0 8px' }}>
           {currentCard && (
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--accent)', margin: 0 }}>
               {currentCard.label}
@@ -821,8 +834,8 @@ function ModuleLessonContent() {
           )}
         </div>
 
-        <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', minWidth: 40, textAlign: 'right' }}>
-          {loading ? '' : `${cardIndex + 1}/${totalCards}`}
+        <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', minWidth: 58, textAlign: 'right', whiteSpace: 'nowrap' }}>
+          {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
         </div>
       </div>
 
@@ -835,6 +848,14 @@ function ModuleLessonContent() {
         @keyframes celebrateBounce { 0% { opacity: 0; transform: scale(0) rotate(-20deg); } 50% { opacity: 1; transform: scale(1.3) rotate(10deg); } 70% { transform: scale(0.9) rotate(-5deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
         @keyframes hhSpin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .hh-lesson-shell { height: calc(100dvh - 56px); }
+        .hh-lesson-card-body { margin: 0 auto; }
+        @media (min-width: 1024px) {
+          .hh-lesson-shell { height: 100dvh; }
+        }
+        @media (min-width: 768px) and (min-height: 760px) {
+          .hh-lesson-card-body { margin: auto; }
+        }
       `}</style>
       <div
         style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}
@@ -860,7 +881,7 @@ function ModuleLessonContent() {
               )}
               {currentCard.type === 'example' && <ExampleCard content={currentCard.content} />}
               {currentCard.type === 'actions' && <ActionsCard items={currentCard.items} />}
-              {currentCard.type === 'summary' && <SummaryCard content={currentCard.content} />}
+              {currentCard.type === 'summary' && <SummaryCard content={currentCard.content} onShare={handleShareTakeaway} />}
               {currentCard.type === 'quiz' && (
                 <QuizCard
                   question={currentCard.question}

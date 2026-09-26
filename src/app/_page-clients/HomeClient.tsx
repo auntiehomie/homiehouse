@@ -177,12 +177,20 @@ export default function HomeClient() {
             background: 'linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           }}>
-            Your cozy, decentralized<br />learning corner.
+            Don’t just scroll Farcaster.<br />Understand it.
           </h1>
 
           <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', color: '#71717a', maxWidth: 520, lineHeight: 1.7, margin: '0 0 36px' }}>
-            AI-built learning plans, your Farcaster feed, an AI tutor, and a personal knowledge base — all in one place. Free, and built on the open social web.
+            HomieHouse turns what you see on Farcaster into personalized lessons, plain-English answers, and ideas you can share back with your community.
           </p>
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', margin: '-20px 0 30px' }}>
+            {['Learn what matters', 'Connect it to the feed', 'Contribute with confidence'].map((label, index) => (
+              <span key={label} style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid rgba(99,102,241,.25)', background: 'rgba(99,102,241,.08)', color: '#a5b4fc', fontSize: 12, fontWeight: 600 }}>
+                {index + 1}. {label}
+              </span>
+            ))}
+          </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
             <div style={{ transform: 'scale(1.1)' }}>
