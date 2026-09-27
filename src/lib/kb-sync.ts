@@ -9,6 +9,7 @@
  */
 
 import { sql } from '@/lib/db';
+import { indexKnowledgeBaseArticles } from '@/lib/agent-context';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -252,6 +253,10 @@ export async function syncKnowledgeBase(): Promise<SyncResult> {
       errors.push(`upsert summary "${sm.title}": ${err.message}`);
     }
   }
+
+  // Keep the semantic index aligned with KB summaries so the mention agent
+  // can retrieve by meaning as well as the legacy keyword matcher.
+  await indexKnowledgeBaseArticles();
 
   return { fetched: entries.length + summaries.size, upserted, errors };
 }
