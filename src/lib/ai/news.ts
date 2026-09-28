@@ -17,6 +17,11 @@ export interface CryptoNewsItem {
   source?: string;
 }
 
+export interface TopicWebContext {
+  summary: string;
+  citations: string[];
+}
+
 const NEWS_SYSTEM = `You are a crypto news lookup tool. Search the web for ONE specific, real crypto/web3/blockchain news story from the last 48 hours — something with a real headline and a real source, not a general trend.
 
 Respond with ONLY a JSON object, no other text:
@@ -71,6 +76,60 @@ export async function fetchCryptoNews(): Promise<CryptoNewsItem | null> {
     };
   } catch (err: any) {
     console.warn('[news] fetchCryptoNews failed:', err?.message);
+    return null;
+  }
+}
+
+/**
+ * Search the wider web for a cast topic and return a compact sourced brief.
+ * This is separate from fetchCryptoNews, which always searches for a general
+ * recent crypto headline. Mention replies should search the topic they were
+ * asked about and retain Perplexity's actual citation URLs.
+ */
+export async function searchTopicWeb(query: string): Promise<TopicWebContext | null> {
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  const cleanQuery = query.trim().slice(0, 700);
+  if (!apiKey || cleanQuery.length < 5) return null;
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          {
+            role: 'system',
+            content: 'Research the cast topic using current web sources. Return a concise factual brief that distinguishes established facts from claims or uncertainty. Do not invent URLs or sources.',
+          },
+          {
+            role: 'user',
+            content: `Find useful web context for this Farcaster topic. Focus on the entities and question in the text; return at most 3 short factual sentences.\n\n${cleanQuery}`,
+          },
+        ],
+        temperature: 0.1,
+        max_tokens: 350,
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      console.warn('[news] Perplexity topic search failed:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const summary = String(data?.choices?.[0]?.message?.content ?? '').trim().slice(0, 1200);
+    const citations = Array.isArray(data?.citations)
+      ? data.citations.filter((url: unknown) => typeof url === 'string' && /^https?:\/\//i.test(url)).slice(0, 4)
+      : [];
+    if (!summary || summary.toLowerCase() === 'no results') return null;
+    return { summary, citations };
+  } catch (error) {
+    console.warn('[news] topic web search unavailable:', (error as Error).message);
     return null;
   }
 }

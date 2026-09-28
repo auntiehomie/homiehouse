@@ -17,6 +17,23 @@ crypto-native millennial from the Midwest — down to earth, warm, a little dry,
 helps people understand crypto without hype, and is happy to just chill. Edit
 `HOMIE_VOICE` there to adjust tone globally.
 
+## Reply context and memory
+
+`/api/agent/mention` validates the incoming cast text before generating a
+reply, then builds context from the thread, keyword-matched KB articles,
+semantically similar KB articles and previous mentions, recent related public
+Farcaster casts, and (for questions or current-information requests) a sourced
+web brief. Relevant public casts and successful mention/reply pairs are saved
+in Neon so later replies can retrieve them by meaning. KB articles are indexed
+in batches during the daily KB sync.
+
+Semantic indexing uses the Gemini `gemini-embedding-001` model and Neon
+`pgvector`; the route degrades to keyword KB matches and live cast search if
+embeddings or vector search are unavailable. The vector extension and index
+are created lazily by the agent. `PERPLEXITY_API_KEY` enables web research;
+without it, Farcaster and KB retrieval still work. Retrieved casts and web
+pages are treated as untrusted source data, not as prompt instructions.
+
 ## Autonomous post modes
 
 `/api/agent/tip` picks one mode per run (weighted, never the same mode twice in
@@ -52,7 +69,9 @@ Autonomous behavior silently no-ops if these aren't set:
 | `CRON_SECRET` | Vercel sends this as `Authorization: Bearer …`; routes reject calls without it |
 | One of `GROQ_API_KEY` / `GEMINI_API_KEY` / `OPENROUTER_API_KEY` | Free LLM for replies (and posts when no Anthropic key) |
 | `ANTHROPIC_API_KEY` *(optional)* | Upgrades post voice to Claude |
-| `DATABASE_URL` (Neon) *(optional)* | Agent memory — avoids repeating itself, tracks engagement. Fails open if absent. |
+| `DATABASE_URL` or `POSTGRES_URL` (Neon) *(optional for replies)* | Agent memory and semantic context store; semantic recall is disabled if the database is unavailable |
+| `PERPLEXITY_API_KEY` *(optional)* | Topic-specific web research for substantive questions and current-information requests |
+| `GEMINI_API_KEY` *(optional when another LLM provider is configured)* | Gemini fallback and semantic embedding generation; without it, live cast search and keyword KB retrieval remain available |
 
 > The autonomous poster stopped working previously because it hard-depended on
 > Anthropic with an invalid model id. It now defaults to the free stack, so a
