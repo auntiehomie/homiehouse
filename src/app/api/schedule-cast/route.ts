@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 import { rateLimit } from '@/lib/ratelimit';
 import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
+import { encryptSignerKey } from '@/lib/signer-crypto';
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,10 +55,22 @@ export async function POST(req: NextRequest) {
     const embedsJson = JSON.stringify(Array.isArray(embeds) ? embeds : []);
     const scheduledAt = scheduledDate.toISOString();
 
+    // Capture the signer key from the auth header and encrypt it for server-side publishing.
+    // The key is never in the request body — it's from x-signer-key header, already verified by
+    // verifyFarcasterSignerAuth above. At publish time, the cron job decrypts it to sign the cast.
+    const signerKey = req.headers.get('x-signer-key');
+    if (!signerKey) {
+      return NextResponse.json(
+        { ok: false, error: 'Signer key required to schedule casts' },
+        { status: 401 }
+      );
+    }
+    const encryptedKey = encryptSignerKey(signerKey);
+
     const rows = await sql`
       INSERT INTO scheduled_casts
         (user_fid, signer_uuid, text, embeds, channel_id, scheduled_time, status)
-      VALUES (${userFid}, 'app-managed', ${text}, ${embedsJson}::jsonb, ${channelId}, ${scheduledAt}::timestamptz, 'pending')
+      VALUES (${userFid}, ${encryptedKey}, ${text}, ${embedsJson}::jsonb, ${channelId}, ${scheduledAt}::timestamptz, 'pending')
       RETURNING *
     `;
 

@@ -3,14 +3,16 @@ import { sql } from '@/lib/db';
 import { buildSignedMessage, hexToBytes, MessageType } from '@/lib/fc-message-builder';
 import type { CastEmbed } from '@/lib/fc-message-builder';
 import { ed25519 } from '@noble/curves/ed25519';
+import { decryptSignerKey } from '@/lib/signer-crypto';
 
 const HYPERSNAP_BASE =
   process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
 
 async function publishWithStoredKey(cast: any): Promise<string> {
-  const privateKeyHex = cast.signer_uuid && cast.signer_uuid !== 'app-managed' ? cast.signer_uuid : null;
+  // Decrypt the stored signer key (encrypted at schedule time from the auth header)
+  const privateKeyHex = decryptSignerKey(cast.signer_uuid);
   if (!privateKeyHex) {
-    throw new Error('No signer key stored. Re-schedule this cast after approving posting permissions.');
+    throw new Error('No valid signer key stored. Re-schedule this cast after approving posting permissions.');
   }
 
   const privateKeyBytes = hexToBytes(privateKeyHex);
