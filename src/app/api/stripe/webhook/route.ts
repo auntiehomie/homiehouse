@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 
       // ── Invoice payment succeeded (renewal) ────────────────────────────────
       case 'invoice.payment_succeeded': {
-        const invoice = event.data.object;
+        const invoice = event.data.object as any;
         const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : null;
 
         if (subscriptionId) {
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
 
       // ── Invoice payment failed ─────────────────────────────────────────────
       case 'invoice.payment_failed': {
-        const invoice = event.data.object;
+        const invoice = event.data.object as any;
         const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : null;
 
         if (subscriptionId) {
