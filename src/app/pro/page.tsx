@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import PricingCard from '@/components/PricingCard';
+import WagmiProviders from '@/components/WagmiProviders';
 
 export default function ProPage() {
   const router = useRouter();
@@ -80,11 +81,12 @@ export default function ProPage() {
       {/* Hero section */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontSize: 13, color: 'var(--muted-on-dark)', lineHeight: 1.7, marginBottom: 24, maxWidth: 560 }}>
-          Supercharge your HomieHouse experience with Pro. Get unlimited AI queries, deeper research,
-          priority routing, and premium features.
+          Supercharge your HomieHouse experience with Pro. Pay with USDC on Base — no credit card, no KYC, fully decentralized.
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-          <PricingCard userFid={userFid} isPro={isPro} />
+          <WagmiProviders>
+            <PricingCard userFid={userFid} isPro={isPro} />
+          </WagmiProviders>
         </div>
       </div>
 
@@ -95,8 +97,10 @@ export default function ProPage() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {[
-            { q: 'What payment methods do you accept?', a: 'We use Stripe for secure payment processing. All major credit and debit cards are accepted.' },
-            { q: 'Can I cancel anytime?', a: 'Yes! You can cancel your Pro subscription at any time. Your Pro benefits remain active until the end of your billing period.' },
+            { q: 'How do I pay for Pro?', a: 'Pay 5 USDC on the Base network. Connect your wallet (Rainbow, MetaMask, etc.), confirm the transfer, and Pro activates instantly. No credit card or KYC needed.' },
+            { q: 'What is USDC?', a: 'USDC is a stablecoin — a crypto token pegged 1:1 to the US dollar. 5 USDC = $5. You can get USDC on Base through any major exchange like Coinbase, then transfer it to your wallet.' },
+            { q: 'What is Base?', a: 'Base is a fast, low-cost blockchain built by Coinbase. Transaction fees are typically less than a cent. It\'s the perfect network for small payments like Pro subscriptions.' },
+            { q: 'Can I cancel anytime?', a: 'Yes. Your Pro benefits last for 30 days from payment. You can choose not to renew — no recurring charges, no cancellation process. Just don\'t pay again.' },
             { q: 'What is "deeper research mode"?', a: 'Pro users get access to an enhanced research pipeline that searches more sources, runs longer analysis, and produces more detailed responses.' },
             { q: 'What is priority LLM routing?', a: 'Pro queries are routed to higher-capacity models with lower latency, ensuring faster and more reliable AI responses.' },
           ].map((faq, i) => (
