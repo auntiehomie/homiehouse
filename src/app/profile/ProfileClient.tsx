@@ -251,6 +251,7 @@ function ProfileContent() {
   const [viewerFid, setViewerFid] = useState<number | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [badges, setBadges] = useState<{ id: string; name: string; emoji: string }[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { follow, unfollow } = useFarcasterWrites();
@@ -264,6 +265,17 @@ function ProfileContent() {
       }
     } catch {}
   }, []);
+
+  // Load owned HH2 shop badges for the displayed profile (public data)
+  useEffect(() => {
+    if (!profile) return;
+    fetch(`/api/user-badges?fid=${profile.fid}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && Array.isArray(data.badges)) setBadges(data.badges);
+      })
+      .catch(() => {});
+  }, [profile]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -457,9 +469,32 @@ function ProfileContent() {
 
           {/* Bio */}
           {profile.profile?.bio?.text && (
-            <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, marginBottom: ethAddresses.length > 0 ? '1rem' : 0 }}>
+            <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, marginBottom: ethAddresses.length > 0 || badges.length > 0 ? '1rem' : 0 }}>
               {profile.profile.bio.text}
             </p>
+          )}
+
+          {/* Owned HH2 badges */}
+          {badges.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: ethAddresses.length > 0 ? '1rem' : 0 }}>
+              {badges.map(badge => (
+                <span
+                  key={badge.id}
+                  title={badge.name}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontSize: '0.8rem', fontWeight: 600,
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 999,
+                    padding: '4px 10px',
+                    color: 'var(--text-on-dark)',
+                  }}
+                >
+                  <span style={{ fontSize: '1rem' }}>{badge.emoji}</span> {badge.name}
+                </span>
+              ))}
+            </div>
           )}
 
           {/* Verified ETH addresses */}
