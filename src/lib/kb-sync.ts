@@ -26,8 +26,8 @@ export interface KBArticle {
 
 // ─── DB schema ────────────────────────────────────────────────────────────────
 
-const CREATE_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS kb_articles (
+const CREATE_TABLE_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS kb_articles (
     id               SERIAL PRIMARY KEY,
     title            TEXT NOT NULL,
     url              TEXT,
@@ -35,16 +35,21 @@ const CREATE_TABLE_SQL = `
     tags             TEXT[] NOT NULL DEFAULT '{}',
     summary          TEXT,
     learning_points  TEXT[] NOT NULL DEFAULT '{}',
-    title_lower       TEXT GENERATED ALWAYS AS (LOWER(title)) STORED,
+    title_lower      TEXT GENERATED ALWAYS AS (LOWER(title)) STORED,
     synced_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(title)
-  );
-  CREATE INDEX IF NOT EXISTS kb_articles_tags ON kb_articles USING GIN (tags);
-  CREATE INDEX IF NOT EXISTS kb_articles_title_lower ON kb_articles (title_lower);
-`;
+  )`,
+  `CREATE INDEX IF NOT EXISTS kb_articles_tags ON kb_articles USING GIN (tags)`,
+  `CREATE INDEX IF NOT EXISTS kb_articles_title_lower ON kb_articles (title_lower)`,
+];
 
 async function ensureTable(): Promise<void> {
-  await sql.unsafe(CREATE_TABLE_SQL);
+  // Neon's serverless SQL driver does not reliably execute multiple DDL
+  // statements sent as a single unsafe query. Run each statement separately
+  // so a fresh database is initialized deterministically.
+  for (const statement of CREATE_TABLE_STATEMENTS) {
+    await sql.unsafe(statement);
+  }
 }
 
 // ─── GitHub fetch ────────────────────────────────────────────────────────────
