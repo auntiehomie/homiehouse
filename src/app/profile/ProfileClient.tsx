@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
+import ReferralBanner from '@/components/ReferralBanner';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
 interface UserProfile {
@@ -489,6 +490,9 @@ function ProfileContent() {
           )}
         </div>
       </div>
+
+      {/* Referral program — show only for own profile */}
+      {viewerFid === profile.fid && <ReferralBanner />}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)' }}>

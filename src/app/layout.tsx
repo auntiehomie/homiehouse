@@ -14,10 +14,16 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 // JSON-LD structured data for SEO
 const jsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'WebSite',
+  '@type': 'WebApplication',
   name: 'HomieHouse',
   url: BASE_URL,
-  description: 'A Farcaster social client — browse your feed, compose casts, and explore the decentralized web.',
+  applicationCategory: 'EducationalApplication',
+  description: 'Learn crypto. Actually understand it. Free bite-sized lessons, AI-powered insights, and a friendly community on Farcaster. No jargon, no prior knowledge needed.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
   potentialAction: {
     '@type': 'SearchAction',
     target: {
@@ -53,11 +59,11 @@ export const metadata: Metadata = {
     title: 'HomieHouse',
     statusBarStyle: 'black-translucent',
   },
-  description: 'HomieHouse — Your Farcaster social hub. Browse feeds, compose casts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.',
+  description: 'Learn crypto. Actually understand it. HomieHouse offers free bite-sized Web3 lessons, Farcaster feeds, AI-powered insights, and a friendly community. No jargon, no prior knowledge needed.',
   keywords: [
-    'Farcaster', 'social client', 'decentralized social', 'casts', 'web3 social',
-    'Ask Homie', 'AI assistant', 'knowledge base', 'crypto social', 'Farcaster client',
-    'decentralized web', 'blockchain social', 'HomieHouse'
+    'learn crypto', 'Web3 learning', 'crypto for beginners', 'free crypto course',
+    'Farcaster', 'decentralized social', 'blockchain education', 'DeFi tutorial',
+    'crypto safety', 'Web3 onboarding', 'AI learning', 'HomieHouse',
   ],
   metadataBase: new URL(BASE_URL),
   alternates: {
@@ -67,22 +73,22 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn crypto. Actually understand it.',
+    description: 'Free bite-sized Web3 lessons, AI-powered insights, and a friendly community on Farcaster. No jargon, no prior knowledge needed.',
     url: BASE_URL,
     images: [
       {
         url: '/api/og',
         width: 1200,
         height: 630,
-        alt: 'HomieHouse — Learn Web3. Connect with your community.',
+        alt: 'HomieHouse — Learn crypto. Actually understand it.',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn crypto. Actually understand it.',
+    description: 'Free bite-sized Web3 lessons, AI-powered insights, and a friendly community on Farcaster. No jargon, no prior knowledge needed.',
     images: ['/api/og'],
   },
   robots: {

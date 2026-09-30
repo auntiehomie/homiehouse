@@ -7,6 +7,7 @@ import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import ShareAchievementModal from '@/components/ShareAchievementModal';
 import {
   getCachedLesson,
   loadLesson,
@@ -507,6 +508,10 @@ function ModuleLessonContent() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const claimFired = useRef(false);
 
+  // Share achievement modal
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | undefined>(undefined);
+
   useEffect(() => {
     if (!moduleId) { router.replace('/learn'); return; }
     try {
@@ -740,18 +745,26 @@ function ModuleLessonContent() {
     }
   }, [cards]);
 
-  const handleShare = () => {
-    if (!mod) return;
-    const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nBuilding my Web3 knowledge one module at a time. 🏡\n\nhomiehouse.lol`;
-    router.push(`/compose?text=${encodeURIComponent(text)}`);
-  };
+  const handleShare = useCallback(() => {
+    // Fetch referral code for the share modal
+    const authHeaders = getAuthHeaders();
+    if (authHeaders) {
+      fetch('/api/referral/code', { headers: { ...authHeaders } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) setReferralCode(data.referralCode);
+        })
+        .catch(() => {});
+    }
+    setShowShareModal(true);
+  }, []);
 
   const handleShareTakeaway = () => {
     if (!mod || !currentCard || currentCard.type !== 'summary') return;
     const takeaway = currentCard.content.length > 180
       ? `${currentCard.content.slice(0, 177).trimEnd()}…`
       : currentCard.content;
-    const text = `One thing I learned in “${mod.title}”:\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
+    const text = `One thing I learned in "${mod.title}":\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
     router.push(`/compose?text=${encodeURIComponent(text)}`);
   };
 
@@ -1007,6 +1020,29 @@ function ModuleLessonContent() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Share achievement modal */}
+      {showShareModal && mod && (
+        <ShareAchievementModal
+          lessonTitle={mod.title}
+          trackName={(() => {
+            try {
+              const plan = JSON.parse(localStorage.getItem(LS_PLAN_KEY) ?? 'null');
+              return plan?.track;
+            } catch { return undefined; }
+          })()}
+          streakCount={(() => {
+            try {
+              const plan = JSON.parse(localStorage.getItem(LS_PLAN_KEY) ?? 'null');
+              return plan?.streak;
+            } catch { return undefined; }
+          })()}
+          moduleId={moduleId ?? undefined}
+          referralCode={referralCode}
+          onClose={() => setShowShareModal(false)}
+          onBackToPlan={() => router.push('/learn')}
+        />
       )}
 
       {/* Instant quiz result pop-up — visible without scrolling to the explanation */}
