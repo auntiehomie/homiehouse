@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from 'next/server';
 import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
+import { getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { rateLimit } from '@/lib/ratelimit';
 import { createApiLogger } from '@/lib/logger';
@@ -340,7 +341,8 @@ export async function POST(req: NextRequest) {
     const isVenice = titleLower.includes('venice') || tagSet.includes('venice');
     const isDAOHistory = isDAO && (titleLower.includes('history') || titleLower.includes('origin') || titleLower.includes('hack'));
 
-    const topicContext = [
+    let topicContext: string = '';
+    const topicParts = [
       isHyperliquid && `
 FACTUAL CONTEXT — Hyperliquid:
 - Hyperliquid is a decentralized perpetuals (perps) exchange built on its own L1 chain (HyperEVM), not Ethereum or Solana
@@ -496,6 +498,23 @@ FACTUAL CONTEXT — Venice.ai:
 - Contrast with centralized AI: OpenAI can read your conversations, train on them, and comply with government requests for data. Venice's architecture makes this structurally impossible
 - The platform also supports image generation and code assistance with the same privacy guarantees`,
     ].filter(Boolean).join('\n');
+
+    // Augment with KB articles for richer lesson context.
+    // KB context appears BEFORE the hardcoded factual snippets so the LLM
+    // treats referenced articles as background knowledge to synthesize.
+    try {
+      const queryStr = title + ' ' + (tags?.join(' ') || '');
+      const kbArticles = await getRelevantKBArticles(queryStr, 5);
+      if (kbArticles.length > 0) {
+        const kbContext = formatKBContext(kbArticles);
+        topicContext = kbContext + (topicParts ? '\n\n' + topicParts : '');
+      } else {
+        topicContext = topicParts;
+      }
+    } catch {
+      // KB enrichment is best-effort; never block lesson generation
+      topicContext = topicParts;
+    }
 
     const prompt = `You are a knowledgeable, direct Web3 and decentralization educator writing for curious people who want real understanding — not hype. Generate a thorough, in-depth lesson for this learning module.
 ${topicContext ? `\n${topicContext}\n` : ''}
