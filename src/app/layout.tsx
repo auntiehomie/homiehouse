@@ -3,6 +3,7 @@ import "./globals.css";
 import { FarcasterAuthProvider } from "../lib/farcaster-auth";
 import MobileNav from "../components/MobileNav";
 import ThemeSync from "../components/ThemeSync";
+import ScrollToTop from "../components/ScrollToTop";
 import LazyClientComponents from "../components/LazyClientComponents";
 import PageTransition from "../components/PageTransition";
 import { QueryProvider } from "../components/QueryProvider";
@@ -134,12 +135,13 @@ export default function RootLayout({
           <FarcasterAuthProvider>
             <QueryProvider>
               <PageTransition>
-                <div className="pt-14 lg:pt-0 hh-content-offset">
+                <div className="pt-14 lg:pt-0 pb-20 lg:pb-0 hh-content-offset">
                   {children}
                 </div>
               </PageTransition>
             </QueryProvider>
             <MobileNav />
+            <ScrollToTop />
             <ThemeSync />
             <LazyClientComponents
               miniAppClientFid={Number(

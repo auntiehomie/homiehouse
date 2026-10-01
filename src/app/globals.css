@@ -461,11 +461,7 @@ main { margin-top: 1rem; }
 
 /* Mobile optimizations for iPhone/Android 6.1-6.7" screens */
 @media (max-width: 768px) {
-  /* Safe area support for notched phones */
-  body {
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+  /* Safe area handled by MobileNav component — body padding is unnecessary */
 
   /* Larger text on mobile for readability */
   body {
