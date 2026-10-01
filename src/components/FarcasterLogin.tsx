@@ -182,6 +182,8 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
         borderRadius: 24,
         border: '1px solid var(--border)',
         boxShadow: '0 24px 80px rgba(0,0,0,0.4)',
+        maxHeight: '100dvh',
+        overflowY: 'auto',
       }}>
         {content}
       </div>
@@ -199,7 +201,9 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 9999,
-        padding: 16,
+        padding: '16px',
+        paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
+        paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
       }}
       onClick={onDismiss}
     >
@@ -207,6 +211,8 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
         style={{
           maxWidth: 400,
           width: '100%',
+          maxHeight: '100dvh',
+          overflowY: 'auto',
           padding: '32px 28px',
           background: 'var(--surface)',
           borderRadius: 24,
