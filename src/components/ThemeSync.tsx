@@ -31,6 +31,12 @@ export default function ThemeSync() {
         document.documentElement.removeAttribute('data-theme');
         const raw = localStorage.getItem('hh_custom_theme');
         if (raw) applyCustomThemeVars(JSON.parse(raw));
+      } else if (t.startsWith('shop:')) {
+        // Shop-purchased theme — apply stored color palette via CSS vars
+        clearCustomThemeVars();
+        document.documentElement.removeAttribute('data-theme');
+        const raw = localStorage.getItem('hh_shop_theme');
+        if (raw) applyCustomThemeVars(JSON.parse(raw));
       } else {
         clearCustomThemeVars();
         document.documentElement.setAttribute('data-theme', t);

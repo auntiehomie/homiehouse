@@ -3,7 +3,8 @@ import { getDb } from '@/lib/db';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { handleApiError, AuthError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
-import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { ITEM_PRICES, VALID_ITEM_IDS } from '@/app/api/hh2-shop/route';
 
 // GET /api/hh2-purchase?fid=123 — return owned item IDs
 export async function GET(req: NextRequest) {
@@ -54,17 +55,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── Shop item prices (mirrors hh2-shop definitions) ──────────────────────────
-
-const ITEM_PRICES: Record<string, number> = {
-  'gold-badge': 500,
-  'diamond-badge': 1000,
-  'purple-cast-theme': 300,
-  'green-cast-theme': 300,
-  'extra-list-slot': 2000,
-};
-
-const VALID_ITEM_IDS = new Set(Object.keys(ITEM_PRICES));
+// ITEM_PRICES and VALID_ITEM_IDS are now imported from hh2-shop/route (single source of truth)
 
 // HH2 balance check helper — sums (completed_ids * 10) - (claimed) - (spent)
 async function getUserHH2Balance(client: import('pg').PoolClient, userFid: number): Promise<number> {
