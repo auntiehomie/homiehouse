@@ -151,6 +151,24 @@ export default function ComposeModal() {
     } catch {}
   }, [open]);
 
+  // Auto-save draft continuously as the user types so the text survives
+  // accidental dismissals (back swipe, app backgrounded, tap outside).
+  // Debounced to avoid hammering localStorage on every keystroke.
+  useEffect(() => {
+    if (!open || !text.trim()) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem('hh_compose_draft', JSON.stringify({
+          text,
+          imageUrl,
+          selectedChannel,
+          timestamp: Date.now(),
+        }));
+      } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [open, text, imageUrl, selectedChannel]);
+
   // Fetch channels when modal first opens — cached in module scope for the session
   useEffect(() => {
     if (!open || !userFid) return;
@@ -533,6 +551,8 @@ export default function ComposeModal() {
   }
 
   function closeModal() {
+    // Draft is already auto-saved by the useEffect above.
+    // If there's text, ask whether to keep or discard before closing.
     if (text.trim() && !showDraftDialog) {
       setShowDraftDialog(true);
       return;
