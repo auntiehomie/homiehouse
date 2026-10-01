@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { applyCustomThemeVars, clearCustomThemeVars } from "../../../components/ThemeSync";
+import { getAuthHeaders, getStoredFid } from "@/lib/client-auth";
 
 // Set NEXT_PUBLIC_DONATION_ADDRESS in Vercel env vars to your Base USDC receiving address
 const DONATION_ADDRESS = process.env.NEXT_PUBLIC_DONATION_ADDRESS || '';
@@ -114,6 +115,22 @@ interface CustomColors {
   navBg: string;
   btnPrimaryBg: string;
   btnPrimaryColor: string;
+}
+
+// Shop-purchased theme shape returned by /api/owned-themes
+interface ShopTheme {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  source: 'shop';
+  preview: {
+    bg: string;
+    surface: string;
+    text: string;
+    accent: string;
+    muted: string;
+  };
 }
 
 const DEFAULT_CUSTOM: CustomColors = {
@@ -434,6 +451,7 @@ export default function ThemesPage() {
   const [showDonateModal, setShowDonateModal] = useState(false);
   const [pendingTheme, setPendingTheme] = useState<string | null>(null);
   const [customColors, setCustomColors] = useState<CustomColors>(DEFAULT_CUSTOM);
+  const [shopThemes, setShopThemes] = useState<ShopTheme[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem("hh_theme") || "default";
@@ -443,6 +461,18 @@ export default function ThemesPage() {
       const raw = localStorage.getItem("hh_custom_theme");
       if (raw) setCustomColors(JSON.parse(raw));
     } catch {}
+
+    // Fetch shop-purchased themes so they render as selectable
+    const fid = getStoredFid();
+    if (fid) {
+      const headers = getAuthHeaders();
+      fetch(`/api/owned-themes?fid=${fid}`, { headers: headers ? { ...headers } : undefined })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok && Array.isArray(data.themes)) setShopThemes(data.themes);
+        })
+        .catch(() => {});
+    }
   }, []);
 
   // Live-update preview when customColors change (only if custom theme is active)
@@ -479,6 +509,22 @@ export default function ThemesPage() {
       applyTheme(pendingTheme);
       setPendingTheme(null);
     }
+  }
+
+  function applyShopTheme(theme: ShopTheme) {
+    const vars = {
+      bgDark: theme.preview.bg,
+      surface: theme.preview.surface,
+      textOnDark: theme.preview.text,
+      mutedOnDark: theme.preview.muted,
+      accent: theme.preview.accent,
+    };
+    clearCustomThemeVars();
+    document.documentElement.removeAttribute('data-theme');
+    applyCustomThemeVars(vars);
+    localStorage.setItem('hh_shop_theme', JSON.stringify(vars));
+    localStorage.setItem('hh_theme', theme.id);
+    setActiveTheme(theme.id);
   }
 
   function applyCustomTheme() {
@@ -565,6 +611,52 @@ export default function ThemesPage() {
             <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--muted-on-dark)', textAlign: 'center' }}>
               One-time donation unlocks all premium themes + theme builder forever
             </p>
+          )}
+        </section>
+
+        {/* Shop Themes — earned with HH2 */}
+        <section style={{ marginBottom: 32 }}>
+          {sectionLabel(
+            'Shop Themes',
+            <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>🪙 HH2</span>
+          )}
+          {shopThemes.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {shopThemes.map((theme) => (
+                <ThemeCard
+                  key={theme.id}
+                  theme={{
+                    id: theme.id,
+                    name: theme.name,
+                    description: theme.description,
+                    emoji: theme.emoji,
+                    preview: theme.preview,
+                  }}
+                  active={activeTheme === theme.id}
+                  onClick={() => applyShopTheme(theme)}
+                />
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={() => router.push('/shop')}
+              style={{
+                width: '100%',
+                background: 'var(--surface)',
+                border: '2px dashed var(--border)',
+                borderRadius: 14,
+                padding: '24px 20px',
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 28 }}>🛒</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-on-dark)' }}>No shop themes yet</span>
+              <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>Earn HH2 and unlock themes in the HH2 Shop</span>
+            </button>
           )}
         </section>
 

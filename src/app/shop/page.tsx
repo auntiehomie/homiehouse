@@ -10,8 +10,10 @@ interface ShopItem {
   name: string;
   description: string;
   price_hh2: number;
-  category: 'badge' | 'theme' | 'slot';
+  category: 'badge' | 'theme' | 'decoration' | 'slot' | 'boost';
   emoji: string;
+  owned?: boolean;
+  decoration_type?: 'frame' | 'banner' | 'avatar-ring';
 }
 
 interface PurchaseState {
@@ -111,7 +113,9 @@ export default function ShopPage() {
   const categoryLabels: Record<string, string> = {
     badge: 'Profile Badges',
     theme: 'Cast Themes',
+    decoration: 'Profile Decorations',
     slot: 'List Slots',
+    boost: 'Recognition Boosts',
   };
 
   const grouped = items.reduce((acc, item) => {
@@ -120,7 +124,7 @@ export default function ShopPage() {
     return acc;
   }, {} as Record<string, ShopItem[]>);
 
-  const categoryOrder = ['badge', 'theme', 'slot'];
+  const categoryOrder = ['badge', 'theme', 'decoration', 'slot', 'boost'];
 
   if (loading) {
     return (
