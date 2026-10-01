@@ -165,13 +165,13 @@ export default function HomeClient() {
     <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
 
       {/* Nav */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(12px)', zIndex: 50 }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(12px)', zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <HHLogo size={30} />
-          <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.02em' }}>HomieHouse</span>
+          <HHLogo size={28} />
+          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>HomieHouse</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/learn/library" style={{ fontSize: 14, color: '#a1a1aa', textDecoration: 'none' }}>
+          <Link href="/learn/library" style={{ fontSize: 14, color: '#a1a1aa', textDecoration: 'none' }} className="hidden sm:inline">
             Browse free lessons
           </Link>
           <SignInButton />
