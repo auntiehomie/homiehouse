@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { getAuthHeaders } from '@/lib/client-auth';
 import HHLogo from '@/components/HHLogo';
 import { ChannelSidebar } from '@/components/ChannelStrip';
 import { getEli5Mode } from '@/lib/eli5';
@@ -964,10 +965,14 @@ function LearnPageContent() {
       const completions = (() => {
         try { return JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) ?? '{}'); } catch { return {}; }
       })();
+      const authHeaders = getAuthHeaders();
+      const headers: Record<string, string> = authHeaders
+        ? { 'Content-Type': 'application/json', ...authHeaders }
+        : { 'Content-Type': 'application/json' };
       fetch('/api/learning-progress', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fid, plan, completed_ids: [...completedIds], completions, hh2_points: completedIds.size * HH2_PER_LESSON }),
+        headers,
+        body: JSON.stringify({ plan, completed_ids: [...completedIds], completions, hh2_points: completedIds.size * HH2_PER_LESSON }),
       })
         .then(r => r.json())
         .then(d => { if (d?.streak) setStreak(d.streak); })

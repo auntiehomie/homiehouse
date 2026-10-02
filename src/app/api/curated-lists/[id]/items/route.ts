@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 export async function GET(
   request: NextRequest,
@@ -35,13 +37,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const verifiedFid = await verifyFarcasterSignerAuth(request);
     const db = getDb();
     const { id } = await params;
     const body = await request.json();
-    const { castHash, addedByFid, castData, notes } = body;
+    const { castHash, castData, notes } = body;
 
-    if (!castHash || !addedByFid) {
-      return NextResponse.json({ error: 'castHash and addedByFid are required' }, { status: 400 });
+    if (!castHash) {
+      return NextResponse.json({ error: 'castHash is required' }, { status: 400 });
     }
 
     try {
@@ -56,7 +59,7 @@ export async function POST(
           castData?.author_fid || null,
           castData?.text || null,
           castData?.timestamp || null,
-          parseInt(addedByFid),
+          verifiedFid,
           notes || null,
         ]
       );
@@ -69,6 +72,9 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to add cast to list' }, { status: 500 });
     }
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Exception in POST /api/curated-lists/[id]/items:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -79,6 +85,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const verifiedFid = await verifyFarcasterSignerAuth(request);
     const db = getDb();
     const { id } = await params;
     const { searchParams } = new URL(request.url);
@@ -88,6 +95,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'castHash is required' }, { status: 400 });
     }
 
+    // Verify the requesting user owns this list before allowing item deletion
+    const listCheck = await db.query(
+      `SELECT fid FROM curated_lists WHERE id = $1`,
+      [parseInt(id)]
+    );
+    if (listCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    }
+    if (listCheck.rows[0].fid !== verifiedFid) {
+      return NextResponse.json({ error: 'Not authorized to modify this list' }, { status: 403 });
+    }
+
     await db.query(
       `DELETE FROM curated_list_items WHERE list_id = $1 AND cast_hash = $2`,
       [parseInt(id), castHash]
@@ -95,6 +114,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Exception in DELETE /api/curated-lists/[id]/items:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

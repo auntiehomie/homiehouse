@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useFarcasterUser } from "@/hooks/useFarcasterUser";
+import { getAuthHeaders } from "@/lib/client-auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -146,13 +147,14 @@ export default function ListsClient() {
   };
 
   const toggleVisibility = async (list: CuratedList) => {
-    if (!user?.fid) return;
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) return;
     setVisibilityBusy(list.id);
     try {
       const res = await fetch("/api/curated-lists", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: list.id, fid: user.fid, isPublic: !list.is_public }),
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ id: list.id, isPublic: !list.is_public }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -166,17 +168,21 @@ export default function ListsClient() {
   };
 
   const toggleFollow = async (list: CuratedList) => {
-    if (!user?.fid) return;
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) return;
     setFollowBusy(list.id);
     const isFollowing = followedIds.has(list.id);
     try {
       if (isFollowing) {
-        await fetch(`/api/curated-lists/${list.id}/follow?followerFid=${user.fid}`, { method: "DELETE" });
+        await fetch(`/api/curated-lists/${list.id}/follow`, {
+          method: "DELETE",
+          headers: { ...authHeaders },
+        });
       } else {
         await fetch(`/api/curated-lists/${list.id}/follow`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ followerFid: user.fid }),
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({}),
         });
       }
       fetchFollowing();

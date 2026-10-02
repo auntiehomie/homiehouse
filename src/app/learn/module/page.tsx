@@ -640,10 +640,14 @@ function ModuleLessonContent() {
             const plan = (() => {
               try { return JSON.parse(localStorage.getItem('hh_learning_plan') ?? 'null'); } catch { return null; }
             })();
+            const authHeaders = getAuthHeaders();
+            const headers: Record<string, string> = authHeaders
+              ? { 'Content-Type': 'application/json', ...authHeaders }
+              : { 'Content-Type': 'application/json' };
             await fetch('/api/learning-progress', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fid, plan, completed_ids: updatedProgress, completions }),
+              headers,
+              body: JSON.stringify({ plan, completed_ids: updatedProgress, completions }),
             }).catch(() => {});
           }
         } catch {}
