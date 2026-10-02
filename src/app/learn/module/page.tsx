@@ -434,15 +434,36 @@ function CompleteCard({ mod, onShare, onBack, claimStatus, claimTxHash, claimErr
 
 function Skeleton() {
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '20px' }}>
-      {[80, 95, 70, 90, 65, 85].map((w, i) => (
-        <div key={i} style={{
-          height: 14, width: `${w}%`, borderRadius: 6,
-          background: 'var(--surface)', animation: 'pulse 1.5s ease-in-out infinite',
-          animationDelay: `${i * 0.1}s`,
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '20px', maxWidth: 560, width: '100%', alignSelf: 'center', boxSizing: 'border-box' as any }}>
+      {/* Loading indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2px solid rgba(99,102,241,0.25)',
+          borderTopColor: 'var(--accent)',
+          animation: 'hhSpin 0.7s linear infinite',
+          flexShrink: 0,
         }} />
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted-on-dark)', margin: 0 }}>
+          Loading your lesson…
+        </p>
+      </div>
+      {/* Shimmer skeleton bars */}
+      {[80, 95, 70, 90, 65, 85].map((w, i) => (
+        <div
+          key={i}
+          style={{
+            height: 14,
+            width: `${w}%`,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg, rgba(99,102,241,0.06) 0%, rgba(99,102,241,0.18) 50%, rgba(99,102,241,0.06) 100%)',
+            backgroundSize: '200% 100%',
+            animation: 'hhShimmer 1.4s ease-in-out infinite',
+            animationDelay: `${i * 0.12}s`,
+          }}
+        />
       ))}
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+      <style>{`@keyframes hhShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
   );
 }
@@ -913,8 +934,8 @@ function ModuleLessonContent() {
         </div>
       </div>
 
-      {/* Continue button (hidden on complete card and quiz before checked) */}
-      {currentCard?.type !== 'complete' && currentCard?.type !== 'quiz' && (
+      {/* Continue button (hidden while loading, on complete card, and on quiz before checked) */}
+      {!loading && currentCard?.type !== 'complete' && currentCard?.type !== 'quiz' && (
         <div style={{ padding: '12px 20px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', flexShrink: 0 }}>
           <button
             onClick={handleContinue}
@@ -1041,8 +1062,10 @@ function ModuleLessonContent() {
 export default function ModuleLessonPage() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-on-dark)' }}>
-        Loading…
+      <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-on-dark)', gap: 16 }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'hhSpin 0.7s linear infinite' }} />
+        <style>{`@keyframes hhSpin { to { transform: rotate(360deg); } }`}</style>
+        <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Loading lesson…</p>
       </div>
     }>
       <ModuleLessonContent />
