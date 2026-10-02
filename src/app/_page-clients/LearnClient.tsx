@@ -209,7 +209,11 @@ function LearningFeed() {
       </div>
 
       {loading && (
-        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'hhSpin 0.7s linear infinite', margin: '0 auto 12px' }} />
+          <style>{`@keyframes hhSpin { to { transform: rotate(360deg); } }`}</style>
+          Loading posts…
+        </div>
       )}
       {!loading && error && (
         <div style={{ textAlign: 'center', padding: 32, color: 'var(--muted-on-dark)' }}>
@@ -1128,18 +1132,23 @@ function LearnPageContent() {
 
   // ─── Generating ───────────────────────────────────────────────────────────
 
-  if (pageState === 'generating') {
-    return wrap(
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 24, padding: '40px 20px' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'hhSpin 0.8s linear infinite' }} />
-        <style>{`@keyframes hhSpin { to { transform: rotate(360deg); } }`}</style>
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-on-dark)', margin: 0 }}>Building your personalized path...</p>
-          <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginTop: 8, margin: '8px 0 0' }}>Crafting a curriculum just for you</p>
+ if (pageState === 'generating') {
+   return wrap(
+     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 24, padding: '40px 20px' }}>
+       <div style={{ width: 56, height: 56, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'hhSpin 0.8s linear infinite' }} />
+       <style>{`@keyframes hhSpin { to { transform: rotate(360deg); } }`}</style>
+       <div style={{ textAlign: 'center' }}>
+         <p style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-on-dark)', margin: 0 }}>Building your personalized path...</p>
+         <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', marginTop: 8, margin: '8px 0 0' }}>Crafting a curriculum just for you</p>
+       </div>
+        <div style={{ marginTop: 8, padding: '14px 18px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', maxWidth: 340, textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.5 }}>
+            💡 Tip: Complete lessons to earn HH2 tokens and build your streak!
+          </p>
         </div>
-      </div>,
-    );
-  }
+     </div>,
+   );
+ }
 
   // ─── Plan view ────────────────────────────────────────────────────────────
 
@@ -1598,7 +1607,13 @@ function LearnPageContent() {
 
 export default function LearnClient() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)', color: 'var(--muted-on-dark)' }}>Loading…</div>}>
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)', color: 'var(--muted-on-dark)', gap: 16 }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'hhSpin 0.7s linear infinite' }} />
+        <style>{`@keyframes hhSpin { to { transform: rotate(360deg); } }`}</style>
+        <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Loading Learning Hub…</p>
+      </div>
+    }>
       <LearnPageContent />
     </Suspense>
   );
