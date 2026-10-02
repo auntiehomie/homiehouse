@@ -3,6 +3,8 @@ import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
 import { hypersnapFetch } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 
 /** Bulk-hydrate curator fids into { fid, username, display_name, pfp_url } — same
@@ -84,36 +86,42 @@ export async function GET(request: NextRequest) {
 
 /**
  * PATCH /api/curated-lists
- * Body: { id, fid, isPublic } — toggle an existing list's visibility.
- * fid must match the list's owner (ownership check in the WHERE clause).
+ * Body: { id, isPublic } — toggle an existing list's visibility.
+ * Auth: x-farcaster-fid + x-signer-key headers (verified server-side).
  */
 export async function PATCH(request: NextRequest) {
   const logger = createApiLogger('/curated-lists PATCH');
   logger.start();
 
   try {
+    const verifiedFid = await verifyFarcasterSignerAuth(request);
     const db = getDb();
-    const { id, fid, isPublic } = await request.json();
+    const body = await request.json();
+    const { id, isPublic } = body;
 
     const listId = Number(id);
-    const ownerFid = Number(fid);
-    if (!listId || isNaN(listId) || !ownerFid || isNaN(ownerFid) || typeof isPublic !== 'boolean') {
-      return NextResponse.json({ error: 'id, fid, and isPublic (boolean) are required' }, { status: 400 });
+    if (!listId || isNaN(listId) || typeof isPublic !== 'boolean') {
+      return NextResponse.json({ error: 'id and isPublic (boolean) are required' }, { status: 400 });
     }
+
+    logger.info('Updating list visibility', { listId, fid: verifiedFid, isPublic });
 
     const { rows } = await db.query(
       `UPDATE curated_lists SET is_public = $1, updated_at = NOW() WHERE id = $2 AND fid = $3 RETURNING *`,
-      [isPublic, listId, ownerFid]
+      [isPublic, listId, verifiedFid]
     );
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: 'List not found or not owned by this fid' }, { status: 404 });
+      return NextResponse.json({ error: 'List not found or not owned by you' }, { status: 404 });
     }
 
     logger.success('List visibility updated', { listId, isPublic });
     logger.end();
     return NextResponse.json({ list: rows[0] });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     logger.error('Failed to update list visibility', error);
     return handleApiError(error, 'PATCH /curated-lists');
   }
@@ -124,27 +132,23 @@ export async function POST(request: NextRequest) {
   logger.start();
 
   try {
+    const verifiedFid = await verifyFarcasterSignerAuth(request);
     const db = getDb();
     const body = await request.json();
-    const { fid, listName, description, isPublic } = body;
+    const { listName, description, isPublic } = body;
 
-    if (!fid || !listName) {
-      return NextResponse.json({ error: 'fid and listName are required' }, { status: 400 });
+    if (!listName) {
+      return NextResponse.json({ error: 'listName is required' }, { status: 400 });
     }
 
-    const validatedFid = Number(fid);
-    if (!validatedFid || isNaN(validatedFid)) {
-      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
-    }
-
-    logger.info('Creating list', { fid: validatedFid, listName });
+    logger.info('Creating list', { fid: verifiedFid, listName });
 
     try {
       const { rows } = await db.query(
         `INSERT INTO curated_lists (fid, list_name, description, is_public)
          VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [validatedFid, listName, description || null, isPublic || false]
+        [verifiedFid, listName, description || null, isPublic || false]
       );
       logger.success('List created', { listId: rows[0]?.id });
       logger.end();
@@ -157,6 +161,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create list' }, { status: 500 });
     }
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     logger.error('Failed to create list', error);
     return handleApiError(error, 'POST /curated-lists');
   }
@@ -167,18 +174,13 @@ export async function DELETE(request: NextRequest) {
   logger.start();
 
   try {
+    const verifiedFid = await verifyFarcasterSignerAuth(request);
     const db = getDb();
     const { searchParams } = new URL(request.url);
     const listId = searchParams.get('id');
-    const fidParam = searchParams.get('fid');
 
-    if (!listId || !fidParam) {
-      return NextResponse.json({ error: 'List ID and fid are required' }, { status: 400 });
-    }
-
-    const fid = Number(fidParam);
-    if (!fid || isNaN(fid)) {
-      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
+    if (!listId) {
+      return NextResponse.json({ error: 'List ID is required' }, { status: 400 });
     }
 
     const parsedListId = parseInt(listId);
@@ -186,16 +188,18 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid list ID' }, { status: 400 });
     }
 
-    logger.info('Deleting list', { listId: parsedListId, fid });
+    logger.info('Deleting list', { listId: parsedListId, fid: verifiedFid });
 
-    // Cascade delete handles items automatically, but explicit for clarity
     await db.query(`DELETE FROM curated_list_items WHERE list_id = $1`, [parsedListId]);
-    await db.query(`DELETE FROM curated_lists WHERE id = $1 AND fid = $2`, [parsedListId, fid]);
+    await db.query(`DELETE FROM curated_lists WHERE id = $1 AND fid = $2`, [parsedListId, verifiedFid]);
 
     logger.success('List deleted', { listId: parsedListId });
     logger.end();
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     logger.error('Failed to delete list', error);
     return handleApiError(error, 'DELETE /curated-lists');
   }

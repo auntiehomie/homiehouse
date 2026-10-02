@@ -1,72 +1,31 @@
-import { NextRequest, NextResponse } from "next/server";
-import { publishReaction, deleteReaction } from '@/lib/farcaster-writes';
-import { handleApiError } from '@/lib/errors';
-import { createApiLogger } from '@/lib/logger';
-import { validateHash } from '@/lib/validation';
-import { rateLimit } from '@/lib/ratelimit';
+/**
+ * DEPRECATED — use the useFarcasterWrites() hook instead.
+ *
+ * The client-side hook builds signed Farcaster reaction messages locally and
+ * submits them through /api/submit-cast, which provides true cryptographic
+ * proof-of-key-possession for each interaction.
+ *
+ * This route accepted raw { fid } from the request body with no server-side
+ * cryptographic verification, making it trivially spoofable (IDOR).
+ *
+ * It is removed rather than fixed because the replacement useFarcasterWrites
+ * hook already covers all like/unlike operations client-side with real Ed25519
+ * signatures verified by the Farcaster hub — a strictly stronger security model
+ * than any server-side proxy could achieve.
+ */
 
-export async function POST(request: NextRequest) {
-  const logger = createApiLogger('/like');
-  logger.start();
+import { NextResponse } from 'next/server';
 
-  try {
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`like:${ip}`, 60, 3600);
-    if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited. Try again later.' }, { status: 429 });
-    }
-
-    const body = await request.json();
-    const { castHash, fid, targetCastFid } = body;
-
-    const validatedCastHash = validateHash(castHash, 'castHash');
-    const castFid = fid ? Number(fid) : 0;
-
-    logger.info('Publishing like', { castHash: validatedCastHash.substring(0, 10) + '...', fid: castFid });
-
-    await publishReaction({
-      reactionType: 'like',
-      targetCastHash: validatedCastHash,
-      targetCastFid: targetCastFid ? Number(targetCastFid) : 0,
-      fid: castFid,
-    });
-
-    logger.success('Like published');
-    logger.end();
-    return NextResponse.json({ ok: true, data: { success: true } });
-  } catch (error: any) {
-    logger.error('Failed to like cast', error);
-    return handleApiError(error, 'POST /like');
-  }
+export async function POST() {
+  return NextResponse.json(
+    { error: 'This endpoint is deprecated. Use the useFarcasterWrites() hook for signed reactions.' },
+    { status: 410 }
+  );
 }
 
-export async function DELETE(request: NextRequest) {
-  const logger = createApiLogger('/like [DELETE]');
-  logger.start();
-
-  try {
-    const { searchParams } = new URL(request.url);
-    const castHashParam = searchParams.get("castHash");
-    const fidParam = searchParams.get("fid");
-    const targetCastFidParam = searchParams.get("targetCastFid");
-
-    const validatedCastHash = validateHash(castHashParam!, 'castHash');
-    const castFid = fidParam ? Number(fidParam) : 0;
-
-    logger.info('Removing like', { castHash: validatedCastHash.substring(0, 10) + '...', fid: castFid });
-
-    await deleteReaction({
-      reactionType: 'like',
-      targetCastHash: validatedCastHash,
-      targetCastFid: targetCastFidParam ? Number(targetCastFidParam) : 0,
-      fid: castFid,
-    });
-
-    logger.success('Like removed');
-    logger.end();
-    return NextResponse.json({ ok: true, data: { success: true } });
-  } catch (error: any) {
-    logger.error('Failed to unlike cast', error);
-    return handleApiError(error, 'DELETE /like');
-  }
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'This endpoint is deprecated. Use the useFarcasterWrites() hook for signed reactions.' },
+    { status: 410 }
+  );
 }

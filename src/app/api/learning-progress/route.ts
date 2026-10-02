@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql, getSql } from '@/lib/db';
 import { getStreak, recordActivity } from '@/lib/learning-streak';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 export const maxDuration = 10;
 
@@ -86,22 +88,20 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/learning-progress
-// Body: { fid, plan, completed_ids, completions, hh2_points }
+// Body: { plan, completed_ids, completions, hh2_points }
+// Auth: x-farcaster-fid + x-signer-key headers (verified server-side)
 export async function POST(req: NextRequest) {
   try {
+    const verifiedFid = await verifyFarcasterSignerAuth(req);
     await ensureTables();
-    const { fid, plan, completed_ids, completions, hh2_points } = await req.json();
-
-    if (!fid) {
-      return NextResponse.json({ error: 'fid required' }, { status: 400 });
-    }
+    const { plan, completed_ids, completions, hh2_points } = await req.json();
 
     const points = typeof hh2_points === 'number' ? hh2_points : 0;
 
     await sql`
       INSERT INTO learning_progress (fid, plan, completed_ids, completions, hh2_points, updated_at)
       VALUES (
-        ${fid},
+        ${verifiedFid},
         ${JSON.stringify(plan ?? null)}::jsonb,
         ${JSON.stringify(completed_ids ?? [])}::jsonb,
         ${JSON.stringify(completions ?? {})}::jsonb,
@@ -118,10 +118,13 @@ export async function POST(req: NextRequest) {
 
     // Every save is treated as "showed up today" for streak purposes — see
     // learning-streak.ts for why a separate completion-event stream isn't needed.
-    const streak = await recordActivity(fid);
+    const streak = await recordActivity(verifiedFid);
 
     return NextResponse.json({ success: true, streak });
   } catch (err: any) {
+    if (err instanceof AuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     console.error('[learning-progress] POST error:', err?.message);
     return NextResponse.json({ error: 'Database error' }, { status: 500 });
   }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChannelSidebar } from '@/components/ChannelStrip';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 interface Cast {
   hash: string;
@@ -86,10 +87,14 @@ export default function CleanupPage() {
 
   async function deleteCastHash(hash: string): Promise<boolean> {
     try {
+      const authHeaders = getAuthHeaders();
+      const headers: Record<string, string> = authHeaders
+        ? { 'content-type': 'application/json', ...authHeaders }
+        : { 'content-type': 'application/json' };
       const res = await fetch('/api/delete-cast', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ fid, cast_hash: hash }),
+        headers,
+        body: JSON.stringify({ cast_hash: hash }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Delete failed');
