@@ -439,9 +439,10 @@ function Skeleton() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <div style={{
           width: 18, height: 18, borderRadius: '50%',
-          border: '2px solid rgba(99,102,241,0.25)',
+          border: '2px solid rgba(99,102,241,0.4)',
           borderTopColor: 'var(--accent)',
-          animation: 'hhSpin 0.7s linear infinite',
+         animation: 'hhSpin 0.7s linear infinite',
+          animation: 'hhSpin 0.6s linear infinite',
           flexShrink: 0,
         }} />
         <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted-on-dark)', margin: 0 }}>
@@ -449,16 +450,16 @@ function Skeleton() {
         </p>
       </div>
       {/* Shimmer skeleton bars */}
-      {[80, 95, 70, 90, 65, 85].map((w, i) => (
+      {[85, 95, 75, 90, 65, 80, 70].map((w, i) => (
         <div
           key={i}
           style={{
-            height: 14,
+            height: 16,
             width: `${w}%`,
             borderRadius: 6,
-            background: 'linear-gradient(90deg, rgba(99,102,241,0.06) 0%, rgba(99,102,241,0.18) 50%, rgba(99,102,241,0.06) 100%)',
+            background: 'linear-gradient(90deg, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0.5) 50%, rgba(99,102,241,0.15) 100%)',
             backgroundSize: '200% 100%',
-            animation: 'hhShimmer 1.4s ease-in-out infinite',
+            animation: 'hhShimmer 1s ease-in-out infinite',
             animationDelay: `${i * 0.12}s`,
           }}
         />
