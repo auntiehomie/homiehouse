@@ -284,11 +284,24 @@ export async function GET(request: NextRequest) {
       // This prevents overlapping cron invocations from both passing the DB check
       // and posting duplicate replies. The 'pending' entry is overwritten with
       // the actual reply hash after posting succeeds.
-      await recordReplyBatch({
-        trackingKeys,
-        replyHash: 'pending',
-        commandType: 'mention',
-      }).catch(() => {});
+      let pendingRecorded = false;
+      try {
+        await recordReplyBatch({
+          trackingKeys,
+          replyHash: 'pending',
+          commandType: 'mention',
+        });
+        pendingRecorded = true;
+      } catch (err: any) {
+        console.error(`[agent/mention] Failed to record pending dedup for ${castHash}:`, err?.message);
+      }
+
+      // FAIL-CLOSED: If we couldn't write the 'pending' dedup entry, skip this cast.
+      // Without the lock, the next cron run would also pass the DB check and post a duplicate.
+      if (!pendingRecorded) {
+        console.warn(`[agent/mention] Skipping ${castHash} — could not record pending dedup (fail-closed)`);
+        continue;
+      }
 
       // ─── HUB-BACKED DEDUP: Check bot's recent casts for a reply to this cast ───
       // Uses fetchCastsByFid (fids parameter) which IS supported by Hypersnap,
