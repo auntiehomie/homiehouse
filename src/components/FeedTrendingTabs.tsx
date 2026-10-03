@@ -15,29 +15,51 @@ interface FeedTrendingTabsProps {
 }
 
 export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType = 'global' }: FeedTrendingTabsProps = {}) {
-  const [tab, setTab] = useState<'feed'|'trending'>(defaultTab);
-  const [feedType, setFeedType] = useState<FeedType>(defaultFeedType);
-  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
+  // Lazily initialize from sessionStorage so FeedList gets the correct props
+  // on the very first render — avoids a double-mount that breaks scroll restoration.
+  const [tab, setTab] = useState<'feed'|'trending'>(() => {
+    try {
+      const raw = sessionStorage.getItem('hh_feed_return');
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000) return 'feed';
+      }
+    } catch {}
+    return defaultTab;
+  });
+  const [feedType, setFeedType] = useState<FeedType>(() => {
+    try {
+      const raw = sessionStorage.getItem('hh_feed_return');
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (
+          Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000 &&
+          (saved.feedType === 'following' || saved.feedType === 'global')
+        ) return saved.feedType;
+      }
+    } catch {}
+    return defaultFeedType;
+  });
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('hh_feed_return');
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (
+          Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000 &&
+          typeof saved.selectedChannel === 'string'
+        ) return saved.selectedChannel;
+      }
+    } catch {}
+    return null;
+  });
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
   const [showCurationSettings, setShowCurationSettings] = useState(false);
 
   useEffect(() => {
     prefetchTrending();
-
-    // A cast-detail round trip should restore the view the person came from.
-    // Fresh feed visits still begin on Global.
-    try {
-      const raw = sessionStorage.getItem('hh_feed_return');
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (Date.now() - Number(saved.ts || 0) > 10 * 60 * 1000) return;
-      if (saved.feedType === 'following' || saved.feedType === 'global') {
-        setTab('feed');
-        setFeedType(saved.feedType);
-        setSelectedChannel(typeof saved.selectedChannel === 'string' ? saved.selectedChannel : null);
-      }
-    } catch {}
+    // State is now initialized lazily from sessionStorage — no correction needed here.
   }, []);
 
   return (
