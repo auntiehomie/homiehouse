@@ -69,7 +69,7 @@ function setCorsHeaders(
   );
   response.headers.set(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Farcaster-Auth, x-api-key, x-farcaster-fid, x-signer-key',
+    'Content-Type, Authorization, X-Farcaster-Auth, x-api-key, x-farcaster-fid, x-signer-key, x-session-token, x-signer-uuid',
   );
   response.headers.set('Access-Control-Max-Age', '86400');
 }
