@@ -15,6 +15,8 @@ import { getPublicKeyAsync as ed25519GetPublicKey } from '@noble/ed25519';
 import { decodeFunctionResult, encodeFunctionData, parseAbi } from 'viem';
 import { AuthError } from './errors';
 import { sql } from './db';
+import { verifySession, SessionError } from './session';
+import type { SessionScope } from './session';
 
 const WARPCAST_API = 'https://api.warpcast.com';
 const KEY_REGISTRY = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
@@ -206,19 +208,46 @@ async function recoverApprovedSigner(
 /**
  * Verify Farcaster signer auth from request headers.
  *
- * Expects:
+ * Preferred (P1 security):
+ *   x-session-token:  JWT from POST /api/auth/session (post-challenge verify)
+ *
+ * Legacy (deprecated, P1 migration in progress):
  *   x-farcaster-fid:  the user's FID
  *   x-signer-key:    the Ed25519 signer private key hex
  *
- * Derives the public key from the private key and verifies it
- * exists as an approved signer for the FID in the user_signers table.
+ * The session-token path is checked first. If present, the JWT is verified
+ * and the embedded FID is returned. Otherwise falls back to the legacy
+ * x-signer-key raw private-key derivation path.
  *
  * Returns the verified FID.
  *
- * Also accepts the old Bearer token format for backward compat with
- * the publish-scheduled-casts internal cron job.
+ * @param requiredScope — optional scope check for session tokens
  */
-export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<number> {
+export async function verifyFarcasterSignerAuth(
+  request: NextRequest,
+  requiredScope?: SessionScope,
+): Promise<number> {
+  // ── P1: Prefer session token (nonce-signed challenge → short-lived JWT) ──
+  const sessionToken = request.headers.get('x-session-token');
+  if (sessionToken) {
+    try {
+      const claims = await verifySession(sessionToken, requiredScope);
+      return claims.fid;
+    } catch (err: any) {
+      if (err instanceof SessionError) {
+        throw new AuthError(err.message, err.status, err.code);
+      }
+      console.error('[auth] session verification error:', err?.message ?? err);
+      throw new AuthError(
+        'Session verification failed',
+        500,
+        'SESSION_VERIFICATION_FAILED',
+      );
+    }
+  }
+
+  // ── Legacy: x-signer-key raw private-key auth ──────────────────────────
+  // TODO(HH-02): Remove once all clients have migrated to session tokens
   const fidHeader = request.headers.get('x-farcaster-fid');
   const signerKey = request.headers.get('x-signer-key');
   const signerToken = request.headers.get('x-signer-uuid');
@@ -227,19 +256,16 @@ export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<n
     // Check for old Bearer token format (backward compat)
     const authHeader = request.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      // Legacy Bearer token — try to extract fid from it (backward compat for cron jobs)
-      // For now, just throw — cron jobs should use CRON_SECRET instead
       throw new AuthError(
-        'Legacy Bearer auth no longer supported. Use x-farcaster-fid + x-signer-key headers.',
+        'Legacy Bearer auth no longer supported. Use x-session-token header (POST /api/auth/session).',
         401,
-        'LEGACY_AUTH_UNSUPPORTED'
+        'LEGACY_AUTH_UNSUPPORTED',
       );
     }
     throw new AuthError(
-      'Missing x-farcaster-fid or x-signer-key headers',
+      'Missing auth headers. Use x-session-token from /api/auth/session, or x-farcaster-fid + x-signer-key.',
       401,
-      'MISSING_AUTH_HEADERS'
+      'MISSING_AUTH_HEADERS',
     );
   }
 
@@ -273,7 +299,7 @@ export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<n
       throw new AuthError(
         'Invalid or unapproved signer key for this FID',
         401,
-        'INVALID_SIGNER_KEY'
+        'INVALID_SIGNER_KEY',
       );
     }
   } catch (err: any) {
@@ -286,7 +312,7 @@ export async function verifyFarcasterSignerAuth(request: NextRequest): Promise<n
     throw new AuthError(
       'Unable to verify signer key',
       500,
-      'SIGNER_VERIFICATION_FAILED'
+      'SIGNER_VERIFICATION_FAILED',
     );
   }
 

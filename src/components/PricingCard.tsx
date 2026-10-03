@@ -6,6 +6,7 @@ import { base } from 'wagmi/chains';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { parseAbi, createWalletClient, custom } from 'viem';
 import { ReadContractParameters } from 'viem';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 // Base USDC contract address
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
@@ -93,19 +94,14 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
       // Step 3: Verify the payment on the backend
       setStep('verifying');
 
-      // Read auth from local storage
-      const profile = localStorage.getItem('hh_profile');
-      const p = profile ? JSON.parse(profile) : null;
-      const fid = String(p?.fid || userFid);
-      const signerRaw = fid ? localStorage.getItem(`signer_${fid}`) : null;
-      const signerKey = signerRaw ? JSON.parse(signerRaw)?.private_key : null;
+      // HH-02: Use session token auth (preferred) with legacy x-signer-key fallback
+      const authHeaders = getAuthHeaders();
 
       const verifyRes = await fetch('/api/pro/subscribe-crypto', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          ...(fid ? { 'x-farcaster-fid': fid } : {}),
-          ...(signerKey ? { 'x-signer-key': signerKey } : {}),
+          ...authHeaders,
         },
         body: JSON.stringify({
           txHash,

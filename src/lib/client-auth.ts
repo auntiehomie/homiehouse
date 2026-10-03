@@ -1,7 +1,8 @@
 /**
  * client-auth — helper for client-side auth headers.
  *
- * Provides Farcaster signer-key-based auth headers for authenticated API calls.
+ * HH-02: Now supports session-token auth (P1) as the preferred path.
+ * Falls back to legacy x-signer-key for backward compatibility during migration.
  *
  * Usage in client components:
  *   const headers = getAuthHeaders(); // or null if not authenticated
@@ -9,19 +10,33 @@
  */
 
 export interface FarcasterAuthHeaders {
-  'x-farcaster-fid': string;
-  'x-signer-key': string;
+  'x-farcaster-fid'?: string;
+  'x-signer-key'?: string;
   'x-signer-uuid'?: string;
+  'x-session-token'?: string;
 }
 
 /**
  * Read the FID and signer key from localStorage.
  * Returns null if not authenticated.
+ *
+ * HH-02: Prefers a session token (sessionStorage) when available.
+ * Falls back to legacy x-signer-key (localStorage) during migration.
  */
 export function getAuthHeaders(): FarcasterAuthHeaders | null {
   if (typeof window === 'undefined') return null;
 
   try {
+    // ── P1: Session token (preferred) ──
+    const sessionRaw = sessionStorage.getItem('hh_session_v1');
+    if (sessionRaw) {
+      const session = JSON.parse(sessionRaw);
+      if (session.token && session.expiresAt > Date.now()) {
+        return { 'x-session-token': session.token };
+      }
+    }
+
+    // ── Legacy: x-signer-key fallback ──
     const profileRaw = localStorage.getItem('hh_profile');
     if (!profileRaw) return null;
     const profile = JSON.parse(profileRaw);
