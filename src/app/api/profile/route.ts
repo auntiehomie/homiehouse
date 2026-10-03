@@ -38,10 +38,14 @@ export async function GET(request: NextRequest) {
     if (usernameParam) {
       // Validate and fetch by username
       const username = validateUsername(usernameParam);
-     const data = await fetchUserByUsername(username);
-     user = data.user;
-     userFid = user?.fid || data?.result?.user?.fid || user?.id;
-     logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid });
+     try {
+       const data = await fetchUserByUsername(username);
+       user = data.user;
+       userFid = user?.fid || data?.result?.user?.fid || user?.id;
+     } catch (primaryErr: any) {
+       logger.warn('Primary Hypersnap failed for username', { username, error: primaryErr?.message });
+     }
+    logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid });
 
       // Fallback: try secondary Hypersnap node before Warpcast
       if (!user) {
@@ -93,11 +97,15 @@ export async function GET(request: NextRequest) {
           logger.warn('Warpcast user fallback failed', { error: String(e) });
         }
       }
-    } else if (fidParam) {
-      // Validate and fetch by FID
-      userFid = validateFid(fidParam);
-     const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
-     user = data.users?.[0];
+   } else if (fidParam) {
+     // Validate and fetch by FID
+     userFid = validateFid(fidParam);
+      try {
+        const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
+        user = data.users?.[0];
+      } catch (primaryErr: any) {
+        logger.warn('Primary Hypersnap failed for FID', { fid: userFid, error: primaryErr?.message });
+      }
      logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
 
       // Fallback: try secondary Hypersnap node before Warpcast
