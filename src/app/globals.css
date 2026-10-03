@@ -781,8 +781,8 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 
 /* Content offset for fixed nav in PWA standalone mode */
 .hh-content-offset {
-  /* Default: clear the 52px fixed top nav */
-  padding-top: 56px;
+  /* Clear the fixed top nav (52px) + iOS safe-area-inset-top */
+  padding-top: calc(52px + env(safe-area-inset-top, 0px));
 }
 
 /* On desktop (lg+), the sidebar is used instead of the top nav */

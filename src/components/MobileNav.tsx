@@ -184,18 +184,17 @@ export default function MobileNav() {
           .hh-overlay { animation: fadeIn 0.15s ease-out; }
         `}</style>
 
-        <div style={{
-          maxWidth: '100%',
-          margin: '0 auto',
-          padding: '0 12px',
-          height: 52,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          // Push nav content below the notch/status bar in PWA standalone mode
-          paddingTop: 'env(safe-area-inset-top)',
-        }}>
+       <div style={{
+         maxWidth: '100%',
+         margin: '0 auto',
+         padding: '0 12px',
+         height: 52,
+         display: 'flex',
+         alignItems: 'center',
+         justifyContent: 'space-between',
+         gap: 8,
+          // Note: safe-area padding is already on the parent <nav> — don't duplicate here
+       }}>
           {/* Left: hamburger */}
           <button
             onClick={() => setDrawerOpen(true)}
