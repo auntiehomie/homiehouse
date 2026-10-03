@@ -5,6 +5,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import ComposeInspiration from '@/components/ComposeInspiration';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 function ComposePageInner() {
   const router = useRouter();
@@ -308,12 +309,12 @@ function ComposePageInner() {
         }
         body.private_key = signerPrivateKey;
 
-        console.log('[ComposePage] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
-        const res = await fetch("/api/schedule-cast", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+       console.log('[ComposePage] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
+       const res = await fetch("/api/schedule-cast", {
+         method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+         body: JSON.stringify(body),
+       });
 
         console.log(`[ComposePage] Schedule response status: ${res.status} ${res.statusText}`);
         
