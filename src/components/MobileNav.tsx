@@ -46,7 +46,7 @@ const CloseIcon = (
 // ── Full nav items (same as SidebarNav) ────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Feed', exact: true, icon: FeedIcon },
+  { href: '/feed', label: 'Feed', exact: true, icon: FeedIcon },
   { href: '/learn', label: 'Learn', icon: LearnIcon },
   { href: '/community', label: 'Community', icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🛡️</span> },
   { href: '/hh2', label: 'HH2 Token', icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🪙</span> },
@@ -99,7 +99,7 @@ const NAV_ITEMS = [
 // ── Quick-access items (top bar) ───────────────────────────────────────────────
 
 const QUICK_ITEMS = [
-  { href: '/', label: 'Feed', exact: true, icon: FeedIcon },
+  { href: '/feed', label: 'Feed', exact: true, icon: FeedIcon },
   { href: '/compose', label: 'Cast', icon: CastIcon },
   { href: '/learn', label: 'Learn', icon: LearnIcon },
 ];
