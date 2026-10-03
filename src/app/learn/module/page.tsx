@@ -433,6 +433,15 @@ function CompleteCard({ mod, onShare, onBack, claimStatus, claimTxHash, claimErr
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function Skeleton() {
+  const tips = [
+    '💡 Never share your seed phrase — no legitimate service will ever ask for it.',
+    '🔑 A hardware wallet is the gold standard for storing significant crypto holdings.',
+    '📚 Completing lessons earns you HH2 tokens — build your streak!',
+    '⚡ Self-custody means you are the bank — always protect your keys.',
+    '🔒 On-chain transactions are usually irreversible — double-check before signing.',
+  ];
+  const tip = tips[Math.floor(Date.now() / 3000) % tips.length];
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '20px', maxWidth: 560, width: '100%', alignSelf: 'center', boxSizing: 'border-box' as any }}>
       {/* Loading indicator */}
@@ -441,7 +450,6 @@ function Skeleton() {
           width: 18, height: 18, borderRadius: '50%',
           border: '2px solid rgba(99,102,241,0.4)',
           borderTopColor: 'var(--accent)',
-         animation: 'hhSpin 0.7s linear infinite',
           animation: 'hhSpin 0.6s linear infinite',
           flexShrink: 0,
         }} />
@@ -464,6 +472,14 @@ function Skeleton() {
           }}
         />
       ))}
+      <div style={{
+        marginTop: 8, padding: '14px 16px', borderRadius: 12,
+        background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+      }}>
+        <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
+          {tip}
+        </p>
+      </div>
       <style>{`@keyframes hhShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
   );
@@ -874,7 +890,7 @@ function ModuleLessonContent() {
         @keyframes celebrateBounce { 0% { opacity: 0; transform: scale(0) rotate(-20deg); } 50% { opacity: 1; transform: scale(1.3) rotate(10deg); } 70% { transform: scale(0.9) rotate(-5deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
         @keyframes hhSpin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .hh-lesson-shell { height: calc(100dvh - 56px); }
+        .hh-lesson-shell { height: calc(100dvh - 52px - env(safe-area-inset-top, 0px)); }
         .hh-lesson-card-body { margin: 0 auto; }
         @media (min-width: 1024px) {
           .hh-lesson-shell { height: 100dvh; }
