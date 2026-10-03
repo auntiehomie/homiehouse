@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import FeedTrendingTabs from "@/components/FeedTrendingTabs";
 import SidebarNav from "@/components/SidebarNav";
-import LearningHeroCard from "@/components/LearningHeroCard";
+// LearningHeroCard removed — feed page is pure Farcaster feed only.
+// The home page (AuthenticatedHome) serves as the learning hub home base.
 import SignInButton from "@/components/SignInButton";
 import HHLogo from "@/components/HHLogo";
 import NotificationBadge from "@/components/NotificationBadge";
@@ -123,7 +124,7 @@ export default function FeedClient() {
             <SidebarNav />
           </aside>
           <div className="flex-1 min-w-0">
-            {isAuthenticated && <LearningHeroCard />}
+            {isAuthenticated && null /* LearningHeroCard moved to home page */}
             <div className="flex items-center mb-3">
               <h3 className="text-lg font-semibold">Explore</h3>
             </div>
