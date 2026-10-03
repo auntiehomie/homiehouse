@@ -160,8 +160,6 @@ export default function MobileNav() {
           top: 0, left: 0, right: 0,
           zIndex: 9500,
           background: 'var(--nav-bg)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
           // Extend background into the safe area so the notch/status bar region is opaque
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
@@ -311,6 +309,7 @@ export default function MobileNav() {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '14px 16px',
+              paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))',
               borderBottom: '1px solid var(--border)',
               flexShrink: 0,
             }}>
