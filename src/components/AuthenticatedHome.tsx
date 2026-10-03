@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import HHLogo from '@/components/HHLogo';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
 
 interface LearningPlan {
   summary?: string;
@@ -97,13 +98,61 @@ export default function AuthenticatedHome() {
         <Link href="/compose" style={{ padding: 18, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none' }}>
           <div style={{ fontSize: 24, marginBottom: 8 }}>✍️</div>
           <strong style={{ color: 'var(--text-on-dark)', fontSize: 15 }}>Cast something</strong>
-          <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, lineHeight: 1.5, margin: '5px 0 0' }}>Share what you’re learning or what’s on your mind.</p>
+          <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, lineHeight: 1.5, margin: '5px 0 0' }}>Share what you're learning or what's on your mind.</p>
         </Link>
         <Link href="/shop" style={{ padding: 18, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none' }}>
           <div style={{ fontSize: 24, marginBottom: 8 }}>🛍️</div>
           <strong style={{ color: 'var(--text-on-dark)', fontSize: 15 }}>Spend your HH2</strong>
           <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, lineHeight: 1.5, margin: '5px 0 0' }}>Turn your learning rewards into badges, themes, and perks.</p>
         </Link>
+      </section>
+
+      {/* ── Ask Homie ── */}
+      <section style={{ marginBottom: 24 }}>
+        <div style={{
+          borderRadius: 18, padding: 22,
+          background: 'linear-gradient(135deg, rgba(99,102,241,.10), rgba(168,85,247,.06))',
+          border: '1px solid rgba(99,102,241,.20)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 300px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 22 }}>🤖</span>
+                <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text-on-dark)' }}>Ask Homie</h2>
+              </div>
+              <p style={{ margin: '0 0 14px', color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.55 }}>
+                Confused by something in your feed? Ask about Farcaster, crypto, DeFi, or anything Web3 — get a plain-English answer.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {SUGGESTED_QUESTIONS.slice(0, 4).map(q => (
+                  <Link
+                    key={q.label}
+                    href={`/ask-homie?q=${encodeURIComponent(q.label)}`}
+                    style={{
+                      padding: '8px 14px', borderRadius: 10,
+                      background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)',
+                      color: '#a5b4fc', fontSize: 13, fontWeight: 600, textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {q.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+            <Link
+              href="/ask-homie"
+              style={{
+                padding: '12px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                color: '#fff', fontWeight: 700, fontSize: 14, textDecoration: 'none',
+                whiteSpace: 'nowrap', alignSelf: 'flex-start',
+              }}
+            >
+              Ask anything →
+            </Link>
+          </div>
+        </div>
       </section>
 
       <section>
