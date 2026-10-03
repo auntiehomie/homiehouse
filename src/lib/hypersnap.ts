@@ -61,7 +61,7 @@ export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}, t
  * Only called when the primary Hypersnap node times out or returns empty.
  * Returns null if no fallback is configured or if the fallback also fails.
  */
-async function fallbackFetch(endpoint: string): Promise<any> {
+export async function fallbackFetch(endpoint: string): Promise<any> {
   if (!HYPERSNAP_FALLBACK) return null;
   const url = `${HYPERSNAP_FALLBACK}${endpoint}`;
   const controller = new AbortController();

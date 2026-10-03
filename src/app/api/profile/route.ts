@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
-import { fetchUserByUsername, hypersnapFetch } from '@/lib/hypersnap';
+import { fetchUserByUsername, hypersnapFetch, fallbackFetch } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateUsername } from '@/lib/validation';
@@ -38,13 +38,31 @@ export async function GET(request: NextRequest) {
     if (usernameParam) {
       // Validate and fetch by username
       const username = validateUsername(usernameParam);
-      const data = await fetchUserByUsername(username);
-      user = data.user;
-      userFid = user?.fid || data?.result?.user?.fid || user?.id;
-      logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid });
+     const data = await fetchUserByUsername(username);
+     user = data.user;
+     userFid = user?.fid || data?.result?.user?.fid || user?.id;
+     logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid });
 
-      // Fallback: Warpcast public client API (same data, different indexing)
+      // Fallback: try secondary Hypersnap node before Warpcast
       if (!user) {
+        logger.info('Primary Hypersnap returned no user, trying fallback hub', { username });
+        try {
+          const fbData = await fallbackFetch(`/v2/farcaster/user/by-username?username=${encodeURIComponent(username)}`);
+          if (fbData) {
+            const fbUser = fbData?.user ?? fbData?.result ?? fbData?.data?.user ?? fbData?.data ?? fbData;
+            if (fbUser) {
+              user = fbUser;
+              userFid = user?.fid || user?.id;
+              logger.info('Fallback hub succeeded for username', { fid: userFid, username });
+            }
+          }
+        } catch (e) {
+          logger.warn('Fallback hub failed for username', { error: String(e) });
+        }
+      }
+
+     // Fallback: Warpcast public client API (same data, different indexing)
+     if (!user) {
         logger.info('Hypersnap returned no user, trying Warpcast client API', { username });
         try {
           const wcRes = await fetch(
@@ -78,12 +96,26 @@ export async function GET(request: NextRequest) {
     } else if (fidParam) {
       // Validate and fetch by FID
       userFid = validateFid(fidParam);
-      const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
-      user = data.users?.[0];
-      logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
+     const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
+     user = data.users?.[0];
+     logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
 
-      // Warpcast fallback when Hypersnap can't find the user by FID
+      // Fallback: try secondary Hypersnap node before Warpcast
       if (!user && userFid) {
+        logger.info('Primary Hypersnap returned no user by FID, trying fallback hub', { fid: userFid });
+        try {
+          const fbData = await fallbackFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
+          if (fbData?.users?.[0]) {
+            user = fbData.users[0];
+            logger.info('Fallback hub succeeded for FID', { fid: userFid });
+          }
+        } catch (e) {
+          logger.warn('Fallback hub failed for FID', { error: String(e) });
+        }
+      }
+
+     // Warpcast fallback when Hypersnap can't find the user by FID
+     if (!user && userFid) {
         logger.info('Hypersnap returned no user by FID, trying Warpcast', { fid: userFid });
         try {
           const wcRes = await fetch(
