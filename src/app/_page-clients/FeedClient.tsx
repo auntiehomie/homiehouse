@@ -115,7 +115,7 @@ export default function FeedClient() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 pb-24">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 pb-24">
         <div className="flex gap-6 items-start">
           <aside
             className="hidden lg:block shrink-0"
