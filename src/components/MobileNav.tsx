@@ -163,7 +163,7 @@ export default function MobileNav() {
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           // Extend background into the safe area so the notch/status bar region is opaque
-          paddingTop: 'env(safe-area-inset-top)',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
       >
         <style>{`
