@@ -2,7 +2,9 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const logoUrl = new URL('/homiehouse-logo.png', request.url).toString();
+
   return new ImageResponse(
     (
       <div
@@ -46,7 +48,14 @@ export async function GET() {
               border: '1px solid rgba(255,255,255,0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <span style={{ fontSize: 36, fontWeight: 900, color: '#fff', lineHeight: 1 }}>H²</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoUrl}
+                width={64}
+                height={64}
+                alt="HomieHouse"
+                style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'cover' }}
+              />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontSize: 26, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>HomieHouse</span>
