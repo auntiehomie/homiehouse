@@ -304,14 +304,16 @@ export async function POST(req: NextRequest) {
 
     if (getLLMProviders().length === 0) {
       logger.warn('No AI provider configured, returning fallback');
-      return NextResponse.json(fallbackLesson(title, description, objectives));
+      return NextResponse.json(fallbackLesson(title, description, objectives), {
+        headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
+      });
     }
 
     // ── Cache check — return stored lesson if available ──────────────────────
     const redis = getRedis();
     // v5: regenerate every module with increased maxTokens (8000) so the
     // full lesson JSON isn't truncated mid-object.
-    const cacheKey = moduleId ? `lesson:v7:${moduleId}${eli5 ? ':eli5' : ''}` : null;
+    const cacheKey = moduleId ? `lesson:v8:${moduleId}${eli5 ? ':eli5' : ''}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
@@ -625,7 +627,9 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     if (!content) {
       logger.warn('All providers failed, using fallback');
-      return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
+      return NextResponse.json(fallbackLesson(title, description, objectives ?? []), {
+        headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
+      });
     }
 
     logger.info(`generated via ${usedProvider} (${content.length} chars)`);
@@ -653,7 +657,9 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     if (!lesson) {
       logger.warn('Failed to parse AI response, using fallback');
-      return NextResponse.json(fallbackLesson(title, description, objectives ?? []));
+      return NextResponse.json(fallbackLesson(title, description, objectives ?? []), {
+        headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
+      });
     }
 
     // ── Shuffle quiz option order so the correct answer isn't always A ──────
@@ -693,6 +699,8 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     return NextResponse.json(lesson);
   } catch (error: any) {
     logger.error('Error', error?.message || error);
-    return NextResponse.json(fallbackLesson('', '', []));
+    return NextResponse.json(fallbackLesson('', '', []), {
+      headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
+    });
   }
 }

@@ -30,8 +30,8 @@ interface CachedLesson {
   lesson: LessonContent;
 }
 
-const CACHE_PREFIX = 'hh_lesson_v1:';
-const CACHE_INDEX_KEY = 'hh_lesson_cache_index_v1';
+const CACHE_PREFIX = 'hh_lesson_v2:';
+const CACHE_INDEX_KEY = 'hh_lesson_cache_index_v2';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_CACHED_LESSONS = 6;
 const inflight = new Map<string, Promise<LessonContent>>();
@@ -120,7 +120,10 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Failed to load lesson');
       const lesson = data as LessonContent;
-      cacheLesson(module, eli5, lesson);
+      // Don't cache fallback lessons — they're temporary content from AI provider failures.
+      if (response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
+        cacheLesson(module, eli5, lesson);
+      }
       return lesson;
     })
     .finally(() => inflight.delete(key));
