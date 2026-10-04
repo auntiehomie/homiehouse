@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import PricingCard from '@/components/PricingCard';
-import WagmiProviders from '@/components/WagmiProviders';
 
 export default function ProPage() {
   const router = useRouter();
@@ -84,9 +83,7 @@ export default function ProPage() {
           Supercharge your HomieHouse experience with Pro. Pay with USDC on Base — no credit card, no KYC, fully decentralized.
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-          <WagmiProviders>
-            <PricingCard userFid={userFid} isPro={isPro} />
-          </WagmiProviders>
+          <PricingCard userFid={userFid} isPro={isPro} />
         </div>
       </div>
 
