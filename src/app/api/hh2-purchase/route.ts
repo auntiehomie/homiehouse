@@ -61,10 +61,13 @@ export async function GET(req: NextRequest) {
 async function getUserHH2Balance(client: import('pg').PoolClient, userFid: number): Promise<number> {
   const progress = await client.query('SELECT completed_ids FROM learning_progress WHERE fid = $1', [userFid]);
   const completedIds: string[] = progress.rows[0]?.completed_ids ?? [];
-  const earned = completedIds.length * 100; // HH2_PER_LESSON = 100 (matches LearnClient + claim-hh2 + leaderboard)
+  // Total earned = current unclaimed completions * 100 + previously claimed HH2.
+  // claimed HH2 was also earned (claiming just moved it on-chain), so add it back.
+  // This handles learning plan resets where completed_ids gets replaced but hh2_claims persists.
 
   const claimedRows = await client.query('SELECT COALESCE(SUM(amount), 0) AS total FROM hh2_claims WHERE fid = $1', [userFid]);
   const claimed = Number(claimedRows.rows[0]?.total ?? 0);
+  const earned = (completedIds.length * 100) + claimed;
 
   const purchaseRows = await client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [userFid]);
   let spent = 0;
