@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og';
 export const runtime = 'edge';
 
 export async function GET(request: Request) {
-  const logoUrl = new URL('/homiehouse-logo.png', request.url).toString();
+  const logoUrl = new URL('/homiehouse-pixel.svg', request.url).toString();
 
   return new ImageResponse(
     (
