@@ -36,7 +36,6 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/hh-logo.svg', type: 'image/svg+xml' },
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
       { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -45,7 +44,7 @@ export const metadata: Metadata = {
     apple: [
       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
-    shortcut: '/hh-logo.svg',
+    shortcut: '/favicon-32.png',
   },
   manifest: '/manifest.json',
   applicationName: 'HomieHouse',
