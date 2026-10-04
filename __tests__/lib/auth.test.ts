@@ -6,6 +6,10 @@ jest.mock('@noble/ed25519', () => ({
   getPublicKeyAsync: jest.fn(async () => Uint8Array.from({ length: 32 }, () => 2)),
 }));
 jest.mock('@/lib/db', () => ({ sql: jest.fn() }));
+jest.mock('@/lib/session', () => ({
+  verifySession: jest.fn(),
+  SessionError: class SessionError extends Error {},
+}));
 
 const mockSql = sql as jest.Mock;
 
