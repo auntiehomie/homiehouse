@@ -62,6 +62,32 @@ function fisherYates<T>(arr: T[]): T[] {
  * ordering) and BEFORE caching, so the stored lesson has a randomized answer
  * position that stays stable across cache hits.
  */
+/**
+ * Remove duplicate options from a quiz question. If the correct option is a
+ * duplicate, the first occurrence is kept as correct. If dedup leaves fewer
+ * than 2 options, the question is unrecoverable and returns null.
+ */
+function dedupeQuizOptions(q: QuizQuestion): QuizQuestion | null {
+  if (!q.options || q.options.length < 2) return null;
+  const seen = new Map<string, number>();
+  const keepIndices: number[] = [];
+  for (let i = 0; i < q.options.length; i++) {
+    const norm = q.options[i].trim().toLowerCase().replace(/\s+/g, ' ');
+    if (seen.has(norm)) continue;
+    seen.set(norm, i);
+    keepIndices.push(i);
+  }
+  if (keepIndices.length < 2) return null;
+  const newOptions = keepIndices.map(i => q.options[i]);
+  let newCorrect = keepIndices.indexOf(q.correctIndex);
+  if (newCorrect < 0) {
+    const correctNorm = q.options[q.correctIndex]?.trim().toLowerCase().replace(/\s+/g, ' ');
+    const firstIdx = seen.get(correctNorm ?? '');
+    if (firstIdx !== undefined) newCorrect = keepIndices.indexOf(firstIdx);
+  }
+  return { ...q, options: newOptions, correctIndex: newCorrect >= 0 ? newCorrect : 0 };
+}
+
 function shuffleQuizOptions(quiz: QuizQuestion[]): QuizQuestion[] {
   return quiz.map((q) => {
     if (!q.options || q.options.length < 2) return q;
@@ -313,7 +339,7 @@ export async function POST(req: NextRequest) {
     const redis = getRedis();
     // v5: regenerate every module with increased maxTokens (8000) so the
     // full lesson JSON isn't truncated mid-object.
-    const cacheKey = moduleId ? `lesson:v8:${moduleId}${eli5 ? ':eli5' : ''}` : null;
+    const cacheKey = moduleId ? `lesson:v9:${moduleId}${eli5 ? ':eli5' : ''}` : null;
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
@@ -662,8 +688,17 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       });
     }
 
-    // ── Shuffle quiz option order so the correct answer isn't always A ──────
-    // The LLM tends to put the correct option at index 0 regardless of the
+   // ── Shuffle quiz option order so the correct answer isn't always A ──────
+    // ── Deduplicate quiz options — LLMs sometimes produce identical options ─
+    lesson.quiz = lesson.quiz.map(dedupeQuizOptions).filter(Boolean) as QuizQuestion[];
+    if (lesson.quiz.length === 0) {
+      logger.warn('All quiz questions had duplicate options, using fallback');
+      return NextResponse.json(fallbackLesson(title, description, objectives ?? []), {
+        headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
+      });
+    }
+
+   // The LLM tends to put the correct option at index 0 regardless of the
     // prompt instruction to vary it. verifyQuiz pins correctIndex against the
     // generated ordering; we then shuffle so the stored lesson has a random
     // answer position that stays stable across cache hits.
