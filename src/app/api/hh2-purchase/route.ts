@@ -28,19 +28,20 @@ export async function GET(req: NextRequest) {
     const [purchases, progress, claims] = await Promise.all([
       db.query('SELECT item_id, purchased_at FROM hh2_purchases WHERE user_fid = $1 ORDER BY purchased_at ASC', [userFid]),
       db.query('SELECT completed_ids FROM learning_progress WHERE fid = $1', [userFid]),
-      db.query('SELECT COALESCE(SUM(amount), 0) AS total FROM hh2_claims WHERE fid = $1', [userFid]),
+      db.query('SELECT module_id FROM hh2_claims WHERE fid = $1', [userFid]),
     ]);
     const rows = purchases.rows;
     const ownedItems = (rows as any[]).map((r: any) => r.item_id);
-    const claimed = Number(claims.rows[0]?.total ?? 0);
-    // Claimed HH2 was also earned; claiming only moves it on-chain. Include it
-    // so resetting a learning plan cannot make the balance negative.
-    const earned = (progress.rows[0]?.completed_ids ?? []).length * 100 + claimed;
+    const completedIds: string[] = progress.rows[0]?.completed_ids ?? [];
+    const claimedIds = new Set(claims.rows.map((row: any) => row.module_id));
+    // Only current completions that have not been claimed are spendable off-chain.
+    // Historical claims can outlive a reset learning plan and must not reduce this balance.
+    const earned = completedIds.filter(id => !claimedIds.has(id)).length * 100;
     const spent = rows.reduce((sum: number, row: any) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
     return NextResponse.json({
       ok: true,
       owned_items: ownedItems,
-      balance: earned - claimed - spent,
+      balance: earned - spent,
       spend_summary: {
         purchase_count: rows.length,
         total_spent: spent,
@@ -59,17 +60,13 @@ export async function GET(req: NextRequest) {
 
 // ITEM_PRICES and VALID_ITEM_IDS are now imported from hh2-shop/route (single source of truth)
 
-// HH2 balance check helper — sums (completed_ids * 10) - (claimed) - (spent)
+// HH2 balance check helper — spendable current completions minus shop purchases
 async function getUserHH2Balance(client: import('pg').PoolClient, userFid: number): Promise<number> {
   const progress = await client.query('SELECT completed_ids FROM learning_progress WHERE fid = $1', [userFid]);
   const completedIds: string[] = progress.rows[0]?.completed_ids ?? [];
-  // Total earned = current unclaimed completions * 100 + previously claimed HH2.
-  // claimed HH2 was also earned (claiming just moved it on-chain), so add it back.
-  // This handles learning plan resets where completed_ids gets replaced but hh2_claims persists.
-
-  const claimedRows = await client.query('SELECT COALESCE(SUM(amount), 0) AS total FROM hh2_claims WHERE fid = $1', [userFid]);
-  const claimed = Number(claimedRows.rows[0]?.total ?? 0);
-  const earned = (completedIds.length * 100) + claimed;
+  const claimedRows = await client.query('SELECT module_id FROM hh2_claims WHERE fid = $1', [userFid]);
+  const claimedIds = new Set(claimedRows.rows.map((row: any) => row.module_id));
+  const earned = completedIds.filter(id => !claimedIds.has(id)).length * 100;
 
   const purchaseRows = await client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [userFid]);
   let spent = 0;
@@ -77,7 +74,7 @@ async function getUserHH2Balance(client: import('pg').PoolClient, userFid: numbe
     spent += ITEM_PRICES[row.item_id] ?? 0;
   }
 
-  return earned - claimed - spent;
+  return earned - spent;
 }
 
 // POST /api/hh2-purchase — deduct HH2 and grant the item
