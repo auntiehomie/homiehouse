@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const { searchParams } = requestUrl;
   const hash = searchParams.get('hash') || '';
-  const logoUrl = new URL('/homiehouse-logo.png', requestUrl).toString();
+  const logoUrl = new URL('/homiehouse-pixel.svg', requestUrl).toString();
 
   let authorName = 'Farcaster';
   let authorUsername = '';
