@@ -32,8 +32,10 @@ export async function GET(req: NextRequest) {
     ]);
     const rows = purchases.rows;
     const ownedItems = (rows as any[]).map((r: any) => r.item_id);
-    const earned = (progress.rows[0]?.completed_ids ?? []).length * 100; // HH2_PER_LESSON = 100
     const claimed = Number(claims.rows[0]?.total ?? 0);
+    // Claimed HH2 was also earned; claiming only moves it on-chain. Include it
+    // so resetting a learning plan cannot make the balance negative.
+    const earned = (progress.rows[0]?.completed_ids ?? []).length * 100 + claimed;
     const spent = rows.reduce((sum: number, row: any) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
     return NextResponse.json({
       ok: true,
