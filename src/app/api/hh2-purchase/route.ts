@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     ]);
     const rows = purchases.rows;
     const ownedItems = (rows as any[]).map((r: any) => r.item_id);
-    const earned = (progress.rows[0]?.completed_ids ?? []).length * 10;
+    const earned = (progress.rows[0]?.completed_ids ?? []).length * 100; // HH2_PER_LESSON = 100
     const claimed = Number(claims.rows[0]?.total ?? 0);
     const spent = rows.reduce((sum: number, row: any) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
     return NextResponse.json({
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 async function getUserHH2Balance(client: import('pg').PoolClient, userFid: number): Promise<number> {
   const progress = await client.query('SELECT completed_ids FROM learning_progress WHERE fid = $1', [userFid]);
   const completedIds: string[] = progress.rows[0]?.completed_ids ?? [];
-  const earned = completedIds.length * 10;
+  const earned = completedIds.length * 100; // HH2_PER_LESSON = 100 (matches LearnClient + claim-hh2 + leaderboard)
 
   const claimedRows = await client.query('SELECT COALESCE(SUM(amount), 0) AS total FROM hh2_claims WHERE fid = $1', [userFid]);
   const claimed = Number(claimedRows.rows[0]?.total ?? 0);
