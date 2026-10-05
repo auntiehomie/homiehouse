@@ -51,7 +51,7 @@
     "@uniswap/widgets": "^2.59.0",
     "@upstash/ratelimit": "^2.2.0",
     "@upstash/redis": "^1.38.0",
-    "@vanilla-extract/css": "^1.18.0",
+    "@vanilla-extract/css": "^1.21.2",
     "@vercel/analytics": "^2.0.1",
     "@wagmi/core": "^3.4.4",
     "@walletconnect/utils": "^2.23.9",
