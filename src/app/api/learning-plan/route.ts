@@ -976,10 +976,35 @@ function fallbackForTrack(track: string, level: string): LearningPlan {
   // Map legacy tracks to new ones
   const normalizedTrack = LEGACY_TRACK_MAP[track] || track;
 
+  // "All" is a real choice in the UI, not an alias for the default track.
+  // Build a balanced cross-track plan from the selected level so the fallback
+  // remains useful even when AI personalization is unavailable.
+  if (normalizedTrack === 'all') {
+    const levelPlans = Object.values(PLANS_BY_TRACK_LEVEL)
+      .map((plans) => plans[level] || plans.beginner)
+      .filter(Boolean);
+    const seen = new Set<string>();
+    const modules = levelPlans
+      .flatMap((plan) => plan.modules)
+      .filter((module) => {
+        if (seen.has(module.id)) return false;
+        seen.add(module.id);
+        return true;
+      })
+      .slice(0, 8);
+
+    return {
+      track: 'all',
+      level: level as LearningPlan['level'],
+      summary: 'A balanced path across decentralization, finance, AI, and creator skills — matched to your experience level.',
+      modules,
+    };
+  }
+
   const trackPlans = PLANS_BY_TRACK_LEVEL[normalizedTrack];
   if (!trackPlans) {
     // Unknown track — default to decentralization beginner
-    return DECENTRALIZATION_BEGINNER;
+    return { ...DECENTRALIZATION_BEGINNER, track: 'decentralization', level: 'beginner' };
   }
 
   const plan = trackPlans[level] || trackPlans.beginner;
