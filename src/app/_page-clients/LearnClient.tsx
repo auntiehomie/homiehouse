@@ -31,14 +31,14 @@ interface LearningModule {
 }
 
 interface LearningPlan {
-  track: 'learner' | 'creator' | 'financial' | 'survival' | 'all';
+  track: 'ai' | 'finance' | 'creator' | 'decentralization' | 'all';
   level: 'beginner' | 'intermediate' | 'advanced';
   summary: string;
   modules: LearningModule[];
 }
 
 type PageState = 'quiz' | 'generating' | 'plan';
-type Track = 'learner' | 'creator' | 'financial' | 'survival' | 'all';
+type Track = 'ai' | 'finance' | 'creator' | 'decentralization' | 'all';
 type Level = 'beginner' | 'intermediate' | 'advanced';
 type LearnTab = 'plan' | 'completed' | 'homie' | 'feed';
 
@@ -786,8 +786,13 @@ function LearnPageContent() {
   // Deep-link pre-selection
   useEffect(() => {
     const t = searchParams.get('track') as Track | null;
-    const valid: Track[] = ['learner', 'creator', 'financial', 'survival', 'all'];
-    if (t && valid.includes(t)) setTrack(t);
+    const valid: Track[] = ['ai', 'finance', 'creator', 'decentralization', 'all'];
+    // Legacy track mapping for URLs still using old track names
+    if (t) {
+      const legacyMap: Record<string, string> = { learner: 'decentralization', financial: 'finance', survival: 'decentralization' };
+      const normalized = legacyMap[t] || t;
+      if (valid.includes(normalized as Track)) setTrack(normalized as Track);
+    }
     if (searchParams.get('tab') === 'homie') setActiveTab('homie');
   }, [searchParams]);
 
@@ -1063,11 +1068,11 @@ function LearnPageContent() {
   // ─── Options ──────────────────────────────────────────────────────────────
 
   const trackOptions: { id: Track; emoji: string; title: string; subtitle: string }[] = [
-    { id: 'learner',   emoji: '🧠', title: 'Learner',          subtitle: 'I want to understand how this all works' },
-    { id: 'creator',   emoji: '🛠️', title: 'Creator',          subtitle: 'I want to build and create things on-chain' },
-    { id: 'financial', emoji: '💰', title: 'Financial',        subtitle: 'I want to grow and manage my assets' },
-    { id: 'survival',  emoji: '🛡️', title: 'Crypto Safety',     subtitle: 'I want to participate without losing my shirt' },
-    { id: 'all',       emoji: '✨', title: 'All of the above', subtitle: 'I want the full picture' },
+    { id: 'ai',              emoji: '🤖', title: 'AI',              subtitle: 'Understand AI agents, LLMs, and the AI–crypto frontier' },
+    { id: 'finance',         emoji: '💰', title: 'Finance',         subtitle: 'Master tokens, DeFi, and on-chain portfolio management' },
+    { id: 'creator',         emoji: '🛠️', title: 'Creator',         subtitle: 'Build and create things on-chain' },
+    { id: 'decentralization', emoji: '🌐', title: 'Decentralization', subtitle: 'Understand how Web3, wallets, and blockchains work' },
+    { id: 'all',             emoji: '✨', title: 'All of the above', subtitle: 'I want the full picture' },
   ];
   const levelOptions: { label: string; description: string; level: Level }[] = [
     { label: 'Complete beginner', description: "I've heard the terms but don't really get it",       level: 'beginner' },
@@ -1162,7 +1167,8 @@ function LearnPageContent() {
     const done = completedIds.size;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     const totalMinutes = plan.modules.reduce((s, m) => s + m.estimatedMinutes, 0);
-    const trackLabel = plan.track.charAt(0).toUpperCase() + plan.track.slice(1);
+    const trackDisplayNames: Record<string, string> = { ai: 'AI', finance: 'Finance', creator: 'Creator', decentralization: 'Decentralization', all: 'All' };
+    const trackLabel = trackDisplayNames[plan.track] || plan.track;
     const levelLabel = plan.level.charAt(0).toUpperCase() + plan.level.slice(1);
 
     return wrap(
@@ -1477,7 +1483,7 @@ function LearnPageContent() {
             <button
               onClick={() => {
                 const starterPlan: LearningPlan = {
-                  track: 'learner',
+                  track: 'decentralization',
                   level: 'beginner',
                   summary: 'A quick taste of the HomieHouse learning experience.',
                   modules: [{
