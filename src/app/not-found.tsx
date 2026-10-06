@@ -3,5 +3,5 @@
 export const dynamic = 'force-dynamic';
 
 export default function NotFound() {
-  return null; // BottomNav + layout handle the actual 404 UI
+  return null; // layout handles the actual 404 UI
 }

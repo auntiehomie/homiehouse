@@ -282,9 +282,9 @@ function ComposePageInner() {
       // Add channel if selected
       if (selectedChannel) {
         body.channelKey = selectedChannel;
-        console.log('[ComposePage] Adding channel to post:', selectedChannel);
+        // channel selected
       } else {
-        console.log('[ComposePage] No channel selected');
+        // no channel selected
       }
 
       // If scheduled, save to database instead of posting immediately
@@ -309,19 +309,17 @@ function ComposePageInner() {
         }
         body.private_key = signerPrivateKey;
 
-       console.log('[ComposePage] Scheduling cast, sending POST to /api/schedule-cast with body:', JSON.stringify(body, null, 2));
        const res = await fetch("/api/schedule-cast", {
          method: "POST",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
          body: JSON.stringify(body),
        });
 
-        console.log(`[ComposePage] Schedule response status: ${res.status} ${res.statusText}`);
+
         
         let data;
         try {
           data = await res.json();
-          console.log('[ComposePage] Schedule response body:', data);
         } catch (parseErr) {
           console.error('[ComposePage] Failed to parse schedule response:', parseErr);
           const text = await res.text();

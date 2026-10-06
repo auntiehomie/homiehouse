@@ -62,7 +62,7 @@ export default function AskHomieMiniApp() {
         await sdk.actions.ready();
         setIsReady(true);
         
-        console.log('Mini app ready with context:', ctx);
+        // Mini app ready
 
         // Fetch user stats
         if (ctx?.user?.fid) {
@@ -325,7 +325,7 @@ export default function AskHomieMiniApp() {
                     placeholder="Type @ to search for a user..."
                     className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
                     onUserSelect={(user) => {
-                      console.log('User selected:', user);
+                      // user selected
                     }}
                   />
                 ) : (

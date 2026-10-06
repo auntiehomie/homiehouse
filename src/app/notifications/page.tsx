@@ -322,7 +322,7 @@ export default function NotificationsPage() {
 
                 {hasMore && cursor && (
                   <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
-                    <button onClick={() => console.log('Load more:', cursor)} className="btn primary">
+                    <button onClick={() => {}} className="btn primary">
                       Load More
                     </button>
                   </div>
