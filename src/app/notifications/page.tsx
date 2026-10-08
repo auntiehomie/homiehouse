@@ -85,7 +85,7 @@ export default function NotificationsPage() {
   const [meta, setMeta] = useState<{ _source?: string; _timings?: Record<string, number> } | null>(null);
   const router = useRouter();
 
-  const loadNotifications = useCallback(async (silent = false) => {
+  const loadNotifications = useCallback(async (silent = false, pageCursor?: string | null) => {
     try {
       if (!silent) setLoading(true);
       const storedProfile = localStorage.getItem('hh_profile');
@@ -94,10 +94,19 @@ export default function NotificationsPage() {
       const fid = profile?.fid;
       if (!fid) { setError('User FID not found'); setLoading(false); return; }
 
-      const response = await fetch(`/api/notifications?fid=${fid}`);
+      const url = new URL('/api/notifications', window.location.origin);
+      url.searchParams.set('fid', String(fid));
+      if (pageCursor) url.searchParams.set('cursor', pageCursor);
+
+      const response = await fetch(url.toString());
       if (!response.ok) throw new Error('Failed to fetch notifications');
       const data = await response.json();
-      setNotifications(data.notifications || []);
+      if (pageCursor) {
+        // Append to existing notifications for pagination
+        setNotifications(prev => [...prev, ...(data.notifications || [])]);
+      } else {
+        setNotifications(data.notifications || []);
+      }
       setHasMore(data.has_more || false);
       setCursor(data.next_cursor || null);
       setMeta(data._meta || null);
@@ -108,6 +117,11 @@ export default function NotificationsPage() {
       if (!silent) setLoading(false);
     }
   }, [router]);
+
+  const loadMore = useCallback(() => {
+    if (!cursor || loading) return;
+    loadNotifications(true, cursor);
+  }, [cursor, loading, loadNotifications]);
 
   useEffect(() => {
     loadNotifications();
@@ -322,8 +336,8 @@ export default function NotificationsPage() {
 
                 {hasMore && cursor && (
                   <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
-                    <button onClick={() => {}} className="btn primary">
-                      Load More
+                    <button onClick={loadMore} className="btn primary" disabled={loading}>
+                      {loading ? 'Loading…' : 'Load More'}
                     </button>
                   </div>
                 )}

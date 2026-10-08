@@ -5,16 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import FeedList from '@/components/FeedList';
 import TrendingList from '@/components/TrendingList';
-
-interface ChannelInfo {
-  id: string;
-  name: string;
-  description?: string;
-  image_url?: string;
-  member_count?: number;
-  follower_count?: number;
-  created_at?: string;
-}
+import type { ChannelInfo } from '@/hooks/queries/users';
 
 export default function ChannelPage() {
   const params = useParams();

@@ -133,7 +133,7 @@ export default function FeedClient() {
             ) : (
               // Guests have no following graph — start on Trending (fully public data)
               // instead of an empty/broken "Following" feed.
-              <FeedTrendingTabs defaultTab="trending" defaultFeedType="global" />
+              <FeedTrendingTabs defaultTab="trending" defaultFeedScope="global" />
             )}
           </div>
         </div>
