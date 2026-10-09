@@ -46,17 +46,13 @@ async function ensureRewardTables(db: ReturnType<typeof getDb>) {
 }
 
 async function getClaimable(client: import('pg').PoolClient, fid: number) {
-  const [earned, purchases, legacyClaims, pending] = await Promise.all([
+  const [earned, purchases, pending] = await Promise.all([
     client.query("SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_reward_events WHERE fid = $1 AND status = 'earned'", [fid]),
     client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [fid]),
-    client.query(`SELECT COUNT(*)::int AS count FROM hh2_claims c
-      WHERE c.fid = $1 AND NOT EXISTS (
-        SELECT 1 FROM hh2_reward_events e WHERE e.fid = c.fid AND e.module_id = c.module_id
-      )`, [fid]),
     client.query("SELECT COUNT(*)::int AS count FROM hh2_reward_events WHERE fid = $1 AND status = 'pending'", [fid]),
   ]);
   const spent = purchases.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
-  const amount = Math.max(0, earned.rows[0].amount - spent - legacyClaims.rows[0].count * HH2_PER_MODULE);
+  const amount = Math.max(0, earned.rows[0].amount - spent);
   return { amount, modules: Math.floor(amount / HH2_PER_MODULE), pending: pending.rows[0].count };
 }
 
