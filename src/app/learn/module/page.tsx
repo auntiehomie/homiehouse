@@ -311,12 +311,14 @@ function QuizCard({
 
 type ClaimStatus = 'idle' | 'sending' | 'success' | 'failed' | 'not-connected' | 'wrong-chain' | 'already-claimed';
 
-function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
+function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, rewardError, onRetryVerification, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
   mod: LearningModule;
   onShare: () => void;
   onBack: () => void;
   rewardEarned: boolean;
   rewardVerificationDone: boolean;
+  rewardError: string | null;
+  onRetryVerification: () => void;
   claimStatus: ClaimStatus;
   claimTxHash: string | null;
   claimError: string | null;
@@ -335,9 +337,16 @@ function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDo
             You've completed <strong style={{ color: 'var(--text-on-dark)' }}>{mod.title}</strong>.
           </p>
           <p style={{ fontSize: 16, color: '#fbbf24', fontWeight: 700, margin: '0 0 6px' }}>
-            {rewardEarned ? '🪙 +100 HH2 earned!' : rewardVerificationDone ? 'HH2 reward could not be verified. Sign in and retry this lesson.' : 'Verifying HH2 eligibility…'}
+            {rewardEarned ? '🪙 +100 HH2 earned!' : rewardVerificationDone ? 'Lesson finished — HH2 reward verification is pending.' : 'Verifying HH2 eligibility…'}
           </p>
         </div>
+
+        {rewardVerificationDone && !rewardEarned && (
+          <div role="alert" style={{ maxWidth: 360, width: '100%', padding: 14, borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-on-dark)' }}>{rewardError || 'Verification is unavailable. Your lesson progress is saved.'}</p>
+            <button type="button" onClick={onRetryVerification} className="btn primary">Retry HH2 verification</button>
+          </div>
+        )}
 
         {/* ── HH2 auto-claim status ─────────────────────────────────────── */}
         {claimStatus === 'sending' && (
@@ -542,6 +551,7 @@ function ModuleLessonContent() {
   const [alreadyDone, setAlreadyDone] = useState(false);
   const [rewardEarned, setRewardEarned] = useState(false);
   const [rewardVerificationDone, setRewardVerificationDone] = useState(false);
+  const [rewardError, setRewardError] = useState<string | null>(null);
 
   // HH2 auto-claim state
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
@@ -628,6 +638,8 @@ function ModuleLessonContent() {
     // The server starts the attempt when it serves this lesson and enforces this time gate.
     const authHeaders = getAuthHeaders();
     let verified = false;
+    setRewardVerificationDone(false);
+    setRewardError(null);
     if (authHeaders) {
       try {
         const answers = cards
@@ -639,10 +651,13 @@ function ModuleLessonContent() {
           body: JSON.stringify({ moduleId, answers }),
         });
         const result = await response.json();
-        verified = response.ok && result.ok && (result.amount > 0 || result.alreadyCompleted);
+        verified = response.ok && result.ok && (result.amount > 0 || result.alreadyCompleted || result.alreadyClaimed);
+        if (!verified) setRewardError(typeof result.error === 'string' ? result.error : 'Verification failed. Please try again.');
       } catch {
-        verified = false;
+        setRewardError('Network error during reward verification. Please try again.');
       }
+    } else {
+      setRewardError('Sign in with Farcaster to verify this reward. Your learning progress is saved.');
     }
     setRewardEarned(verified);
     setRewardVerificationDone(true);
@@ -692,7 +707,7 @@ function ModuleLessonContent() {
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
     const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
     const timer = setTimeout(() => {
-      handleComplete().then(() => setAlreadyDone(true));
+      void handleComplete();
     }, remaining * 1000);
     return () => clearTimeout(timer);
   }, [currentCard, handleComplete]);
@@ -956,6 +971,8 @@ function ModuleLessonContent() {
                   onBack={() => router.push('/learn')}
                   rewardEarned={rewardEarned}
                   rewardVerificationDone={rewardVerificationDone}
+                  rewardError={rewardError}
+                  onRetryVerification={() => { void handleComplete(); }}
                   claimStatus={claimStatus}
                   claimTxHash={claimTxHash}
                   claimError={claimError}
