@@ -10,7 +10,7 @@ import AICurationSuggestions from './AICurationSuggestions';
 import { fetchFeed } from "../lib/farcaster";
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
-import { FeedType } from "./FeedTrendingTabs";
+import { FeedScope } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -122,7 +122,7 @@ function ActionBtn({
 }
 
 interface FeedListProps {
-  feedType: FeedType;
+  feedType: FeedScope;
   selectedChannel: string | null;
   mutedUsers: Set<string>;
   hiddenCasts: Set<string>;

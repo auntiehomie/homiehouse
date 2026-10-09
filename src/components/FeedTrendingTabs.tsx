@@ -6,15 +6,15 @@ import TrendingList, { prefetchTrending } from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
 import { TooltipTrigger } from "@/lib/progressive-disclosure";
 
-export type FeedType = 'following' | 'global';
+export type FeedScope = 'following' | 'global';
 
 interface FeedTrendingTabsProps {
   /** Guests have no following graph, so default them to Trending instead of Feed/Following. */
   defaultTab?: 'feed' | 'trending';
-  defaultFeedType?: FeedType;
+  defaultFeedScope?: FeedScope;
 }
 
-export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType = 'global' }: FeedTrendingTabsProps = {}) {
+export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedScope = 'global' }: FeedTrendingTabsProps = {}) {
   // Lazily initialize from sessionStorage so FeedList gets the correct props
   // on the very first render — avoids a double-mount that breaks scroll restoration.
   const [tab, setTab] = useState<'feed'|'trending'>(() => {
@@ -27,7 +27,7 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
     } catch {}
     return defaultTab;
   });
-  const [feedType, setFeedType] = useState<FeedType>(() => {
+  const [feedType, setFeedType] = useState<FeedScope>(() => {
     try {
       const raw = sessionStorage.getItem('hh_feed_return');
       if (raw) {
@@ -38,7 +38,7 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedType 
         ) return saved.feedType;
       }
     } catch {}
-    return defaultFeedType;
+    return defaultFeedScope;
   });
   const [selectedChannel, setSelectedChannel] = useState<string | null>(() => {
     try {
