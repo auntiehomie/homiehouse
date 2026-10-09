@@ -1081,7 +1081,14 @@ export async function GET(req: NextRequest) {
 
   // If user explicitly requests the "survival" safety track
   if (track === 'survival') {
-    return NextResponse.json({ ...SAFETY_PLAN, level });
+    let safetyPlan = { ...SAFETY_PLAN, level } as LearningPlan;
+    const rewardFid = await optionalRewardFid(req);
+    if (rewardFid) {
+      try { safetyPlan = await persistRewardPlan(rewardFid, safetyPlan); } catch (err) {
+        console.error('[learning-plan] reward plan persistence failed', err);
+      }
+    }
+    return NextResponse.json(safetyPlan);
   }
 
   let fallback = fallbackForTrack(normalizedTrack, level);
