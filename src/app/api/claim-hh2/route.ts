@@ -6,6 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
+import { ITEM_PRICES } from '@/app/api/hh2-shop/route';
 
 const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_PER_MODULE = 100;
@@ -20,8 +21,7 @@ const ERC20_ABI = [{
 function getTreasuryAccount() {
   const key = process.env.TREASURY_PRIVATE_KEY;
   if (!key) throw new Error('TREASURY_PRIVATE_KEY is not configured');
-  const hex = (key.startsWith('0x') ? key : `0x${key}`) as `0x${string}`;
-  return privateKeyToAccount(hex);
+  return privateKeyToAccount((key.startsWith('0x') ? key : `0x${key}`) as `0x${string}`);
 }
 
 async function ensureRewardTables(db: ReturnType<typeof getDb>) {
@@ -45,14 +45,28 @@ async function ensureRewardTables(db: ReturnType<typeof getDb>) {
   `);
 }
 
+async function getClaimable(client: import('pg').PoolClient, fid: number) {
+  const [earned, purchases, legacyClaims, pending] = await Promise.all([
+    client.query("SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_reward_events WHERE fid = $1 AND status = 'earned'", [fid]),
+    client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [fid]),
+    client.query(`SELECT COUNT(*)::int AS count FROM hh2_claims c
+      WHERE c.fid = $1 AND NOT EXISTS (
+        SELECT 1 FROM hh2_reward_events e WHERE e.fid = c.fid AND e.module_id = c.module_id
+      )`, [fid]),
+    client.query("SELECT COUNT(*)::int AS count FROM hh2_reward_events WHERE fid = $1 AND status = 'pending'", [fid]),
+  ]);
+  const spent = purchases.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
+  const amount = Math.max(0, earned.rows[0].amount - spent - legacyClaims.rows[0].count * HH2_PER_MODULE);
+  return { amount, modules: Math.floor(amount / HH2_PER_MODULE), pending: pending.rows[0].count };
+}
+
 export async function GET(req: NextRequest) {
   let authFid: number;
   try { authFid = await verifyFarcasterSignerAuth(req); } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     return NextResponse.json({ ok: false, error: 'Authentication required' }, { status: 401 });
   }
-  const { searchParams } = new URL(req.url);
-  const fid = Number(searchParams.get('fid'));
+  const fid = Number(new URL(req.url).searchParams.get('fid'));
   if (!Number.isSafeInteger(fid) || fid <= 0) return NextResponse.json({ ok: false, error: 'fid required' }, { status: 400 });
   if (authFid !== fid) return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
 
@@ -63,20 +77,19 @@ export async function GET(req: NextRequest) {
     }
     const db = getDb();
     await ensureRewardTables(db);
-    const [available, claimed, pending] = await Promise.all([
-      db.query('SELECT COALESCE(SUM(amount), 0)::int AS amount, COUNT(*)::int AS modules FROM hh2_reward_events WHERE fid = $1 AND status = $2', [fid, 'earned']),
-      db.query('SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_claims WHERE fid = $1', [fid]),
-      db.query('SELECT COUNT(*)::int AS count FROM hh2_reward_events WHERE fid = $1 AND status = $2', [fid, 'pending']),
-    ]);
-    return NextResponse.json({
-      ok: true,
-      claimsPaused: false,
-      claimable: available.rows[0].amount,
-      claimableModules: available.rows[0].modules,
-      totalClaimed: claimed.rows[0].amount,
-      pendingModules: pending.rows[0].count,
-      claims: [],
-    });
+    const client = await db.connect();
+    try {
+      const balance = await getClaimable(client, fid);
+      const claimed = await client.query('SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_claims WHERE fid = $1', [fid]);
+      return NextResponse.json({
+        ok: true, claimsPaused: false,
+        claimable: balance.modules * HH2_PER_MODULE,
+        claimableModules: balance.modules,
+        totalClaimed: claimed.rows[0].amount,
+        pendingModules: balance.pending,
+        claims: [],
+      });
+    } finally { client.release(); }
   } catch (error) {
     console.error('[claim-hh2] GET error:', error);
     return NextResponse.json({ ok: false, error: 'Failed to check claimable HH2' }, { status: 500 });
@@ -89,7 +102,6 @@ export async function POST(req: NextRequest) {
     if (error instanceof AuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     return NextResponse.json({ ok: false, error: 'Authentication required' }, { status: 401 });
   }
-
   let body: { fid?: unknown; walletAddress?: unknown };
   try { body = await req.json(); } catch {
     return NextResponse.json({ ok: false, error: 'Invalid request body' }, { status: 400 });
@@ -102,40 +114,37 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
   let modules: string[] = [];
+  let transferSubmitted = false;
   try {
     await ensureRewardTables(db);
     const client = await db.connect();
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [fid]);
-      const earned = await client.query(
-        'SELECT module_id FROM hh2_reward_events WHERE fid = $1 AND status = $2 FOR UPDATE',
-        [fid, 'earned']
-      );
-      if (earned.rows.length === 0) {
-        const pending = await client.query(
-          'SELECT COUNT(*)::int AS count FROM hh2_reward_events WHERE fid = $1 AND status = $2',
-          [fid, 'pending']
-        );
+      const balance = await getClaimable(client, fid);
+      if (balance.pending > 0) {
         await client.query('COMMIT');
-        return NextResponse.json(
-          { ok: false, error: pending.rows[0].count ? 'A claim is already processing.' : 'Nothing verified is ready to claim.' },
-          { status: pending.rows[0].count ? 409 : 400 }
-        );
+        return NextResponse.json({ ok: false, error: 'A claim is already processing.' }, { status: 409 });
       }
-
+      if (balance.modules === 0) {
+        await client.query('COMMIT');
+        return NextResponse.json({ ok: false, error: 'Nothing verified is ready to claim.' }, { status: 400 });
+      }
+      const earned = await client.query(
+        "SELECT module_id FROM hh2_reward_events WHERE fid = $1 AND status = 'earned' ORDER BY earned_at ASC LIMIT $2 FOR UPDATE",
+        [fid, balance.modules],
+      );
       modules = earned.rows.map((row: { module_id: string }) => row.module_id);
+      if (modules.length !== balance.modules) throw new Error('Reward ledger changed during claim reservation');
       await client.query(
-        'UPDATE hh2_reward_events SET status = $3, wallet_address = $4 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = $5',
-        [fid, modules, 'pending', walletAddress.toLowerCase(), 'earned']
+        "UPDATE hh2_reward_events SET status = 'pending', wallet_address = $3 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'earned'",
+        [fid, modules, walletAddress.toLowerCase()],
       );
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
 
     const account = getTreasuryAccount();
     const walletClient = createWalletClient({ account, chain: base, transport: http() });
@@ -145,16 +154,17 @@ export async function POST(req: NextRequest) {
       address: HH2_CONTRACT, abi: ERC20_ABI, functionName: 'transfer',
       args: [walletAddress as `0x${string}`, amount],
     });
+    transferSubmitted = true;
 
     await db.query(
-      'UPDATE hh2_reward_events SET claim_tx_hash = $3 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = $4',
-      [fid, modules, txHash, 'pending']
+      "UPDATE hh2_reward_events SET claim_tx_hash = $3 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'pending'",
+      [fid, modules, txHash],
     );
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
     if (receipt.status !== 'success') {
       await db.query(
-        'UPDATE hh2_reward_events SET status = $4, wallet_address = NULL, claim_tx_hash = NULL WHERE fid = $1 AND module_id = ANY($2::text[]) AND claim_tx_hash = $3',
-        [fid, modules, txHash, 'earned']
+        "UPDATE hh2_reward_events SET status = 'earned', wallet_address = NULL, claim_tx_hash = NULL WHERE fid = $1 AND module_id = ANY($2::text[]) AND claim_tx_hash = $3",
+        [fid, modules, txHash],
       );
       return NextResponse.json({ ok: false, error: 'The token transfer did not succeed. Your verified rewards are available to retry.' }, { status: 502 });
     }
@@ -164,32 +174,31 @@ export async function POST(req: NextRequest) {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [fid]);
       await client.query(
-        'UPDATE hh2_reward_events SET status = $4, claimed_at = NOW() WHERE fid = $1 AND module_id = ANY($2::text[]) AND claim_tx_hash = $3 AND status = $5',
-        [fid, modules, txHash, 'claimed', 'pending']
+        "UPDATE hh2_reward_events SET status = 'claimed', claimed_at = NOW() WHERE fid = $1 AND module_id = ANY($2::text[]) AND claim_tx_hash = $3 AND status = 'pending'",
+        [fid, modules, txHash],
       );
       for (const moduleId of modules) {
         await client.query(
           'INSERT INTO hh2_claims (fid, module_id, wallet_address, tx_hash, amount) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (fid, module_id) DO NOTHING',
-          [fid, moduleId, walletAddress.toLowerCase(), txHash, HH2_PER_MODULE]
+          [fid, moduleId, walletAddress.toLowerCase(), txHash, HH2_PER_MODULE],
         );
       }
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
     return NextResponse.json({ ok: true, claimed: modules.length, amount: modules.length * HH2_PER_MODULE, txHash });
-  } catch (error: any) {
-    // If no transaction hash was returned, the transfer was not accepted by the RPC.
-    // Release reservations so the verified rewards remain claimable.
-    try {
-      await db.query(
-        'UPDATE hh2_reward_events SET status = $3, wallet_address = NULL, claim_tx_hash = NULL WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = $4 AND claim_tx_hash IS NULL',
-        [fid, modules, 'earned', 'pending']
-      );
-    } catch {}
+  } catch (error) {
+    // Once the RPC returns a hash, keep the rows reserved for reconciliation to prevent a duplicate payout.
+    if (!transferSubmitted) {
+      try {
+        await db.query(
+          "UPDATE hh2_reward_events SET status = 'earned', wallet_address = NULL, claim_tx_hash = NULL WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'pending' AND claim_tx_hash IS NULL",
+          [fid, modules],
+        );
+      } catch {}
+    }
     console.error('[claim-hh2] POST error:', error);
     return NextResponse.json({ ok: false, error: 'Failed to claim verified HH2 rewards' }, { status: 500 });
   }
