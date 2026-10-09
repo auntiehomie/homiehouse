@@ -1,47 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { AuthError } from '@/lib/errors';
+import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
+import { handleApiError, AuthError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { ITEM_PRICES, VALID_ITEM_IDS } from '@/app/api/hh2-shop/route';
 
-const PURCHASES_PAUSED_MESSAGE =
-  'HH2 shop purchases are paused while the reward system is secured. Existing owned items remain available.';
+async function ensureRewardTables(db: ReturnType<typeof getDb>) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_reward_events (
+      fid INTEGER NOT NULL, module_id TEXT NOT NULL,
+      amount INTEGER NOT NULL CHECK (amount = 100),
+      status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
+      wallet_address TEXT, claim_tx_hash TEXT,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), claimed_at TIMESTAMPTZ,
+      PRIMARY KEY (fid, module_id)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_claims (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(), fid INTEGER NOT NULL,
+      module_id TEXT NOT NULL, wallet_address TEXT NOT NULL, tx_hash TEXT NOT NULL,
+      amount INTEGER NOT NULL, claimed_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(fid, module_id)
+    )
+  `);
+}
+
+async function getUserHH2Balance(client: import('pg').PoolClient, fid: number): Promise<number> {
+  const [earned, spent, legacyClaims] = await Promise.all([
+    client.query(
+      "SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_reward_events WHERE fid = $1 AND status = 'earned'",
+      [fid],
+    ),
+    client.query(
+      'SELECT item_id FROM hh2_purchases WHERE user_fid = $1',
+      [fid],
+    ),
+    client.query(
+      `SELECT COUNT(*)::int AS count FROM hh2_claims c
+       WHERE c.fid = $1 AND NOT EXISTS (
+         SELECT 1 FROM hh2_reward_events e WHERE e.fid = c.fid AND e.module_id = c.module_id
+       )`,
+      [fid],
+    ),
+  ]);
+  const spentAmount = spent.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
+  return Math.max(0, earned.rows[0].amount - spentAmount - legacyClaims.rows[0].count * 100);
+}
 
 export async function GET(req: NextRequest) {
   try {
     const authFid = await verifyFarcasterSignerAuth(req);
-    const { searchParams } = new URL(req.url);
-    const userFid = Number(searchParams.get('fid'));
-
+    const userFid = Number(new URL(req.url).searchParams.get('fid'));
     if (!Number.isSafeInteger(userFid) || userFid <= 0) {
       return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
     }
     if (authFid !== userFid) {
-      return NextResponse.json(
-        { ok: false, error: 'FID does not match authenticated user' },
-        { status: 403 }
-      );
+      return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
     }
 
     const db = getDb();
-    const result = await db.query(
-      'SELECT item_id, purchased_at FROM hh2_purchases WHERE user_fid = $1 ORDER BY purchased_at ASC',
-      [userFid]
-    );
-    const rows = result.rows as Array<{ item_id: string; purchased_at: string }>;
-
-    return NextResponse.json({
-      ok: true,
-      claimsPaused: true,
-      message: PURCHASES_PAUSED_MESSAGE,
-      owned_items: rows.map(row => row.item_id),
-      balance: 0,
-      spend_summary: {
-        purchase_count: rows.length,
-        total_spent: 0,
-        first_spent_at: rows[0]?.purchased_at ?? null,
-        repeat_spender: rows.length > 1,
-      },
-    });
+    await ensureRewardTables(db);
+    const [purchases, client] = await Promise.all([
+      db.query('SELECT item_id, purchased_at FROM hh2_purchases WHERE user_fid = $1 ORDER BY purchased_at ASC', [userFid]),
+      db.connect(),
+    ]);
+    try {
+      const balance = await getUserHH2Balance(client, userFid);
+      const rows = purchases.rows as Array<{ item_id: string; purchased_at: string }>;
+      const totalSpent = rows.reduce((sum, row) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
+      return NextResponse.json({
+        ok: true,
+        owned_items: rows.map(row => row.item_id),
+        balance,
+        spend_summary: {
+          purchase_count: rows.length,
+          total_spent: totalSpent,
+          first_spent_at: rows[0]?.purchased_at ?? null,
+          repeat_spender: rows.length > 1,
+        },
+      });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     if (error instanceof AuthError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
@@ -51,11 +93,64 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Fail closed. Spending based on client-authored learning completion IDs is disabled
-// until the HH2 reward ledger and completion validation are rebuilt and reconciled.
-export async function POST() {
-  return NextResponse.json(
-    { ok: false, claimsPaused: true, error: PURCHASES_PAUSED_MESSAGE },
-    { status: 503 }
-  );
+export async function POST(req: NextRequest) {
+  const logger = createApiLogger('/hh2-purchase');
+  logger.start();
+  try {
+    const authFid = await verifyFarcasterSignerAuth(req);
+    await enforceRateLimit({
+      key: rateLimitKeyFromRequest(req), limit: 10, windowSeconds: 60, label: 'hh2-purchase',
+    });
+    const body = await req.json();
+    const userFid = Number(body.fid);
+    const itemId = typeof body.itemId === 'string' ? body.itemId : '';
+    if (!Number.isSafeInteger(userFid) || userFid <= 0) {
+      return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
+    }
+    if (!VALID_ITEM_IDS.has(itemId)) {
+      return NextResponse.json({ ok: false, error: 'Invalid shop item' }, { status: 400 });
+    }
+    if (authFid !== userFid) {
+      return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
+    }
+
+    const price = ITEM_PRICES[itemId];
+    const db = getDb();
+    await ensureRewardTables(db);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1)', [userFid]);
+      const existing = await client.query(
+        'SELECT id FROM hh2_purchases WHERE user_fid = $1 AND item_id = $2 FOR UPDATE',
+        [userFid, itemId],
+      );
+      if (existing.rows.length > 0) {
+        await client.query('COMMIT');
+        return NextResponse.json({ ok: false, error: 'You already own this item.', already_owned: true }, { status: 409 });
+      }
+      const balance = await getUserHH2Balance(client, userFid);
+      logger.info('Balance check', { userFid, balance, price });
+      if (balance < price) {
+        await client.query('ROLLBACK');
+        return NextResponse.json(
+          { ok: false, error: `Insufficient HH2 balance. You have ${balance} HH2, need ${price} HH2.`, balance, required: price },
+          { status: 402 },
+        );
+      }
+      await client.query('INSERT INTO hh2_purchases (user_fid, item_id) VALUES ($1, $2)', [userFid, itemId]);
+      await client.query('COMMIT');
+      logger.success('Purchase recorded', { userFid, itemId, price, newBalance: balance - price });
+      logger.end();
+      return NextResponse.json({ ok: true, item_id: itemId, price, balance_remaining: balance - price });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error('Purchase failed', error);
+    return handleApiError(error, 'POST /hh2-purchase');
+  }
 }
