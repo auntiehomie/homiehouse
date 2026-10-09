@@ -53,7 +53,7 @@ export default function ShopPage() {
           setUserFid(fid);
 
           // Get balance and owned items
-          const claimRes = await fetch(`/api/claim-hh2?fid=${fid}`);
+          const claimRes = await fetch(`/api/claim-hh2?fid=${fid}`, { headers: getAuthHeaders() ?? {} });
           const claimData = await claimRes.json();
           if (mounted && claimData.ok) {
             setBalance(claimData.claimable + claimData.totalClaimed);
@@ -166,13 +166,12 @@ export default function ShopPage() {
         </div>
         <button
           onClick={() => router.push('/hh2')}
-          disabled
           style={{
             padding: '7px 14px', borderRadius: 8, background: 'var(--accent)', color: '#fff',
-            border: 'none', fontWeight: 600, fontSize: 12, cursor: 'not-allowed', whiteSpace: 'nowrap', opacity: 0.7,
+            border: 'none', fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
           }}
         >
-          Rewards Paused
+          Earn HH2 →
         </button>
       </div>
 
@@ -186,14 +185,6 @@ export default function ShopPage() {
           {errorMsg}
         </div>
       )}
-
-      <div role="status" style={{
-        borderRadius: 10, padding: '12px 14px', marginBottom: 20,
-        background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
-        fontSize: 13, color: '#fbbf24', lineHeight: 1.5,
-      }}>
-        HH2 claims and shop purchases are paused while the reward system is secured. Existing items remain available.
-      </div>
 
       {/* Shop items by category */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
