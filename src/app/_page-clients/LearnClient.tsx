@@ -1010,7 +1010,7 @@ function LearnPageContent() {
     // Show fallback plan instantly — no spinner needed
     let fallbackShown = false;
     try {
-      const fallbackRes = await fetch(`/api/learning-plan?track=${track}&level=${level}`, { headers: getAuthHeaders() ?? {} });
+      const fallbackRes = await fetch(`/api/learning-plan?track=${track}&level=${level}`, { headers: { ...(getAuthHeaders() ?? {}) } });
       if (fallbackRes.ok) {
         const fallbackPlan = await fallbackRes.json() as LearningPlan;
         setPlan(fallbackPlan);
