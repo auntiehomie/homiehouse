@@ -26,6 +26,15 @@ function getTreasuryAccount() {
 
 async function ensureRewardTables(db: ReturnType<typeof getDb>) {
   await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_purchases (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_fid INTEGER NOT NULL,
+      item_id TEXT NOT NULL,
+      purchased_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_fid, item_id)
+    )
+  `);
+  await db.query(`
     CREATE TABLE IF NOT EXISTS hh2_reward_events (
       fid INTEGER NOT NULL, module_id TEXT NOT NULL,
       amount INTEGER NOT NULL CHECK (amount = 100),
