@@ -128,7 +128,7 @@ export default function Hh2Client() {
     const fid = userFid ?? getStoredFid();
     if (!fid) return;
 
-    fetch(`/api/claim-hh2?fid=${fid}`, { headers: getAuthHeaders() ?? {} })
+    fetch(`/api/claim-hh2?fid=${fid}`, { headers: { ...(getAuthHeaders() ?? {}) } })
       .then(r => r.json())
       .then(d => {
         if (d.ok) {
