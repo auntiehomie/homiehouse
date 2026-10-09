@@ -59,7 +59,16 @@ export default function ListsClient() {
     const fetchLists = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/curated-lists?fid=${user.fid}`);
+        // Private lists are authorized by session/signer auth (HH-04) — the
+        // server derives the FID from verified credentials, not the query string.
+        const authHeaders = getAuthHeaders();
+        if (!authHeaders) {
+          setLists([]);
+          return;
+        }
+        const response = await fetch(`/api/curated-lists`, {
+          headers: { ...authHeaders },
+        });
         if (response.ok) {
           const data = await response.json();
           setLists(data.lists || []);
@@ -125,21 +134,26 @@ export default function ListsClient() {
     fetchListItems(list.id);
   };
 
-  const handleDeleteItem = async (itemId: number) => {
+  const handleDeleteItem = async (listItem: ListItem) => {
     if (!selectedList) return;
+
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) return;
 
     const confirmed = confirm("Remove this cast from the list?");
     if (!confirmed) return;
 
     try {
-      const response = await fetch(`/api/curated-lists/${selectedList.id}/items`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId })
-      });
+      const response = await fetch(
+        `/api/curated-lists/${selectedList.id}/items?castHash=${encodeURIComponent(listItem.cast_hash)}`,
+        {
+          method: "DELETE",
+          headers: { ...authHeaders },
+        }
+      );
 
       if (response.ok) {
-        setListItems(prev => prev.filter(item => item.id !== itemId));
+        setListItems(prev => prev.filter(item => item.id !== listItem.id));
       }
     } catch (error) {
       console.error("Error deleting item:", error);
@@ -378,7 +392,7 @@ export default function ListsClient() {
                             </div>
                             {tab === "mine" && (
                               <button
-                                onClick={() => handleDeleteItem(item.id)}
+                                onClick={() => handleDeleteItem(item)}
                                 className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded transition-colors"
                                 title="Remove from list"
                               >

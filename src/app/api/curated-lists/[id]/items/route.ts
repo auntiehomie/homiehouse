@@ -47,6 +47,18 @@ export async function POST(
       return NextResponse.json({ error: 'castHash is required' }, { status: 400 });
     }
 
+    // Verify list ownership — only the list owner may add items (HH-04)
+    const listCheck = await db.query(
+      `SELECT fid FROM curated_lists WHERE id = $1`,
+      [parseInt(id)]
+    );
+    if (listCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    }
+    if (listCheck.rows[0].fid !== verifiedFid) {
+      return NextResponse.json({ error: 'Not authorized to modify this list' }, { status: 403 });
+    }
+
     try {
       const { rows } = await db.query(
         `INSERT INTO curated_list_items
