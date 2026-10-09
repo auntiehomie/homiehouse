@@ -190,12 +190,16 @@ export default function FeedList({
     const cacheKey = `hh_feed_${feedType}_${selectedChannel ?? 'all'}`;
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({
-        items: Array.isArray(items) ? items.slice(0, 100) : items,
+        items: Array.isArray(items) ? items.slice(0, 300) : items,
         cursor,
         ts: Date.now(),
       }));
       sessionStorage.setItem('hh_feed_return', JSON.stringify({
         scrollY: window.scrollY,
+        castOffset: document.querySelectorAll('[data-feed-cast-hash]') && (() => {
+          const node = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-cast-hash]')).find(el => el.dataset.feedCastHash === castHash);
+          return node ? node.getBoundingClientRect().top : null;
+        })(),
         feedType,
         selectedChannel,
         castHash,
@@ -473,15 +477,21 @@ export default function FeedList({
       ) return;
 
       restoredScrollRef.current = true;
-      sessionStorage.removeItem('hh_feed_return');
       const target = Math.max(0, Number(saved.scrollY) || 0);
+      const anchorHash = typeof saved.castHash === 'string' ? saved.castHash : '';
+      const anchorOffset = typeof saved.castOffset === 'number' ? saved.castOffset : null;
       let attempts = 0;
+      // Preserve the viewed cast's position while image and embed heights settle.
       const restore = () => {
-        window.scrollTo({ top: target, behavior: 'auto' });
+        const anchor = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-cast-hash]'))
+          .find(el => el.dataset.feedCastHash === anchorHash);
+        const anchoredY = anchor && anchorOffset !== null
+          ? window.scrollY + anchor.getBoundingClientRect().top - anchorOffset
+          : target;
+        window.scrollTo({ top: Math.max(0, anchoredY), behavior: 'auto' });
         attempts += 1;
-        if (attempts < 20 && Math.abs(window.scrollY - target) > 2) {
-          requestAnimationFrame(restore);
-        }
+        if (attempts < 90) requestAnimationFrame(restore);
+        else sessionStorage.removeItem('hh_feed_return');
       };
       requestAnimationFrame(restore);
     } catch {}
@@ -693,7 +703,7 @@ export default function FeedList({
           text.replace(/https?:\/\/[^\s]+/gi, '').trim() === '';
 
         return (
-          <article key={key} className="surface" style={{ position: 'relative' }}>
+          <article key={key} data-feed-cast-hash={String(key)} className="surface" style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'start', flex: 1 }}>
                 <Link href={profileHref}>
