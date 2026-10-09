@@ -28,7 +28,7 @@ async function ensureRewardTables(db: ReturnType<typeof getDb>) {
 }
 
 async function getUserHH2Balance(client: import('pg').PoolClient, fid: number): Promise<number> {
-  const [earned, spent, legacyClaims] = await Promise.all([
+  const [earned, spent] = await Promise.all([
     client.query(
       "SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_reward_events WHERE fid = $1 AND status = 'earned'",
       [fid],
@@ -37,16 +37,9 @@ async function getUserHH2Balance(client: import('pg').PoolClient, fid: number): 
       'SELECT item_id FROM hh2_purchases WHERE user_fid = $1',
       [fid],
     ),
-    client.query(
-      `SELECT COUNT(*)::int AS count FROM hh2_claims c
-       WHERE c.fid = $1 AND NOT EXISTS (
-         SELECT 1 FROM hh2_reward_events e WHERE e.fid = c.fid AND e.module_id = c.module_id
-       )`,
-      [fid],
-    ),
   ]);
   const spentAmount = spent.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
-  return Math.max(0, earned.rows[0].amount - spentAmount - legacyClaims.rows[0].count * 100);
+  return Math.max(0, earned.rows[0].amount - spentAmount);
 }
 
 export async function GET(req: NextRequest) {
