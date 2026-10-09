@@ -1,4 +1,6 @@
 import { after, NextRequest, NextResponse } from 'next/server';
+import { getDb } from '@/lib/db';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { Redis } from '@upstash/redis';
 import { llmChat, getLLMProviders } from '@/lib/llm';
 import { getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
@@ -292,6 +294,46 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
   }
 }
 
+async function rewardTrackedLessonResponse(
+  req: NextRequest,
+  moduleId: string | undefined,
+  lesson: LessonContent,
+  init?: ResponseInit
+) {
+  try {
+    if (!moduleId || !Array.isArray(lesson.quiz) || lesson.quiz.length === 0) {
+      return NextResponse.json(lesson, init);
+    }
+    const fid = await verifyFarcasterSignerAuth(req);
+    const db = getDb();
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS learning_reward_plans (
+        fid INTEGER PRIMARY KEY, plan JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS learning_reward_attempts (
+        fid INTEGER NOT NULL, module_id TEXT NOT NULL, quiz_key JSONB NOT NULL,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), completed_at TIMESTAMPTZ,
+        PRIMARY KEY (fid, module_id)
+      )
+    `);
+    const plans = await db.query('SELECT plan FROM learning_reward_plans WHERE fid = $1', [fid]);
+    const modules = plans.rows[0]?.plan?.modules;
+    if (Array.isArray(modules) && modules.some((module: any) => module?.id === moduleId)) {
+      await db.query(
+        'INSERT INTO learning_reward_attempts (fid, module_id, quiz_key) VALUES ($1, $2, $3::jsonb) ON CONFLICT (fid, module_id) DO NOTHING',
+        [fid, moduleId, JSON.stringify(lesson.quiz)]
+      );
+    }
+  } catch {
+    // Lessons remain available if reward tracking is unavailable.
+  }
+  return NextResponse.json(lesson, init);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
@@ -319,7 +361,7 @@ export async function POST(req: NextRequest) {
         summary: curated.summary,
         quiz: curated.quiz,
       };
-      return NextResponse.json(lesson, {
+      return rewardTrackedLessonResponse(req, moduleId, lesson, {
         headers: {
           'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
           'Server-Timing': 'lesson;dur=0;desc="curated"',
@@ -330,7 +372,7 @@ export async function POST(req: NextRequest) {
 
     if (getLLMProviders().length === 0) {
       logger.warn('No AI provider configured, returning fallback');
-      return NextResponse.json(fallbackLesson(title, description, objectives), {
+      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -345,7 +387,7 @@ export async function POST(req: NextRequest) {
         const cached = await redis.get<LessonContent>(cacheKey);
         if (cached) {
           logger.info(`cache hit: ${moduleId}`);
-          return NextResponse.json(cached);
+          return rewardTrackedLessonResponse(req, moduleId, cached);
         }
       } catch {}
     }
@@ -653,7 +695,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     if (!content) {
       logger.warn('All providers failed, using fallback');
-      return NextResponse.json(fallbackLesson(title, description, objectives ?? []), {
+      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives ?? []), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -683,7 +725,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     if (!lesson) {
       logger.warn('Failed to parse AI response, using fallback');
-      return NextResponse.json(fallbackLesson(title, description, objectives ?? []), {
+      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives ?? []), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -693,7 +735,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     lesson.quiz = lesson.quiz.map(dedupeQuizOptions).filter(Boolean) as QuizQuestion[];
     if (lesson.quiz.length === 0) {
       logger.warn('All quiz questions had duplicate options, using fallback');
-      return NextResponse.json(fallbackLesson(title, description, objectives ?? []), {
+      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives ?? []), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -731,7 +773,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       lesson.quiz = await verifyQuiz(lesson.quiz, topicContext);
     }
 
-    return NextResponse.json(lesson);
+    return rewardTrackedLessonResponse(req, moduleId, lesson);
   } catch (error: any) {
     logger.error('Error', error?.message || error);
     return NextResponse.json(fallbackLesson('', '', []), {
