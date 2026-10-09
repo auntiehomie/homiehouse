@@ -275,6 +275,17 @@ export default function CastDetailClient() {
   const authorFid = author?.fid ?? 0;
   const authorPfp = author?.pfp_url;
   const text = cast.text || '';
+  const learningTopic = /(?:ethereum|eth\b|rollup|layer.?2|l2\b)/i.test(text)
+    ? { label: 'Ethereum and scaling', track: 'decentralization' }
+    : /(?:wallet|seed phrase|phishing|scam|security|private key)/i.test(text)
+      ? { label: 'Wallet and crypto safety', track: 'decentralization' }
+      : /(?:defi|liquidity|staking|yield|stablecoin|swap)/i.test(text)
+        ? { label: 'DeFi fundamentals', track: 'finance' }
+        : /(?:agent|artificial intelligence|\bAI\b|machine learning|\bLLM\b)/i.test(text)
+          ? { label: 'AI and agents', track: 'ai' }
+          : /(?:creator|community|social|farcaster|channel)/i.test(text)
+            ? { label: 'Web3 creator communities', track: 'creator' }
+            : null;
   const embeds = cast.embeds || [];
   const replies = cast.replies?.casts || cast.direct_replies || [];
   const parentChain: any[] = cast.parent_chain || [];
@@ -417,6 +428,18 @@ export default function CastDetailClient() {
             </div>
           )}
         </div>
+
+        {/* Learning discovery: a read-only recommendation, never an automatic reward. */}
+        {learningTopic && (
+          <section aria-label="Learn about this cast" className="surface" style={{ marginBottom: 20, padding: 16 }}>
+            <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>📚 Learn from this conversation</p>
+            <p style={{ margin: '0 0 12px', fontSize: 14 }}>Curious about {learningTopic.label.toLowerCase()}? Explore a related learning track or ask @thehomie for context.</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <Link className="btn primary" href={`/learn?track=${learningTopic.track}`}>Explore related lessons →</Link>
+              <Link className="btn" href={`/ask-homie?cast=${encodeURIComponent(JSON.stringify({ author: { username: authorUsername }, text: text.slice(0, 1500), hash: cast.hash }))}`}>Ask @thehomie</Link>
+            </div>
+          </section>
+        )}
 
         {/* Replies */}
         {replies.length > 0 && (
