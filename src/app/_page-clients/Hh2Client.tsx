@@ -8,7 +8,7 @@ import { useAccount, useReadContract, useChainId, useSwitchChain } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { formatUnits } from 'viem';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
-import { getStoredFid } from '@/lib/client-auth';
+import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import HHLogo from '@/components/HHLogo';
 
 const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
@@ -39,8 +39,8 @@ const EARN_METHODS = [
   {
     icon: '📚',
     title: 'Complete Learning Modules',
-    points: 'Rewards paused',
-    description: 'Learning modules remain available. HH2 rewards and wallet claims are paused while the reward system is secured.',
+    points: '100 HH2 per module',
+    description: 'Work through your personalized Web3 learning path. Each module you finish earns 100 HH2 points.',
     cta: 'Go to Learning Hub',
     href: '/learn',
     soon: false,
@@ -98,9 +98,14 @@ export default function Hh2Client() {
   const isOnBase = chainId === HH2_CHAIN_ID;
 
   const [userPoints, setUserPoints] = useState<number | null>(null);
+  const [claimable, setClaimable] = useState(0);
+  const [claimableModules, setClaimableModules] = useState(0);
+  const [totalClaimed, setTotalClaimed] = useState(0);
+  const [claiming, setClaiming] = useState(false);
+  const [claimResult, setClaimResult] = useState<{ ok: boolean; txHash?: string; amount?: number; error?: string } | null>(null);
 
   // Read HH2 balance from the connected wallet (always queries Base)
-  const { data: hh2Raw } = useReadContract({
+  const { data: hh2Raw, refetch: refetchBalance } = useReadContract({
     address: HH2_CONTRACT,
     abi: HH2_ABI,
     functionName: 'balanceOf',
@@ -118,7 +123,7 @@ export default function Hh2Client() {
 
   const onChainBalance = hh2Raw && decimals ? Number(formatUnits(hh2Raw, decimals)) : 0;
 
-  // Display learning progress only. HH2 rewards are currently paused.
+  // Fetch claimable + points from the server
   useEffect(() => {
     const fid = userFid ?? getStoredFid();
     if (!fid) return;
@@ -130,7 +135,55 @@ export default function Hh2Client() {
         else setUserPoints(0);
       })
       .catch(() => setUserPoints(0));
+
+    fetch(`/api/claim-hh2?fid=${fid}`, { headers: getAuthHeaders() ?? {} })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          setClaimable(d.claimable ?? 0);
+          setClaimableModules(d.claimableModules ?? 0);
+          setTotalClaimed(d.totalClaimed ?? 0);
+        }
+      })
+      .catch(() => {});
   }, [userFid]);
+
+  const handleClaim = async () => {
+    const fid = userFid ?? getStoredFid();
+    if (!fid || !address || claiming) return;
+
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) {
+      setClaimResult({ ok: false, error: 'Not authenticated — connect your Farcaster account first.' });
+      return;
+    }
+
+    setClaiming(true);
+    setClaimResult(null);
+    try {
+      const res = await fetch('/api/claim-hh2', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
+        body: JSON.stringify({ fid, walletAddress: address }),
+      });
+      const data = await res.json();
+      setClaimResult(data);
+      if (data.ok) {
+        setClaimable(0);
+        setClaimableModules(0);
+        setTotalClaimed(prev => prev + (data.amount ?? 0));
+        // Refetch on-chain balance after a short delay for the tx to settle
+        setTimeout(() => refetchBalance(), 5000);
+      }
+    } catch {
+      setClaimResult({ ok: false, error: 'Network error — please try again' });
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   return (
     <div style={{ minHeight: '100svh', background: 'var(--bg-dark)' }}>
@@ -186,6 +239,7 @@ export default function Hh2Client() {
                 )}
               </div>
 
+              {/* Off-chain earned points */}
               {userFid && (
                 <div style={{
                   padding: '12px 14px', borderRadius: 10,
@@ -193,21 +247,78 @@ export default function Hh2Client() {
                   marginBottom: 12,
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Learning points (not redeemable)</span>
+                    <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Earned (off-chain)</span>
                     <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-on-dark)' }}>
-                      {userPoints === null ? '…' : userPoints.toLocaleString()}
+                      {userPoints === null ? '…' : userPoints.toLocaleString()} HH2
                     </span>
                   </div>
+                  {claimable > 0 && (
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8,
+                      paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.04)',
+                    }}>
+                      <span style={{ fontSize: 13, color: '#fbbf24' }}>Ready to claim</span>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: '#fbbf24' }}>{claimable} HH2</span>
+                    </div>
+                  )}
                 </div>
               )}
-              <div role="status" style={{
-                padding: '12px 14px', borderRadius: 10, marginBottom: 12,
-                background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
-              }}>
-                <p style={{ fontSize: 13, color: '#fbbf24', margin: 0, lineHeight: 1.5 }}>
-                  HH2 claims are paused while the reward system is secured. No wallet claims are available right now.
+
+              {/* Claim button */}
+              {claimable > 0 && isOnBase && (
+                <button
+                  onClick={handleClaim}
+                  disabled={claiming}
+                  style={{
+                    width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+                    background: claiming ? 'rgba(251,191,36,0.3)' : '#fbbf24',
+                    color: claiming ? 'rgba(0,0,0,0.4)' : '#000',
+                    fontSize: 15, fontWeight: 700,
+                    cursor: claiming ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {claiming ? 'Sending…' : `Claim ${claimable} HH2 to ${truncate(address ?? '')} →`}
+                </button>
+              )}
+              {claimable > 0 && !isOnBase && (
+                <p style={{ fontSize: 12, color: '#fca5a5', textAlign: 'center', margin: '8px 0 0' }}>
+                  Switch to Base network to claim
                 </p>
-              </div>
+              )}
+
+              {/* Claim result */}
+              {claimResult && (
+                <div style={{ marginTop: 12 }}>
+                  {claimResult.ok ? (
+                    <div style={{
+                      textAlign: 'center', padding: '14px', borderRadius: 12,
+                      background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)',
+                    }}>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: '#22c55e', margin: '0 0 6px' }}>
+                        ✅ {claimResult.amount} HH2 sent to {truncate(address ?? '')}!
+                      </p>
+                      <a
+                        href={`https://basescan.org/tx/${claimResult.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 12, color: 'var(--muted-on-dark)', wordBreak: 'break-all' }}
+                      >
+                        View on Basescan ↗
+                      </a>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '12px 14px', borderRadius: 10,
+                      background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                    }}>
+                      <p style={{ fontSize: 13, color: '#f87171', margin: 0 }}>
+                        ⚠️ {claimResult.error || 'Claim failed — please try again'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Link href="/learn" style={{
@@ -254,7 +365,7 @@ export default function Hh2Client() {
                 Connect Your Wallet
               </h2>
               <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: '0 0 20px', lineHeight: 1.6 }}>
-                Connect your EVM wallet to view your HH2 balance and trade on Uniswap. HH2 claims are currently paused.
+                Connect your EVM wallet to view your HH2 balance, claim earned rewards, and trade on Uniswap.
                 Rainbow, MetaMask, Coinbase, Trust, and WalletConnect are all supported.
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
@@ -263,15 +374,31 @@ export default function Hh2Client() {
               {userFid && (
                 <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                   <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 4px' }}>
-                    Learning points (not redeemable): <strong style={{ color: '#fbbf24' }}>
-                      {userPoints === null ? '…' : userPoints.toLocaleString()}
+                    Off-chain earned: <strong style={{ color: '#fbbf24' }}>
+                      {userPoints === null ? '…' : userPoints.toLocaleString()} HH2
                     </strong>
                   </p>
-                  <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '4px 0 0' }}>
-                    HH2 claims are paused while the reward system is secured.
-                  </p>
+                  {claimable > 0 && (
+                    <p style={{ fontSize: 13, color: '#fbbf24', margin: '4px 0 0' }}>
+                      {claimable} HH2 ready to claim — connect your wallet to withdraw!
+                    </p>
+                  )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Total claimed badge */}
+          {totalClaimed > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24,
+              padding: '12px 16px', borderRadius: 12,
+              background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+            }}>
+              <span style={{ fontSize: 18 }}>✅</span>
+              <span style={{ fontSize: 13, color: '#86efac' }}>
+                {totalClaimed} HH2 previously claimed to your wallet
+              </span>
             </div>
           )}
 
