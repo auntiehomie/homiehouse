@@ -100,7 +100,7 @@ export default function Hh2Client() {
   const [userPoints, setUserPoints] = useState<number | null>(null);
 
   // Read HH2 balance from the connected wallet (always queries Base)
-  const { data: hh2Raw, refetch: refetchBalance } = useReadContract({
+  const { data: hh2Raw } = useReadContract({
     address: HH2_CONTRACT,
     abi: HH2_ABI,
     functionName: 'balanceOf',
