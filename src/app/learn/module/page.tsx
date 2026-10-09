@@ -311,10 +311,11 @@ function QuizCard({
 
 type ClaimStatus = 'idle' | 'sending' | 'success' | 'failed' | 'not-connected' | 'wrong-chain' | 'already-claimed';
 
-function CompleteCard({ mod, onShare, onBack, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
+function CompleteCard({ mod, onShare, onBack, rewardEarned, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
   mod: LearningModule;
   onShare: () => void;
   onBack: () => void;
+  rewardEarned: boolean;
   claimStatus: ClaimStatus;
   claimTxHash: string | null;
   claimError: string | null;
@@ -333,7 +334,7 @@ function CompleteCard({ mod, onShare, onBack, claimStatus, claimTxHash, claimErr
             You've completed <strong style={{ color: 'var(--text-on-dark)' }}>{mod.title}</strong>.
           </p>
           <p style={{ fontSize: 16, color: '#fbbf24', fontWeight: 700, margin: '0 0 6px' }}>
-            🪙 +100 HH2 earned!
+            {rewardEarned ? '🪙 +100 HH2 earned!' : 'Lesson complete — verifying HH2 eligibility…'}
           </p>
         </div>
 
@@ -538,6 +539,7 @@ function ModuleLessonContent() {
 
   // Completion
   const [alreadyDone, setAlreadyDone] = useState(false);
+  const [rewardEarned, setRewardEarned] = useState(false);
 
   // HH2 auto-claim state
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
@@ -621,16 +623,32 @@ function ModuleLessonContent() {
 
   const handleComplete = useCallback(async () => {
     if (!moduleId) return;
-    // Require minimum time spent on the module before awarding HH2
-    const elapsed = (Date.now() - moduleStartTime.current) / 1000;
-    if (elapsed < MIN_MODULE_SECONDS) return;
+    // The server starts the attempt when it serves this lesson and enforces this time gate.
+    const authHeaders = getAuthHeaders();
+    let verified = false;
+    if (authHeaders) {
+      try {
+        const answers = cards
+          .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+          .map(card => quizAnswers[card.qIndex] ?? -1);
+        const response = await fetch('/api/learning-completion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ moduleId, answers }),
+        });
+        const result = await response.json();
+        verified = response.ok && result.ok && (result.amount > 0 || result.alreadyCompleted);
+      } catch {
+        verified = false;
+      }
+    }
+    setRewardEarned(verified);
+
     try {
       const raw = localStorage.getItem(LS_PROGRESS_KEY);
       const progress: string[] = raw ? JSON.parse(raw) : [];
       const updatedProgress = progress.includes(moduleId) ? progress : [...progress, moduleId];
-      if (!progress.includes(moduleId)) {
-        localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(updatedProgress));
-      }
+      if (!progress.includes(moduleId)) localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(updatedProgress));
       localStorage.removeItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`);
       if (mod) {
         const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
@@ -646,38 +664,27 @@ function ModuleLessonContent() {
           };
           localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
         }
-        // Sync to Neon for cross-device persistence — await so the claim
-        // flow can read the updated completed_ids from the database.
-        try {
-          const fid = (() => {
-            const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
-            return p?.fid ? Number(p.fid) : null;
+        const fid = getStoredFid();
+        if (fid && authHeaders) {
+          const plan = (() => {
+            try { return JSON.parse(localStorage.getItem(LS_PLAN_KEY) ?? 'null'); } catch { return null; }
           })();
-          if (fid) {
-            const plan = (() => {
-              try { return JSON.parse(localStorage.getItem('hh_learning_plan') ?? 'null'); } catch { return null; }
-            })();
-            const authHeaders = getAuthHeaders();
-            const headers: Record<string, string> = authHeaders
-              ? { 'Content-Type': 'application/json', ...authHeaders }
-              : { 'Content-Type': 'application/json' };
-            await fetch('/api/learning-progress', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({ plan, completed_ids: updatedProgress, completions }),
-            }).catch(() => {});
-          }
-        } catch {}
+          await fetch('/api/learning-progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({ plan, completed_ids: updatedProgress, completions }),
+          }).catch(() => {});
+        }
       }
     } catch {}
-  }, [moduleId, mod]);
+  }, [moduleId, mod, cards, quizAnswers]);
 
   // Mark complete when reaching the complete card — retries after the time gate clears
   // Only awards HH2 if quiz score is 75%+ (quizPassed). If quiz not passed, the
   // complete card is never shown (see handleContinue logic above), so this effect
   // only fires when the user has already passed.
   useEffect(() => {
-    if (currentCard?.type !== 'complete' || alreadyDone) return;
+    if (currentCard?.type !== 'complete') return;
     if (!quizPassed) return; // safety guard — should never reach here without passing
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
     const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
@@ -685,7 +692,7 @@ function ModuleLessonContent() {
       handleComplete().then(() => setAlreadyDone(true));
     }, remaining * 1000);
     return () => clearTimeout(timer);
-  }, [currentCard, alreadyDone, handleComplete]);
+  }, [currentCard, handleComplete]);
 
   // ── HH2 auto-claim ──────────────────────────────────────────────────────
   const doClaim = useCallback(async () => {
@@ -745,6 +752,7 @@ function ModuleLessonContent() {
       claimFired.current = false;
       return;
     }
+    if (!rewardEarned) return;
     if (claimFired.current) return;
 
     if (!isConnected) {
@@ -759,7 +767,7 @@ function ModuleLessonContent() {
     claimFired.current = true;
     const timer = setTimeout(() => doClaim(), 1000);
     return () => clearTimeout(timer);
-  }, [currentCard, isConnected, isOnBase, doClaim]);
+  }, [currentCard, isConnected, isOnBase, doClaim, rewardEarned]);
 
   const quizCards = cards.filter((c): c is Extract<CardDef, { type: 'quiz' }> => c.type === 'quiz');
   const totalQuestions = quizCards.length;
@@ -943,6 +951,7 @@ function ModuleLessonContent() {
                   mod={mod}
                   onShare={handleShare}
                   onBack={() => router.push('/learn')}
+                  rewardEarned={rewardEarned}
                   claimStatus={claimStatus}
                   claimTxHash={claimTxHash}
                   claimError={claimError}
