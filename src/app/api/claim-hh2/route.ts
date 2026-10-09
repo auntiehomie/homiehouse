@@ -178,25 +178,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'The token transfer did not succeed. Your verified rewards are available to retry.' }, { status: 502 });
     }
 
-    const client = await db.connect();
+    const claimClient = await db.connect();
     try {
-      await client.query('BEGIN');
-      await client.query('SELECT pg_advisory_xact_lock($1)', [fid]);
-      await client.query(
+      await claimClient.query('BEGIN');
+      await claimClient.query('SELECT pg_advisory_xact_lock($1)', [fid]);
+      await claimClient.query(
         "UPDATE hh2_reward_events SET status = 'claimed', claimed_at = NOW() WHERE fid = $1 AND module_id = ANY($2::text[]) AND claim_tx_hash = $3 AND status = 'pending'",
         [fid, modules, txHash],
       );
       for (const moduleId of modules) {
-        await client.query(
+        await claimClient.query(
           'INSERT INTO hh2_claims (fid, module_id, wallet_address, tx_hash, amount) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (fid, module_id) DO NOTHING',
           [fid, moduleId, walletAddress.toLowerCase(), txHash, HH2_PER_MODULE],
         );
       }
-      await client.query('COMMIT');
+      await claimClient.query('COMMIT');
     } catch (error) {
-      await client.query('ROLLBACK').catch(() => {});
+      await claimClient.query('ROLLBACK').catch(() => {});
       throw error;
-    } finally { client.release(); }
+    } finally { claimClient.release(); }
     return NextResponse.json({ ok: true, claimed: modules.length, amount: modules.length * HH2_PER_MODULE, txHash });
   } catch (error) {
     // Once the RPC returns a hash, keep the rows reserved for reconciliation to prevent a duplicate payout.
