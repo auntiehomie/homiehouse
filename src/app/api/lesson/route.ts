@@ -359,6 +359,7 @@ export async function POST(req: NextRequest) {
     let objectives = requestedObjectives;
     let difficulty = requestedDifficulty;
     let tags = requestedTags;
+    let rewardModuleId: string | undefined;
 
     // Reward lesson content must match the module in the server-stored plan.
     // Never let client-supplied titles/objectives seed a reward-bearing quiz.
@@ -367,6 +368,7 @@ export async function POST(req: NextRequest) {
         const plans = await getDb().query('SELECT plan FROM learning_reward_plans WHERE fid = $1', [rewardFid]);
         const assigned = plans.rows[0]?.plan?.modules?.find((module: any) => module?.id === moduleId);
         if (assigned) {
+          rewardModuleId = moduleId;
           title = assigned.title;
           description = assigned.description;
           whyItMatters = assigned.whyItMatters;
@@ -396,7 +398,7 @@ export async function POST(req: NextRequest) {
         summary: curated.summary,
         quiz: curated.quiz,
       };
-      return rewardTrackedLessonResponse(req, moduleId, lesson, {
+      return rewardTrackedLessonResponse(req, rewardModuleId, lesson, {
         headers: {
           'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
           'Server-Timing': 'lesson;dur=0;desc="curated"',
@@ -407,7 +409,7 @@ export async function POST(req: NextRequest) {
 
     if (getLLMProviders().length === 0) {
       logger.warn('No AI provider configured, returning fallback');
-      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives), {
+      return rewardTrackedLessonResponse(req, rewardModuleId, fallbackLesson(title, description, objectives), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -422,7 +424,7 @@ export async function POST(req: NextRequest) {
         const cached = await redis.get<LessonContent>(cacheKey);
         if (cached) {
           logger.info(`cache hit: ${moduleId}`);
-          return rewardTrackedLessonResponse(req, moduleId, cached);
+          return rewardTrackedLessonResponse(req, rewardModuleId, cached);
         }
       } catch {}
     }
@@ -730,7 +732,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     if (!content) {
       logger.warn('All providers failed, using fallback');
-      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives ?? []), {
+      return rewardTrackedLessonResponse(req, rewardModuleId, fallbackLesson(title, description, objectives ?? []), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -760,7 +762,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
 
     if (!lesson) {
       logger.warn('Failed to parse AI response, using fallback');
-      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives ?? []), {
+      return rewardTrackedLessonResponse(req, rewardModuleId, fallbackLesson(title, description, objectives ?? []), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -770,7 +772,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     lesson.quiz = lesson.quiz.map(dedupeQuizOptions).filter(Boolean) as QuizQuestion[];
     if (lesson.quiz.length === 0) {
       logger.warn('All quiz questions had duplicate options, using fallback');
-      return rewardTrackedLessonResponse(req, moduleId, fallbackLesson(title, description, objectives ?? []), {
+      return rewardTrackedLessonResponse(req, rewardModuleId, fallbackLesson(title, description, objectives ?? []), {
         headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
       });
     }
@@ -808,7 +810,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       lesson.quiz = await verifyQuiz(lesson.quiz, topicContext);
     }
 
-    return rewardTrackedLessonResponse(req, moduleId, lesson);
+    return rewardTrackedLessonResponse(req, rewardModuleId, lesson);
   } catch (error: any) {
     logger.error('Error', error?.message || error);
     return NextResponse.json(fallbackLesson('', '', []), {
