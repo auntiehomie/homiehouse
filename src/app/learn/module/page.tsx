@@ -311,11 +311,12 @@ function QuizCard({
 
 type ClaimStatus = 'idle' | 'sending' | 'success' | 'failed' | 'not-connected' | 'wrong-chain' | 'already-claimed';
 
-function CompleteCard({ mod, onShare, onBack, rewardEarned, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
+function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
   mod: LearningModule;
   onShare: () => void;
   onBack: () => void;
   rewardEarned: boolean;
+  rewardVerificationDone: boolean;
   claimStatus: ClaimStatus;
   claimTxHash: string | null;
   claimError: string | null;
@@ -334,7 +335,7 @@ function CompleteCard({ mod, onShare, onBack, rewardEarned, claimStatus, claimTx
             You've completed <strong style={{ color: 'var(--text-on-dark)' }}>{mod.title}</strong>.
           </p>
           <p style={{ fontSize: 16, color: '#fbbf24', fontWeight: 700, margin: '0 0 6px' }}>
-            {rewardEarned ? '🪙 +100 HH2 earned!' : 'Lesson complete — verifying HH2 eligibility…'}
+            {rewardEarned ? '🪙 +100 HH2 earned!' : rewardVerificationDone ? 'HH2 reward could not be verified. Sign in and retry this lesson.' : 'Verifying HH2 eligibility…'}
           </p>
         </div>
 
@@ -540,6 +541,7 @@ function ModuleLessonContent() {
   // Completion
   const [alreadyDone, setAlreadyDone] = useState(false);
   const [rewardEarned, setRewardEarned] = useState(false);
+  const [rewardVerificationDone, setRewardVerificationDone] = useState(false);
 
   // HH2 auto-claim state
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
@@ -643,6 +645,7 @@ function ModuleLessonContent() {
       }
     }
     setRewardEarned(verified);
+    setRewardVerificationDone(true);
 
     try {
       const raw = localStorage.getItem(LS_PROGRESS_KEY);
@@ -952,6 +955,7 @@ function ModuleLessonContent() {
                   onShare={handleShare}
                   onBack={() => router.push('/learn')}
                   rewardEarned={rewardEarned}
+                  rewardVerificationDone={rewardVerificationDone}
                   claimStatus={claimStatus}
                   claimTxHash={claimTxHash}
                   claimError={claimError}
