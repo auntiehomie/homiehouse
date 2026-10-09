@@ -294,6 +294,10 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
   }
 }
 
+async function optionalRewardFid(req: NextRequest): Promise<number | null> {
+  try { return await verifyFarcasterSignerAuth(req); } catch { return null; }
+}
+
 async function rewardTrackedLessonResponse(
   req: NextRequest,
   moduleId: string | undefined,
