@@ -128,21 +128,14 @@ export default function Hh2Client() {
     const fid = userFid ?? getStoredFid();
     if (!fid) return;
 
-    fetch(`/api/learning-progress?fid=${fid}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.found && typeof d.hh2_points === 'number') setUserPoints(d.hh2_points);
-        else setUserPoints(0);
-      })
-      .catch(() => setUserPoints(0));
-
-    fetch(`/api/claim-hh2?fid=${fid}`)
+    fetch(`/api/claim-hh2?fid=${fid}`, { headers: { ...(getAuthHeaders() ?? {}) } })
       .then(r => r.json())
       .then(d => {
         if (d.ok) {
           setClaimable(d.claimable ?? 0);
           setClaimableModules(d.claimableModules ?? 0);
           setTotalClaimed(d.totalClaimed ?? 0);
+          setUserPoints((d.claimable ?? 0) + (d.totalClaimed ?? 0));
         }
       })
       .catch(() => {});
@@ -374,7 +367,7 @@ export default function Hh2Client() {
               {userFid && (
                 <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                   <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 4px' }}>
-                    Off-chain earned: <strong style={{ color: '#fbbf24' }}>
+                    Verified HH2 earned: <strong style={{ color: '#fbbf24' }}>
                       {userPoints === null ? '…' : userPoints.toLocaleString()} HH2
                     </strong>
                   </p>

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getDb } from '@/lib/db';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { rateLimit } from '@/lib/ratelimit';
 import { llmChat } from '@/lib/llm';
 import { SAFETY_MODULES } from '@/lib/safety-curriculum';
@@ -1011,6 +1013,62 @@ function fallbackForTrack(track: string, level: string): LearningPlan {
   return { ...plan, track: normalizedTrack as LearningPlan['track'], level: level as LearningPlan['level'] };
 }
 
+async function optionalRewardFid(req: NextRequest): Promise<number | null> {
+  try { return await verifyFarcasterSignerAuth(req); } catch { return null; }
+}
+
+async function persistRewardPlan(fid: number, plan: LearningPlan, replaceIfUnused = false): Promise<LearningPlan> {
+  const db = getDb();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS learning_reward_plans (
+      fid INTEGER PRIMARY KEY,
+      plan JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS learning_reward_attempts (
+      fid INTEGER NOT NULL,
+      module_id TEXT NOT NULL,
+      quiz_key JSONB NOT NULL,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      PRIMARY KEY (fid, module_id)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_reward_events (
+      fid INTEGER NOT NULL,
+      module_id TEXT NOT NULL,
+      amount INTEGER NOT NULL CHECK (amount = 100),
+      status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
+      wallet_address TEXT,
+      claim_tx_hash TEXT,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      claimed_at TIMESTAMPTZ,
+      PRIMARY KEY (fid, module_id)
+    )
+  `);
+
+  if (replaceIfUnused) {
+    await db.query(
+      `INSERT INTO learning_reward_plans (fid, plan) VALUES ($1, $2::jsonb)
+       ON CONFLICT (fid) DO UPDATE SET plan = EXCLUDED.plan, updated_at = NOW()
+       WHERE NOT EXISTS (SELECT 1 FROM learning_reward_attempts WHERE fid = $1)
+         AND NOT EXISTS (SELECT 1 FROM hh2_reward_events WHERE fid = $1)`,
+      [fid, JSON.stringify(plan)]
+    );
+  } else {
+    await db.query(
+      'INSERT INTO learning_reward_plans (fid, plan) VALUES ($1, $2::jsonb) ON CONFLICT (fid) DO NOTHING',
+      [fid, JSON.stringify(plan)]
+    );
+  }
+  const current = await db.query('SELECT plan FROM learning_reward_plans WHERE fid = $1', [fid]);
+  return (current.rows[0]?.plan as LearningPlan) ?? plan;
+}
+
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -1023,7 +1081,14 @@ export async function GET(req: NextRequest) {
 
   // If user explicitly requests the "survival" safety track
   if (track === 'survival') {
-    return NextResponse.json({ ...SAFETY_PLAN, level });
+    let safetyPlan = { ...SAFETY_PLAN, level } as LearningPlan;
+    const rewardFid = await optionalRewardFid(req);
+    if (rewardFid) {
+      try { safetyPlan = await persistRewardPlan(rewardFid, safetyPlan); } catch (err) {
+        console.error('[learning-plan] reward plan persistence failed', err);
+      }
+    }
+    return NextResponse.json(safetyPlan);
   }
 
   let fallback = fallbackForTrack(normalizedTrack, level);
@@ -1042,6 +1107,13 @@ export async function GET(req: NextRequest) {
     // KB enrichment is best-effort; silent fallback
   }
 
+  const rewardFid = await optionalRewardFid(req);
+  if (rewardFid) {
+    try { fallback = await persistRewardPlan(rewardFid, fallback); } catch (err) {
+      console.error('[learning-plan] reward plan persistence failed', err);
+    }
+  }
+
   return NextResponse.json(fallback);
 }
 
@@ -1054,6 +1126,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { track, level, specificGoals } = await req.json();
+    const rewardFid = await optionalRewardFid(req);
 
     if (!track || !level) {
       return NextResponse.json(
@@ -1068,7 +1141,11 @@ export async function POST(req: NextRequest) {
     // The safety curriculum is intentionally curated rather than generated:
     // safety guidance should be consistent, source-backed, and fast.
     if (track === 'survival') {
-      return NextResponse.json({ ...SAFETY_PLAN, level });
+      const safetyPlan = { ...SAFETY_PLAN, level } as LearningPlan;
+      if (rewardFid) {
+        try { return NextResponse.json(await persistRewardPlan(rewardFid, safetyPlan, true)); } catch {}
+      }
+      return NextResponse.json(safetyPlan);
     }
 
     // Fetch KB modules to include as context for the AI
@@ -1177,13 +1254,30 @@ Requirements:
     } catch (parseError) {
       console.error('[learning-plan] Failed to parse AI response, using fallback', parseError);
       const fallback = fallbackForTrack(normalizedTrack, level);
+      if (rewardFid) {
+        try { return NextResponse.json(await persistRewardPlan(rewardFid, fallback, true)); } catch {}
+      }
       return NextResponse.json(fallback);
     }
 
-    // Ensure the track/level from the request are in the response
+    // Keep reward plans bounded and well-formed. The IDs are generated on the
+    // server and saved server-side; client-supplied progress never defines rewards.
+    if (!Array.isArray(plan.modules)) plan.modules = [];
+    plan.modules = plan.modules
+      .filter((module) => module && typeof module.id === 'string' &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(module.id) &&
+        typeof module.title === 'string' && module.title.length <= 160)
+      .slice(0, 8);
+    if (plan.modules.length < 1) plan = fallbackForTrack(normalizedTrack, level);
+
     plan.track = normalizedTrack as LearningPlan['track'];
     plan.level = level as LearningPlan['level'];
 
+    if (rewardFid) {
+      try { plan = await persistRewardPlan(rewardFid, plan, true); } catch (err) {
+        console.error('[learning-plan] reward plan persistence failed', err);
+      }
+    }
     return NextResponse.json(plan);
   } catch (error: any) {
     console.error('[learning-plan] Error:', error?.message || error);

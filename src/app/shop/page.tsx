@@ -53,7 +53,7 @@ export default function ShopPage() {
           setUserFid(fid);
 
           // Get balance and owned items
-          const claimRes = await fetch(`/api/claim-hh2?fid=${fid}`);
+          const claimRes = await fetch(`/api/claim-hh2?fid=${fid}`, { headers: { ...(getAuthHeaders() ?? {}) } });
           const claimData = await claimRes.json();
           if (mounted && claimData.ok) {
             setBalance(claimData.claimable + claimData.totalClaimed);
@@ -159,7 +159,7 @@ export default function ShopPage() {
       }}>
         <span style={{ fontSize: 28 }}>🪙</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Your HH2 Balance</div>
+          <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Spendable HH2 Balance</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-on-dark)' }}>
             {balance !== null ? balance.toLocaleString() : '—'} HH2
           </div>

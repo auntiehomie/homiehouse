@@ -1,204 +1,214 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
-import { createWalletClient, http, parseUnits, isAddress } from 'viem';
+import { createPublicClient, createWalletClient, http, parseUnits, isAddress } from 'viem';
 import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sql, getSql } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
-import { createApiLogger } from '@/lib/logger';
-
-const logger = createApiLogger('/claim-hh2');
+import { ITEM_PRICES } from '@/app/api/hh2-shop/route';
 
 const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_PER_MODULE = 100;
 const HH2_DECIMALS = 18;
 
-// Auto-create tables on first use — no migration command needed.
-const ENSURE_TABLES = `
-CREATE TABLE IF NOT EXISTS learning_progress (
-  fid INTEGER PRIMARY KEY,
-  plan JSONB,
-  completed_ids JSONB DEFAULT '[]',
-  completions JSONB DEFAULT '{}',
-  hh2_points INTEGER DEFAULT 0,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE TABLE IF NOT EXISTS hh2_claims (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  fid INTEGER NOT NULL,
-  module_id TEXT NOT NULL,
-  wallet_address TEXT NOT NULL,
-  tx_hash TEXT NOT NULL,
-  amount INTEGER NOT NULL,
-  claimed_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(fid, module_id)
-);
-CREATE TABLE IF NOT EXISTS hh2_purchases (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_fid INTEGER NOT NULL,
-  item_id TEXT NOT NULL,
-  purchased_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_fid, item_id)
-);
-`;
-
-let tablesReady = false;
-async function ensureTables() {
-  if (tablesReady) return;
-  try {
-    const s = getSql();
-    for (const stmt of ENSURE_TABLES.split(';').map(s => s.trim()).filter(Boolean)) {
-      await s.query(stmt);
-    }
-    tablesReady = true;
-  } catch (e) {
-    // Best-effort — if it fails, the query itself will throw a clearer error
-  }
-}
-
-const ERC20_ABI = [
-  {
-    name: 'transfer',
-    type: 'function' as const,
-    stateMutability: 'nonpayable' as const,
-    inputs: [
-      { name: 'to', type: 'address' as const },
-      { name: 'amount', type: 'uint256' as const },
-    ],
-    outputs: [{ name: '', type: 'bool' as const }],
-  },
-];
+const ERC20_ABI = [{
+  name: 'transfer', type: 'function' as const, stateMutability: 'nonpayable' as const,
+  inputs: [{ name: 'to', type: 'address' as const }, { name: 'amount', type: 'uint256' as const }],
+  outputs: [{ name: '', type: 'bool' as const }],
+}];
 
 function getTreasuryAccount() {
   const key = process.env.TREASURY_PRIVATE_KEY;
   if (!key) throw new Error('TREASURY_PRIVATE_KEY is not configured');
-  const hex = (key.startsWith('0x') ? key : `0x${key}`) as `0x${string}`;
-  return privateKeyToAccount(hex);
+  return privateKeyToAccount((key.startsWith('0x') ? key : `0x${key}`) as `0x${string}`);
 }
 
-// GET /api/claim-hh2?fid=123 — check how much HH2 is claimable
+async function ensureRewardTables(db: ReturnType<typeof getDb>) {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_purchases (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_fid INTEGER NOT NULL,
+      item_id TEXT NOT NULL,
+      purchased_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_fid, item_id)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_reward_events (
+      fid INTEGER NOT NULL, module_id TEXT NOT NULL,
+      amount INTEGER NOT NULL CHECK (amount = 100),
+      status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
+      wallet_address TEXT, claim_tx_hash TEXT,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), claimed_at TIMESTAMPTZ,
+      PRIMARY KEY (fid, module_id)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_claims (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(), fid INTEGER NOT NULL,
+      module_id TEXT NOT NULL, wallet_address TEXT NOT NULL, tx_hash TEXT NOT NULL,
+      amount INTEGER NOT NULL, claimed_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(fid, module_id)
+    )
+  `);
+}
+
+async function getClaimable(client: import('pg').PoolClient, fid: number) {
+  const [earned, purchases, pending] = await Promise.all([
+    client.query("SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_reward_events WHERE fid = $1 AND status = 'earned'", [fid]),
+    client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [fid]),
+    client.query("SELECT COUNT(*)::int AS count FROM hh2_reward_events WHERE fid = $1 AND status = 'pending'", [fid]),
+  ]);
+  const spent = purchases.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
+  const amount = Math.max(0, earned.rows[0].amount - spent);
+  return { amount, modules: Math.floor(amount / HH2_PER_MODULE), pending: pending.rows[0].count };
+}
+
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const userFid = Number(searchParams.get('fid'));
-  if (!userFid || isNaN(userFid)) {
-    return NextResponse.json({ ok: false, error: 'fid required' }, { status: 400 });
+  let authFid: number;
+  try { authFid = await verifyFarcasterSignerAuth(req); } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    return NextResponse.json({ ok: false, error: 'Authentication required' }, { status: 401 });
   }
+  const fid = Number(new URL(req.url).searchParams.get('fid'));
+  if (!Number.isSafeInteger(fid) || fid <= 0) return NextResponse.json({ ok: false, error: 'fid required' }, { status: 400 });
+  if (authFid !== fid) return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
 
   try {
-    await ensureTables();
-
-    // Rate limit: 30 requests/minute per IP
-    const forwarded = req.headers.get('x-forwarded-for');
-    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`claim-hh2:${ip}`, 30, 60);
-    if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    if (!rateLimit(`claim-hh2:${ip}`, 30, 60).success) {
+      return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
     }
-    const [progressRows, claimedRows] = await Promise.all([
-      sql`SELECT completed_ids FROM learning_progress WHERE fid = ${userFid}`,
-      sql`SELECT module_id, tx_hash, claimed_at FROM hh2_claims WHERE fid = ${userFid}`,
-    ]);
-
-    const completedIds: string[] = progressRows[0]?.completed_ids ?? [];
-    const claimedIds = new Set(claimedRows.map((r: any) => r.module_id));
-    const unclaimedCount = completedIds.filter(id => !claimedIds.has(id)).length;
-
-    return NextResponse.json({
-      ok: true,
-      claimable: unclaimedCount * HH2_PER_MODULE,
-      claimableModules: unclaimedCount,
-      totalClaimed: claimedRows.length * HH2_PER_MODULE,
-      claims: claimedRows,
-    });
-  } catch (err: any) {
-    logger.error('GET error', err?.message);
+    const db = getDb();
+    await ensureRewardTables(db);
+    const client = await db.connect();
+    try {
+      const balance = await getClaimable(client, fid);
+      const claimed = await client.query('SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_claims WHERE fid = $1', [fid]);
+      return NextResponse.json({
+        ok: true, claimsPaused: false,
+        claimable: balance.modules * HH2_PER_MODULE,
+        claimableModules: balance.modules,
+        totalClaimed: claimed.rows[0].amount,
+        pendingModules: balance.pending,
+        claims: [],
+      });
+    } finally { client.release(); }
+  } catch (error) {
+    console.error('[claim-hh2] GET error:', error);
     return NextResponse.json({ ok: false, error: 'Failed to check claimable HH2' }, { status: 500 });
   }
 }
 
-// POST /api/claim-hh2 — send all unclaimed HH2 to a wallet in one transaction
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!rateLimit(`claim-hh2-post:${ip}`, 5, 60).success) {
+    return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
+  }
+  let authFid: number;
+  try { authFid = await verifyFarcasterSignerAuth(req); } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    return NextResponse.json({ ok: false, error: 'Authentication required' }, { status: 401 });
+  }
+  let body: { fid?: unknown; walletAddress?: unknown };
+  try { body = await req.json(); } catch {
+    return NextResponse.json({ ok: false, error: 'Invalid request body' }, { status: 400 });
+  }
+  const fid = Number(body.fid);
+  const walletAddress = typeof body.walletAddress === 'string' ? body.walletAddress : '';
+  if (!Number.isSafeInteger(fid) || fid <= 0) return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
+  if (authFid !== fid) return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
+  if (!isAddress(walletAddress)) return NextResponse.json({ ok: false, error: 'Invalid wallet address' }, { status: 400 });
+
+  const db = getDb();
+  let modules: string[] = [];
+  let transferSubmitted = false;
   try {
-    await ensureTables();
-    // Verify auth via signer key headers
-    const authFid = await verifyFarcasterSignerAuth(req);
-
-    const { fid, walletAddress } = await req.json();
-
-    const userFid = Number(fid);
-    if (!userFid || isNaN(userFid)) {
-      return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
-    }
-    if (!walletAddress || !isAddress(walletAddress)) {
-      return NextResponse.json({ ok: false, error: 'Invalid wallet address' }, { status: 400 });
-    }
-
-    // Verify the authenticated FID matches the request
-    if (authFid !== userFid) {
-      return NextResponse.json(
-        { ok: false, error: 'FID does not match authenticated user' },
-        { status: 403 }
+    await ensureRewardTables(db);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1)', [fid]);
+      const balance = await getClaimable(client, fid);
+      if (balance.pending > 0) {
+        await client.query('COMMIT');
+        return NextResponse.json({ ok: false, error: 'A claim is already processing.' }, { status: 409 });
+      }
+      if (balance.modules === 0) {
+        await client.query('COMMIT');
+        return NextResponse.json({ ok: false, error: 'Nothing verified is ready to claim.' }, { status: 400 });
+      }
+      const earned = await client.query(
+        "SELECT module_id FROM hh2_reward_events WHERE fid = $1 AND status = 'earned' ORDER BY earned_at ASC LIMIT $2 FOR UPDATE",
+        [fid, balance.modules],
       );
-    }
+      modules = earned.rows.map((row: { module_id: string }) => row.module_id);
+      if (modules.length !== balance.modules) throw new Error('Reward ledger changed during claim reservation');
+      await client.query(
+        "UPDATE hh2_reward_events SET status = 'pending', wallet_address = $3 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'earned'",
+        [fid, modules, walletAddress.toLowerCase()],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally { client.release(); }
 
-    // Find completed modules for this FID
-    const progressRows = await sql`
-      SELECT completed_ids FROM learning_progress WHERE fid = ${userFid}
-    `;
-    const completedIds: string[] = progressRows[0]?.completed_ids ?? [];
-    if (completedIds.length === 0) {
-      return NextResponse.json({ ok: false, error: 'No completed modules found' }, { status: 400 });
-    }
-
-    // Find unclaimed modules
-    const claimedRows = await sql`SELECT module_id FROM hh2_claims WHERE fid = ${userFid}`;
-    const claimedIds = new Set(claimedRows.map((r: any) => r.module_id));
-    const unclaimedIds = completedIds.filter(id => !claimedIds.has(id));
-
-    if (unclaimedIds.length === 0) {
-      return NextResponse.json({ ok: false, error: 'Nothing to claim — all modules already claimed' }, { status: 400 });
-    }
-
-    const totalHH2 = unclaimedIds.length * HH2_PER_MODULE;
-    const amount = parseUnits(String(totalHH2), HH2_DECIMALS);
-
-    // Send one batched ERC-20 transfer for all unclaimed modules
     const account = getTreasuryAccount();
-    const client = createWalletClient({
-      account,
-      chain: base,
-      transport: http(),
-    });
-
-    const txHash = await client.writeContract({
-      address: HH2_CONTRACT,
-      abi: ERC20_ABI,
-      functionName: 'transfer',
+    const walletClient = createWalletClient({ account, chain: base, transport: http() });
+    const publicClient = createPublicClient({ chain: base, transport: http() });
+    const amount = parseUnits(String(modules.length * HH2_PER_MODULE), HH2_DECIMALS);
+    const txHash = await walletClient.writeContract({
+      address: HH2_CONTRACT, abi: ERC20_ABI, functionName: 'transfer',
       args: [walletAddress as `0x${string}`, amount],
     });
+    transferSubmitted = true;
 
-    // Record each module as claimed (ON CONFLICT DO NOTHING = safe to retry)
-    for (const moduleId of unclaimedIds) {
-      await sql`
-        INSERT INTO hh2_claims (fid, module_id, wallet_address, tx_hash, amount)
-        VALUES (${userFid}, ${moduleId}, ${walletAddress.toLowerCase()}, ${txHash}, ${HH2_PER_MODULE})
-        ON CONFLICT (fid, module_id) DO NOTHING
-      `;
-    }
-
-    return NextResponse.json({ ok: true, claimed: unclaimedIds.length, amount: totalHH2, txHash });
-  } catch (err: any) {
-    if (err instanceof AuthError) {
-      return NextResponse.json(
-        { ok: false, error: err.message },
-        { status: err.status }
-      );
-    }
-    logger.error('POST error', err?.message);
-    return NextResponse.json(
-      { ok: false, error: err?.message || 'Failed to claim HH2' },
-      { status: 500 }
+    await db.query(
+      "UPDATE hh2_reward_events SET claim_tx_hash = $3 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'pending'",
+      [fid, modules, txHash],
     );
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    if (receipt.status !== 'success') {
+      await db.query(
+        "UPDATE hh2_reward_events SET status = 'earned', wallet_address = NULL, claim_tx_hash = NULL WHERE fid = $1 AND module_id = ANY($2::text[]) AND claim_tx_hash = $3",
+        [fid, modules, txHash],
+      );
+      return NextResponse.json({ ok: false, error: 'The token transfer did not succeed. Your verified rewards are available to retry.' }, { status: 502 });
+    }
+
+    const claimClient = await db.connect();
+    try {
+      await claimClient.query('BEGIN');
+      await claimClient.query('SELECT pg_advisory_xact_lock($1)', [fid]);
+      await claimClient.query(
+        "UPDATE hh2_reward_events SET status = 'claimed', claimed_at = NOW() WHERE fid = $1 AND module_id = ANY($2::text[]) AND claim_tx_hash = $3 AND status = 'pending'",
+        [fid, modules, txHash],
+      );
+      for (const moduleId of modules) {
+        await claimClient.query(
+          'INSERT INTO hh2_claims (fid, module_id, wallet_address, tx_hash, amount) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (fid, module_id) DO NOTHING',
+          [fid, moduleId, walletAddress.toLowerCase(), txHash, HH2_PER_MODULE],
+        );
+      }
+      await claimClient.query('COMMIT');
+    } catch (error) {
+      await claimClient.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally { claimClient.release(); }
+    return NextResponse.json({ ok: true, claimed: modules.length, amount: modules.length * HH2_PER_MODULE, txHash });
+  } catch (error) {
+    // Once the RPC returns a hash, keep the rows reserved for reconciliation to prevent a duplicate payout.
+    if (!transferSubmitted) {
+      try {
+        await db.query(
+          "UPDATE hh2_reward_events SET status = 'earned', wallet_address = NULL, claim_tx_hash = NULL WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'pending' AND claim_tx_hash IS NULL",
+          [fid, modules],
+        );
+      } catch {}
+    }
+    console.error('[claim-hh2] POST error:', error);
+    return NextResponse.json({ ok: false, error: 'Failed to claim verified HH2 rewards' }, { status: 500 });
   }
 }

@@ -1010,7 +1010,7 @@ function LearnPageContent() {
     // Show fallback plan instantly — no spinner needed
     let fallbackShown = false;
     try {
-      const fallbackRes = await fetch(`/api/learning-plan?track=${track}&level=${level}`);
+      const fallbackRes = await fetch(`/api/learning-plan?track=${track}&level=${level}`, { headers: { ...(getAuthHeaders() ?? {}) } });
       if (fallbackRes.ok) {
         const fallbackPlan = await fallbackRes.json() as LearningPlan;
         setPlan(fallbackPlan);
@@ -1029,7 +1029,7 @@ function LearnPageContent() {
     try {
       const res = await fetch('/api/learning-plan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(getAuthHeaders() ?? {}) },
         body: JSON.stringify({ track, level, specificGoals: goals }),
       });
       if (!res.ok) throw new Error('Failed to generate plan');
