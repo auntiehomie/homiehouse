@@ -53,7 +53,7 @@ export default function ShopPage() {
           setUserFid(fid);
 
           // Get balance and owned items
-          const claimRes = await fetch(`/api/claim-hh2?fid=${fid}`, { headers: getAuthHeaders() ?? {} });
+          const claimRes = await fetch(`/api/claim-hh2?fid=${fid}`, { headers: { ...(getAuthHeaders() ?? {}) } });
           const claimData = await claimRes.json();
           if (mounted && claimData.ok) {
             setBalance(claimData.claimable + claimData.totalClaimed);
