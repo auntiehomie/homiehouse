@@ -1,3 +1,5 @@
+import { getAuthHeaders } from '@/lib/client-auth';
+
 export interface LessonModuleRequest {
   id: string;
   title: string;
@@ -104,7 +106,8 @@ function cacheLesson(module: LessonModuleRequest, eli5: boolean, lesson: LessonC
 }
 
 export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<LessonContent> {
-  const cached = getCachedLesson(module, eli5);
+  const authenticated = Boolean(getAuthHeaders());
+  const cached = authenticated ? null : getCachedLesson(module, eli5);
   if (cached) return Promise.resolve(cached);
 
   const key = lessonKey(module, eli5);
@@ -113,7 +116,7 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
 
   const request = fetch('/api/lesson', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(getAuthHeaders() ?? {}) },
     body: JSON.stringify({ ...module, eli5 }),
   })
     .then(async response => {
