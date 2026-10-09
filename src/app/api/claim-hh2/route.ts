@@ -97,6 +97,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!rateLimit(`claim-hh2-post:${ip}`, 5, 60).success) {
+    return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
+  }
   let authFid: number;
   try { authFid = await verifyFarcasterSignerAuth(req); } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
