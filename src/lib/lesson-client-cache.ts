@@ -136,6 +136,9 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
 }
 
 export function prefetchLesson(module: LessonModuleRequest, eli5: boolean): void {
+  // Authenticated lesson requests start the server-side reward timer. Fetch them
+  // only after the learner opens the lesson, never while the plan is prefetching.
+  if (getAuthHeaders()) return;
   void loadLesson(module, eli5).catch(() => {
     // Prefetching is best-effort; the lesson screen owns user-facing errors.
   });
