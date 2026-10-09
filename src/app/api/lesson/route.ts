@@ -324,7 +324,7 @@ async function rewardTrackedLessonResponse(
     const modules = plans.rows[0]?.plan?.modules;
     if (Array.isArray(modules) && modules.some((module: any) => module?.id === moduleId)) {
       await db.query(
-        'INSERT INTO learning_reward_attempts (fid, module_id, quiz_key) VALUES ($1, $2, $3::jsonb) ON CONFLICT (fid, module_id) DO NOTHING',
+        'INSERT INTO learning_reward_attempts (fid, module_id, quiz_key) VALUES ($1, $2, $3::jsonb) ON CONFLICT (fid, module_id) DO UPDATE SET quiz_key = EXCLUDED.quiz_key, started_at = NOW(), completed_at = NULL',
         [fid, moduleId, JSON.stringify(lesson.quiz)]
       );
     }
@@ -342,7 +342,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Too many lesson requests. Please try again later.' }, { status: 429 });
     }
 
-    const { moduleId, title, description, whyItMatters, objectives, difficulty, tags, eli5 = false } = await req.json();
+    const {
+      moduleId,
+      title: requestedTitle,
+      description: requestedDescription,
+      whyItMatters: requestedWhyItMatters,
+      objectives: requestedObjectives,
+      difficulty: requestedDifficulty,
+      tags: requestedTags,
+      eli5 = false,
+    } = await req.json();
+    const rewardFid = await optionalRewardFid(req);
+    let title = requestedTitle;
+    let description = requestedDescription;
+    let whyItMatters = requestedWhyItMatters;
+    let objectives = requestedObjectives;
+    let difficulty = requestedDifficulty;
+    let tags = requestedTags;
+
+    // Reward lesson content must match the module in the server-stored plan.
+    // Never let client-supplied titles/objectives seed a reward-bearing quiz.
+    if (rewardFid && typeof moduleId === 'string') {
+      try {
+        const plans = await getDb().query('SELECT plan FROM learning_reward_plans WHERE fid = $1', [rewardFid]);
+        const assigned = plans.rows[0]?.plan?.modules?.find((module: any) => module?.id === moduleId);
+        if (assigned) {
+          title = assigned.title;
+          description = assigned.description;
+          whyItMatters = assigned.whyItMatters;
+          objectives = assigned.objectives;
+          difficulty = assigned.difficulty;
+          tags = assigned.tags;
+        }
+      } catch {
+        // Learning content remains available if reward-plan lookup is unavailable.
+      }
+    }
 
     if (!title) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 });
@@ -382,7 +417,7 @@ export async function POST(req: NextRequest) {
     // v5: regenerate every module with increased maxTokens (8000) so the
     // full lesson JSON isn't truncated mid-object.
     const cacheKey = moduleId ? `lesson:v9:${moduleId}${eli5 ? ':eli5' : ''}` : null;
-    if (redis && cacheKey) {
+    if (redis && cacheKey && !rewardFid) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
         if (cached) {
@@ -752,7 +787,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     }
 
     // ── Cache the (verified + shuffled) lesson for 30 days ──────────────────
-    if (redis && cacheKey) {
+    if (redis && cacheKey && !rewardFid) {
       try { await redis.set(cacheKey, lesson, { ex: 60 * 60 * 24 * 30 }); } catch {}
 
       // Do the independent fact-check after the response path. The first
