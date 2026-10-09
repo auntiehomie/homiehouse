@@ -135,7 +135,6 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
   let modules: string[] = [];
-  let transferSubmitted = false;
   try {
     await ensureRewardTables(db);
     const client = await db.connect();
@@ -181,7 +180,6 @@ export async function POST(req: NextRequest) {
       address: HH2_CONTRACT, abi: ERC20_ABI, functionName: 'transfer',
       args: [walletAddress as `0x${string}`, amount],
     });
-    transferSubmitted = true;
 
     await db.query(
       "UPDATE hh2_reward_events SET claim_tx_hash = $3 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'pending'",
@@ -217,16 +215,7 @@ export async function POST(req: NextRequest) {
     } finally { claimClient.release(); }
     return NextResponse.json({ ok: true, claimed: modules.length, amount: modules.length * HH2_PER_MODULE, txHash });
   } catch (error) {
-    // An RPC can broadcast a transaction and then time out before returning its hash.
-    // Never auto-release a reservation after an ambiguous transfer error: reconcile manually.
-    if (!transferSubmitted && modules.length === 0) {
-      try {
-        await db.query(
-          "UPDATE hh2_reward_events SET status = 'earned', wallet_address = NULL, claim_tx_hash = NULL WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'pending' AND claim_tx_hash IS NULL",
-          [fid, modules],
-        );
-      } catch {}
-    }
+    // A timed-out RPC may have broadcast a payment. Preserve pending rows for reconciliation.
     console.error('[claim-hh2] POST error:', error);
     return NextResponse.json({ ok: false, error: 'Failed to claim verified HH2 rewards' }, { status: 500 });
   }
