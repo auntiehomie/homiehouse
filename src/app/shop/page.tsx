@@ -159,19 +159,20 @@ export default function ShopPage() {
       }}>
         <span style={{ fontSize: 28 }}>🪙</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Your HH2 Balance</div>
+          <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Spendable HH2 Balance</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-on-dark)' }}>
             {balance !== null ? balance.toLocaleString() : '—'} HH2
           </div>
         </div>
         <button
           onClick={() => router.push('/hh2')}
+          disabled
           style={{
             padding: '7px 14px', borderRadius: 8, background: 'var(--accent)', color: '#fff',
             border: 'none', fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
           }}
         >
-          Earn HH2 →
+          Rewards Paused
         </button>
       </div>
 
@@ -185,6 +186,14 @@ export default function ShopPage() {
           {errorMsg}
         </div>
       )}
+
+      <div role="status" style={{
+        borderRadius: 10, padding: '12px 14px', marginBottom: 20,
+        background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)',
+        fontSize: 13, color: '#fbbf24', lineHeight: 1.5,
+      }}>
+        HH2 claims and shop purchases are paused while the reward system is secured. Existing items remain available.
+      </div>
 
       {/* Shop items by category */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
