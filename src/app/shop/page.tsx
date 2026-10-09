@@ -169,7 +169,7 @@ export default function ShopPage() {
           disabled
           style={{
             padding: '7px 14px', borderRadius: 8, background: 'var(--accent)', color: '#fff',
-            border: 'none', fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+            border: 'none', fontWeight: 600, fontSize: 12, cursor: 'not-allowed', whiteSpace: 'nowrap', opacity: 0.7,
           }}
         >
           Rewards Paused
