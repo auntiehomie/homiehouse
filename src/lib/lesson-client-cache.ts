@@ -111,7 +111,9 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
   if (cached) return Promise.resolve(cached);
 
   const key = lessonKey(module, eli5);
-  const existing = inflight.get(key);
+  // Authenticated requests register a user-specific server-side reward attempt.
+  // Never coalesce them with a guest or different-account request.
+  const existing = authenticated ? undefined : inflight.get(key);
   if (existing) return existing;
 
   const request = fetch('/api/lesson', {
@@ -129,9 +131,9 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
       }
       return lesson;
     })
-    .finally(() => inflight.delete(key));
+    .finally(() => { if (!authenticated) inflight.delete(key); });
 
-  inflight.set(key, request);
+  if (!authenticated) inflight.set(key, request);
   return request;
 }
 
