@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import FeedList from "./FeedList";
 import TrendingList, { prefetchTrending } from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
@@ -64,6 +65,11 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedScope
 
   return (
     <div>
+      <nav aria-label="Learn, earn and connect" className="flex flex-wrap gap-2 mb-4 text-sm">
+        <Link href="/learn" className="btn text-xs" style={{ padding: '8px 12px' }}>📚 Learn</Link>
+        <Link href="/shop" className="btn text-xs" style={{ padding: '8px 12px' }}>✨ Earn & redeem</Link>
+        <Link href="/community" className="btn text-xs" style={{ padding: '8px 12px' }}>🤝 Connect</Link>
+      </nav>
       <div className="flex gap-2 mb-4 items-center overflow-x-auto pb-1" style={{ flexWrap: 'nowrap', scrollbarWidth: 'none' }}>
         <button
           onClick={() => setTab('feed')}
