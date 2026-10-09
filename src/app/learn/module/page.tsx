@@ -560,7 +560,7 @@ function ModuleLessonContent() {
       setAlreadyDone(progress.includes(moduleId));
 
       const eli5 = getEli5Mode();
-      const cached = getCachedLesson(found, eli5);
+      const cached = getAuthHeaders() ? null : getCachedLesson(found, eli5);
       if (cached) {
         setCards(buildCards(cached, found));
         setLoading(false);
