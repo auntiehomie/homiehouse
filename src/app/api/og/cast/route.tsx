@@ -4,8 +4,10 @@ import { fetchCast } from '@/lib/hypersnap';
 export const runtime = 'edge';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const requestUrl = new URL(request.url);
+  const { searchParams } = requestUrl;
   const hash = searchParams.get('hash') || '';
+  const logoUrl = new URL('/homiehouse-pixel.svg', requestUrl).toString();
 
   let authorName = 'Farcaster';
   let authorUsername = '';
@@ -106,7 +108,14 @@ export async function GET(request: Request) {
               border: '1px solid rgba(255,255,255,0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <span style={{ fontSize: 17, fontWeight: 900, color: '#fff', lineHeight: 1 }}>H²</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={logoUrl}
+                width={32}
+                height={32}
+                alt="HomieHouse"
+                style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }}
+              />
             </div>
             <span style={{ fontSize: 17, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>HomieHouse</span>
           </div>
