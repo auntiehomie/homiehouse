@@ -825,7 +825,7 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 .hh-bottom-nav {
   background-color: var(--nav-bg, #000000);
   border-color: var(--nav-border, rgba(255,255,255,0.1));
-  /* Ensure nav sits above Privy wallet iframe and any other SDK overlays */
+  /* Ensure nav sits above wallet iframes and other SDK overlays */
   z-index: 9500;
   pointer-events: all;
   /* Android: ensure touch targets clear system gesture zone */

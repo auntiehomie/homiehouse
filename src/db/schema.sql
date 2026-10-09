@@ -1,4 +1,4 @@
--- Users table (FID-based, populated on first login via Privy)
+-- Users table (FID-based, populated on first login via Farcaster signer)
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   fid INTEGER UNIQUE NOT NULL,
