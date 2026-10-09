@@ -81,13 +81,18 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [meta, setMeta] = useState<{ _source?: string; _timings?: Record<string, number> } | null>(null);
   const router = useRouter();
 
   const loadNotifications = useCallback(async (silent = false, pageCursor?: string | null) => {
     try {
-      if (!silent) setLoading(true);
+      if (pageCursor) {
+        setLoadingMore(true);
+        setLoadMoreError(null);
+      } else if (!silent) setLoading(true);
       const storedProfile = localStorage.getItem('hh_profile');
       if (!storedProfile) { router.push('/'); return; }
       const profile = JSON.parse(storedProfile);
@@ -103,7 +108,15 @@ export default function NotificationsPage() {
       const data = await response.json();
       if (pageCursor) {
         // Append to existing notifications for pagination
-        setNotifications(prev => [...prev, ...(data.notifications || [])]);
+        setNotifications(prev => {
+          const seen = new Set(prev.map(item => `${item.type}:${item.timestamp}:${item.cast?.hash || ''}:${getActor(item)?.fid || ''}`));
+          return [...prev, ...(data.notifications || []).filter((item: Notification) => {
+            const key = `${item.type}:${item.timestamp}:${item.cast?.hash || ''}:${getActor(item)?.fid || ''}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })];
+        });
       } else {
         setNotifications(data.notifications || []);
       }
@@ -112,16 +125,18 @@ export default function NotificationsPage() {
       setMeta(data._meta || null);
       if (!silent) setError(null);
     } catch (err) {
-      if (!silent) setError('Failed to load notifications');
+      if (pageCursor) setLoadMoreError('Could not load more notifications. Please retry.');
+      else if (!silent) setError('Failed to load notifications');
     } finally {
-      if (!silent) setLoading(false);
+      if (pageCursor) setLoadingMore(false);
+      else if (!silent) setLoading(false);
     }
   }, [router]);
 
   const loadMore = useCallback(() => {
-    if (!cursor || loading) return;
+    if (!cursor || loading || loadingMore) return;
     loadNotifications(true, cursor);
-  }, [cursor, loading, loadNotifications]);
+  }, [cursor, loading, loadingMore, loadNotifications]);
 
   useEffect(() => {
     loadNotifications();
@@ -334,10 +349,11 @@ export default function NotificationsPage() {
                   );
                 })}
 
+                {loadMoreError && <p role="alert" style={{ textAlign: 'center', color: 'var(--muted-on-dark)' }}>{loadMoreError}</p>}
                 {hasMore && cursor && (
                   <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1.5rem' }}>
-                    <button onClick={loadMore} className="btn primary" disabled={loading}>
-                      {loading ? 'Loading…' : 'Load More'}
+                    <button onClick={loadMore} className="btn primary" disabled={loadingMore} aria-busy={loadingMore}>
+                      {loadingMore ? 'Loading…' : 'Load More'}
                     </button>
                   </div>
                 )}
