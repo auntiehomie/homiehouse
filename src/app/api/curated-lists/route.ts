@@ -38,7 +38,6 @@ export async function GET(request: NextRequest) {
     }
     const db = getDb();
     const { searchParams } = new URL(request.url);
-    const fidParam = searchParams.get('fid');
     const isPublicBrowse = searchParams.get('public') === 'true';
 
     if (isPublicBrowse) {
@@ -59,14 +58,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ lists });
     }
 
-    if (!fidParam) {
-      return NextResponse.json({ error: 'fid is required' }, { status: 400 });
-    }
-
-    const fid = Number(fidParam);
-    if (!fid || isNaN(fid)) {
-      return NextResponse.json({ error: 'Invalid fid' }, { status: 400 });
-    }
+    const fid = await verifyFarcasterSignerAuth(request);
 
     logger.info('Fetching curated lists', { fid });
 
@@ -79,6 +71,9 @@ export async function GET(request: NextRequest) {
     logger.end();
     return NextResponse.json({ lists: rows });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     logger.error('Failed to fetch curated lists', error);
     return handleApiError(error, 'GET /curated-lists');
   }
@@ -190,8 +185,26 @@ export async function DELETE(request: NextRequest) {
 
     logger.info('Deleting list', { listId: parsedListId, fid: verifiedFid });
 
-    await db.query(`DELETE FROM curated_list_items WHERE list_id = $1`, [parsedListId]);
-    await db.query(`DELETE FROM curated_lists WHERE id = $1 AND fid = $2`, [parsedListId, verifiedFid]);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const owned = await client.query(
+        'SELECT id FROM curated_lists WHERE id = $1 AND fid = $2 FOR UPDATE',
+        [parsedListId, verifiedFid]
+      );
+      if (owned.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({ error: 'List not found or not owned by you' }, { status: 404 });
+      }
+      await client.query('DELETE FROM curated_list_items WHERE list_id = $1', [parsedListId]);
+      await client.query('DELETE FROM curated_lists WHERE id = $1 AND fid = $2', [parsedListId, verifiedFid]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
 
     logger.success('List deleted', { listId: parsedListId });
     logger.end();
