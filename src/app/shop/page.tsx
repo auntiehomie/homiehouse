@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
+import HH2Badge from '@/components/HH2Badge';
 import { getAuthHeaders } from '@/lib/client-auth';
 
 interface ShopItem {
@@ -214,7 +215,19 @@ export default function ShopPage() {
                         opacity: owned ? 0.8 : 1,
                       }}
                     >
-                      <div style={{ fontSize: 28, textAlign: 'center' }}>{item.emoji}</div>
+                      {item.category === 'badge' ? (
+                        <div style={{
+                          minHeight: 126, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: 10, background: 'radial-gradient(ellipse at 50% 45%, rgba(124,58,237,.18), transparent 72%)',
+                          overflow: 'hidden',
+                        }}>
+                          <HH2Badge id={item.id} name={item.name} size={104} />
+                        </div>
+                      ) : (
+                        <div style={{ minHeight: 126, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 42 }}>
+                          {item.emoji}
+                        </div>
+                      )}
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-on-dark)', marginBottom: 4 }}>
                           {item.name}

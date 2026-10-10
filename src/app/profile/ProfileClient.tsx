@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
+import HH2Badge from '@/components/HH2Badge';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
 interface UserProfile {
@@ -491,7 +492,7 @@ function ProfileContent() {
                     color: 'var(--text-on-dark)',
                   }}
                 >
-                  <span style={{ fontSize: '1rem' }}>{badge.emoji}</span> {badge.name}
+                  <HH2Badge id={badge.id} name={badge.name} size={25} style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))' }} /> {badge.name}
                 </span>
               ))}
             </div>
