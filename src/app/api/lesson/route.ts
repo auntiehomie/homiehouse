@@ -304,7 +304,7 @@ async function rewardTrackedLessonResponse(
   lesson: LessonContent,
   init?: ResponseInit
 ) {
-  if (!moduleId || !fid || !Array.isArray(lesson.quiz) || lesson.quiz.length === 0) {
+  if (!moduleId || fid === null || !Array.isArray(lesson.quiz) || lesson.quiz.length === 0) {
     return NextResponse.json(lesson, init);
   }
 
@@ -377,8 +377,15 @@ export async function POST(req: NextRequest) {
           difficulty = assigned.difficulty;
           tags = assigned.tags;
         }
-      } catch {
-        // Learning content remains available if reward-plan lookup is unavailable.
+      } catch (error) {
+        logger.warn(
+          'Could not validate HH2 lesson plan',
+          error instanceof Error ? error.name : 'unknown error'
+        );
+        return NextResponse.json(
+          { error: 'HH2 reward tracking could not start. Please refresh this lesson while signed in.' },
+          { status: 503 }
+        );
       }
     }
 
