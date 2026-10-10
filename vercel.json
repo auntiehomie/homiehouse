@@ -27,6 +27,14 @@
     {
       "path": "/api/agent/kb-enrich",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/agent/x-post",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/agent/x-mention",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
