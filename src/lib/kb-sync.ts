@@ -348,10 +348,13 @@ export async function pickFreshKBArticle(recentTopics: string[] = []): Promise<K
   try {
     await ensureTable();
     const used = recentTopics.map((t) => t.toLowerCase().trim()).filter(Boolean);
-    const hasContent = `(NULLIF(BTRIM(summary), '') IS NOT NULL OR COALESCE(array_length(learning_points, 1), 0) > 0)`;
-
     if (!used.length) {
-      const rows = await sql`SELECT * FROM kb_articles WHERE ${sql.unsafe(hasContent)} ORDER BY RANDOM() LIMIT 1`;
+      const rows = await sql`
+        SELECT * FROM kb_articles
+        WHERE NULLIF(BTRIM(summary), '') IS NOT NULL
+           OR COALESCE(array_length(learning_points, 1), 0) > 0
+        ORDER BY RANDOM() LIMIT 1
+      `;
       return (rows as unknown as KBArticle[])[0] ?? null;
     }
 
