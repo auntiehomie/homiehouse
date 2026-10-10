@@ -77,6 +77,47 @@ export default function ProPage() {
         )}
       </div>
 
+      {/* Premium Tracks Preview */}
+      {!isPro && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 6px' }}>
+              🎓 Premium Learning Tracks
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
+              12 expert-built modules across Advanced DeFi, Trading Safety Pro, and Creator Economy.
+              Free users see teasers — Pro unlocks everything.
+            </p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+            {[
+              { emoji: '🏦', title: 'Advanced DeFi', desc: 'Yield strategies, leverage management, MEV protection, stablecoin deep dives', count: 4, mins: 80 },
+              { emoji: '📊', title: 'Trading Safety Pro', desc: 'On-chain forensics, tax compliance, trading psychology, derivatives', count: 4, mins: 84 },
+              { emoji: '🎨', title: 'Creator Economy', desc: 'Monetization, community building, content strategy, on-chain branding', count: 4, mins: 72 },
+            ].map(track => (
+              <div key={track.title} style={{
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+                padding: '16px', display: 'flex', flexDirection: 'column', gap: 8,
+                position: 'relative', overflow: 'hidden',
+              }}>
+                <div style={{ fontSize: 28 }}>{track.emoji}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-on-dark)' }}>{track.title}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', lineHeight: 1.5 }}>{track.desc}</div>
+                <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>{track.count} modules · ~{track.mins} min</div>
+                <div style={{
+                  position: 'absolute', top: 8, right: 8,
+                  fontSize: 10, padding: '2px 8px', borderRadius: 6,
+                  background: 'rgba(232,119,34,0.2)', color: 'var(--accent)',
+                  fontWeight: 700,
+                }}>
+                  🔒 PRO
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Hero section */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontSize: 13, color: 'var(--muted-on-dark)', lineHeight: 1.7, marginBottom: 24, maxWidth: 560 }}>
@@ -86,6 +127,31 @@ export default function ProPage() {
           <PricingCard userFid={userFid} isPro={isPro} />
         </div>
       </div>
+
+      {/* Pro users: Premium Tracks Access */}
+      {isPro && (
+        <div style={{ marginBottom: 32, maxWidth: 560, margin: '0 auto 32px' }}>
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 6px' }}>
+              🎓 Your Premium Learning Tracks
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
+              You have full access to all premium modules. Head to the Learning Hub to start.
+            </p>
+          </div>
+          <a
+            href="/learn"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '12px 20px', borderRadius: 10,
+              background: 'var(--accent)', color: '#fff',
+              textDecoration: 'none', fontSize: 14, fontWeight: 700,
+            }}
+          >
+            📚 Go to Learning Hub →
+          </a>
+        </div>
+      )}
 
       {/* FAQ */}
       <div style={{ maxWidth: 560, margin: '0 auto' }}>

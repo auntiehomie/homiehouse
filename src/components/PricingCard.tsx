@@ -41,6 +41,10 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
   const isOnBase = chainId === base.id;
 
   const features = [
+    { icon: '🎓', label: '12 premium learning tracks', highlight: true },
+    { icon: '🏦', label: 'Advanced DeFi: yield, leverage, MEV' },
+    { icon: '📊', label: 'Trading Safety Pro: forensics, taxes, psychology' },
+    { icon: '🎨', label: 'Creator Economy: monetization, community, branding' },
     { icon: '💬', label: 'Unlimited Ask Homie queries' },
     { icon: '🔬', label: 'Deeper research mode' },
     { icon: '⚡', label: 'Priority LLM routing' },
@@ -242,7 +246,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
           {features.map((f, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ fontSize: 16, flexShrink: 0, lineHeight: 1.3 }}>{f.icon}</span>
-              <span style={{ fontSize: 13, color: 'var(--muted-on-dark)', lineHeight: 1.5 }}>{f.label}</span>
+              <span style={{ fontSize: 13, color: (f as any).highlight ? 'var(--accent)' : 'var(--muted-on-dark)', lineHeight: 1.5, fontWeight: (f as any).highlight ? 700 : 400 }}>{f.label}{(f as any).highlight && ' ✨'}</span>
             </div>
           ))}
         </div>

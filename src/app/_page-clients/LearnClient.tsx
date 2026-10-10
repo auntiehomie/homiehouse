@@ -40,11 +40,241 @@ interface LearningPlan {
 type PageState = 'quiz' | 'generating' | 'plan';
 type Track = 'ai' | 'finance' | 'creator' | 'decentralization' | 'all';
 type Level = 'beginner' | 'intermediate' | 'advanced';
-type LearnTab = 'plan' | 'completed' | 'homie' | 'feed';
+type LearnTab = 'plan' | 'completed' | 'premium' | 'homie' | 'feed';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
 const LS_COMPLETIONS_KEY = 'hh_learning_completions';
+
+// ─── Premium Tracks Panel ────────────────────────────────────────────────────
+
+interface PremiumTrackItem {
+  id: string;
+  emoji: string;
+  title: string;
+  description: string;
+  moduleCount: number;
+  totalMinutes: number;
+  modules: Array<{
+    id: string;
+    title: string;
+    description: string;
+    estimatedMinutes: number;
+    difficulty: string;
+    tags: string[];
+    teaser?: string;
+    objectives?: string[];
+    whyItMatters?: string;
+  }>;
+}
+
+function PremiumTracksPanel() {
+  const router = useRouter();
+  const [tracks, setTracks] = useState<PremiumTrackItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isPro, setIsPro] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      try {
+        const res = await fetch('/api/premium-track');
+        const data = await res.json();
+        if (mounted) {
+          setTracks(data.tracks ?? []);
+          setIsPro(data.unlocked === true);
+          if (!data.ok) setError(data.error);
+        }
+      } catch (err: any) {
+        if (mounted) setError(err?.message ?? 'Failed to load premium tracks');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => { mounted = false; };
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
+
+  const diffColor: Record<string, string> = { beginner: '#22c55e', intermediate: '#f97316', advanced: '#a855f7' };
+
+  return (
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 6px' }}>
+          ⭐ Premium Learning Tracks
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
+          {isPro
+            ? 'You have full access to all premium content. Dive into advanced DeFi, trading safety, and creator economy tracks.'
+            : 'Expert-built modules for serious learners. Upgrade to Pro to unlock all premium content.'}
+        </p>
+      </div>
+
+      {/* Pro upgrade banner for free users */}
+      {!isPro && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(232,119,34,0.15), rgba(232,119,34,0.05))',
+          border: '1px solid rgba(232,119,34,0.4)', borderRadius: 12,
+          padding: '14px 18px', marginBottom: 24,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>🔒 Unlock Premium Tracks</div>
+            <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 4 }}>12 expert modules · Advanced DeFi, Trading, Creator Economy</div>
+          </div>
+          <button
+            onClick={() => router.push('/pro')}
+            style={{
+              padding: '8px 16px', borderRadius: 8, border: 'none',
+              background: 'var(--accent)', color: '#fff',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            Go Pro →
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          padding: '12px 16px', borderRadius: 10, marginBottom: 20,
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+          color: '#fca5a5', fontSize: 13,
+        }}>
+          {error}
+        </div>
+      )}
+
+      {/* Tracks */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {tracks.map(track => (
+          <div key={track.id} style={{
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 14, padding: '20px',
+          }}>
+            {/* Track header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              <span style={{ fontSize: 32, flexShrink: 0 }}>{track.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-on-dark)' }}>{track.title}</span>
+                  {!isPro && (
+                    <span style={{
+                      fontSize: 10, padding: '2px 8px', borderRadius: 6,
+                      background: 'rgba(232,119,34,0.2)', color: 'var(--accent)',
+                      fontWeight: 700,
+                    }}>
+                      PRO
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 8px', lineHeight: 1.5 }}>
+                  {track.description}
+                </p>
+                <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
+                  {track.moduleCount} modules · ~{track.totalMinutes} min total
+                </span>
+              </div>
+            </div>
+
+            {/* Module list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {track.modules.map((mod, i) => (
+                <div key={mod.id}
+                  onClick={() => { if (isPro) router.push(`/learn/premium/${mod.id}`); }}
+                  style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'var(--bg-dark)', border: '1px solid var(--border)',
+                  cursor: isPro ? 'pointer' : 'default',
+                  opacity: isPro ? 1 : 0.7,
+                  transition: 'background 0.15s',
+                }}>
+                  <span style={{
+                    width: 24, height: 24, borderRadius: '50%',
+                    background: 'var(--surface)', border: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, color: 'var(--muted-on-dark)',
+                    flexShrink: 0,
+                  }}>
+                    {i + 1}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 3 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-on-dark)' }}>{mod.title}</span>
+                      {!isPro && <span style={{ fontSize: 10, color: 'var(--accent)' }}>🔒</span>}
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.5 }}>
+                      {mod.description}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                        background: 'rgba(255,255,255,0.05)',
+                        color: diffColor[mod.difficulty] ?? 'var(--accent)',
+                        fontWeight: 600, textTransform: 'capitalize',
+                      }}>
+                        {mod.difficulty}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--muted-on-dark)' }}>{mod.estimatedMinutes} min</span>
+                      {mod.tags.map(tag => (
+                        <span key={tag} style={{
+                          fontSize: 10, padding: '2px 6px', borderRadius: 4,
+                          background: 'rgba(255,255,255,0.03)', color: 'var(--muted-on-dark)',
+                        }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    {/* Pro teaser: show whyItMatters as a locked preview */}
+                    {!isPro && mod.teaser && (
+                      <div style={{
+                        marginTop: 8, padding: '8px 10px', borderRadius: 6,
+                        background: 'rgba(232,119,34,0.08)', borderLeft: '2px solid var(--accent)',
+                      }}>
+                        <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>Preview: </span>
+                        <span style={{ fontSize: 11, color: 'var(--muted-on-dark)', lineHeight: 1.4 }}>{mod.teaser}</span>
+                      </div>
+                    )}
+                    {/* Pro user: show objectives */}
+                    {isPro && mod.objectives && (
+                      <div style={{ marginTop: 8 }}>
+                        <span style={{ fontSize: 10, color: 'var(--muted-on-dark)', fontWeight: 600 }}>You'll learn:</span>
+                        <ul style={{ margin: '4px 0 0', paddingLeft: 16, fontSize: 11, color: 'var(--muted-on-dark)', lineHeight: 1.6 }}>
+                          {mod.objectives.map((obj, j) => (
+                            <li key={j}>{obj}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {tracks.length === 0 && !loading && (
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--muted-on-dark)' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Premium tracks coming soon</div>
+          <div style={{ fontSize: 13 }}>Check back soon for new premium content!</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Completed Lessons Tab ────────────────────────────────────────────────────
 
@@ -1102,6 +1332,7 @@ function LearnPageContent() {
           {([
             { id: 'plan' as LearnTab, label: 'My Plan', icon: '📚' },
             { id: 'completed' as LearnTab, label: 'Completed', icon: '✅' },
+            { id: 'premium' as LearnTab, label: 'Premium', icon: '⭐' },
             { id: 'homie' as LearnTab, label: 'Ask Homie', icon: '🤖' },
             { id: 'feed' as LearnTab, label: 'Feed', icon: '📰' },
           ]).map((tab) => (
@@ -1133,6 +1364,8 @@ function LearnPageContent() {
             ? <LearningFeed />
             : activeTab === 'completed'
             ? <CompletedTab />
+            : activeTab === 'premium'
+            ? <PremiumTracksPanel />
             : children
           }
         </main>
