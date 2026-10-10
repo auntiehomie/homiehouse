@@ -119,7 +119,7 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
   const request = fetch('/api/lesson', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(getAuthHeaders() ?? {}) },
-    body: JSON.stringify({ ...module, eli5 }),
+    body: JSON.stringify({ ...module, moduleId: module.id, eli5 }),
   })
     .then(async response => {
       const data = await response.json();
