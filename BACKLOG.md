@@ -16,4 +16,6 @@ updated: 2026-10-10
 
 ## Done
 
+- [x] Ground interactive lesson generation and autonomous X/Farcaster posts in the synchronized Rufus-vault and homie-knowledge KB; fix the homie-knowledge `main` branch source, remove X's hard-coded KB article list, and skip social posts without a usable synced article [done::2026-10-10] [pr::https://github.com/auntiehomie/homiehouse/pull/212]
+
 ## Cancelled
