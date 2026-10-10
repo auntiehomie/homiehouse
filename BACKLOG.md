@@ -1,7 +1,7 @@
 ---
 kanban-plugin: basic
 project: homiehouse
-updated: 2026-04-22
+updated: 2026-10-10
 ---
 
 ## Next
@@ -9,6 +9,8 @@ updated: 2026-04-22
 ## In Progress
 
 ## In Review
+
+- [ ] Fix HH2 reward attempts not being registered: send `moduleId` to `/api/lesson` so the server records the signed-in attempt [added::2026-10-10] [status::PR pending]
 
 ## Backlog
 
