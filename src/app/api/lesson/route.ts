@@ -426,7 +426,8 @@ export async function POST(req: NextRequest) {
     const redis = getRedis();
     // v5: regenerate every module with increased maxTokens (8000) so the
     // full lesson JSON isn't truncated mid-object.
-    const cacheKey = moduleId ? `lesson:v9:${moduleId}${eli5 ? ':eli5' : ''}` : null;
+    // v10 invalidates lessons cached before KB grounding was verified.
+    const cacheKey = moduleId ? `lesson:v10:${moduleId}${eli5 ? ':eli5' : ''}` : null;
     if (redis && cacheKey && !rewardFid) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
@@ -633,6 +634,7 @@ FACTUAL CONTEXT — Venice.ai:
 
     const prompt = `You are a knowledgeable, direct Web3 and decentralization educator writing for curious people who want real understanding — not hype. Generate a thorough, in-depth lesson for this learning module.
 ${topicContext ? `\n${topicContext}\n` : ''}
+${topicContext.includes('# Knowledge Base Context') ? 'Use the Knowledge Base Context above as the primary factual source for this lesson. Add factual details only when supported by those notes; treat module metadata and any built-in topic context as learning objectives or supplementary orientation, not stronger evidence. Qualify or omit unsupported specifics.' : ''}
 Module:
 - Title: ${title}
 - Description: ${description}
