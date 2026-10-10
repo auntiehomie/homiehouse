@@ -141,10 +141,11 @@ export async function GET(request: NextRequest) {
 
     const system = buildPostSystem(); // X posts use the same curated KB grounding as Farcaster
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
+    const maxPostLength = chosen.mode === 'deep-dive' ? 640 : 280;
     let content = await writeAgentPost(
       system,
       postInstruction(chosen.mode, { topic, news, kbArticle }),
-      { maxLen: 280, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
+      { maxLen: maxPostLength, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
     );
 
     if (content && tooSimilar(content, recentTexts)) {
