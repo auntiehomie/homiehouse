@@ -192,7 +192,9 @@ Give your informed take as someone who understands the space. NOT a summary. Wha
     case 'deep-dive':
       return `You're breaking down something that caught your eye: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — ${opts.kbArticle.summary}` : ''}${kbLearningPoints}
 
-Explain it clearly and with depth — like you're a knowledgeable peer breaking it down for someone smart who asked "wait, what's actually going on with this?" Be precise, use concrete examples, explain the real mechanics and implications. Don't be academic, be substantive.${opts.kbArticle?.source ? ` Originally from ${opts.kbArticle.source}.` : ''}
+Explain it clearly and with depth — like you're a knowledgeable peer breaking it down for someone smart who asked "wait, what's actually going on with this?" Be precise, use concrete examples, explain the real mechanics and implications. Don't be academic, be substantive.${opts.kbArticle?.source ? ` Originally from ${opts.kbArticle.source}.` : ''}${kbUrl}
+
+Use the knowledge-base summary and key points as your factual basis; do not invent details beyond them.
 
 This can be up to 640 characters, or a thread of 2-3 casts if it genuinely needs the space. If threading:
 - First cast: the hook — what's interesting, the "wait, this is actually important" angle. End naturally.
