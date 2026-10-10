@@ -341,15 +341,17 @@ export async function getRelevantKBArticles(query: string, limit = 3): Promise<K
 }
 
 /**
- * Pick a KB article for autonomous posting that hasn't been used recently.
- * Falls back to any article if all have been used.
+ * Pick a content-bearing KB article for autonomous posting that hasn't been
+ * used recently. Title-only index rows are not enough to ground a post.
  */
 export async function pickFreshKBArticle(recentTopics: string[] = []): Promise<KBArticle | null> {
   try {
     await ensureTable();
     const used = recentTopics.map((t) => t.toLowerCase().trim()).filter(Boolean);
+    const hasContent = `(NULLIF(BTRIM(summary), '') IS NOT NULL OR COALESCE(array_length(learning_points, 1), 0) > 0)`;
+
     if (!used.length) {
-      const rows = await sql`SELECT * FROM kb_articles ORDER BY RANDOM() LIMIT 1`;
+      const rows = await sql`SELECT * FROM kb_articles WHERE ${sql.unsafe(hasContent)} ORDER BY RANDOM() LIMIT 1`;
       return (rows as unknown as KBArticle[])[0] ?? null;
     }
 
@@ -358,13 +360,19 @@ export async function pickFreshKBArticle(recentTopics: string[] = []): Promise<K
     const rows = await sql`
       SELECT * FROM kb_articles
       WHERE title !~* ${usedPattern}
+        AND (NULLIF(BTRIM(summary), '') IS NOT NULL OR COALESCE(array_length(learning_points, 1), 0) > 0)
       ORDER BY RANDOM() LIMIT 1
     `;
     const fresh = rows as unknown as KBArticle[];
     if (fresh.length) return fresh[0];
 
-    // All used recently — fall back to any
-    const allRows = await sql`SELECT * FROM kb_articles ORDER BY RANDOM() LIMIT 1`;
+    // All content-bearing articles were used recently — fall back to any content-bearing article.
+    const allRows = await sql`
+      SELECT * FROM kb_articles
+      WHERE NULLIF(BTRIM(summary), '') IS NOT NULL
+         OR COALESCE(array_length(learning_points, 1), 0) > 0
+      ORDER BY RANDOM() LIMIT 1
+    `;
     return (allRows as unknown as KBArticle[])[0] ?? null;
   } catch (err) {
     console.warn('[kb-sync] pickFreshKBArticle failed:', (err as Error).message);
