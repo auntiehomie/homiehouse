@@ -108,6 +108,20 @@ export const POST_MODES: PostModeDef[] = [
   { mode: 'deep-dive',  weight: 10, needsTrend: false, needsNews: false, needsKB: true  }, // longer breakdown of a KB topic, can thread
 ];
 
+/** Pick only modes grounded in a curated knowledge-base article. */
+export function pickKnowledgePostMode(avoid?: PostMode | null): PostModeDef {
+  const knowledgeModes = POST_MODES.filter((mode) => mode.needsKB);
+  const candidates = knowledgeModes.filter((mode) => mode.mode !== avoid);
+  const pool = candidates.length ? candidates : knowledgeModes;
+  const total = pool.reduce((sum, mode) => sum + mode.weight, 0);
+  let roll = Math.random() * total;
+  for (const mode of pool) {
+    roll -= mode.weight;
+    if (roll <= 0) return mode;
+  }
+  return pool[0];
+}
+
 /** Weighted-random pick of a post mode. `avoid` deprioritizes the last mode used. */
 export function pickPostMode(avoid?: PostMode | null): PostModeDef {
   const pool = POST_MODES.filter((m) => m.mode !== avoid);
@@ -127,6 +141,8 @@ export interface KBArticle {
   summary: string;
   source?: string;
   tags?: string[];
+  learningPoints?: string[];
+  url?: string;
 }
 
 /** The user-turn instruction for a given post mode. */
@@ -139,6 +155,11 @@ export function postInstruction(
     kbArticle?: KBArticle;
   }
 ): string {
+  const kbLearningPoints = opts.kbArticle?.learningPoints?.length
+    ? ` Key points: ${opts.kbArticle.learningPoints.slice(0, 3).join(' ')}`
+    : '';
+  const kbUrl = opts.kbArticle?.url ? ` Source link: ${opts.kbArticle.url}.` : '';
+
   switch (mode) {
     case 'trend-take':
       return `People on Farcaster are talking about this right now — someone said: "${opts.trend?.text}"
@@ -164,14 +185,16 @@ A common mistake, the market being slow, a small win, the grind of staying infor
 Something that invites real opinions or experiences — not engagement-bait. Show you understand the nuance. Max 280 chars.`;
 
     case 'culture':
-      return `You read something interesting: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — basically: ${opts.kbArticle.summary}` : ''}
+      return `You read something interesting: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — basically: ${opts.kbArticle.summary}` : ''}${kbLearningPoints}
 
-Give your informed take as someone who understands the space. NOT a summary. What do you actually think about this? What's the real implication? Connect it to broader trends or your own perspective. The core idea should be clear to someone who hasn't read it, but the post is YOUR analysis, not a recap.${opts.kbArticle?.source ? ` Source was ${opts.kbArticle.source}.` : ''} Max 320 chars.`;
+Give your informed take as someone who understands the space. NOT a summary. What do you actually think about this? What's the real implication? Connect it to broader trends or your own perspective. The core idea should be clear to someone who hasn't read it, but the post is YOUR analysis, not a recap.${opts.kbArticle?.source ? ` Source was ${opts.kbArticle.source}.` : ''}${kbUrl} Use the knowledge-base summary and key points as your factual basis; do not invent details beyond them. Max 320 chars.`;
 
     case 'deep-dive':
-      return `You're breaking down something that caught your eye: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — ${opts.kbArticle.summary}` : ''}
+      return `You're breaking down something that caught your eye: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — ${opts.kbArticle.summary}` : ''}${kbLearningPoints}
 
-Explain it clearly and with depth — like you're a knowledgeable peer breaking it down for someone smart who asked "wait, what's actually going on with this?" Be precise, use concrete examples, explain the real mechanics and implications. Don't be academic, be substantive.${opts.kbArticle?.source ? ` Originally from ${opts.kbArticle.source}.` : ''}
+Explain it clearly and with depth — like you're a knowledgeable peer breaking it down for someone smart who asked "wait, what's actually going on with this?" Be precise, use concrete examples, explain the real mechanics and implications. Don't be academic, be substantive.${opts.kbArticle?.source ? ` Originally from ${opts.kbArticle.source}.` : ''}${kbUrl}
+
+Use the knowledge-base summary and key points as your factual basis; do not invent details beyond them.
 
 This can be up to 640 characters, or a thread of 2-3 casts if it genuinely needs the space. If threading:
 - First cast: the hook — what's interesting, the "wait, this is actually important" angle. End naturally.

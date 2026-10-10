@@ -58,7 +58,7 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 const RUFUS_VAULT_RAW =
   'https://raw.githubusercontent.com/auntiehomie/rufus-vault/master/projects/Knowledge%20Base.md';
 const HOMIE_KNOWLEDGE_SUMMARIES_RAW =
-  'https://raw.githubusercontent.com/auntiehomie/homie-knowledge/master/organized/Knowledge%20Base/knowledge%20base%20summaries.md';
+  'https://raw.githubusercontent.com/auntiehomie/homie-knowledge/main/organized/Knowledge%20Base/knowledge%20base%20summaries.md';
 
 async function fetchRaw(url: string): Promise<string> {
   const headers: Record<string, string> = { accept: 'text/plain' };

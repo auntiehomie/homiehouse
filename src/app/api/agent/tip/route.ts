@@ -11,7 +11,7 @@ import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import {
   buildPostSystem,
-  pickPostMode,
+  pickKnowledgePostMode,
   postInstruction,
   pickFreshTopic,
   type PostMode,
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       lastSource === 'culture' || lastSource === 'deep-dive'
         ? lastSource : null;
 
-    let chosen = pickPostMode(lastMode);
+    let chosen = pickKnowledgePostMode(lastMode);
 
     // If the chosen mode reacts to a trend, resolve one — else fall back to a tip.
     let trend: { author: string; text: string } | undefined;
@@ -151,8 +151,14 @@ export async function GET(request: NextRequest) {
           summary: dbArticle.summary || '',
           source: dbArticle.source || undefined,
           tags: dbArticle.tags,
+          learningPoints: dbArticle.learning_points || [],
+          url: dbArticle.url || undefined,
         };
       }
+    }
+    if (!kbArticle) {
+      logger.warn('Skipping autonomous post — no synced knowledge-base article is available');
+      return NextResponse.json({ ok: true, skipped: 'knowledge-base-unavailable' });
     }
 
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
@@ -180,6 +186,8 @@ export async function GET(request: NextRequest) {
             summary: retryArticle.summary || '',
             source: retryArticle.source || undefined,
             tags: retryArticle.tags,
+            learningPoints: retryArticle.learning_points || [],
+            url: retryArticle.url || undefined,
           };
         }
       }

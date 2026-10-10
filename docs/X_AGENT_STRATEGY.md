@@ -1,12 +1,11 @@
 # @homiehouselol on X — strategy & activation guide
 
-Status: **scaffolded, not live.** Code exists (`src/lib/x-client.ts`,
-`src/lib/x-budget.ts`, `src/app/api/agent/x-post/route.ts`,
-`src/app/api/agent/x-mention/route.ts`) but nothing calls X's API today —
-every function throws a clear "not configured" error until credentials are
-set, and the new routes are deliberately **not** in `vercel.json`'s cron
-list yet. This doc is the plan for actually turning it on, and the reasoning
-behind the choices already baked into the scaffold.
+Status: **scheduled, credential-gated.** `/api/agent/x-post` and
+`/api/agent/x-mention` are listed in `vercel.json`; each route safely skips
+when the relevant X credentials are missing. Posting uses OAuth 1.0a user
+tokens, so the account associated with `X_ACCESS_TOKEN` and
+`X_ACCESS_SECRET` is the account that publishes. Confirm the account and
+budget before enabling live posts.
 
 See `docs/HOMIEHOUSELOL_AGENT.md` for how the existing Farcaster side of the
 bot works — this extends the same agent to a second platform rather than
@@ -38,7 +37,7 @@ routes are gated on it before every single API call, not just at startup.
 | Farcaster | X (scaffolded) | Notes |
 |---|---|---|
 | `src/lib/hypersnap.ts` / `farcaster-writes.ts` | `src/lib/x-client.ts` | Thin wrapper; `twitter-api-v2` npm package instead of hand-rolling OAuth signing |
-| `src/app/api/agent/tip/route.ts` | `src/app/api/agent/x-post/route.ts` | Same `persona.ts` voice, same `pickPostMode`/`postInstruction`. `trend-take` (needs a Farcaster cast) silently falls back to `tip`, same pattern as when no trend/news is found today |
+| `src/app/api/agent/tip/route.ts` | `src/app/api/agent/x-post/route.ts` | Same `persona.ts` voice and knowledge-grounded culture/deep-dive modes. Both select articles from the synced `kb_articles` table; X never falls back to a hardcoded article list. |
 | `src/app/api/agent/mention/route.ts` | `src/app/api/agent/x-mention/route.ts` | Same reply voice (`buildReplySystem`). One reply per cron run, same cap as the Farcaster version |
 | `src/lib/agent-memory.ts` (`agent_posts`, keyed by Farcaster fid) | new `agent_x_posts` table, no fid — there's only one X account | Kept separate rather than overloading the fid-keyed schema |
 | `src/lib/bot-reply-storage.ts` (`bot_replies`) | **reused directly** | Its tracking-key columns are already plain TEXT, not Farcaster-specific — X tweet IDs are stored as `x_<tweetId>` so they can never collide with Farcaster cast hashes in the same table |
@@ -115,3 +114,8 @@ X_MONTHLY_READ_CAP=3000  # optional, defaults to 3000
   `userMentionTimeline` call per run. If mention volume grows, consider
   X's filtered stream / webhook-based mention delivery instead of polling,
   which would change the read-cost math significantly.
+
+
+## Knowledge-base grounding
+
+Autonomous Farcaster and X posts select only the culture/deep-dive modes and require an article from the synchronized `kb_articles` table. The daily sync merges Rufus-vault's canonical article index with the rich summaries and learning points in the private homie-knowledge repository. If the synced table has no usable article, the posting route skips instead of generating an ungrounded post. X and Farcaster retain separate account credentials and duplicate-history tables.
