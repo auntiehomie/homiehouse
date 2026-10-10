@@ -10,6 +10,8 @@ updated: 2026-10-10
 
 ## In Review
 
+- [ ] Ground personalized AI learning plans in synced KB source details and preserve KB modules in generation fallbacks [pr::pending]
+
 - [ ] Fix HH2 reward attempts not being registered: send `moduleId` to `/api/lesson` so the server records the signed-in attempt [added::2026-10-10] [pr::https://github.com/auntiehomie/homiehouse/pull/210] [status::open]
 
 ## Backlog
