@@ -190,12 +190,15 @@ function PremiumTracksPanel() {
             {/* Module list */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {track.modules.map((mod, i) => (
-                <div key={mod.id} style={{
+                <div key={mod.id}
+                  onClick={() => { if (isPro) router.push(`/learn/premium/${mod.id}`); }}
+                  style={{
                   display: 'flex', alignItems: 'flex-start', gap: 12,
                   padding: '12px 14px', borderRadius: 10,
                   background: 'var(--bg-dark)', border: '1px solid var(--border)',
                   cursor: isPro ? 'pointer' : 'default',
                   opacity: isPro ? 1 : 0.7,
+                  transition: 'background 0.15s',
                 }}>
                   <span style={{
                     width: 24, height: 24, borderRadius: '50%',

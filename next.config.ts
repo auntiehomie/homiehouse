@@ -114,11 +114,7 @@ const nextConfig: NextConfig = {
   },
   // Exclude problematic packages from server component bundling
   serverExternalPackages: ['pino', 'thread-stream', '@walletconnect/logger', '@privy-io/react-auth'],
-  turbopack: {
-    // Use absolute root to avoid warnings in Vercel
-    root: process.cwd(),
-    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
-  },
+  turbopack: {},
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals.push('pino-pretty', 'lokijs', 'encoding', '@privy-io/react-auth');

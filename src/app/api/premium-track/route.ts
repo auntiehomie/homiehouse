@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PREMIUM_TRACKS, PREMIUM_MODULE_IDS, getPremiumModule } from '@/lib/premium-curriculum';
+import { PREMIUM_TRACKS, PREMIUM_MODULE_IDS, getPremiumModule, getPremiumLessonContent } from '@/lib/premium-curriculum';
 import { isProUser } from '@/lib/pro';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { createApiLogger } from '@/lib/logger';
@@ -73,12 +73,14 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // Pro user — return full module (currently metadata only; full lessons come in phase 2)
+      // Pro user — return full module with lesson content
       const mod = getPremiumModule(moduleId);
+      const lesson = getPremiumLessonContent(moduleId);
       return NextResponse.json({
         ok: true,
         pro_required: false,
         module: mod,
+        lesson,
         unlocked: true,
       });
     }
