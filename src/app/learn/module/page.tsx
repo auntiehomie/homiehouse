@@ -552,6 +552,7 @@ function ModuleLessonContent() {
   const [rewardEarned, setRewardEarned] = useState(false);
   const [rewardVerificationDone, setRewardVerificationDone] = useState(false);
   const [rewardError, setRewardError] = useState<string | null>(null);
+  const [rewardAttemptMissing, setRewardAttemptMissing] = useState(false);
 
   // HH2 auto-claim state
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
@@ -640,6 +641,7 @@ function ModuleLessonContent() {
     let verified = false;
     setRewardVerificationDone(false);
     setRewardError(null);
+    setRewardAttemptMissing(false);
     if (authHeaders) {
       try {
         const answers = cards
@@ -652,11 +654,17 @@ function ModuleLessonContent() {
         });
         const result = await response.json();
         verified = response.ok && result.ok && (result.amount > 0 || result.alreadyCompleted || result.alreadyClaimed);
-        if (!verified) setRewardError(typeof result.error === 'string' ? result.error : 'Verification failed. Please try again.');
+        if (!verified) {
+          const message = typeof result.error === 'string' ? result.error : 'Verification failed. Please try again.';
+          setRewardError(message);
+          setRewardAttemptMissing(message.includes('Open this lesson while signed in'));
+        }
       } catch {
+        setRewardAttemptMissing(false);
         setRewardError('Network error during reward verification. Please try again.');
       }
     } else {
+      setRewardAttemptMissing(false);
       setRewardError('Sign in with Farcaster to verify this reward. Your learning progress is saved.');
     }
     setRewardEarned(verified);
@@ -696,6 +704,56 @@ function ModuleLessonContent() {
       }
     } catch {}
   }, [moduleId, mod, cards, quizAnswers]);
+
+  const handleRetryVerification = useCallback(async () => {
+    if (!rewardAttemptMissing) {
+      void handleComplete();
+      return;
+    }
+
+    if (!mod || !getAuthHeaders()) {
+      setRewardError('Your Farcaster session is not available to this lesson yet. Refresh the page while signed in, then retry.');
+      return;
+    }
+
+    try {
+      // Re-open the lesson through the authenticated API so the server records
+      // an attempt for this FID. The server still enforces its 45-second window.
+      const lesson = await loadLesson(mod, getEli5Mode());
+      const refreshedCards = buildCards(lesson, mod);
+      const currentQuiz = cards
+        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+        .map(card => card.question);
+      const refreshedQuiz = refreshedCards
+        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+        .map(card => card.question);
+      const sameQuiz = JSON.stringify(currentQuiz) === JSON.stringify(refreshedQuiz);
+
+      setRewardAttemptMissing(false);
+      if (sameQuiz) {
+        setRewardError('Your signed-in lesson attempt is now registered. Keep this page open for 45 seconds, then tap Retry HH2 verification. Your course progress is saved.');
+        setRewardVerificationDone(true);
+        return;
+      }
+
+      // If the server returns a different quiz, use the verified version and
+      // have the learner redo only the quiz, not the lesson content.
+      setCards(refreshedCards);
+      setQuizAnswers({});
+      setQuizChecked({});
+      setQuizFailed(false);
+      setAlreadyDone(false);
+      const firstQuizIndex = refreshedCards.findIndex(card => card.type === 'quiz');
+      if (firstQuizIndex >= 0) {
+        setDir('back');
+        setCardIndex(firstQuizIndex);
+        setAnimating(true);
+        setTimeout(() => setAnimating(false), 260);
+      }
+    } catch {
+      setRewardError('Could not reconnect this lesson to your signed-in account. Please retry HH2 verification.');
+    }
+  }, [rewardAttemptMissing, mod, cards, handleComplete]);
 
   // Mark complete when reaching the complete card — retries after the time gate clears
   // Only awards HH2 if quiz score is 75%+ (quizPassed). If quiz not passed, the
@@ -972,7 +1030,7 @@ function ModuleLessonContent() {
                   rewardEarned={rewardEarned}
                   rewardVerificationDone={rewardVerificationDone}
                   rewardError={rewardError}
-                  onRetryVerification={() => { void handleComplete(); }}
+                  onRetryVerification={() => { void handleRetryVerification(); }}
                   claimStatus={claimStatus}
                   claimTxHash={claimTxHash}
                   claimError={claimError}
