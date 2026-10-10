@@ -1148,16 +1148,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(safetyPlan);
     }
 
-    // Fetch KB modules to include as context for the AI
+    // Keep the synced KB available both as grounding context for the AI and
+    // as source-derived modules if the model returns malformed JSON.
+    let kbModules: KBLearningModule[] = [];
     let kbContext = '';
     try {
-      const kbModules = await getKBModulesForTrack(normalizedTrack, level);
+      kbModules = await getKBModulesForTrack(normalizedTrack, level);
       if (kbModules.length > 0) {
-        kbContext = `\n\nRelevant Knowledge Base articles to draw from:\n${kbModules.map((m) => `- "${m.title}": ${m.description}`).join('\n')}`;
+        kbContext = '\n\nKnowledge Base articles for this track (source material):\n' + kbModules.map((m) => [
+          '- Article: "' + m.title + '"',
+          '  Summary: ' + m.description,
+          '  Why it matters: ' + m.whyItMatters,
+          '  Learning points: ' + m.objectives.join('; '),
+          '  Tags: ' + m.tags.join(', '),
+        ].join('\n')).join('\n');
       }
     } catch {
-      // KB enrichment is best-effort
+      // Continue with the curated curriculum if the KB is unavailable.
     }
+
+    const withKBModules = (basePlan: LearningPlan): LearningPlan => {
+      if (!kbModules.length) return basePlan;
+      const additional = deduplicateModules(basePlan.modules, kbModules).slice(0, 3);
+      if (!additional.length) return basePlan;
+      const retained = basePlan.modules.slice(0, Math.max(0, 8 - additional.length));
+      return { ...basePlan, modules: [...retained, ...additional] };
+    };
 
     const trackDescriptions: Record<string, string> = {
       decentralization: 'understand Web3 concepts, wallets, blockchains, DAOs, and how decentralized systems work',
@@ -1171,10 +1187,9 @@ export async function POST(req: NextRequest) {
 
     const financeTrackGuidance = normalizedTrack === 'finance' || normalizedTrack === 'all' ? `
 IMPORTANT — Token & DeFi curriculum requirements:
-- Include a foundational module on "What is a crypto token?" covering utility tokens, governance tokens, LP tokens
-- Include a tokenomics module covering supply, vesting, FDV vs market cap, and how to spot red flags
-- Include a module specifically on Hyperliquid (HYPE token): it is a decentralized perpetuals exchange that grew to a top-10 asset by mid-2026, surpassing Solana's market cap. Cover why its community-first distribution (no VCs, large airdrop) and fee revenue model made it a notable case study in protocol value accrual. Arthur Hayes famously targeted $150 for HYPE. Use this as a real-world example of evaluating a protocol token.
-- Include modules on DeFi portfolio management, governance tokens, and DeFi risk management (liquidations, impermanent loss, smart contract risk)
+- Include a foundational module on crypto tokens and tokenomics, covering utility/governance/LP tokens, supply, vesting, FDV vs market cap, and red flags.
+- Include modules on DeFi risk management (liquidations, impermanent loss, smart contract risk) and governance.
+- Use named protocols or recent market claims only when the synced Knowledge Base supports those details. Do not add current rankings, prices, or performance claims from model memory.
 ` : '';
 
     const prompt = `You are a Web3 / decentralization education expert. Create a personalized learning plan as a JSON object.
@@ -1185,6 +1200,7 @@ User profile:
 - Specific goals: ${specificGoals || 'not provided'}
 ${financeTrackGuidance}
 ${kbContext}
+${kbModules.length ? '\nKnowledge-grounding rules:\n- Use the Knowledge Base articles above as the primary factual source for project-specific, historical, and current claims. Use AI to explain, organize, and personalize those facts.\n- Prefer modules tied to these articles when they fit the learner\'s track. Do not invent dates, statistics, rankings, protocol features, or sources absent from the notes.\n- If the notes do not support a specific claim, leave it out or frame it as a question for further research.' : ''}
 Available topic areas to draw from (pick the most relevant for this user's track and goals):
 - Wallet basics: seed phrases, hot/cold wallets, hardware wallets, MetaMask, multisig
 - Ethereum history: Vitalik whitepaper (2013), genesis block (2015), The Merge (2022), EIP-1559, Dencun upgrade
@@ -1253,7 +1269,7 @@ Requirements:
       plan = JSON.parse(cleaned) as LearningPlan;
     } catch (parseError) {
       console.error('[learning-plan] Failed to parse AI response, using fallback', parseError);
-      const fallback = fallbackForTrack(normalizedTrack, level);
+      const fallback = withKBModules(fallbackForTrack(normalizedTrack, level));
       if (rewardFid) {
         try { return NextResponse.json(await persistRewardPlan(rewardFid, fallback, true)); } catch {}
       }
@@ -1268,10 +1284,11 @@ Requirements:
         /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(module.id) &&
         typeof module.title === 'string' && module.title.length <= 160)
       .slice(0, 8);
-    if (plan.modules.length < 1) plan = fallbackForTrack(normalizedTrack, level);
+    if (plan.modules.length < 1) plan = withKBModules(fallbackForTrack(normalizedTrack, level));
 
     plan.track = normalizedTrack as LearningPlan['track'];
     plan.level = level as LearningPlan['level'];
+    plan = withKBModules(plan);
 
     if (rewardFid) {
       try { plan = await persistRewardPlan(rewardFid, plan, true); } catch (err) {
