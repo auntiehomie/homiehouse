@@ -185,12 +185,12 @@ A common mistake, the market being slow, a small win, the grind of staying infor
 Something that invites real opinions or experiences — not engagement-bait. Show you understand the nuance. Max 280 chars.`;
 
     case 'culture':
-      return `You read something interesting: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — basically: ${opts.kbArticle.summary}` : ''}
+      return `You read something interesting: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — basically: ${opts.kbArticle.summary}` : ''}${kbLearningPoints}
 
 Give your informed take as someone who understands the space. NOT a summary. What do you actually think about this? What's the real implication? Connect it to broader trends or your own perspective. The core idea should be clear to someone who hasn't read it, but the post is YOUR analysis, not a recap.${opts.kbArticle?.source ? ` Source was ${opts.kbArticle.source}.` : ''}${kbUrl} Use the knowledge-base summary and key points as your factual basis; do not invent details beyond them. Max 320 chars.`;
 
     case 'deep-dive':
-      return `You're breaking down something that caught your eye: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — ${opts.kbArticle.summary}` : ''}
+      return `You're breaking down something that caught your eye: "${opts.kbArticle?.title}"${opts.kbArticle?.summary ? ` — ${opts.kbArticle.summary}` : ''}${kbLearningPoints}
 
 Explain it clearly and with depth — like you're a knowledgeable peer breaking it down for someone smart who asked "wait, what's actually going on with this?" Be precise, use concrete examples, explain the real mechanics and implications. Don't be academic, be substantive.${opts.kbArticle?.source ? ` Originally from ${opts.kbArticle.source}.` : ''}
 
