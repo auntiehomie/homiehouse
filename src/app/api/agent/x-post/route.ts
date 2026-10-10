@@ -6,8 +6,8 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db';
 import { fetchCryptoNews } from '@/lib/ai/news';
-import { buildPostSystem, pickPostMode, postInstruction, pickFreshTopic, type PostMode, type PostModeDef, type KBArticle } from '@/lib/ai/persona';
-import { pickKBTopic } from '@/lib/ai/kb-topics';
+import { buildPostSystem, pickKnowledgePostMode, postInstruction, pickFreshTopic, type PostMode, type PostModeDef, type KBArticle } from '@/lib/ai/persona';
+import { pickFreshKBArticle } from '@/lib/kb-sync';
 import { rateLimit } from '@/lib/ratelimit';
 import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
 
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
       lastSource === 'culture' || lastSource === 'deep-dive'
         ? lastSource : null;
 
-    let chosen = pickPostMode(lastMode);
+    let chosen = pickKnowledgePostMode(lastMode);
     // trend-take needs a Farcaster cast, which doesn't make sense to react to
     // on X — treat it the same as "no trend found" and fall back to a tip.
     if (chosen.needsTrend) {
@@ -130,10 +130,24 @@ export async function GET(request: NextRequest) {
 
     let kbArticle: KBArticle | undefined;
     if (chosen.needsKB) {
-      kbArticle = pickKBTopic(recentTopics);
+      const dbArticle = await pickFreshKBArticle(recentTopics);
+      if (dbArticle) {
+        kbArticle = {
+          title: dbArticle.title,
+          summary: dbArticle.summary || '',
+          source: dbArticle.source || undefined,
+          tags: dbArticle.tags,
+          learningPoints: dbArticle.learning_points || [],
+          url: dbArticle.url || undefined,
+        };
+      }
+    }
+    if (!kbArticle) {
+      logger.warn('Skipping X post — no synced knowledge-base article is available');
+      return NextResponse.json({ ok: true, skipped: 'knowledge-base-unavailable' });
     }
 
-    const system = buildPostSystem(); // no cross-platform memory context yet — see strategy doc
+    const system = buildPostSystem(); // X posts use the same curated KB grounding as Farcaster
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
     let content = await writeAgentPost(
       system,
@@ -143,7 +157,19 @@ export async function GET(request: NextRequest) {
 
     if (content && tooSimilar(content, recentTexts)) {
       if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
-      if (chosen.needsKB) kbArticle = pickKBTopic([...recentTopics, kbArticle?.title || '']);
+      if (chosen.needsKB) {
+        const retryArticle = await pickFreshKBArticle([...recentTopics, kbArticle?.title || '']);
+        if (retryArticle) {
+          kbArticle = {
+            title: retryArticle.title,
+            summary: retryArticle.summary || '',
+            source: retryArticle.source || undefined,
+            tags: retryArticle.tags,
+            learningPoints: retryArticle.learning_points || [],
+            url: retryArticle.url || undefined,
+          };
+        }
+      }
       const retry = await writeAgentPost(
         system,
         postInstruction(chosen.mode, { topic, news, kbArticle }) +
@@ -202,7 +228,7 @@ export async function GET(request: NextRequest) {
 
     const { id } = await postToX(content);
     await recordXUsage('post');
-    await saveXPost({ xPostId: id, text: content, source: chosen.mode, topic: topic || news?.headline?.slice(0, 80) });
+    await saveXPost({ xPostId: id, text: content, source: chosen.mode, topic: kbArticle?.title?.slice(0, 80) || topic || news?.headline?.slice(0, 80) });
 
     return NextResponse.json({ ok: true, mode: chosen.mode, content, xPostId: id, timestamp: new Date().toISOString() });
   } catch (error: any) {
