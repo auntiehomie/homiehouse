@@ -16,20 +16,12 @@ const logger = createApiLogger('/agent/x-post');
 export const maxDuration = 60;
 
 /**
- * Autonomous posting cron for @thehomie on X — scaffold, not wired up.
+ * Scheduled autonomous posting for @thehomie on X.
  *
- * SCAFFOLD STATUS: this route is safe to deploy as-is. postToX() throws a
- * clear "not configured" error until X_APP_KEY etc. are set, so until then
- * this is a no-op every time Vercel calls it. It is NOT in vercel.json's
- * cron list yet — see docs/X_AGENT_STRATEGY.md for the activation checklist
- * before adding it there.
- *
- * Deliberately reuses the exact persona (persona.ts) and post-mode logic
- * (pickPostMode/postInstruction) as the Farcaster posting cron
- * (agent/tip/route.ts) so @thehomie sounds like the same person on
- * both platforms — only the trend-take mode (which needs a Farcaster cast
- * to react to) isn't meaningful here, so it silently falls back to a tip,
- * the same way agent/tip already falls back when no trend is found.
+ * X and Farcaster posts share the same voice and choose only culture/deep-dive
+ * modes grounded in articles synced from Rufus-vault and homie-knowledge.
+ * X credentials are user-context OAuth 1.0a tokens for the account that should
+ * publish. Missing credentials or synced KB content safely skip publication.
  */
 
 // ─── Minimal local memory (agent_x_posts) — separate from agent_posts, which
