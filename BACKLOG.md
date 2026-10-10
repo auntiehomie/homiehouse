@@ -10,10 +10,10 @@ updated: 2026-10-10
 
 ## In Review
 
-- [ ] Fix HH2 reward attempts not being registered: send `moduleId` to `/api/lesson` so the server records the signed-in attempt [added::2026-10-10] [pr::https://github.com/auntiehomie/homiehouse/pull/210] [status::open]
-
 ## Backlog
 
 ## Done
+
+- [x] Fix HH2 reward attempt registration: send `moduleId` with lesson requests so authenticated opens create a server-side attempt; PR #210 merged and Vercel preview succeeded [done::2026-10-10] [pr::https://github.com/auntiehomie/homiehouse/pull/210] [qa::Amanda confirmed +100 HH2 earned on-device]
 
 ## Cancelled
