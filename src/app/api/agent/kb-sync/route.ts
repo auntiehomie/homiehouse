@@ -23,12 +23,12 @@ export async function GET(request: NextRequest) {
 
     if (dryRun) {
       // Still fetch to validate, but report without upserting
-      const result = await syncKnowledgeBase();
+      const result = await syncKnowledgeBase({ dryRun: true });
       return NextResponse.json({
-        ok: true,
+        ok: result.errors.length === 0,
         dryRun: true,
         fetched: result.fetched,
-        wouldUpsert: result.upserted,
+        wouldUpsert: result.wouldUpsert ?? 0,
         errors: result.errors,
         timestamp: new Date().toISOString(),
       });
