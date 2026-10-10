@@ -159,13 +159,14 @@ function parseSummaries(markdown: string): Map<string, ParsedSummary> {
 export interface SyncResult {
   fetched: number;
   upserted: number;
+  wouldUpsert?: number;
   errors: string[];
 }
 
 /**
  * Fetch both sources from GitHub, merge, and upsert into the DB.
  */
-export async function syncKnowledgeBase(): Promise<SyncResult> {
+export async function syncKnowledgeBase(options: { dryRun?: boolean } = {}): Promise<SyncResult> {
   const errors: string[] = [];
   let entries: ParsedEntry[] = [];
   let summaries = new Map<string, ParsedSummary>();
@@ -188,6 +189,18 @@ export async function syncKnowledgeBase(): Promise<SyncResult> {
 
   if (!entries.length && !summaries.size) {
     return { fetched: 0, upserted: 0, errors };
+  }
+
+  const summaryOnlyCount = [...summaries.keys()].filter(
+    (lowerTitle) => !entries.some((entry) => entry.title.toLowerCase() === lowerTitle),
+  ).length;
+  const fetched = entries.length + summaries.size;
+  const wouldUpsert = entries.length + summaryOnlyCount;
+
+  // A dry run validates both sources and reports the number of rows that would
+  // be written without creating tables, upserting rows, or indexing embeddings.
+  if (options.dryRun) {
+    return { fetched, upserted: 0, wouldUpsert, errors };
   }
 
   // Merge: entries table has the canonical titles + URLs + sources.
@@ -263,7 +276,7 @@ export async function syncKnowledgeBase(): Promise<SyncResult> {
   // can retrieve by meaning as well as the legacy keyword matcher.
   await indexKnowledgeBaseArticles();
 
-  return { fetched: entries.length + summaries.size, upserted, errors };
+  return { fetched, upserted, errors };
 }
 
 // ─── Query ────────────────────────────────────────────────────────────────────
