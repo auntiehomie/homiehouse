@@ -587,7 +587,7 @@ function ModuleLessonContent() {
           setCards(buildCards(data, found));
           setLoading(false);
         })
-        .catch(() => { setError('Failed to load lesson.'); setLoading(false); });
+        .catch((loadError) => { setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.'); setLoading(false); });
     } catch { setError('Could not load module.'); setLoading(false); }
   }, [moduleId, router]);
 
