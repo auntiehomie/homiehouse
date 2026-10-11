@@ -7,6 +7,20 @@ on:
     branches: [master, main]
 
 jobs:
+  contracts:
+    name: HH2 staking contract tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: Run Solidity tests
+        run: forge test -vvv
+
   ci:
     runs-on: ubuntu-latest
     defaults:
