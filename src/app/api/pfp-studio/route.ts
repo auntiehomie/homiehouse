@@ -19,6 +19,15 @@ const styles: Record<string, string> = {
 
 type Ref = { type: 'image_url'; image_url: { url: string } };
 
+function normalizePortraitName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.normalize('NFKC')
+    .replace(/[^\\p{L}\\p{M}\\p{N} .'-]/gu, ' ')
+    .replace(/\\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+}
+
 function isAllowedImageRef(value: unknown): value is string {
   if (typeof value !== 'string' || value.length > 5_500_000) return false;
   if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true;
@@ -81,13 +90,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Sign in with Farcaster to use PFP Studio.' }, { status: 401 });
   }
 
-  let body: { image?: unknown; style?: unknown; paymentTxHash?: unknown };
+  let body: { image?: unknown; name?: unknown; style?: unknown; paymentTxHash?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
   if (!isAllowedImageRef(body.image)) return NextResponse.json({ error: 'Choose a valid HTTPS profile image or upload a PNG, JPEG, or WebP image.' }, { status: 400 });
+  const portraitName = normalizePortraitName(body.name);
+  if (!portraitName) return NextResponse.json({ error: 'Enter the name to personalize your portrait.' }, { status: 400 });
   if (typeof body.style !== 'string' || !styles[body.style]) return NextResponse.json({ error: 'Choose a listed Homiehouse style.' }, { status: 400 });
 
   const txHash = typeof body.paymentTxHash === 'string' ? body.paymentTxHash.trim() : '';
@@ -166,7 +177,7 @@ export async function POST(request: NextRequest) {
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
-        prompt: `Create a polished, square social profile portrait based on the reference photo. Preserve the person's recognizable face, skin tone, hair, age, and chosen presentation. Restyle them into Homiehouse's original digital-campus visual world: ${styles[body.style]}. Warm, community-centered, fashionable, expressive, premium editorial illustration. Do not depict or imitate any existing television show, actor, logo, branded costume, or copyrighted set. No text, no watermark. Centered shoulders-up composition with clear face, suitable as a small circular avatar.`,
+        prompt: `Create a polished, square social profile portrait personalized from both the person's name (${JSON.stringify(portraitName)}) and the attached current profile photo. Use the photo to preserve the person's recognizable face, skin tone, hair, age, and chosen presentation. Let the name gently inform personal style and scene details, but do not render the name as text. Restyle them into Homiehouse's original digital-campus visual world: ${styles[body.style]}. Warm, community-centered, fashionable, expressive, premium editorial illustration. Do not depict or imitate any existing television show, actor, logo, branded costume, or copyrighted set. No text, no watermark. Centered shoulders-up composition with clear face, suitable as a small circular avatar.`,
         aspect_ratio: '1:1',
         resolution: '1K',
         output_format: 'png',
