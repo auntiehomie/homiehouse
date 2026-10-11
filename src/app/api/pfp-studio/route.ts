@@ -43,6 +43,7 @@ async function ensureTables() {
     )
   `);
   await db.query('CREATE INDEX IF NOT EXISTS pfp_studio_fid_status_idx ON pfp_studio_generations(fid, status)');
+  await db.query("CREATE UNIQUE INDEX IF NOT EXISTS pfp_studio_one_free_per_fid ON pfp_studio_generations(fid) WHERE payment_tx_hash IS NULL AND status IN ('pending','complete')");
 }
 
 export async function GET(request: NextRequest) {
@@ -120,10 +121,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'The Homiehouse PFP collection has reached its 10,000 image limit.' }, { status: 409 });
     }
     const own = await reservation.query(
-      "SELECT COUNT(*)::int AS count FROM pfp_studio_generations WHERE fid = $1 AND status = 'complete'",
+      "SELECT COUNT(*) FILTER (WHERE status = 'complete')::int AS completed, COUNT(*) FILTER (WHERE status = 'pending')::int AS pending FROM pfp_studio_generations WHERE fid = $1 AND status IN ('pending','complete')",
       [fid],
     );
-    const needsPayment = Number(own.rows[0]?.count || 0) > 0;
+    if (Number(own.rows[0]?.pending || 0) > 0) {
+      await reservation.query('ROLLBACK');
+      return NextResponse.json({ error: 'A PFP is already being generated for your account.' }, { status: 409 });
+    }
+    const needsPayment = Number(own.rows[0]?.completed || 0) > 0;
     if (needsPayment && !paid) {
       await reservation.query('ROLLBACK');
       return NextResponse.json({ error: 'Your first PFP is free. Each additional generation costs 0.0005 ETH on Base.', code: 'PAYMENT_REQUIRED' }, { status: 402 });
