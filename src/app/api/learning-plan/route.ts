@@ -1041,7 +1041,7 @@ async function persistRewardPlan(fid: number, plan: LearningPlan, replaceIfUnuse
     CREATE TABLE IF NOT EXISTS hh2_reward_events (
       fid INTEGER NOT NULL,
       module_id TEXT NOT NULL,
-      amount INTEGER NOT NULL CHECK (amount = 100),
+      amount INTEGER NOT NULL CHECK (amount > 0),
       status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
       wallet_address TEXT,
       claim_tx_hash TEXT,

@@ -10,6 +10,7 @@ import { formatUnits } from 'viem';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import HHLogo from '@/components/HHLogo';
+import Hh2StakingClient from './Hh2StakingClient';
 
 const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_CHAIN = 'base';
@@ -394,6 +395,9 @@ export default function Hh2Client() {
               </span>
             </div>
           )}
+
+          {/* Staking */}
+          <Hh2StakingClient />
 
           {/* How to earn */}
           <div style={{ marginBottom: 28 }}>

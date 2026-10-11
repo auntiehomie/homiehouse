@@ -231,6 +231,32 @@ export const SHOP_ITEMS: ShopItem[] = [
     category: 'boost',
     emoji: '📣',
   },
+
+  // ── Burn-for-Boost (temporary perks — HH2 is permanently consumed) ──────────
+  {
+    id: 'burn-double-earnings-24h',
+    name: '2× Learning Earnings (24h)',
+    description: 'Burn HH2 to double your learning module rewards for 24 hours. New modules completed during the boost earn 200 HH2 instead of 100.',
+    price_hh2: 500,
+    category: 'boost',
+    emoji: '🔥',
+  },
+  {
+    id: 'burn-streak-freeze',
+    name: 'Streak Freeze Refill',
+    description: 'Burn HH2 to instantly refill your streak freeze. Protect your learning streak on days you can\'t study.',
+    price_hh2: 150,
+    category: 'boost',
+    emoji: '🛡️',
+  },
+  {
+    id: 'burn-priority-queue',
+    name: 'Priority AI Queue (7d)',
+    description: 'Burn HH2 for 7 days of priority AI queue access. Faster lesson generation and bot responses.',
+    price_hh2: 800,
+    category: 'boost',
+    emoji: '⚡',
+  },
 ];
 
 // Build ITEM_PRICES + VALID_ITEM_IDS maps for the purchase route

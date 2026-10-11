@@ -4,7 +4,17 @@ import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { handleApiError, AuthError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
-import { ITEM_PRICES, VALID_ITEM_IDS } from '@/app/api/hh2-shop/route';
+import { ITEM_PRICES, VALID_ITEM_IDS, SHOP_ITEMS } from '@/app/api/hh2-shop/route';
+import { activateBoost } from '@/lib/active-boosts';
+import { recordBurn } from '@/app/api/hh2-stake/route';
+
+// 10% of every shop purchase is permanently burned, creating deflationary pressure
+const BURN_PERCENTAGE = 0.10;
+
+// Burn-for-boost items can be purchased repeatedly (they're consumable, not permanent)
+const BURN_ITEM_IDS = new Set(
+  SHOP_ITEMS.filter(item => item.id.startsWith('burn-')).map(item => item.id)
+);
 
 async function ensureRewardTables(db: ReturnType<typeof getDb>) {
   await db.query(`
@@ -19,7 +29,7 @@ async function ensureRewardTables(db: ReturnType<typeof getDb>) {
   await db.query(`
     CREATE TABLE IF NOT EXISTS hh2_reward_events (
       fid INTEGER NOT NULL, module_id TEXT NOT NULL,
-      amount INTEGER NOT NULL CHECK (amount = 100),
+      amount INTEGER NOT NULL CHECK (amount > 0),
       status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
       wallet_address TEXT, claim_tx_hash TEXT,
       earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), claimed_at TIMESTAMPTZ,
@@ -123,13 +133,16 @@ export async function POST(req: NextRequest) {
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [userFid]);
-      const existing = await client.query(
-        'SELECT id FROM hh2_purchases WHERE user_fid = $1 AND item_id = $2 FOR UPDATE',
-        [userFid, itemId],
-      );
-      if (existing.rows.length > 0) {
-        await client.query('COMMIT');
-        return NextResponse.json({ ok: false, error: 'You already own this item.', already_owned: true }, { status: 409 });
+      const isBurnItem = BURN_ITEM_IDS.has(itemId);
+      if (!isBurnItem) {
+        const existing = await client.query(
+          'SELECT id FROM hh2_purchases WHERE user_fid = $1 AND item_id = $2 FOR UPDATE',
+          [userFid, itemId],
+        );
+        if (existing.rows.length > 0) {
+          await client.query('COMMIT');
+          return NextResponse.json({ ok: false, error: 'You already own this item.', already_owned: true }, { status: 409 });
+        }
       }
       const balance = await getUserHH2Balance(client, userFid);
       logger.info('Balance check', { userFid, balance, price });
@@ -140,11 +153,30 @@ export async function POST(req: NextRequest) {
           { status: 402 },
         );
       }
+      // Record the purchase
       await client.query('INSERT INTO hh2_purchases (user_fid, item_id) VALUES ($1, $2)', [userFid, itemId]);
+
+      // Burn 10% of the purchase price — permanent deflationary pressure
+      const burnAmount = Math.floor(price * BURN_PERCENTAGE);
+      if (burnAmount > 0) {
+        try {
+          await client.query(
+            'INSERT INTO hh2_burns (fid, amount, reason, reference_id) VALUES ($1, $2, $3, $4)',
+            [userFid, burnAmount, 'shop-purchase-burn', itemId]
+          );
+        } catch { /* non-blocking — burn ledger is best-effort */ }
+      }
       await client.query('COMMIT');
-      logger.success('Purchase recorded', { userFid, itemId, price, newBalance: balance - price });
+
+      // Activate boost effect outside the transaction (non-critical — best-effort)
+      let boostExpiry: Date | null = null;
+      if (isBurnItem) {
+        try { boostExpiry = await activateBoost(userFid, itemId); } catch (e) { console.warn('[hh2-purchase] boost activation failed:', e); }
+      }
+
+      logger.success('Purchase recorded', { userFid, itemId, price, newBalance: balance - price, isBurn: isBurnItem, burnAmount });
       logger.end();
-      return NextResponse.json({ ok: true, item_id: itemId, price, balance_remaining: balance - price });
+      return NextResponse.json({ ok: true, item_id: itemId, price, balance_remaining: balance - price, boost_expires_at: boostExpiry?.toISOString() ?? null, burned: burnAmount });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;

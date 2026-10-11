@@ -7,12 +7,13 @@ import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 import { ITEM_PRICES } from '@/app/api/hh2-shop/route';
+import { ensureStakingTables } from '@/app/api/hh2-stake/route';
 
 const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
-const HH2_PER_MODULE = 100;
+const HH2_PER_MODULE = 100; // baseline for module count calculation
 const HH2_DECIMALS = 18;
 const MAX_REWARDED_MODULES_PER_FID = 50;
-const MAX_MODULES_PER_CLAIM = 5;
+const MAX_EVENTS_PER_CLAIM = 10; // max reward events per claim transaction
 
 const ERC20_ABI = [{
   name: 'transfer', type: 'function' as const, stateMutability: 'nonpayable' as const,
@@ -39,7 +40,7 @@ async function ensureRewardTables(db: ReturnType<typeof getDb>) {
   await db.query(`
     CREATE TABLE IF NOT EXISTS hh2_reward_events (
       fid INTEGER NOT NULL, module_id TEXT NOT NULL,
-      amount INTEGER NOT NULL CHECK (amount = 100),
+      amount INTEGER NOT NULL CHECK (amount > 0),
       status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
       wallet_address TEXT, claim_tx_hash TEXT,
       earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), claimed_at TIMESTAMPTZ,
@@ -57,24 +58,29 @@ async function ensureRewardTables(db: ReturnType<typeof getDb>) {
 }
 
 async function getClaimable(client: import('pg').PoolClient, fid: number) {
-  const [earned, purchases, pending] = await Promise.all([
+  const [earned, purchases, pending, staked] = await Promise.all([
     client.query(`
       SELECT COALESCE(SUM(e.amount), 0)::int AS amount
       FROM hh2_reward_events e
-      JOIN learning_reward_attempts a ON a.fid = e.fid AND a.module_id = e.module_id
-      JOIN learning_reward_plans p ON p.fid = e.fid
-      WHERE e.fid = $1 AND e.status = 'earned' AND a.completed_at IS NOT NULL
-        AND EXISTS (SELECT 1 FROM jsonb_array_elements(p.plan->'modules') m WHERE m->>'id' = e.module_id)
+      WHERE e.fid = $1 AND e.status = 'earned'
         AND NOT EXISTS (SELECT 1 FROM hh2_claims c WHERE c.fid = e.fid AND c.module_id = e.module_id)
     `, [fid]),
     client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [fid]),
     client.query("SELECT COUNT(*)::int AS count FROM hh2_reward_events WHERE fid = $1 AND status = 'pending'", [fid]),
+    client.query(
+      "SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_stakes WHERE fid = $1 AND status IN ('active', 'unlocked')",
+      [fid]
+    ),
   ]);
   const spent = purchases.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
-  const claimed = await client.query('SELECT COUNT(*)::int AS count FROM hh2_claims WHERE fid = $1', [fid]);
-  const remainingLifetime = Math.max(0, MAX_REWARDED_MODULES_PER_FID - claimed.rows[0].count);
-  const amount = Math.min(Math.max(0, earned.rows[0].amount - spent), remainingLifetime * HH2_PER_MODULE);
-  return { amount, modules: Math.floor(amount / HH2_PER_MODULE), pending: pending.rows[0].count };
+  const claimed = await client.query('SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_claims WHERE fid = $1', [fid]);
+  const totalClaimedAmount = claimed.rows[0].amount;
+  // Lifetime cap is on total HH2 claimed, not module count
+  const MAX_LIFETIME_HH2 = MAX_REWARDED_MODULES_PER_FID * HH2_PER_MODULE + 50000; // 50 modules + streak bonuses
+  const remainingLifetime = Math.max(0, MAX_LIFETIME_HH2 - totalClaimedAmount);
+  // Subtract spent (shop) and staked (locked) amounts from claimable
+  const amount = Math.min(Math.max(0, earned.rows[0].amount - spent - staked.rows[0].amount), remainingLifetime);
+  return { amount, pending: pending.rows[0].count, staked: staked.rows[0].amount };
 }
 
 export async function GET(req: NextRequest) {
@@ -94,16 +100,18 @@ export async function GET(req: NextRequest) {
     }
     const db = getDb();
     await ensureRewardTables(db);
+    await ensureStakingTables(db);
     const client = await db.connect();
     try {
       const balance = await getClaimable(client, fid);
       const claimed = await client.query('SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_claims WHERE fid = $1', [fid]);
       return NextResponse.json({
         ok: true, claimsPaused: false,
-        claimable: balance.modules * HH2_PER_MODULE,
-        claimableModules: balance.modules,
+        claimable: balance.amount,
+        claimableModules: Math.floor(balance.amount / HH2_PER_MODULE),
         totalClaimed: claimed.rows[0].amount,
         pendingModules: balance.pending,
+        staked: balance.staked,
         claims: [],
       });
     } finally { client.release(); }
@@ -135,8 +143,10 @@ export async function POST(req: NextRequest) {
 
   const db = getDb();
   let modules: string[] = [];
+  let totalClaimAmount = 0;
   try {
     await ensureRewardTables(db);
+    await ensureStakingTables(db);
     const client = await db.connect();
     try {
       await client.query('BEGIN');
@@ -146,21 +156,20 @@ export async function POST(req: NextRequest) {
         await client.query('COMMIT');
         return NextResponse.json({ ok: false, error: 'A claim is already processing.' }, { status: 409 });
       }
-      if (balance.modules === 0) {
+      if (balance.amount === 0) {
         await client.query('COMMIT');
         return NextResponse.json({ ok: false, error: 'Nothing verified is ready to claim.' }, { status: 400 });
       }
+      // Claim all earned reward events (both learning modules and streak bonuses)
       const earned = await client.query(
-        `SELECT e.module_id FROM hh2_reward_events e
-          JOIN learning_reward_attempts a ON a.fid = e.fid AND a.module_id = e.module_id
-          JOIN learning_reward_plans p ON p.fid = e.fid
-          WHERE e.fid = $1 AND e.status = 'earned' AND a.completed_at IS NOT NULL
-            AND EXISTS (SELECT 1 FROM jsonb_array_elements(p.plan->'modules') m WHERE m->>'id' = e.module_id)
+        `SELECT e.module_id, e.amount FROM hh2_reward_events e
+          WHERE e.fid = $1 AND e.status = 'earned'
             AND NOT EXISTS (SELECT 1 FROM hh2_claims c WHERE c.fid = e.fid AND c.module_id = e.module_id)
           ORDER BY e.earned_at ASC LIMIT $2 FOR UPDATE OF e`,
-        [fid, Math.min(balance.modules, MAX_MODULES_PER_CLAIM)],
+        [fid, MAX_EVENTS_PER_CLAIM],
       );
       modules = earned.rows.map((row: { module_id: string }) => row.module_id);
+      totalClaimAmount = earned.rows.reduce((sum: number, row: { amount: number }) => sum + row.amount, 0);
       if (modules.length === 0) throw new Error('No verified reward events available for reservation');
       await client.query(
         "UPDATE hh2_reward_events SET status = 'pending', wallet_address = $3 WHERE fid = $1 AND module_id = ANY($2::text[]) AND status = 'earned'",
@@ -175,7 +184,7 @@ export async function POST(req: NextRequest) {
     const account = getTreasuryAccount();
     const walletClient = createWalletClient({ account, chain: base, transport: http() });
     const publicClient = createPublicClient({ chain: base, transport: http() });
-    const amount = parseUnits(String(modules.length * HH2_PER_MODULE), HH2_DECIMALS);
+    const amount = parseUnits(String(totalClaimAmount), HH2_DECIMALS);
     const txHash = await walletClient.writeContract({
       address: HH2_CONTRACT, abi: ERC20_ABI, functionName: 'transfer',
       args: [walletAddress as `0x${string}`, amount],
@@ -213,7 +222,7 @@ export async function POST(req: NextRequest) {
       await claimClient.query('ROLLBACK').catch(() => {});
       throw error;
     } finally { claimClient.release(); }
-    return NextResponse.json({ ok: true, claimed: modules.length, amount: modules.length * HH2_PER_MODULE, txHash });
+    return NextResponse.json({ ok: true, claimed: modules.length, amount: totalClaimAmount, txHash });
   } catch (error) {
     // A timed-out RPC may have broadcast a payment. Preserve pending rows for reconciliation.
     console.error('[claim-hh2] POST error:', error);
