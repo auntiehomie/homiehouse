@@ -23,7 +23,15 @@ export default function PfpStudioPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
-  const headers = useCallback(() => getAuthHeaders(), []);
+  const headers = useCallback(() => {
+    const auth = getAuthHeaders();
+    if (!auth) return null;
+    const requestHeaders = new Headers();
+    Object.entries(auth).forEach(([key, value]) => {
+      if (value) requestHeaders.set(key, value);
+    });
+    return requestHeaders;
+  }, []);
   const refresh = useCallback(async () => {
     const auth = headers();
     if (!auth) { setMessage('Sign in with Farcaster to start your studio session.'); return; }
@@ -95,7 +103,11 @@ export default function PfpStudioPage() {
     try {
       const response = await fetch('/api/pfp-studio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...auth },
+        headers: (() => {
+          const requestHeaders = new Headers(auth);
+          requestHeaders.set('Content-Type', 'application/json');
+          return requestHeaders;
+        })(),
         body: JSON.stringify({ image, style, paymentTxHash: paymentTxHash.trim() || undefined }),
       });
       const data = await response.json();
