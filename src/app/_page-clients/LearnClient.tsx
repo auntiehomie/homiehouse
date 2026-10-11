@@ -15,6 +15,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { formatUnits } from 'viem';
 import { prefetchLesson } from '@/lib/lesson-client-cache';
+import DailyChallengeClient from './DailyChallengeClient';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1534,6 +1535,9 @@ function LearnPageContent() {
             </button>
           )}
         </div>
+
+        {/* Daily challenge */}
+        <DailyChallengeClient />
 
         {/* Weekly leaderboard — opt-in, follows-only */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 18px', marginBottom: 20 }}>

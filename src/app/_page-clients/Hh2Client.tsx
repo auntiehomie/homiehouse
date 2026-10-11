@@ -11,6 +11,7 @@ import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import HHLogo from '@/components/HHLogo';
 import Hh2StakingClient from './Hh2StakingClient';
+import StreakBonusClient from './StreakBonusClient';
 
 const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_CHAIN = 'base';
@@ -395,6 +396,9 @@ export default function Hh2Client() {
               </span>
             </div>
           )}
+
+          {/* Streak bonuses */}
+          <StreakBonusClient />
 
           {/* Staking */}
           <Hh2StakingClient />
