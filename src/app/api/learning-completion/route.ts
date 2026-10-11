@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
+import { hasActiveBoost } from '@/lib/active-boosts';
+import { getEarningsMultiplier, ensureStakingTables } from '@/app/api/hh2-stake/route';
 
 const REWARD_PER_MODULE = 100;
 const MAX_REWARDED_MODULES_PER_FID = 50;
@@ -55,7 +57,7 @@ export async function POST(req: NextRequest) {
     await client.query(`
       CREATE TABLE IF NOT EXISTS hh2_reward_events (
         fid INTEGER NOT NULL, module_id TEXT NOT NULL,
-        amount INTEGER NOT NULL CHECK (amount = 100),
+        amount INTEGER NOT NULL CHECK (amount > 0),
         status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
         wallet_address TEXT, claim_tx_hash TEXT,
         earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), claimed_at TIMESTAMPTZ,
@@ -133,9 +135,27 @@ export async function POST(req: NextRequest) {
       return await fail(403, 'You have reached the lifetime HH2 learning reward limit.');
     }
 
+    // Check for active 2× earnings boost (burn-for-boost)
+    let rewardAmount = REWARD_PER_MODULE;
+    let boostMultiplier = 1.0;
+    try {
+      const hasDoubleBoost = await hasActiveBoost(fid, 'burn-double-earnings-24h');
+      if (hasDoubleBoost) boostMultiplier = 2.0;
+    } catch { /* non-blocking — boost check is best-effort */ }
+
+    // Check for staking multiplier (long-term commitment reward)
+    try {
+      await ensureStakingTables(db);
+      const stakeMultiplier = await getEarningsMultiplier(client, fid);
+      // Use the higher of the two multipliers — prevents excessive inflation from stacking
+      boostMultiplier = Math.max(boostMultiplier, stakeMultiplier);
+    } catch { /* non-blocking — staking check is best-effort */ }
+
+    rewardAmount = Math.round(REWARD_PER_MODULE * boostMultiplier);
+
     const insert = await client.query(
       'INSERT INTO hh2_reward_events (fid, module_id, amount) VALUES ($1, $2, $3) ON CONFLICT (fid, module_id) DO NOTHING RETURNING module_id',
-      [fid, moduleId, REWARD_PER_MODULE]
+      [fid, moduleId, rewardAmount]
     );
     await client.query(
       'UPDATE learning_reward_attempts SET completed_at = NOW() WHERE fid = $1 AND module_id = $2',
@@ -146,7 +166,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       alreadyCompleted: insert.rows.length === 0,
-      amount: insert.rows.length ? REWARD_PER_MODULE : 0,
+      amount: insert.rows.length ? rewardAmount : 0,
+      boostApplied: rewardAmount > REWARD_PER_MODULE,
+      multiplier: boostMultiplier,
     });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
