@@ -3,6 +3,7 @@ import { createPublicClient, http, parseEther } from 'viem';
 import { base } from 'viem/chains';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { hypersnapFetch, fallbackFetch } from '@/lib/hypersnap';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -27,21 +28,65 @@ function normalizePortraitName(value: unknown): string {
     .trim()
     .slice(0, 60);
 }
-function isAllowedImageRef(value: unknown): value is string {
-  if (typeof value !== 'string' || value.length > 5_500_000) return false;
-  if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true;
+function normalizePublicHttpsImage(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 5_500_000) return null;
   try {
     const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    const imageHosts = ['pbs.twimg.com', 'abs.twimg.com', 'i.imgur.com', 'cdn.farcaster.xyz', 'wrpcd.net'];
-    const allowed = imageHosts.some((domain) => host === domain || host.endsWith(`.${domain}`))
-      || host.endsWith('.imagedelivery.net')
-      || host.endsWith('.warpcast.com')
-      || host.endsWith('.farcaster.xyz');
-    return url.protocol === 'https:' && allowed && !url.username && !url.password;
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (
+      url.protocol !== 'https:'
+      || url.username
+      || url.password
+      || host === 'localhost'
+      || host.endsWith('.localhost')
+      || host.endsWith('.local')
+      || host.endsWith('.internal')
+      || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)
+      || host.includes(':')
+    ) return null;
+    return url.toString();
   } catch {
-    return false;
+    return null;
   }
+}
+
+function isKnownImageHost(value: string): boolean {
+  const host = new URL(value).hostname.toLowerCase();
+  const imageHosts = ['pbs.twimg.com', 'abs.twimg.com', 'i.imgur.com', 'cdn.farcaster.xyz', 'wrpcd.net'];
+  return imageHosts.some((domain) => host === domain || host.endsWith(`.${domain}`))
+    || host.endsWith('.imagedelivery.net')
+    || host.endsWith('.warpcast.com')
+    || host.endsWith('.farcaster.xyz');
+}
+
+async function getHypersnapProfileImage(fid: number): Promise<string | null> {
+  const endpoint = `/v2/farcaster/user/bulk?fids=${fid}`;
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    const user = data?.users?.[0] ?? data?.result?.users?.[0];
+    const image = user?.pfp_url ?? user?.pfp?.url ?? user?.pfpUrl;
+    if (typeof image === 'string') return image;
+  } catch {
+    // Try the configured secondary Hypersnap node below.
+  }
+  const fallback = await fallbackFetch(endpoint);
+  const user = fallback?.users?.[0] ?? fallback?.result?.users?.[0];
+  const image = user?.pfp_url ?? user?.pfp?.url ?? user?.pfpUrl;
+  return typeof image === 'string' ? image : null;
+}
+
+async function isAllowedImageRef(value: unknown, fid: number): Promise<boolean> {
+  if (typeof value !== 'string' || value.length > 5_500_000) return false;
+  if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true;
+  const normalized = normalizePublicHttpsImage(value);
+  if (!normalized) return false;
+  if (isKnownImageHost(normalized)) return true;
+
+  // Hypersnap may return profile photos from additional CDN domains. Permit an
+  // unknown host only when the URL exactly matches this authenticated user's
+  // current profile photo, fetched server-side by their verified FID.
+  const currentProfileImage = normalizePublicHttpsImage(await getHypersnapProfileImage(fid));
+  return currentProfileImage !== null && currentProfileImage === normalized;
 }
 
 async function ensureTables() {
@@ -95,7 +140,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
-  if (!isAllowedImageRef(body.image)) return NextResponse.json({ error: 'Choose a valid HTTPS profile image or upload a PNG, JPEG, or WebP image.' }, { status: 400 });
+  if (!(await isAllowedImageRef(body.image, fid))) return NextResponse.json({ error: 'Choose a valid HTTPS profile image or upload a PNG, JPEG, or WebP image.' }, { status: 400 });
   const portraitName = normalizePortraitName(body.name);
   if (!portraitName) return NextResponse.json({ error: 'Enter the name to personalize your portrait.' }, { status: 400 });
   if (typeof body.style !== 'string' || !styles[body.style]) return NextResponse.json({ error: 'Choose a listed Homiehouse style.' }, { status: 400 });
