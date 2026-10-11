@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getAuthHeaders } from '@/lib/client-auth';
+import { useFarcasterUser } from '@/hooks/useFarcasterUser';
 
 type StudioStatus = { freeAvailable: boolean; userCount: number; remaining: number; recipient: string; chainId: number };
 const RECIPIENT = '0x91275b7C72902f9fDAD3FE4168d5C2CAa81bb432';
@@ -12,6 +13,7 @@ const STYLES = [
 ];
 
 export default function PfpStudioPage() {
+  const { user } = useFarcasterUser();
   const [status, setStatus] = useState<StudioStatus | null>(null);
   const [profileQuery, setProfileQuery] = useState('');
   const [portraitName, setPortraitName] = useState('');
@@ -48,6 +50,17 @@ export default function PfpStudioPage() {
   }, [headers]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!user) return;
+    const currentPhoto = user.pfp_url?.trim();
+    const currentName = user.display_name?.trim() || user.username?.trim();
+    if (currentPhoto) {
+      setImage(currentPhoto);
+      setSourceName('Your Homiehouse profile');
+    }
+    if (currentName) setPortraitName(currentName);
+  }, [user]);
 
   async function lookupProfile() {
     setMessage('');
@@ -134,8 +147,8 @@ export default function PfpStudioPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 text-[var(--text-on-dark)]">
       <header className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-purple-300">Homiehouse Creative Studio</p>
-        <h1 className="mt-2 text-3xl font-bold">Homie-fy your PFP</h1>
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-purple-300">Your profile in Homiehouse</p>
+        <h1 className="mt-2 text-3xl font-bold">Style your profile</h1>
         <p className="mt-3 max-w-2xl text-sm opacity-80">Turn your profile photo into an original Homiehouse campus portrait. Your photo is sent to the image provider only when you press Generate and is not saved by this studio.</p>
       </header>
 
@@ -143,12 +156,12 @@ export default function PfpStudioPage() {
         <div>
           <label htmlFor="portrait-name" className="mb-2 block font-semibold">Name for your portrait</label>
           <input id="portrait-name" value={portraitName} onChange={e => setPortraitName(e.target.value)} maxLength={60} autoComplete="name" placeholder="Your name" className="mb-4 min-h-11 w-full rounded-lg border border-white/20 bg-black/30 px-3" />
-          <label htmlFor="profile-source" className="mb-2 block font-semibold">Choose your current profile photo</label>
+          <label htmlFor="profile-source" className="mb-2 block font-semibold">Your profile in Homiehouse</label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <input id="profile-source" value={profileQuery} onChange={e => setProfileQuery(e.target.value)} placeholder="Farcaster username or current public PFP image URL" className="min-h-11 flex-1 rounded-lg border border-white/20 bg-black/30 px-3" />
-            <button type="button" onClick={() => void lookupProfile()} className="min-h-11 rounded-lg bg-white/10 px-4 font-semibold">Find photo</button>
+            <input id="profile-source" value={profileQuery} onChange={e => setProfileQuery(e.target.value)} placeholder="Find another Farcaster photo or paste a public PFP image URL" className="min-h-11 flex-1 rounded-lg border border-white/20 bg-black/30 px-3" />
+            <button type="button" onClick={() => void lookupProfile()} className="min-h-11 rounded-lg bg-white/10 px-4 font-semibold">Find another photo</button>
           </div>
-          <p className="mt-2 text-xs opacity-70">Farcaster usernames fill in your display name and current PFP. For X, paste your current public PFP image URL, enter your name above, or upload a photo.</p>
+          <p className="mt-2 text-xs opacity-70">We load the profile photo and name from your Homiehouse login. Find another Farcaster photo, paste a public image URL, or upload a photo to use a different one.</p>
           <label className="mt-3 inline-flex cursor-pointer items-center rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold">
             Upload photo
             <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={e => void uploadImage(e.target.files?.[0])} />
@@ -200,7 +213,7 @@ export default function PfpStudioPage() {
         </div>
 
         <button type="button" disabled={busy || !image || !portraitName.trim() || !consent || (status?.remaining === 0)} onClick={() => void generate()} className="min-h-12 w-full rounded-xl bg-purple-600 px-4 font-bold disabled:cursor-not-allowed disabled:opacity-50">
-          {busy ? 'Creating your portrait…' : 'Generate my PFP'}
+          {busy ? 'Styling your photo…' : 'Style my photo'}
         </button>
         {message && <p role="status" className="break-all text-sm text-amber-200">{message}</p>}
       </section>
