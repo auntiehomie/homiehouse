@@ -164,8 +164,9 @@ contract HH2StakingTest {
         staking.stake(0, 200 ether, FID);
 
         _approve(ALICE, 200 ether);
+        uint256 remainingBalance = token.balanceOf(ALICE);
         vm.prank(ALICE);
-        token.transfer(address(0xDEAD), token.balanceOf(ALICE));
+        token.transfer(address(0xDEAD), remainingBalance);
         vm.expectRevert(HH2Staking.TransferFailed.selector);
         vm.prank(ALICE);
         staking.stake(0, 200 ether, FID);
