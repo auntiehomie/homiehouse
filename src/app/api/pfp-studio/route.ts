@@ -22,12 +22,11 @@ type Ref = { type: 'image_url'; image_url: { url: string } };
 function normalizePortraitName(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value.normalize('NFKC')
-    .replace(/[^\\p{L}\\p{M}\\p{N} .'-]/gu, ' ')
-    .replace(/\\s+/g, ' ')
+    .replace(/[^\p{L}\p{M}\p{N} .'-]/gu, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60);
 }
-
 function isAllowedImageRef(value: unknown): value is string {
   if (typeof value !== 'string' || value.length > 5_500_000) return false;
   if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true;
