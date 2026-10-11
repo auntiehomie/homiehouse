@@ -24,7 +24,13 @@ function isAllowedImageRef(value: unknown): value is string {
   if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password;
+    const host = url.hostname.toLowerCase();
+    const imageHosts = ['pbs.twimg.com', 'abs.twimg.com', 'i.imgur.com', 'cdn.farcaster.xyz', 'wrpcd.net'];
+    const allowed = imageHosts.some((domain) => host === domain || host.endsWith(`.${domain}`))
+      || host.endsWith('.imagedelivery.net')
+      || host.endsWith('.warpcast.com')
+      || host.endsWith('.farcaster.xyz');
+    return url.protocol === 'https:' && allowed && !url.username && !url.password;
   } catch {
     return false;
   }
