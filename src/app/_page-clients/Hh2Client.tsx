@@ -12,30 +12,15 @@ import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import HHLogo from '@/components/HHLogo';
 import Hh2StakingClient from './Hh2StakingClient';
 import StreakBonusClient from './StreakBonusClient';
+import Hh2BurnClient from './Hh2BurnClient';
+import { HH2_TOKEN_ABI, HH2_TOKEN_ADDRESS } from '@/lib/hh2-contracts';
 
-const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
+const HH2_CONTRACT = HH2_TOKEN_ADDRESS;
 const HH2_CHAIN = 'base';
 const HH2_CHAIN_ID = base.id;
 const DEXSCREENER_LINK = `https://dexscreener.com/${HH2_CHAIN}/${HH2_CONTRACT}`;
 const BASESCAN_LINK = `https://basescan.org/token/${HH2_CONTRACT}`;
 const UNISWAP_LINK = `https://app.uniswap.org/swap?outputCurrency=${HH2_CONTRACT}&chain=base`;
-
-const HH2_ABI = [
-  {
-    inputs: [{ name: 'account', type: 'address' }],
-    name: 'balanceOf',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'decimals',
-    outputs: [{ name: '', type: 'uint8' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const;
 
 const EARN_METHODS = [
   {
@@ -109,7 +94,7 @@ export default function Hh2Client() {
   // Read HH2 balance from the connected wallet (always queries Base)
   const { data: hh2Raw, refetch: refetchBalance } = useReadContract({
     address: HH2_CONTRACT,
-    abi: HH2_ABI,
+    abi: HH2_TOKEN_ABI,
     functionName: 'balanceOf',
     args: [(address ?? '0x0000000000000000000000000000000000000000') as `0x${string}`],
     chainId: HH2_CHAIN_ID,
@@ -118,7 +103,7 @@ export default function Hh2Client() {
 
   const { data: decimals } = useReadContract({
     address: HH2_CONTRACT,
-    abi: HH2_ABI,
+    abi: HH2_TOKEN_ABI,
     functionName: 'decimals',
     chainId: HH2_CHAIN_ID,
   });
@@ -402,6 +387,9 @@ export default function Hh2Client() {
 
           {/* Staking */}
           <Hh2StakingClient />
+
+          {/* User initiated on-chain burn */}
+          <Hh2BurnClient />
 
           {/* How to earn */}
           <div style={{ marginBottom: 28 }}>

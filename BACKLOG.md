@@ -1,12 +1,14 @@
 ---
 kanban-plugin: basic
 project: homiehouse
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 ## Next
 
 ## In Progress
+
+- [ ] Deploy and verify the non-upgradeable HH2 escrow contract on Base; configure `NEXT_PUBLIC_HH2_STAKING_CONTRACT_ADDRESS` before enabling on-chain staking [added::2026-10-11]
 
 ## In Review
 
