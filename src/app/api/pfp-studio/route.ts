@@ -202,11 +202,34 @@ export async function POST(request: NextRequest) {
       }),
       signal: AbortSignal.timeout(110_000),
     });
-    const result = await response.json();
-    const image = result?.data?.[0]?.b64_json;
-    const mediaType = result?.data?.[0]?.media_type;
-    if (!response.ok || typeof image !== 'string' || !/^image\/(png|jpeg|webp)$/.test(mediaType || '')) {
-      throw new Error('Image provider did not return a supported image');
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      const providerError = result?.error;
+      const code = typeof providerError?.code === 'string' ? providerError.code.slice(0, 80) : undefined;
+      const message = typeof providerError?.message === 'string'
+        ? providerError.message.slice(0, 300).replace(/https?:\/\/\S+/g, '[url]')
+        : 'No provider error message';
+      console.error('[pfp-studio] image provider rejected request', {
+        status: response.status,
+        code,
+        message,
+      });
+      throw new Error(`Image provider returned HTTP ${response.status}`);
+    }
+
+    const output = result?.data?.[0];
+    const image = output?.b64_json;
+    // The request explicitly asks for PNG. OpenRouter may omit media_type when
+    // it cannot infer the format, so use that requested format as the fallback.
+    const mediaType = output?.media_type || 'image/png';
+    if (typeof image !== 'string' || !/^image\/(png|jpeg|webp)$/.test(mediaType)) {
+      console.error('[pfp-studio] image provider returned an unsupported payload', {
+        status: response.status,
+        resultKeys: result && typeof result === 'object' ? Object.keys(result) : [],
+        outputKeys: output && typeof output === 'object' ? Object.keys(output) : [],
+        mediaType: typeof output?.media_type === 'string' ? output.media_type.slice(0, 80) : null,
+      });
+      throw new Error('Image provider returned no supported image payload');
     }
     await db.query("UPDATE pfp_studio_generations SET status = 'complete' WHERE id = $1", [generationId]);
     return NextResponse.json({ image: `data:${mediaType};base64,${image}`, style: body.style });
