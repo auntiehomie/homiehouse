@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, isAddress, parseEther } from 'viem';
+import { createPublicClient, http, parseEther } from 'viem';
 import { base } from 'viem/chains';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
@@ -51,11 +51,11 @@ export async function GET(request: NextRequest) {
     const fid = await verifyFarcasterSignerAuth(request);
     await ensureTables();
     const { rows } = await getDb().query(
-      "SELECT COUNT(*) FILTER (WHERE status = 'complete')::int AS user_count, (SELECT COUNT(*)::int FROM pfp_studio_generations WHERE status IN ('pending','complete')) AS reserved_count FROM pfp_studio_generations WHERE fid = $1",
+      "SELECT COUNT(*) FILTER (WHERE status = 'complete')::int AS user_count, COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count, (SELECT COUNT(*)::int FROM pfp_studio_generations WHERE status IN ('pending','complete')) AS reserved_count FROM pfp_studio_generations WHERE fid = $1",
       [fid],
     );
     return NextResponse.json({
-      freeAvailable: Number(rows[0]?.user_count || 0) === 0,
+      freeAvailable: Number(rows[0]?.user_count || 0) === 0 && Number(rows[0]?.pending_count || 0) === 0,
       userCount: Number(rows[0]?.user_count || 0),
       remaining: Math.max(0, CAP - Number(rows[0]?.reserved_count || 0)),
       recipient: RECIPIENT,
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
     const inserted = await reservation.query(
       'INSERT INTO pfp_studio_generations (fid, payment_tx_hash, style) VALUES ($1, $2, $3) RETURNING id',
-      [fid, paid ? txHash : null, body.style],
+      [fid, paid && needsPayment ? txHash : null, body.style],
     );
     generationId = Number(inserted.rows[0].id);
     await reservation.query('COMMIT');
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
     await db.query("UPDATE pfp_studio_generations SET status = 'complete' WHERE id = $1", [generationId]);
     return NextResponse.json({ image: `data:${mediaType};base64,${image}`, style: body.style });
   } catch (error) {
-    await db.query("UPDATE pfp_studio_generations SET status = 'failed' WHERE id = $1", [generationId]);
+    await db.query("UPDATE pfp_studio_generations SET status = 'failed', payment_tx_hash = NULL WHERE id = $1", [generationId]);
     console.error('[pfp-studio] generation failed', error);
     return NextResponse.json({ error: 'Image generation failed. Please try again.' }, { status: 502 });
   }
