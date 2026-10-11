@@ -103,7 +103,7 @@ const NAV_ITEMS = [
   },
   {
     href: '/pfp-studio',
-    label: 'PFP Studio',
+    label: 'Studio',
     icon: <span style={{ fontSize: 16, lineHeight: 1 }}>🎨</span>,
   },
   {
