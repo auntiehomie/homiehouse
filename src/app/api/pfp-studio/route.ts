@@ -141,6 +141,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
   if (!(await isAllowedImageRef(body.image, fid))) return NextResponse.json({ error: 'Choose a valid HTTPS profile image or upload a PNG, JPEG, or WebP image.' }, { status: 400 });
+  const sourceImage = body.image as string;
   const portraitName = normalizePortraitName(body.name);
   if (!portraitName) return NextResponse.json({ error: 'Enter the name to personalize your portrait.' }, { status: 400 });
   if (typeof body.style !== 'string' || !styles[body.style]) return NextResponse.json({ error: 'Choose a listed Homiehouse style.' }, { status: 400 });
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
         aspect_ratio: '1:1',
         resolution: '1K',
         output_format: 'png',
-        input_references: [{ type: 'image_url', image_url: { url: body.image } } satisfies Ref],
+        input_references: [{ type: 'image_url', image_url: { url: sourceImage } } satisfies Ref],
         user: `fid:${fid}`,
       }),
       signal: AbortSignal.timeout(110_000),
