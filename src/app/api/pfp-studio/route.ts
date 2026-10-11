@@ -31,11 +31,12 @@ function normalizePublicHttpsImage(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > 5_500_000) return null;
   try {
     const url = new URL(value);
-    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
     if (
       url.protocol !== 'https:'
       || url.username
       || url.password
+      || url.port !== ''
       || host === 'localhost'
       || host.endsWith('.localhost')
       || host.endsWith('.local')
