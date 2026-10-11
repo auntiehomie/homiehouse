@@ -58,7 +58,7 @@ async function ensureRewardTables(db: ReturnType<typeof getDb>) {
 }
 
 async function getClaimable(client: import('pg').PoolClient, fid: number) {
-  const [earned, purchases, pending, staked] = await Promise.all([
+  const [earned, purchases, pending] = await Promise.all([
     client.query(`
       SELECT COALESCE(SUM(e.amount), 0)::int AS amount
       FROM hh2_reward_events e
@@ -67,10 +67,6 @@ async function getClaimable(client: import('pg').PoolClient, fid: number) {
     `, [fid]),
     client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [fid]),
     client.query("SELECT COUNT(*)::int AS count FROM hh2_reward_events WHERE fid = $1 AND status = 'pending'", [fid]),
-    client.query(
-      "SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_stakes WHERE fid = $1 AND status IN ('active', 'unlocked')",
-      [fid]
-    ),
   ]);
   const spent = purchases.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
   const claimed = await client.query('SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_claims WHERE fid = $1', [fid]);
@@ -78,9 +74,10 @@ async function getClaimable(client: import('pg').PoolClient, fid: number) {
   // Lifetime cap is on total HH2 claimed, not module count
   const MAX_LIFETIME_HH2 = MAX_REWARDED_MODULES_PER_FID * HH2_PER_MODULE + 50000; // 50 modules + streak bonuses
   const remainingLifetime = Math.max(0, MAX_LIFETIME_HH2 - totalClaimedAmount);
-  // Subtract spent (shop) and staked (locked) amounts from claimable
-  const amount = Math.min(Math.max(0, earned.rows[0].amount - spent - staked.rows[0].amount), remainingLifetime);
-  return { amount, pending: pending.rows[0].count, staked: staked.rows[0].amount };
+  // On-chain stakes are separate from app-earned credits and must not reduce
+  // the user's independent claimable reward balance.
+  const amount = Math.min(Math.max(0, earned.rows[0].amount - spent), remainingLifetime);
+  return { amount, pending: pending.rows[0].count, staked: 0 };
 }
 
 export async function GET(req: NextRequest) {

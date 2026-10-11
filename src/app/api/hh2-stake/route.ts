@@ -3,11 +3,17 @@ import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
+import { createPublicClient, decodeEventLog, formatUnits, http, isAddress, type Hex } from 'viem';
+import { base } from 'viem/chains';
+import { HH2_BURN_ADDRESS, HH2_STAKING_ABI, HH2_TOKEN_ABI, HH2_TOKEN_ADDRESS } from '@/lib/hh2-contracts';
+
+const stakingAddress = process.env.NEXT_PUBLIC_HH2_STAKING_CONTRACT_ADDRESS;
+const baseClient = createPublicClient({ chain: base, transport: http(process.env.BASE_RPC_URL || 'https://mainnet.base.org') });
 
 /**
  * HH2 Staking System
  *
- * Users lock their earned (unclaimed) HH2 for a chosen period. While staked:
+ * Users lock wallet-held HH2 in the on-chain escrow for a chosen period. While staked:
  * - They earn boosted learning rewards (1.5x for 30d, 2x for 90d, 2.5x for 180d)
  * - Staked HH2 cannot be spent in the shop or claimed to wallet
  * - After the lock period, staked HH2 + bonus rewards are fully claimable
@@ -93,39 +99,71 @@ export async function ensureStakingTables(db: ReturnType<typeof getDb>) {
     CREATE TABLE IF NOT EXISTS hh2_burns (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       fid INTEGER NOT NULL,
-      amount INTEGER NOT NULL CHECK (amount > 0),
+      amount NUMERIC(78,18) NOT NULL CHECK (amount > 0),
       reason TEXT NOT NULL,
       reference_id TEXT,
       burned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await db.query('ALTER TABLE hh2_burns ALTER COLUMN amount TYPE NUMERIC(78,18) USING amount::numeric');
+  await db.query('ALTER TABLE hh2_burns ADD COLUMN IF NOT EXISTS tx_hash TEXT');
+  await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_hh2_burns_tx_hash ON hh2_burns (tx_hash) WHERE tx_hash IS NOT NULL');
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_hh2_burns_fid ON hh2_burns (fid)
   `);
+  await db.query('ALTER TABLE hh2_stakes ADD COLUMN IF NOT EXISTS contract_stake_id BIGINT');
+  await db.query('ALTER TABLE hh2_stakes ADD COLUMN IF NOT EXISTS tx_hash TEXT');
+  await db.query('ALTER TABLE hh2_stakes ADD COLUMN IF NOT EXISTS withdrawal_tx_hash TEXT');
+  await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_hh2_stakes_chain_tx ON hh2_stakes (tx_hash) WHERE tx_hash IS NOT NULL');
+  // Earlier versions recorded virtual stakes without locking tokens. Do not
+  // present those records as on-chain stakes or keep them deducted from claims.
+  await db.query(`DO $$ BEGIN
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = 'hh2_stakes'::regclass AND conname = 'hh2_stakes_status_check'
+        AND pg_get_constraintdef(oid) NOT LIKE '%legacy%'
+    ) THEN
+      ALTER TABLE hh2_stakes DROP CONSTRAINT hh2_stakes_status_check;
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = 'hh2_stakes'::regclass AND conname = 'hh2_stakes_status_check'
+    ) THEN
+      ALTER TABLE hh2_stakes ADD CONSTRAINT hh2_stakes_status_check
+        CHECK (status IN ('active', 'unlocked', 'withdrawn', 'legacy'));
+    END IF;
+  END $$`);
+  await db.query("UPDATE hh2_stakes SET status = 'legacy' WHERE contract_stake_id IS NULL AND status IN ('active', 'unlocked')");
 }
 
 // ── Helper: get user's staking state ──────────────────────────────────────────
 
 export async function getStakingState(client: import('pg').PoolClient, fid: number) {
-  const [activeStakes, totalStaked, totalBurned] = await Promise.all([
+  const [activeStakes, totalStaked, totalBurned, legacyStakeCount] = await Promise.all([
     client.query(
-      `SELECT id, tier_id, amount, staked_at, unlocks_at, status, earnings_multiplier, bonus_earned
-       FROM hh2_stakes WHERE fid = $1 AND status = 'active' ORDER BY staked_at DESC`,
+      `SELECT id, tier_id, amount, staked_at, unlocks_at, status, earnings_multiplier, bonus_earned, contract_stake_id
+       FROM hh2_stakes WHERE fid = $1 AND status IN ('active', 'unlocked') ORDER BY staked_at DESC`,
       [fid]
     ),
     client.query(
-      `SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_stakes WHERE fid = $1 AND status = 'active'`,
+      `SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_stakes WHERE fid = $1 AND status IN ('active', 'unlocked')`,
       [fid]
     ),
     client.query(
-      `SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_burns WHERE fid = $1`,
+      `SELECT
+         COALESCE(SUM(amount) FILTER (WHERE reason = 'wallet-burn'), 0)::text AS wallet_amount,
+         COALESCE(SUM(amount) FILTER (WHERE reason <> 'wallet-burn'), 0)::text AS perk_amount
+       FROM hh2_burns WHERE fid = $1`,
       [fid]
     ),
+    client.query("SELECT COUNT(*)::int AS count FROM hh2_stakes WHERE fid = $1 AND status = 'legacy'", [fid]),
   ]);
   return {
     activeStakes: activeStakes.rows,
     totalStaked: totalStaked.rows[0].amount,
-    totalBurned: totalBurned.rows[0].amount,
+    walletBurned: Number(totalBurned.rows[0].wallet_amount),
+    perkBurned: Number(totalBurned.rows[0].perk_amount),
+    legacyStakeCount: legacyStakeCount.rows[0].count,
   };
 }
 
@@ -172,8 +210,6 @@ export async function GET(req: NextRequest) {
     await ensureStakingTables(db);
     const client = await db.connect();
     try {
-      const state = await getStakingState(client, fid);
-
       // Check for stakes that have matured
       const matured = await client.query(
         `UPDATE hh2_stakes SET status = 'unlocked', unlocked_at = NOW()
@@ -181,13 +217,16 @@ export async function GET(req: NextRequest) {
          RETURNING id, tier_id, amount, bonus_earned`,
         [fid]
       );
+      const state = await getStakingState(client, fid);
 
       return NextResponse.json({
         ok: true,
         tiers: STAKING_TIERS,
         activeStakes: state.activeStakes,
         totalStaked: state.totalStaked,
-        totalBurned: state.totalBurned,
+        walletBurned: state.walletBurned,
+        perkBurned: state.perkBurned,
+        legacyStakeCount: state.legacyStakeCount,
         maturedCount: matured.rows.length,
       });
     } finally {
@@ -202,125 +241,119 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── POST: create a stake ─────────────────────────────────────────────────────
+async function readSuccessfulTransaction(txHash: unknown, walletAddress: unknown) {
+  if (typeof txHash !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new Error('A valid Base transaction hash is required.');
+  if (typeof walletAddress !== 'string' || !isAddress(walletAddress)) throw new Error('A valid wallet address is required.');
+  const transaction = await baseClient.getTransaction({ hash: txHash as Hex });
+  const receipt = await baseClient.getTransactionReceipt({ hash: txHash as Hex });
+  if (receipt.status !== 'success') throw new Error('The Base transaction did not succeed.');
+  if (transaction.from.toLowerCase() !== walletAddress.toLowerCase()) throw new Error('Transaction sender does not match the connected wallet.');
+  return { transaction, receipt };
+}
+
+function decodeEvent(receipt: Awaited<ReturnType<typeof baseClient.getTransactionReceipt>>, address: string, eventName: 'Staked' | 'Withdrawn' | 'Transfer') {
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== address.toLowerCase()) continue;
+    try {
+      const decoded = decodeEventLog({ abi: [...HH2_STAKING_ABI, ...HH2_TOKEN_ABI], data: log.data, topics: log.topics, strict: false });
+      if (decoded.eventName === eventName) return decoded.args as Record<string, unknown>;
+    } catch { /* ignore unrelated logs */ }
+  }
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`hh2-stake-post:${ip}`, 5, 60).success) {
-    return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
-  }
+  if (!rateLimit(`hh2-stake-post:${ip}`, 8, 60).success) return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
 
   try {
     const authFid = await verifyFarcasterSignerAuth(req);
     const body = await req.json();
     const fid = Number(body.fid);
-    const tierId = typeof body.tierId === 'string' ? body.tierId : '';
-    const amount = Number(body.amount);
+    if (!Number.isSafeInteger(fid) || fid <= 0) return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
+    if (authFid !== fid) return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
 
-    if (!Number.isSafeInteger(fid) || fid <= 0) {
-      return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
+    const txHash = body.txHash as Hex;
+    const walletAddress = body.walletAddress;
+    const { transaction, receipt } = await readSuccessfulTransaction(txHash, walletAddress);
+
+    if (body.action === 'burn') {
+      if (transaction.to?.toLowerCase() !== HH2_TOKEN_ADDRESS.toLowerCase()) return NextResponse.json({ ok: false, error: 'Burn transaction must call the HH2 token contract.' }, { status: 400 });
+      const event = decodeEvent(receipt, HH2_TOKEN_ADDRESS, 'Transfer');
+      if (!event || String(event.from).toLowerCase() !== String(walletAddress).toLowerCase() || String(event.to).toLowerCase() !== HH2_BURN_ADDRESS.toLowerCase() || typeof event.value !== 'bigint' || event.value <= 0n) {
+        return NextResponse.json({ ok: false, error: 'No HH2 transfer to the burn address was found in this transaction.' }, { status: 400 });
+      }
+      const db = getDb();
+      await ensureStakingTables(db);
+      const amount = formatUnits(event.value, 18);
+      await db.query(
+        `INSERT INTO hh2_burns (fid, amount, reason, reference_id, tx_hash)
+         VALUES ($1, $2, 'wallet-burn', 'onchain', $3) ON CONFLICT (tx_hash) WHERE tx_hash IS NOT NULL DO NOTHING`,
+        [fid, amount, txHash],
+      );
+      return NextResponse.json({ ok: true, amount, txHash });
     }
-    if (authFid !== fid) {
-      return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
-    }
+
+    if (body.action !== 'stake') return NextResponse.json({ ok: false, error: 'Action must be stake or burn.' }, { status: 400 });
+    if (!stakingAddress || !isAddress(stakingAddress)) return NextResponse.json({ ok: false, error: 'On-chain staking contract is not configured.' }, { status: 503 });
+    if (transaction.to?.toLowerCase() !== stakingAddress.toLowerCase()) return NextResponse.json({ ok: false, error: 'Transaction does not call the configured HH2 staking contract.' }, { status: 400 });
+    const tierId = typeof body.tierId === 'string' ? body.tierId : '';
     const tier = TIER_BY_ID[tierId];
-    if (!tier) {
-      return NextResponse.json({ ok: false, error: 'Invalid staking tier' }, { status: 400 });
-    }
-    if (!Number.isSafeInteger(amount) || amount < tier.minStake) {
-      return NextResponse.json({ ok: false, error: `Minimum stake for ${tier.name} is ${tier.minStake} HH2` }, { status: 400 });
-    }
-    if (amount > tier.maxStake) {
-      return NextResponse.json({ ok: false, error: `Maximum stake for ${tier.name} is ${tier.maxStake} HH2` }, { status: 400 });
+    const tierIndex = STAKING_TIERS.findIndex((item) => item.id === tierId);
+    const amount = Number(body.amount);
+    if (!tier || !Number.isSafeInteger(amount) || amount < tier.minStake || amount > tier.maxStake) return NextResponse.json({ ok: false, error: 'Stake amount or tier is invalid.' }, { status: 400 });
+    const event = decodeEvent(receipt, stakingAddress, 'Staked');
+    const expectedAmount = BigInt(amount) * 10n ** 18n;
+    if (!event || String(event.account).toLowerCase() !== String(walletAddress).toLowerCase() || BigInt(String(event.fid)) !== BigInt(fid) || Number(event.tierId) !== tierIndex || event.amount !== expectedAmount) {
+      return NextResponse.json({ ok: false, error: 'The confirmed transaction does not match this stake request.' }, { status: 400 });
     }
 
     const db = getDb();
     await ensureStakingTables(db);
+    const prior = await db.query('SELECT id FROM hh2_stakes WHERE tx_hash = $1', [txHash]);
+    if (prior.rows.length) return NextResponse.json({ ok: true, duplicate: true });
     const client = await db.connect();
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [fid]);
-
-      // Check available HH2 balance (earned - spent - currently staked)
-      const [earned, spent, staked] = await Promise.all([
-        client.query(
-          "SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_reward_events WHERE fid = $1 AND status = 'earned'",
-          [fid]
-        ),
-        client.query('SELECT item_id FROM hh2_purchases WHERE user_fid = $1', [fid]),
-        client.query(
-          "SELECT COALESCE(SUM(amount), 0)::int AS amount FROM hh2_stakes WHERE fid = $1 AND status IN ('active', 'unlocked')",
-          [fid]
-        ),
-      ]);
-
-      const { ITEM_PRICES } = await import('@/app/api/hh2-shop/route');
-      const spentAmount = spent.rows.reduce((sum: number, row: { item_id: string }) => sum + (ITEM_PRICES[row.item_id] ?? 0), 0);
-      const availableBalance = Math.max(0, earned.rows[0].amount - spentAmount - staked.rows[0].amount);
-
-      if (amount > availableBalance) {
-        await client.query('ROLLBACK');
-        return NextResponse.json(
-          { ok: false, error: `Insufficient HH2. Available: ${availableBalance}, requested: ${amount}` },
-          { status: 402 }
-        );
-      }
-
-      const unlocksAt = new Date(Date.now() + tier.lockDays * 24 * 60 * 60 * 1000);
-
       const result = await client.query(
-        `INSERT INTO hh2_stakes (fid, tier_id, amount, unlocks_at, earnings_multiplier)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id, staked_at, unlocks_at`,
-        [fid, tier.id, amount, unlocksAt, tier.earningsMultiplier]
+        `INSERT INTO hh2_stakes (fid, tier_id, amount, unlocks_at, earnings_multiplier, contract_stake_id, tx_hash)
+         VALUES ($1, $2, $3, to_timestamp($4), $5, $6, $7)
+         ON CONFLICT (tx_hash) WHERE tx_hash IS NOT NULL DO NOTHING
+         RETURNING id, staked_at, unlocks_at, contract_stake_id`,
+        [fid, tier.id, amount, Number(event.unlocksAt), tier.earningsMultiplier, String(event.stakeId), txHash],
       );
-
       await client.query('COMMIT');
-
-      return NextResponse.json({
-        ok: true,
-        stake: {
-          id: result.rows[0].id,
-          tierId: tier.id,
-          tierName: tier.name,
-          amount,
-          stakedAt: result.rows[0].staked_at,
-          unlocksAt: result.rows[0].unlocks_at,
-          earningsMultiplier: tier.earningsMultiplier,
-        },
-      });
+      return NextResponse.json({ ok: true, stake: result.rows[0] ?? null });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
-    }
+    if (error instanceof AuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    if (error instanceof Error && /transaction|wallet|Base|burn|HH2|stake|sender|address/i.test(error.message)) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     console.error('[hh2-stake] POST error:', error);
-    return NextResponse.json({ ok: false, error: 'Failed to create stake' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'Failed to verify HH2 transaction.' }, { status: 500 });
   }
 }
-
-// ── DELETE: withdraw a matured stake ──────────────────────────────────────────
 
 export async function DELETE(req: NextRequest) {
   try {
     const authFid = await verifyFarcasterSignerAuth(req);
     const body = await req.json();
     const fid = Number(body.fid);
-    const stakeId = typeof body.stakeId === 'string' ? body.stakeId : '';
+    if (!Number.isSafeInteger(fid) || fid <= 0) return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
+    if (authFid !== fid) return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
+    if (!stakingAddress || !isAddress(stakingAddress)) return NextResponse.json({ ok: false, error: 'On-chain staking contract is not configured.' }, { status: 503 });
 
-    if (!Number.isSafeInteger(fid) || fid <= 0) {
-      return NextResponse.json({ ok: false, error: 'Valid FID required' }, { status: 400 });
+    const { transaction, receipt } = await readSuccessfulTransaction(body.txHash, body.walletAddress);
+    if (transaction.to?.toLowerCase() !== stakingAddress.toLowerCase()) return NextResponse.json({ ok: false, error: 'Transaction does not call the configured HH2 staking contract.' }, { status: 400 });
+    const event = decodeEvent(receipt, stakingAddress, 'Withdrawn');
+    if (!event || String(event.account).toLowerCase() !== String(body.walletAddress).toLowerCase() || BigInt(String(event.fid)) !== BigInt(fid) || BigInt(String(event.stakeId)) !== BigInt(body.contractStakeId)) {
+      return NextResponse.json({ ok: false, error: 'The confirmed transaction does not match this withdrawal.' }, { status: 400 });
     }
-    if (authFid !== fid) {
-      return NextResponse.json({ ok: false, error: 'FID does not match authenticated user' }, { status: 403 });
-    }
-    if (!stakeId) {
-      return NextResponse.json({ ok: false, error: 'stakeId required' }, { status: 400 });
-    }
+    if (typeof event.amount !== 'bigint') return NextResponse.json({ ok: false, error: 'Withdrawal event amount is invalid.' }, { status: 400 });
+    const withdrawnAmountWei = event.amount;
 
     const db = getDb();
     await ensureStakingTables(db);
@@ -328,64 +361,39 @@ export async function DELETE(req: NextRequest) {
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock($1)', [fid]);
-
-      const stake = await client.query(
-        `SELECT id, tier_id, amount, bonus_earned, status, unlocks_at
-         FROM hh2_stakes WHERE id = $1 AND fid = $2 FOR UPDATE`,
-        [stakeId, fid]
+      const result = await client.query(
+        `UPDATE hh2_stakes SET status = 'withdrawn', withdrawn_at = NOW(), withdrawal_tx_hash = $1
+         WHERE fid = $2 AND contract_stake_id = $3 AND status IN ('active', 'unlocked')
+         RETURNING id, amount, bonus_earned`,
+        [body.txHash, fid, String(event.stakeId)],
       );
-
-      if (stake.rows.length === 0) {
+      if (!result.rows.length) {
+        const already = await client.query('SELECT status FROM hh2_stakes WHERE fid = $1 AND contract_stake_id = $2', [fid, String(event.stakeId)]);
+        if (already.rows[0]?.status === 'withdrawn') {
+          await client.query('COMMIT');
+          return NextResponse.json({ ok: true, duplicate: true, withdrawnAmountWei: withdrawnAmountWei.toString(), bonusEarned: 0 });
+        }
         await client.query('ROLLBACK');
-        return NextResponse.json({ ok: false, error: 'Stake not found' }, { status: 404 });
+        return NextResponse.json({ ok: false, error: 'Stake not found in this Farcaster account.' }, { status: 404 });
       }
-
-      const s = stake.rows[0];
-      if (s.status === 'withdrawn') {
-        await client.query('ROLLBACK');
-        return NextResponse.json({ ok: false, error: 'Stake already withdrawn' }, { status: 400 });
-      }
-      if (s.status === 'active' && new Date(s.unlocks_at) > new Date()) {
-        await client.query('ROLLBACK');
-        return NextResponse.json({ ok: false, error: 'Stake is still locked' }, { status: 400 });
-      }
-
-      // Mark as withdrawn — the staked amount returns to the user's claimable balance
-      // and bonus_earned is added as new reward events
-      await client.query(
-        `UPDATE hh2_stakes SET status = 'withdrawn', withdrawn_at = NOW() WHERE id = $1`,
-        [stakeId]
-      );
-
-      // If there were bonus earnings during the stake period, record them
-      if (s.bonus_earned > 0) {
-        const bonusModuleId = `stake-bonus-${stakeId}`;
+      const stake = result.rows[0];
+      if (stake.bonus_earned > 0) {
         await client.query(
           `INSERT INTO hh2_reward_events (fid, module_id, amount, status)
-           VALUES ($1, $2, $3, 'earned')
-           ON CONFLICT (fid, module_id) DO NOTHING`,
-          [fid, bonusModuleId, s.bonus_earned]
+           VALUES ($1, $2, $3, 'earned') ON CONFLICT (fid, module_id) DO NOTHING`,
+          [fid, `stake-bonus-${stake.id}`, stake.bonus_earned],
         );
       }
-
       await client.query('COMMIT');
-
-      return NextResponse.json({
-        ok: true,
-        withdrawnAmount: s.amount,
-        bonusEarned: s.bonus_earned,
-      });
+      return NextResponse.json({ ok: true, withdrawnAmountWei: withdrawnAmountWei.toString(), bonusEarned: stake.bonus_earned });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
-    }
+    if (error instanceof AuthError) return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    if (error instanceof Error && /transaction|wallet|Base|burn|HH2|stake|sender|address/i.test(error.message)) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     console.error('[hh2-stake] DELETE error:', error);
-    return NextResponse.json({ ok: false, error: 'Failed to withdraw stake' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'Failed to verify HH2 withdrawal.' }, { status: 500 });
   }
 }
