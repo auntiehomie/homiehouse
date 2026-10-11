@@ -14,6 +14,7 @@ const STYLES = [
 export default function PfpStudioPage() {
   const [status, setStatus] = useState<StudioStatus | null>(null);
   const [profileQuery, setProfileQuery] = useState('');
+  const [portraitName, setPortraitName] = useState('');
   const [image, setImage] = useState('');
   const [sourceName, setSourceName] = useState('');
   const [style, setStyle] = useState('campus');
@@ -65,6 +66,8 @@ export default function PfpStudioPage() {
       const data = await response.json();
       if (!response.ok || !data.pfp_url) throw new Error(data.error || 'No Farcaster profile photo found. Try an X photo URL or upload an image.');
       setImage(data.pfp_url);
+      const resolvedName = data.display_name || data.username || username;
+      setPortraitName(resolvedName);
       setSourceName(`Farcaster @${data.username || username}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not find that profile.');
@@ -92,6 +95,7 @@ export default function PfpStudioPage() {
   async function generate() {
     const auth = headers();
     if (!auth) { setMessage('Sign in with Farcaster to generate a PFP.'); return; }
+    if (!portraitName.trim()) { setMessage('Enter the name to personalize your portrait.'); return; }
     if (!image || !consent) { setMessage('Choose a source photo and confirm consent first.'); return; }
     if (status && !status.freeAvailable && !paymentTxHash.trim()) {
       setMessage('Your first PFP is free. Enter a new Base transaction hash for each additional generation.');
@@ -108,7 +112,7 @@ export default function PfpStudioPage() {
           requestHeaders.set('Content-Type', 'application/json');
           return requestHeaders;
         })(),
-        body: JSON.stringify({ image, style, paymentTxHash: paymentTxHash.trim() || undefined }),
+        body: JSON.stringify({ image, name: portraitName, style, paymentTxHash: paymentTxHash.trim() || undefined }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'PFP generation failed.');
@@ -137,12 +141,14 @@ export default function PfpStudioPage() {
 
       <section className="space-y-6 rounded-2xl border border-white/10 bg-black/20 p-5">
         <div>
-          <label htmlFor="profile-source" className="mb-2 block font-semibold">Choose your photo</label>
+          <label htmlFor="portrait-name" className="mb-2 block font-semibold">Name for your portrait</label>
+          <input id="portrait-name" value={portraitName} onChange={e => setPortraitName(e.target.value)} maxLength={60} autoComplete="name" placeholder="Your name" className="mb-4 min-h-11 w-full rounded-lg border border-white/20 bg-black/30 px-3" />
+          <label htmlFor="profile-source" className="mb-2 block font-semibold">Choose your current profile photo</label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <input id="profile-source" value={profileQuery} onChange={e => setProfileQuery(e.target.value)} placeholder="Farcaster username or public image URL" className="min-h-11 flex-1 rounded-lg border border-white/20 bg-black/30 px-3" />
+            <input id="profile-source" value={profileQuery} onChange={e => setProfileQuery(e.target.value)} placeholder="Farcaster username or current public PFP image URL" className="min-h-11 flex-1 rounded-lg border border-white/20 bg-black/30 px-3" />
             <button type="button" onClick={() => void lookupProfile()} className="min-h-11 rounded-lg bg-white/10 px-4 font-semibold">Find photo</button>
           </div>
-          <p className="mt-2 text-xs opacity-70">Farcaster usernames are looked up in Homiehouse. For X, paste a direct public profile image URL or upload a photo.</p>
+          <p className="mt-2 text-xs opacity-70">Farcaster usernames fill in your display name and current PFP. For X, paste your current public PFP image URL, enter your name above, or upload a photo.</p>
           <label className="mt-3 inline-flex cursor-pointer items-center rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold">
             Upload photo
             <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={e => void uploadImage(e.target.files?.[0])} />
@@ -193,14 +199,14 @@ export default function PfpStudioPage() {
           )}
         </div>
 
-        <button type="button" disabled={busy || !image || !consent || (status?.remaining === 0)} onClick={() => void generate()} className="min-h-12 w-full rounded-xl bg-purple-600 px-4 font-bold disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="button" disabled={busy || !image || !portraitName.trim() || !consent || (status?.remaining === 0)} onClick={() => void generate()} className="min-h-12 w-full rounded-xl bg-purple-600 px-4 font-bold disabled:cursor-not-allowed disabled:opacity-50">
           {busy ? 'Creating your portrait…' : 'Generate my PFP'}
         </button>
         {message && <p role="status" className="break-all text-sm text-amber-200">{message}</p>}
       </section>
 
       {result && <section className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
-        <h2 className="text-xl font-bold">Your Homiehouse portrait</h2>
+        <h2 className="text-xl font-bold">{portraitName}’s Homiehouse portrait</h2>
         <img src={result} alt="Generated Homiehouse campus portrait" className="mx-auto mt-4 aspect-square w-full max-w-sm rounded-2xl object-cover" />
         <div className="mt-4 flex flex-wrap gap-3">
           <a href={result} download="homiehouse-pfp.png" className="rounded-lg bg-white/10 px-4 py-2 font-semibold">Download PNG</a>
