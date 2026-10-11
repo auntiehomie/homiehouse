@@ -5,10 +5,10 @@ const miniAppFrame = {
   version: '1',
   imageUrl: 'https://homiehouse.lol/icon-512.png',
   button: {
-    title: 'Make a PFP',
+    title: 'Style my photo',
     action: {
       type: 'launch_frame',
-      name: 'Homiehouse PFP Studio',
+      name: 'Homiehouse Studio',
       url: appUrl,
       splashImageUrl: 'https://homiehouse.lol/icon-512.png',
       splashBackgroundColor: '#1a1a1c',
@@ -17,10 +17,10 @@ const miniAppFrame = {
 };
 
 export const metadata: Metadata = {
-  title: 'PFP Studio',
+  title: 'Studio',
   description: 'Make an original digital-campus portrait from your profile photo in Homiehouse.',
   openGraph: {
-    title: 'Homiehouse PFP Studio',
+    title: 'Homiehouse Studio',
     description: 'Create a new profile portrait in the Homiehouse visual world.',
     url: appUrl,
   },
