@@ -16,8 +16,8 @@ const LAST_MENTION_KEY = 'last_mention_id';
 /**
  * Reply-to-mentions cron for @thehomie on X.
  *
- * AI replies require both the general X automation switch and a separate
- * explicit approval switch. Both are checked before any paid X API call.
+ * AI replies require the X mention switch and a separate explicit approval
+ * switch. Both are checked before any paid X API call.
  *
  * Reuses bot-reply-storage.ts (already platform-agnostic — its
  * `parent_hash`/tracking-key columns are plain TEXT) for dedup, prefixing
