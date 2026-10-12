@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { syncKnowledgeBase } from '@/lib/kb-sync';
+import { indexKnowledgeBaseArticles } from '@/lib/agent-context';
 
 export const maxDuration = 30;
 
@@ -35,15 +36,17 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await syncKnowledgeBase();
+    const semanticallyIndexed = await indexKnowledgeBaseArticles();
 
     console.error(
-      `[agent/kb-sync] DONE: fetched=${result.fetched} upserted=${result.upserted} errors=${result.errors.length}`
+      `[agent/kb-sync] DONE: fetched=${result.fetched} upserted=${result.upserted} semanticallyIndexed=${semanticallyIndexed} errors=${result.errors.length}`
     );
 
     return NextResponse.json({
       ok: true,
       fetched: result.fetched,
       upserted: result.upserted,
+      semanticallyIndexed,
       errors: result.errors,
       timestamp: new Date().toISOString(),
     });
