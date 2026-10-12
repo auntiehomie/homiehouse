@@ -75,7 +75,7 @@ X_ACCESS_TOKEN=          # generated for the @homiehouselol account specifically
 X_ACCESS_SECRET=
 X_MONTHLY_POST_CAP=300   # optional, defaults to 300 (~10/day)
 X_MONTHLY_READ_CAP=3000  # optional, defaults to 3000
-X_AGENT_ENABLED=false     # general X automation switch
+X_AGENT_ENABLED=false     # gates X AI mention replies
 X_AI_REPLY_APPROVAL_CONFIRMED= # written approval required for AI mention replies
 ```
 
@@ -86,19 +86,16 @@ X_AI_REPLY_APPROVAL_CONFIRMED= # written approval required for AI mention replie
    new projects; double-check `tweet.write` scope is on)
 3. Generate a permanent access token/secret pair for the account itself
    (not an OAuth2 app-login flow)
-4. Set the five env vars above in Vercel
-5. Hit `GET /api/agent/x-post?dry=1` manually (with the cron secret) and
-   confirm it generates a post *without* publishing — check the voice reads
-   right before spending a single cent on a real post
-6. Run `GET /api/agent/x-post` once for real, confirm a post lands, confirm
-   `agent_x_usage` incremented
-7. Only then add both routes to `vercel.json`'s `crons` array, at a lower
-   frequency than the Farcaster crons to start — e.g. once daily for
-   `x-post`, every 15 min for `x-mention` — until real usage numbers justify
-   matching the Farcaster cadence
-8. Monitor `agent_x_usage` for the first week; adjust `X_MONTHLY_POST_CAP`/
-   `X_MONTHLY_READ_CAP` based on what the account actually needs vs. what
-   the pay-per-use bill looks like
+4. Set X credentials and caps in Vercel. Leave AI mention replies disabled
+   unless written approval has been recorded.
+5. Use `GET /api/agent/x-post?dry=1` with the cron secret to review a draft
+   without publishing.
+6. Confirm the account and budget before enabling or increasing scheduled
+   publishing.
+7. Monitor `agent_x_usage` and adjust the monthly caps from observed usage.
+8. For AI mention replies, first record written approval, then explicitly set
+   both `X_AGENT_ENABLED=true` and `X_AI_REPLY_APPROVAL_CONFIRMED=true`.
+   The mention route skips before paid X API calls unless both are true.
 
 ## Future work / open product decisions
 
@@ -121,4 +118,4 @@ X_AI_REPLY_APPROVAL_CONFIRMED= # written approval required for AI mention replie
 
 ## Knowledge-base grounding
 
-Autonomous Farcaster and X posts select only the culture/deep-dive modes and require an article from the synchronized `kb_articles` table. The daily sync merges Rufus-vault's canonical article index with the rich summaries and learning points in the private homie-knowledge repository. If the synced table has no usable article, the posting route skips instead of generating an ungrounded post. X and Farcaster retain separate account credentials and duplicate-history tables.
+Autonomous Farcaster and X posts use educational modes grounded in an article from the synchronized `kb_articles` table. The daily sync merges Rufus-vault's canonical article index with the rich summaries and learning points in the private homie-knowledge repository. If the synced table has no usable article, the posting route skips instead of generating an ungrounded post. X and Farcaster retain separate account credentials and duplicate-history tables.
