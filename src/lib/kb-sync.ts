@@ -372,10 +372,12 @@ export async function pickFreshKBArticle(recentTopics: string[] = []): Promise<K
       return (rows as unknown as KBArticle[])[0] ?? null;
     }
 
+    // Exact title matching also recognizes legacy topics truncated to 80 characters.
     // Try to find one not recently used
     const rows = await sql`
       SELECT * FROM kb_articles
-      WHERE NOT (LOWER(BTRIM(title)) = ANY(${used}::text[]))
+      WHERE NOT (LOWER(BTRIM(title)) = ANY(${used}::text[])
+        OR LOWER(BTRIM(LEFT(title, 80))) = ANY(${used}::text[]))
         AND (NULLIF(BTRIM(summary), '') IS NOT NULL OR COALESCE(array_length(learning_points, 1), 0) > 0)
       ORDER BY RANDOM() LIMIT 1
     `;
