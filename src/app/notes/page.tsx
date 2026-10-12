@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import SidebarNav from '@/components/SidebarNav';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -417,6 +418,8 @@ export default function NotesPage() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [activeSection, setActiveSection] = useState<'all' | 'saved'>('all');
+  const [remoteSavedCasts, setRemoteSavedCasts] = useState<Note[]>([]);
+  const { fid } = useFarcasterAuth();
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -428,6 +431,39 @@ export default function NotesPage() {
     } catch { /* ignore */ }
     setMounted(true);
   }, []);
+
+  // Load saved casts from the signed-in Farcaster account so casts saved by
+  // @thehomie appear in the Saved section on every device.
+  useEffect(() => {
+    if (!fid) {
+      setRemoteSavedCasts([]);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/saved-casts?fid=${encodeURIComponent(String(fid))}`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Could not load saved casts');
+        return response.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const saved: Note[] = (Array.isArray(data.casts) ? data.casts : [])
+          .filter((cast: any) => cast.cast_hash)
+          .map((cast: any) => ({
+            id: String(cast.id),
+            title: cast.cast_author_username ? `Cast by @${cast.cast_author_username}` : 'Saved Farcaster cast',
+            content: String(cast.cast_text || ''),
+            tags: ['saved-cast'],
+            createdAt: cast.saved_at || new Date().toISOString(),
+            updatedAt: cast.saved_at || new Date().toISOString(),
+            source: String(cast.cast_hash),
+          }));
+        setRemoteSavedCasts(saved);
+      })
+      .catch((error) => console.warn('[notes] Could not load saved casts:', error));
+    return () => { cancelled = true; };
+  }, [fid]);
 
   // Persist on every change
   useEffect(() => {
@@ -463,10 +499,26 @@ export default function NotesPage() {
     setEditingNote(null);
   }, [editingNote]);
 
-  const handleDelete = useCallback((id: string) => {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
+  const handleDelete = useCallback(async (id: string) => {
+    const savedCast = remoteSavedCasts.find((note) => note.id === id);
+    if (savedCast && fid && savedCast.source) {
+      try {
+        const response = await fetch('/api/saved-casts', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fid, cast_hash: savedCast.source }),
+        });
+        if (!response.ok) return;
+        setRemoteSavedCasts((prev) => prev.filter((note) => note.id !== id));
+      } catch (error) {
+        console.warn('[notes] Could not delete saved cast:', error);
+        return;
+      }
+    } else {
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+    }
     if (editingNote?.id === id) setEditingNote(null);
-  }, [editingNote]);
+  }, [editingNote, fid, remoteSavedCasts]);
 
   const handleShare = useCallback((note: Note) => {
     window.dispatchEvent(
@@ -486,7 +538,12 @@ export default function NotesPage() {
     setShowForm(true);
   };
 
-  const savedCasts = notes.filter(n => n.tags.includes('saved-cast'));
+  const localSavedCasts = notes.filter(n => n.tags.includes('saved-cast'));
+  const savedCastHashes = new Set(remoteSavedCasts.map((note) => note.source).filter(Boolean));
+  const savedCasts = [
+    ...remoteSavedCasts,
+    ...localSavedCasts.filter((note) => !note.source || !savedCastHashes.has(note.source)),
+  ];
   const regularNotes = notes.filter(n => !n.tags.includes('saved-cast'));
 
   // All unique tags (excluding saved-cast from manual tag filter)
