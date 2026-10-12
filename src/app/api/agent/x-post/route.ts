@@ -7,7 +7,7 @@ import { createApiLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import { buildPostSystem, pickKnowledgePostMode, postInstruction, pickFreshTopic, type PostMode, type PostModeDef, type KBArticle } from '@/lib/ai/persona';
-import { pickFreshKBArticle } from '@/lib/kb-sync';
+import { pickFreshKBArticle, pickKBArticleForPosting } from '@/lib/kb-sync';
 import { rateLimit } from '@/lib/ratelimit';
 import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
 
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
 
     let kbArticle: KBArticle | undefined;
     if (chosen.needsKB) {
-      const dbArticle = await pickFreshKBArticle(recentTopics);
+      const dbArticle = await pickKBArticleForPosting(recentTopics);
       if (dbArticle) {
         kbArticle = {
           title: dbArticle.title,
@@ -136,15 +136,17 @@ export async function GET(request: NextRequest) {
     }
     if (!kbArticle) {
       logger.warn('Skipping X post — no synced knowledge-base article is available');
-      return NextResponse.json({ ok: true, skipped: 'knowledge-base-unavailable' });
+      return NextResponse.json({ ok: false, error: 'knowledge-base-unavailable' }, { status: 503 });
     }
 
     const system = buildPostSystem(); // X posts use the same curated KB grounding as Farcaster
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
     const maxPostLength = chosen.mode === 'deep-dive' ? 640 : 280;
+    // At most one Learning Hub invitation among four recent posts.
+    const promoteLearning = !recentTexts.slice(0, 3).some((text) => /homiehouse\.app\/learn|learning hub/i.test(text));
     let content = await writeAgentPost(
       system,
-      postInstruction(chosen.mode, { topic, news, kbArticle }),
+      postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning }),
       { maxLen: maxPostLength, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
     );
 
@@ -165,7 +167,7 @@ export async function GET(request: NextRequest) {
       }
       const retry = await writeAgentPost(
         system,
-        postInstruction(chosen.mode, { topic, news, kbArticle }) +
+        postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning }) +
           '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT.',
         { maxLen: 280, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
       );

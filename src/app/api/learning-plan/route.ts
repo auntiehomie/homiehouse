@@ -1192,7 +1192,7 @@ IMPORTANT — Token & DeFi curriculum requirements:
 - Use named protocols or recent market claims only when the synced Knowledge Base supports those details. Do not add current rankings, prices, or performance claims from model memory.
 ` : '';
 
-    const prompt = `You are a Web3 / decentralization education expert. Create a personalized learning plan as a JSON object.
+    const prompt = `You are an AI and Web3 education expert. Homiehouse helps people gain the skills and confidence to succeed and create with AI and crypto. Create a personalized learning plan as a JSON object. Turn relevant knowledge-base ideas into achievable skills, practical exercises, and creative projects. Use AI to explain and connect source material; clearly label hypothetical examples and never promise financial success.
 
 User profile:
 - Track: ${normalizedTrack} (${trackDescription})
@@ -1251,7 +1251,7 @@ Requirements:
 - ids must be lowercase kebab-case slugs`;
 
     const response = await llmChat({
-      messages: [{ role: 'system', content: 'You are a Web3 / decentralization education expert. Create a personalized learning plan as a JSON object.' }, { role: 'user', content: prompt }],
+      messages: [{ role: 'system', content: 'You are an AI and Web3 education expert. Homiehouse helps people gain the skills and confidence to succeed and create with AI and crypto. Create a personalized learning plan as a JSON object. Turn relevant knowledge-base ideas into achievable skills, practical exercises, and creative projects. Use AI to explain and connect source material; clearly label hypothetical examples and never promise financial success.' }, { role: 'user', content: prompt }],
       temperature: 0.7,
       maxTokens: 3000,
       timeoutMs: 25000,

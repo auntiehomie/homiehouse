@@ -18,7 +18,7 @@ import {
   type PostModeDef,
   type KBArticle,
 } from '@/lib/ai/persona';
-import { pickFreshKBArticle } from '@/lib/kb-sync';
+import { pickFreshKBArticle, pickKBArticleForPosting } from '@/lib/kb-sync';
 
 const logger = createApiLogger('/agent/tip');
 export const maxDuration = 60;
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
 
     let kbArticle: KBArticle | undefined;
     if (chosen.needsKB) {
-      const dbArticle = await pickFreshKBArticle(recentTopics);
+      const dbArticle = await pickKBArticleForPosting(recentTopics);
       if (dbArticle) {
         kbArticle = {
           title: dbArticle.title,
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
     }
     if (!kbArticle) {
       logger.warn('Skipping autonomous post — no synced knowledge-base article is available');
-      return NextResponse.json({ ok: true, skipped: 'knowledge-base-unavailable' });
+      return NextResponse.json({ ok: false, error: 'knowledge-base-unavailable' }, { status: 503 });
     }
 
     let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
@@ -167,9 +167,11 @@ export async function GET(request: NextRequest) {
       : chosen.mode === 'culture' || chosen.mode === 'trend-take' || chosen.mode === 'news-take'
         ? 320
         : 280;
+    // At most one Learning Hub invitation among four recent posts.
+    const promoteLearning = !recentTexts.slice(0, 3).some((text) => /homiehouse\.app\/learn|learning hub/i.test(text));
     let content = await writeAgentPost(
       system,
-      postInstruction(chosen.mode, { topic, trend, news, kbArticle }),
+      postInstruction(chosen.mode, { topic, trend, news, kbArticle, promoteLearning }),
       { maxLen: maxPostLength },
     );
 
@@ -191,7 +193,7 @@ export async function GET(request: NextRequest) {
           };
         }
       }
-      const retryInstruction = postInstruction(chosen.mode, { topic, trend, news, kbArticle }) +
+      const retryInstruction = postInstruction(chosen.mode, { topic, trend, news, kbArticle, promoteLearning }) +
         '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.';
       const retry = await writeAgentPost(system, retryInstruction, { maxLen: maxPostLength });
       if (retry) content = retry;

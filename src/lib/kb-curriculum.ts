@@ -68,8 +68,8 @@ function articleToModule(article: KBArticle, index: number): LearningModule {
     id: `kb-${article.id}-${slugify(article.title)}`,
     title: article.title,
     description:
-      (article.summary?.slice(0, 200) || `Learn about ${article.title}`) +
-      (article.summary && article.summary.length > 200 ? '…' : ''),
+      (article.summary?.slice(0, 800) || `Learn about ${article.title}`) +
+      (article.summary && article.summary.length > 800 ? '…' : ''),
     whyItMatters: article.learning_points?.[0]?.replace(/^\d+\.\s*/, '') || 'Expands your understanding of this topic.',
     objectives: cleanObjectives.length
       ? cleanObjectives
@@ -84,7 +84,7 @@ function articleToModule(article: KBArticle, index: number): LearningModule {
 
 async function ensureTable(): Promise<void> {
   try {
-    await sql.unsafe(`
+    await sql.query(`
       CREATE TABLE IF NOT EXISTS kb_articles (
         id               SERIAL PRIMARY KEY,
         title            TEXT NOT NULL,
@@ -98,9 +98,10 @@ async function ensureTable(): Promise<void> {
         UNIQUE(title)
       )
     `);
-    await sql.unsafe(`CREATE INDEX IF NOT EXISTS kb_articles_tags ON kb_articles USING GIN (tags)`);
-  } catch {
-    // Table may already exist; ignore
+    await sql.query(`CREATE INDEX IF NOT EXISTS kb_articles_tags ON kb_articles USING GIN (tags)`);
+  } catch (error) {
+    console.warn('[kb-curriculum] Schema initialization failed:', (error as Error).message);
+    throw error;
   }
 }
 
@@ -129,6 +130,8 @@ export async function getKBModulesForTrack(
       SELECT id, title, url, source, tags, summary, learning_points
       FROM kb_articles
       WHERE array_to_string(tags, ' ') ~* ${tagPattern}
+        AND (NULLIF(BTRIM(summary), '') IS NOT NULL
+          OR COALESCE(array_length(learning_points, 1), 0) > 0)
       ORDER BY synced_at DESC
       LIMIT ${limit}
     `;

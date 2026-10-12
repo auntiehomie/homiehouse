@@ -45,7 +45,7 @@ const queryEmbeddingCache = new Map<string, { expiresAt: number; promise: Promis
 async function ensureSchema(): Promise<void> {
   if (!schemaPromise) {
     schemaPromise = (async () => {
-      await sql.unsafe(`
+      const statements = `
         CREATE EXTENSION IF NOT EXISTS vector;
         CREATE TABLE IF NOT EXISTS agent_context_documents (
           document_key TEXT PRIMARY KEY,
@@ -63,7 +63,8 @@ async function ensureSchema(): Promise<void> {
           ON agent_context_documents USING hnsw (embedding vector_cosine_ops);
         CREATE INDEX IF NOT EXISTS agent_context_documents_type_updated_idx
           ON agent_context_documents (source_type, updated_at DESC);
-      `);
+      `.split(';').map((statement) => statement.trim()).filter(Boolean);
+      for (const statement of statements) await sql.query(statement);
     })().catch((error) => {
       // Cache only a successful schema setup. A transient DB/extension issue
       // must not permanently disable retrieval for a warm server instance.
