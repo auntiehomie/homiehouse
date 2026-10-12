@@ -108,6 +108,10 @@ async function ensureDailyChallengeTable(db: ReturnType<typeof getDb>) {
       PRIMARY KEY (fid, challenge_date)
     )
   `);
+  await ensureStakingTables(db);
+}
+
+async function ensureRewardEventTable(db: ReturnType<typeof getDb>) {
   // Daily challenge awards smaller amounts than lesson rewards. Keep the
   // shared ledger's amount check aligned with the current positive-integer
   // contract; older databases may still have a stricter legacy constraint.
@@ -145,7 +149,6 @@ async function ensureDailyChallengeTable(db: ReturnType<typeof getDb>) {
     END
     $hh2$;
   `);
-  await ensureStakingTables(db);
 }
 
 function getTodayUTC(): string {
@@ -229,6 +232,7 @@ export async function POST(req: NextRequest) {
 
     const db = getDb();
     await ensureDailyChallengeTable(db);
+    await ensureRewardEventTable(db);
 
     const today = getTodayUTC();
     const questionIndex = getQuestionIndex(today);
