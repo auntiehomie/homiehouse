@@ -7,17 +7,17 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { explainXPost } from '@/lib/ai/x-explain';
 import { rateLimit } from '@/lib/ratelimit';
+import { isXAiReplyAutomationApproved } from '@/lib/x-automation-policy';
 
 export const maxDuration = 60;
 
 const LAST_MENTION_KEY = 'last_mention_id';
 
 /**
- * Reply-to-mentions cron for @thehomie on X — scaffold, not wired up.
+ * Reply-to-mentions cron for @thehomie on X.
  *
- * SCAFFOLD STATUS: same as agent/x-post — fetchXMentions()/postToX() throw
- * a clear "not configured" error until X credentials are set, so this is a
- * no-op until then, and it's not in vercel.json's cron list yet.
+ * AI replies require both the general X automation switch and a separate
+ * explicit approval switch. Both are checked before any paid X API call.
  *
  * Reuses bot-reply-storage.ts (already platform-agnostic — its
  * `parent_hash`/tracking-key columns are plain TEXT) for dedup, prefixing
@@ -48,6 +48,9 @@ export async function GET(request: NextRequest) {
     // Explicit on-switch — off by default so live X spend never starts by accident.
     if (process.env.X_AGENT_ENABLED !== 'true') {
       return NextResponse.json({ ok: true, skipped: 'X_AGENT_ENABLED is not "true"' });
+    }
+    if (!isXAiReplyAutomationApproved()) {
+      return NextResponse.json({ ok: true, skipped: 'X_AI_REPLY_APPROVAL_CONFIRMED is not "true"' });
     }
     if (!isXConfigured()) {
       return NextResponse.json({ ok: true, skipped: 'not-configured' });
