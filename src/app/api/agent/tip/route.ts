@@ -13,9 +13,7 @@ import {
   buildPostSystem,
   pickKnowledgePostMode,
   postInstruction,
-  pickFreshTopic,
   type PostMode,
-  type PostModeDef,
   type KBArticle,
 } from '@/lib/ai/persona';
 import { pickFreshKBArticle, pickKBArticleForPosting } from '@/lib/kb-sync';
@@ -89,8 +87,7 @@ export async function GET(request: NextRequest) {
     const memoryContext = await buildFullMemoryContext(HOMIEHOUSELOL_FID);
     const system = buildPostSystem(memoryContext);
 
-    // Recent posts drive dedup: avoid the last mode, avoid recently-used tip
-    // topics, and reject content that's too similar to something posted recently.
+    // Avoid the last mode and recently used articles, and reject similar drafts.
     let recentPosts: Awaited<ReturnType<typeof getRecentPosts>> = [];
     try {
       recentPosts = await getRecentPosts(HOMIEHOUSELOL_FID, 12);
@@ -161,7 +158,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'knowledge-base-unavailable' }, { status: 503 });
     }
 
-    let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
+    let topic = kbArticle.title;
     const maxPostLength = chosen.mode === 'deep-dive'
       ? 640
       : chosen.mode === 'culture' || chosen.mode === 'trend-take' || chosen.mode === 'news-take'
@@ -175,14 +172,13 @@ export async function GET(request: NextRequest) {
       { maxLen: maxPostLength },
     );
 
-    // If it came out too close to a recent post, try once more with a different
-    // topic (for tips) and an explicit "don't repeat yourself" nudge.
+    // Retry near-duplicates with a fresh article and an explicit variation nudge.
     if (content && tooSimilar(content, recentTexts)) {
       logger.info('First draft too similar to a recent post — retrying');
-      if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
       if (chosen.needsKB) {
         const retryArticle = await pickFreshKBArticle([...recentTopics, kbArticle?.title || '']);
         if (retryArticle) {
+          topic = retryArticle.title;
           kbArticle = {
             title: retryArticle.title,
             summary: retryArticle.summary || '',

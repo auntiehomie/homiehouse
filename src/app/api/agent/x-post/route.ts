@@ -6,7 +6,7 @@ import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db';
 import { fetchCryptoNews } from '@/lib/ai/news';
-import { buildPostSystem, pickKnowledgePostMode, postInstruction, pickFreshTopic, type PostMode, type PostModeDef, type KBArticle } from '@/lib/ai/persona';
+import { buildPostSystem, pickKnowledgePostMode, postInstruction, type PostMode, type KBArticle } from '@/lib/ai/persona';
 import { pickFreshKBArticle, pickKBArticleForPosting } from '@/lib/kb-sync';
 import { rateLimit } from '@/lib/ratelimit';
 import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
@@ -18,7 +18,7 @@ export const maxDuration = 60;
 /**
  * Scheduled autonomous posting for @thehomie on X.
  *
- * X and Farcaster posts share the same voice and choose only culture/deep-dive
+ * X and Farcaster posts share the same voice and choose educational
  * modes grounded in articles synced from Rufus-vault and homie-knowledge.
  * X credentials are user-context OAuth 1.0a tokens for the account that should
  * publish. Missing credentials or synced KB content safely skip publication.
@@ -139,22 +139,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'knowledge-base-unavailable' }, { status: 503 });
     }
 
-    const system = buildPostSystem(); // X posts use the same curated KB grounding as Farcaster
-    let topic = chosen.mode === 'tip' ? pickFreshTopic(recentTopics) : undefined;
-    const maxPostLength = chosen.mode === 'deep-dive' ? 640 : 280;
+    const system = buildPostSystem('', 'x');
+    let topic = kbArticle.title;
+    // Teach one complete idea per tweet instead of clipping a longer explanation.
+    const maxPostLength = 280;
     // At most one Learning Hub invitation among four recent posts.
     const promoteLearning = !recentTexts.slice(0, 3).some((text) => /homiehouse\.app\/learn|learning hub/i.test(text));
     let content = await writeAgentPost(
       system,
-      postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning }),
+      postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning, platform: 'x' }),
       { maxLen: maxPostLength, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
     );
 
     if (content && tooSimilar(content, recentTexts)) {
-      if (chosen.mode === 'tip') topic = pickFreshTopic([...recentTopics, topic || '']);
       if (chosen.needsKB) {
         const retryArticle = await pickFreshKBArticle([...recentTopics, kbArticle?.title || '']);
         if (retryArticle) {
+          topic = retryArticle.title;
           kbArticle = {
             title: retryArticle.title,
             summary: retryArticle.summary || '',
@@ -167,7 +168,7 @@ export async function GET(request: NextRequest) {
       }
       const retry = await writeAgentPost(
         system,
-        postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning }) +
+        postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning, platform: 'x' }) +
           '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT.',
         { maxLen: 280, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
       );

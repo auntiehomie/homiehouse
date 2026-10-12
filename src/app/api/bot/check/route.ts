@@ -9,15 +9,9 @@ import { createApiLogger } from '@/lib/logger';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 import { llmChat } from '@/lib/llm';
 import { rateLimit } from '@/lib/ratelimit';
+import { buildReplySystem } from '@/lib/ai/persona';
 
 const BOT_FID = parseInt(process.env.APP_FID || '1349780');;
-
-// Simple, casual bot personality - no fancy words
-const BOT_PERSONALITY = `You are a chill friend on Farcaster. Reply naturally and casually. Keep it SHORT - max 280 characters. No hashtags unless the user uses them first.
-
-BANNED WORDS (never use): fascinating, incredible, amazing, dynamic, evolution, evoke, transcend, interplay, ecosystem, tapestry, intriguing, profound, mundane
-
-Talk like a real person texting a friend. Be helpful but laid-back.`;
 
 function hasImageUrl(text: string, embeds?: any[]): { hasImage: boolean; imageUrl?: string } {
   const imageExtensions = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
@@ -192,7 +186,7 @@ async function generateReply(cast: any, conversationHistory: any[]): Promise<str
   const { hasImage, imageUrl } = hasImageUrl(castText, cast.embeds);
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: 'system', content: BOT_PERSONALITY },
+    { role: 'system', content: buildReplySystem() + '\nKeep this reply under 280 characters.' },
     ...conversationHistory.map((msg: any) => ({
       role: (msg.role === 'bot' ? 'assistant' : 'user') as 'assistant' | 'user',
       content: msg.content as string,
