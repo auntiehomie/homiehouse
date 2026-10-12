@@ -108,6 +108,43 @@ async function ensureDailyChallengeTable(db: ReturnType<typeof getDb>) {
       PRIMARY KEY (fid, challenge_date)
     )
   `);
+  // Daily challenge awards smaller amounts than lesson rewards. Keep the
+  // shared ledger's amount check aligned with the current positive-integer
+  // contract; older databases may still have a stricter legacy constraint.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS hh2_reward_events (
+      fid INTEGER NOT NULL, module_id TEXT NOT NULL,
+      amount INTEGER NOT NULL CHECK (amount > 0),
+      status TEXT NOT NULL DEFAULT 'earned' CHECK (status IN ('earned', 'pending', 'claimed')),
+      wallet_address TEXT, claim_tx_hash TEXT,
+      earned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), claimed_at TIMESTAMPTZ,
+      PRIMARY KEY (fid, module_id)
+    )
+  `);
+  await db.query(`
+    DO $
+    DECLARE
+      amount_constraint_definition TEXT;
+    BEGIN
+      -- Serialize the one-time repair when multiple Learn pages load together.
+      PERFORM pg_advisory_xact_lock(760042001);
+      SELECT pg_get_constraintdef(oid)
+        INTO amount_constraint_definition
+        FROM pg_constraint
+        WHERE conrelid = 'hh2_reward_events'::regclass
+          AND conname = 'hh2_reward_events_amount_check';
+
+      IF amount_constraint_definition IS NULL THEN
+        ALTER TABLE hh2_reward_events
+          ADD CONSTRAINT hh2_reward_events_amount_check CHECK (amount > 0);
+      ELSIF regexp_replace(lower(amount_constraint_definition), '[[:space:]()]', '', 'g') <> 'checkamount>0' THEN
+        ALTER TABLE hh2_reward_events DROP CONSTRAINT hh2_reward_events_amount_check;
+        ALTER TABLE hh2_reward_events
+          ADD CONSTRAINT hh2_reward_events_amount_check CHECK (amount > 0);
+      END IF;
+    END
+    $;
+  `);
   await ensureStakingTables(db);
 }
 
