@@ -1,11 +1,12 @@
 # @homiehouselol on X — strategy & activation guide
 
-Status: **scheduled, credential-gated.** `/api/agent/x-post` and
-`/api/agent/x-mention` are listed in `vercel.json`; each route safely skips
-when the relevant X credentials are missing. Posting uses OAuth 1.0a user
-tokens, so the account associated with `X_ACCESS_TOKEN` and
-`X_ACCESS_SECRET` is the account that publishes. Confirm the account and
-budget before enabling live posts.
+Status: **scheduled with independent safeguards.** Both routes are listed in
+`vercel.json`. X publishing uses OAuth 1.0a user tokens, so the account
+associated with `X_ACCESS_TOKEN` and `X_ACCESS_SECRET` is the account that
+publishes. Scheduled posts require credentials and budget. AI mention replies
+also require `X_AGENT_ENABLED=true` and the separate
+`X_AI_REPLY_APPROVAL_CONFIRMED=true` opt-in; keep replies disabled until
+written approval is recorded.
 
 See `docs/HOMIEHOUSELOL_AGENT.md` for how the existing Farcaster side of the
 bot works — this extends the same agent to a second platform rather than
@@ -34,7 +35,7 @@ routes are gated on it before every single API call, not just at startup.
 
 ## Architecture (mirrors the Farcaster bot)
 
-| Farcaster | X (scaffolded) | Notes |
+| Farcaster | X | Notes |
 |---|---|---|
 | `src/lib/hypersnap.ts` / `farcaster-writes.ts` | `src/lib/x-client.ts` | Thin wrapper; `twitter-api-v2` npm package instead of hand-rolling OAuth signing |
 | `src/app/api/agent/tip/route.ts` | `src/app/api/agent/x-post/route.ts` | Same `persona.ts` voice and knowledge-grounded culture/deep-dive modes. Both select articles from the synced `kb_articles` table; X never falls back to a hardcoded article list. |
@@ -65,7 +66,7 @@ the standard pattern for single-account bots and matches how the rest of
 this codebase already handles long-lived credentials (`APP_MNEMONIC`,
 `HOMIEHOUSELOL_SIGNER_KEY`): provision once, store as an env var, done.
 
-## Environment variables (not yet set anywhere)
+## Environment variables
 
 ```
 X_APP_KEY=              # from X Developer Portal, "API Key"
@@ -74,6 +75,8 @@ X_ACCESS_TOKEN=          # generated for the @homiehouselol account specifically
 X_ACCESS_SECRET=
 X_MONTHLY_POST_CAP=300   # optional, defaults to 300 (~10/day)
 X_MONTHLY_READ_CAP=3000  # optional, defaults to 3000
+X_AGENT_ENABLED=false     # general X automation switch
+X_AI_REPLY_APPROVAL_CONFIRMED= # written approval required for AI mention replies
 ```
 
 ## Activation checklist
