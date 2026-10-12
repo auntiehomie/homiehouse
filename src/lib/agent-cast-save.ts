@@ -6,8 +6,8 @@ const FARCASTER_EPOCH_MS = 1609459200000;
 
 /** Recognize a clear save command without treating ordinary discussion as an action. */
 export function isSaveCastCommand(text: string): boolean {
-  return /^(?:please\\s+)?(?:save|bookmark)(?:\\s+(?:this|that))?(?:\\s+(?:cast|post))?[.!?]*$/i.test(
-    text.trim().replace(/\\s+/g, ' '),
+  return /^(?:please\s+)?(?:save|bookmark)(?:\s+(?:this|that))?(?:\s+(?:cast|post))?[.!?]*$/i.test(
+    text.trim().replace(/\s+/g, ' '),
   );
 }
 
