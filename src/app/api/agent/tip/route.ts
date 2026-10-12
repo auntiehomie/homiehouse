@@ -5,7 +5,7 @@ import { fetchTrendingFeed } from '@/lib/hypersnap';
 import { publishCast } from '@/lib/farcaster-writes';
 import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
-import { buildFullMemoryContext, savePost, getRecentPosts } from '@/lib/agent-memory';
+import { buildFullMemoryContext, savePost, getRecentPostsStrict } from '@/lib/agent-memory';
 import { llmChat } from '@/lib/llm';
 import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
 import { fetchCryptoNews } from '@/lib/ai/news';
@@ -83,15 +83,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Recent-post history protects mode rotation and duplicate checks. Do not
+    // publish if this read fails; an empty fallback would disable both safeguards.
+    let recentPosts: Awaited<ReturnType<typeof getRecentPostsStrict>>;
+    try {
+      recentPosts = await getRecentPostsStrict(HOMIEHOUSELOL_FID, 12);
+    } catch (err) {
+      logger.error('Skipping autonomous post — recent-post memory is unavailable', err);
+      return NextResponse.json({ ok: false, error: 'agent-memory-unavailable' }, { status: 503 });
+    }
+
     // Memory keeps the agent from repeating itself and biases toward what landed.
     const memoryContext = await buildFullMemoryContext(HOMIEHOUSELOL_FID);
     const system = buildPostSystem(memoryContext);
 
     // Avoid the last mode and recently used articles, and reject similar drafts.
-    let recentPosts: Awaited<ReturnType<typeof getRecentPosts>> = [];
-    try {
-      recentPosts = await getRecentPosts(HOMIEHOUSELOL_FID, 12);
-    } catch {}
     const recentTexts = recentPosts.map((p) => p.text).filter(Boolean);
     const recentTopics = recentPosts.map((p) => p.topic || '').filter(Boolean);
     const lastSource = recentPosts[0]?.source as PostMode | undefined;
