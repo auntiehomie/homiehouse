@@ -271,11 +271,15 @@ export async function GET(request: NextRequest) {
       const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
       const rootParentHash = cast.root_parent_url || parentHash;
 
-      const trackingKeys = [
-        `hl_cast_${castHash}`,
-        `hl_parent_${parentHash}`,
-        `hl_root_${rootParentHash}`,
-      ];
+      // A save command applies to this exact reply. Do not let an earlier bot
+      // reply elsewhere in the same thread suppress a user's save request.
+      const trackingKeys = isSaveCastCommand(castText)
+        ? [`hl_cast_${castHash}`]
+        : [
+            `hl_cast_${castHash}`,
+            `hl_parent_${parentHash}`,
+            `hl_root_${rootParentHash}`,
+          ];
 
       const alreadyReplied = await hasRepliedToAny(trackingKeys);
       if (alreadyReplied) {
