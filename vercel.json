@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/agent/kb-sync",
-      "schedule": "0 12 * * *"
+      "schedule": "30 * * * *"
     },
     {
       "path": "/api/agent/kb-enrich",

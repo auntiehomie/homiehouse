@@ -44,11 +44,10 @@ const CREATE_TABLE_STATEMENTS = [
 ];
 
 async function ensureTable(): Promise<void> {
-  // Neon's serverless SQL driver does not reliably execute multiple DDL
-  // statements sent as a single unsafe query. Run each statement separately
-  // so a fresh database is initialized deterministically.
+  // unsafe() only creates an interpolation fragment; query() executes SQL.
+  // Execute each DDL statement separately before touching the article table.
   for (const statement of CREATE_TABLE_STATEMENTS) {
-    await sql.unsafe(statement);
+    await sql.query(statement);
   }
 }
 
@@ -161,31 +160,37 @@ export interface SyncResult {
   upserted: number;
   wouldUpsert?: number;
   errors: string[];
+  usable?: number;
+  semanticallyIndexed?: number;
 }
 
 /**
  * Fetch both sources from GitHub, merge, and upsert into the DB.
  */
-export async function syncKnowledgeBase(options: { dryRun?: boolean } = {}): Promise<SyncResult> {
+export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?: boolean } = {}): Promise<SyncResult> {
   const errors: string[] = [];
   let entries: ParsedEntry[] = [];
   let summaries = new Map<string, ParsedSummary>();
 
-  // Fetch entries table from rufus-vault
+  // Fetch independent sources concurrently to stay within the cron budget.
+  await Promise.all([ (async () => {
   try {
     const entriesMd = await fetchRaw(RUFUS_VAULT_RAW);
     entries = parseEntriesTable(entriesMd);
+    if (!entries.length) errors.push('entries: source parsed zero articles');
   } catch (err: any) {
     errors.push(`entries: ${err.message}`);
   }
 
-  // Fetch summaries from homie-knowledge
+  })(), (async () => {
   try {
     const summariesMd = await fetchRaw(HOMIE_KNOWLEDGE_SUMMARIES_RAW);
     summaries = parseSummaries(summariesMd);
+    if (!summaries.size) errors.push('summaries: source parsed zero articles');
   } catch (err: any) {
     errors.push(`summaries: ${err.message}`);
   }
+  })() ]);
 
   if (!entries.length && !summaries.size) {
     return { fetched: 0, upserted: 0, errors };
@@ -234,8 +239,9 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean } = {}): Pro
           url = EXCLUDED.url,
           source = EXCLUDED.source,
           tags = EXCLUDED.tags,
-          summary = EXCLUDED.summary,
-          learning_points = EXCLUDED.learning_points,
+          summary = COALESCE(NULLIF(BTRIM(EXCLUDED.summary), ''), kb_articles.summary),
+          learning_points = CASE WHEN cardinality(EXCLUDED.learning_points) > 0
+            THEN EXCLUDED.learning_points ELSE kb_articles.learning_points END,
           synced_at = NOW()
       `;
       upserted++;
@@ -262,8 +268,9 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean } = {}): Pro
         )
         ON CONFLICT (title) DO UPDATE SET
           tags = EXCLUDED.tags,
-          summary = EXCLUDED.summary,
-          learning_points = EXCLUDED.learning_points,
+          summary = COALESCE(NULLIF(BTRIM(EXCLUDED.summary), ''), kb_articles.summary),
+          learning_points = CASE WHEN cardinality(EXCLUDED.learning_points) > 0
+            THEN EXCLUDED.learning_points ELSE kb_articles.learning_points END,
           synced_at = NOW()
       `;
       upserted++;
@@ -274,9 +281,16 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean } = {}): Pro
 
   // Keep the semantic index aligned with KB summaries so the mention agent
   // can retrieve by meaning as well as the legacy keyword matcher.
-  await indexKnowledgeBaseArticles();
+  const [health] = await sql`
+    SELECT COUNT(*)::int AS usable FROM kb_articles
+    WHERE NULLIF(BTRIM(summary), '') IS NOT NULL
+       OR COALESCE(array_length(learning_points, 1), 0) > 0
+  `;
+  const usable = Number(health?.usable || 0);
+  if (!usable) errors.push('No content-bearing knowledge-base articles available');
+  const semanticallyIndexed = options.skipIndex ? 0 : await indexKnowledgeBaseArticles();
 
-  return { fetched, upserted, errors };
+  return { fetched, upserted, usable, semanticallyIndexed, errors };
 }
 
 // ─── Query ────────────────────────────────────────────────────────────────────
@@ -359,10 +373,9 @@ export async function pickFreshKBArticle(recentTopics: string[] = []): Promise<K
     }
 
     // Try to find one not recently used
-    const usedPattern = used.map((u) => u.replace(/'/g, "''")).join('|');
     const rows = await sql`
       SELECT * FROM kb_articles
-      WHERE title !~* ${usedPattern}
+      WHERE NOT (LOWER(BTRIM(title)) = ANY(${used}::text[]))
         AND (NULLIF(BTRIM(summary), '') IS NOT NULL OR COALESCE(array_length(learning_points, 1), 0) > 0)
       ORDER BY RANDOM() LIMIT 1
     `;
@@ -415,3 +428,15 @@ const STOPWORDS = new Set([
   'very', 'well', 'good', 'great', 'best', 'most', 'such', 'these',
   'those', 'here', 'then', 'them', 'over', 'under', 'after', 'before',
 ]);
+
+/** Restore an empty cache once per posting run; never generate a title-only post. */
+export async function pickKBArticleForPosting(recentTopics: string[] = []): Promise<KBArticle | null> {
+  const cached = await pickFreshKBArticle(recentTopics);
+  if (cached) return cached;
+  console.warn('[kb-sync] Posting cache unavailable; attempting recovery sync');
+  const result = await syncKnowledgeBase({ skipIndex: true });
+  console.info(`[kb-sync] Recovery: upserted=${result.upserted} usable=${result.usable ?? 0} errors=${result.errors.length}`);
+  const recovered = await pickFreshKBArticle(recentTopics);
+  if (!recovered) throw new Error('Knowledge-base recovery failed; no grounded posting content available');
+  return recovered;
+}
