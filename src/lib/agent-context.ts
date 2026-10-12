@@ -74,6 +74,16 @@ async function ensureSchema(): Promise<void> {
   await schemaPromise;
 }
 
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
 function digest(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
@@ -252,10 +262,11 @@ async function indexDocuments(docs: ContextDocument[]): Promise<number> {
     await ensureSchema();
     const hashes = docs.map((doc) => digest(doc.content));
     const existing = await sql`
-      SELECT document_key, content_hash
+      SELECT document_key, content_hash, title, metadata
       FROM agent_context_documents
       WHERE document_key = ANY(${docs.map((doc) => doc.key)}::text[])
     ` as any[];
+    const existingByKey = new Map(existing.map((row) => [row.document_key, row]));
     const existingHashes = new Map(existing.map((row) => [row.document_key, row.content_hash]));
     const changedDocs = docs.filter((doc, index) => existingHashes.get(doc.key) !== hashes[index]);
     // Gradually backfill larger knowledge bases over successive daily syncs,
@@ -288,9 +299,17 @@ async function indexDocuments(docs: ContextDocument[]): Promise<number> {
             updated_at = NOW()
         `;
         indexed++;
-      } else if (existingHashes.has(doc.key)) {
+      } else if (existingByKey.has(doc.key)) {
+        const previous = existingByKey.get(doc.key);
+        const nextMetadata = stableJson(doc.metadata ?? {});
+        if (
+          previous.title === doc.title &&
+          stableJson(previous.metadata ?? {}) === nextMetadata
+        ) {
+          continue;
+        }
         // Keep fresh attribution/reply metadata without paying to re-embed an
-        // unchanged cast or article.
+        // unchanged cast or article. Skip the write when metadata is unchanged.
         await sql`
           UPDATE agent_context_documents
           SET title = ${doc.title}, metadata = ${JSON.stringify(doc.metadata ?? {})}::jsonb,

@@ -8,6 +8,7 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { hasRepliedToAny, recordReplyBatch } from '@/lib/bot-reply-storage';
 import { buildFullMemoryContext, savePost } from '@/lib/agent-memory';
+import { isSaveCastCommand, saveReplyTargetCast } from '@/lib/agent-cast-save';
 import { recordMention, buildUserMemoryContext, learnFromInteraction } from '@/lib/agent-user-memory';
 import { llmChat } from '@/lib/llm';
 import { buildReplySystem } from '@/lib/ai/persona';
@@ -270,11 +271,15 @@ export async function GET(request: NextRequest) {
       const parentHash = cast.parent_hash || cast.parent_url || cast.hash;
       const rootParentHash = cast.root_parent_url || parentHash;
 
-      const trackingKeys = [
-        `hl_cast_${castHash}`,
-        `hl_parent_${parentHash}`,
-        `hl_root_${rootParentHash}`,
-      ];
+      // A save command applies to this exact reply. Do not let an earlier bot
+      // reply elsewhere in the same thread suppress a user's save request.
+      const trackingKeys = isSaveCastCommand(castText)
+        ? [`hl_cast_${castHash}`]
+        : [
+            `hl_cast_${castHash}`,
+            `hl_parent_${parentHash}`,
+            `hl_root_${rootParentHash}`,
+          ];
 
       const alreadyReplied = await hasRepliedToAny(trackingKeys);
       if (alreadyReplied) {
@@ -370,6 +375,27 @@ export async function GET(request: NextRequest) {
         const threadContext = await fetchThreadChain(cast.parent_hash);
         if (threadContext) console.log(`[agent/mention] thread context (${threadContext.split('\n').length} turns)`);
         const userContext = authorFid ? await buildUserMemoryContext(authorFid) : '';
+        let reply: string | null = null;
+
+        if (isSaveCastCommand(castText)) {
+          if (!authorFid) {
+            reply = "I couldn't identify your Farcaster account. Sign in to HomieHouse and try again.";
+          } else if (!cast.parent_hash) {
+            reply = 'Reply directly to the cast you want to save with “@thehomie save”.';
+          } else {
+            try {
+              await saveReplyTargetCast({
+                userFid: authorFid,
+                username: authorUsername,
+                parentHash: cast.parent_hash,
+              });
+              reply = 'Saved that cast to your HomieHouse Notes. Open Notes and choose Saved to find it.';
+            } catch (error: any) {
+              console.error('[agent/mention] save-cast command failed:', error?.message);
+              reply = "I couldn't save that cast. Try replying directly to the original cast with “@thehomie save”.";
+            }
+          }
+        } else {
         // Fetch relevant KB articles from the dynamically synced DB table
         const contextQuery = `${castText}\n${threadContext}`.slice(0, 1800);
         const [kbArticles, semanticContext, priorCasts, webContext, liveCastData] = await Promise.all([
@@ -413,7 +439,7 @@ export async function GET(request: NextRequest) {
         console.log(
           `[agent/mention] context: kb=${kbArticles.length} semantic=${semanticDocs.length} prior=${priorCasts.length} live=${liveCasts.length} web=${webContext ? 'yes' : 'no'}`
         );
-        const reply = await generateReply(
+        reply = await generateReply(
           castText,
           authorUsername,
           memoryContext,
@@ -422,6 +448,7 @@ export async function GET(request: NextRequest) {
           formatKBContext(kbArticles),
           contextBlocks.join('\n\n'),
         );
+        }
 
         // If all LLM providers failed, generateReply returns null.
         // DO NOT post a fallback "hey" — record as deferred and skip.
