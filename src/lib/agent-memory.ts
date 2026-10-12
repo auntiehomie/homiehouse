@@ -56,7 +56,7 @@ function engagementScore(p: AgentPost): number {
 
 /**
  * Fetch the N most recent posts by this agent FID.
- * Returns [] (not throws) if DB is unavailable.
+ * Throws if the DB is unavailable so autonomous publishers can fail closed.
  */
 export async function getRecentPostsStrict(fid: number, limit = 10): Promise<AgentPost[]> {
   await ensureTable();
