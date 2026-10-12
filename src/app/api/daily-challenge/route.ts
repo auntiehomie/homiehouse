@@ -122,7 +122,7 @@ async function ensureDailyChallengeTable(db: ReturnType<typeof getDb>) {
     )
   `);
   await db.query(`
-    DO $
+    DO $hh2$
     DECLARE
       amount_constraint_definition TEXT;
     BEGIN
@@ -143,7 +143,7 @@ async function ensureDailyChallengeTable(db: ReturnType<typeof getDb>) {
           ADD CONSTRAINT hh2_reward_events_amount_check CHECK (amount > 0);
       END IF;
     END
-    $;
+    $hh2$;
   `);
   await ensureStakingTables(db);
 }
