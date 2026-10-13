@@ -79,7 +79,9 @@ export async function GET(request: NextRequest) {
 
     // Explicit on-switch — same gate as x-mention. Off unless set to "true", so a
     // scheduled cron can never publish or spend on X by accident.
-    if (process.env.X_AGENT_ENABLED !== 'true') {
+    // Dry runs (?dry=1) never call postToX, so they stay allowed for review.
+    const isDryRun = new URL(request.url).searchParams.get('dry') === '1';
+    if (!isDryRun && process.env.X_AGENT_ENABLED !== 'true') {
       return NextResponse.json({ ok: true, skipped: 'X_AGENT_ENABLED is not "true"' });
     }
 
