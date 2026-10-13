@@ -14,6 +14,7 @@ import Hh2StakingClient from './Hh2StakingClient';
 import StreakBonusClient from './StreakBonusClient';
 import Hh2BurnClient from './Hh2BurnClient';
 import { HH2_TOKEN_ABI, HH2_TOKEN_ADDRESS } from '@/lib/hh2-contracts';
+import { truncateAddress } from '@/lib/format';
 
 const HH2_CONTRACT = HH2_TOKEN_ADDRESS;
 const HH2_CHAIN = 'base';
@@ -71,10 +72,6 @@ const TOKENOMICS = [
   { label: 'Liquidity', value: 'Locked permanently' },
   { label: 'Creator LP Fees', value: '40% of LP fees' },
 ];
-
-function truncate(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
 
 export default function Hh2Client() {
   const router = useRouter();
@@ -202,7 +199,7 @@ export default function Hh2Client() {
                   {Number(onChainBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </p>
                 <p style={{ fontSize: 12, color: 'rgba(251,191,36,0.6)', margin: 0, fontFamily: 'monospace' }}>
-                  {truncate(address ?? '')} on {isOnBase ? 'Base' : `Chain ${chainId}`}
+                  {truncateAddress(address ?? '')} on {isOnBase ? 'Base' : `Chain ${chainId}`}
                 </p>
                 {!isOnBase && (
                   <button
@@ -258,7 +255,7 @@ export default function Hh2Client() {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {claiming ? 'Sending…' : `Claim ${claimable} HH2 to ${truncate(address ?? '')} →`}
+                  {claiming ? 'Sending…' : `Claim ${claimable} HH2 to ${truncateAddress(address ?? '')} →`}
                 </button>
               )}
               {claimable > 0 && !isOnBase && (
@@ -276,7 +273,7 @@ export default function Hh2Client() {
                       background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)',
                     }}>
                       <p style={{ fontSize: 16, fontWeight: 700, color: '#22c55e', margin: '0 0 6px' }}>
-                        ✅ {claimResult.amount} HH2 sent to {truncate(address ?? '')}!
+                        ✅ {claimResult.amount} HH2 sent to {truncateAddress(address ?? '')}!
                       </p>
                       <a
                         href={`https://basescan.org/tx/${claimResult.txHash}`}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { fmtLarge, fmtPrice } from '@/lib/format';
 
 interface Token {
   id: string;
@@ -23,22 +24,6 @@ function PriceChange({ pct }: { pct?: number }) {
       {positive ? '+' : ''}{pct.toFixed(2)}%
     </span>
   );
-}
-
-function fmtPrice(p?: number) {
-  if (p == null) return '—';
-  if (p < 0.000001) return `$${p.toExponential(2)}`;
-  if (p < 0.01) return `$${p.toFixed(6)}`;
-  if (p < 1) return `$${p.toFixed(4)}`;
-  return `$${p.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-}
-
-function fmtLarge(n?: number) {
-  if (n == null) return '—';
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
 }
 
 export default function TokensClient() {

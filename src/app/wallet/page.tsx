@@ -8,6 +8,7 @@ import { isAddress, parseUnits, formatUnits } from 'viem';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HHLogo from '@/components/HHLogo';
+import { truncateAddress } from '@/lib/format';
 
 const HH2_ADDRESS = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
 const HH2_CHAIN_ID = base.id;
@@ -41,10 +42,6 @@ const HH2_ABI = [
     type: 'function',
   },
 ] as const;
-
-function truncate(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
 
 export default function WalletPage() {
   const router = useRouter();
@@ -201,7 +198,7 @@ export default function WalletPage() {
                   </div>
                   {address && (
                     <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', fontFamily: 'monospace' }}>
-                      {truncate(address)}
+                      {truncateAddress(address)}
                     </div>
                   )}
                 </div>

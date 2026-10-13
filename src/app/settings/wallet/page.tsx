@@ -5,10 +5,7 @@ import { useState, useEffect } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useChainId } from "wagmi";
 import { base } from "wagmi/chains";
-
-function truncate(addr: string) {
-  return addr.slice(0, 6) + "…" + addr.slice(-4);
-}
+import { truncateAddress } from '@/lib/format';
 
 export default function WalletSettingsPage() {
   const router = useRouter();
@@ -60,7 +57,7 @@ export default function WalletSettingsPage() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "monospace" }}>
-                    {truncate(address!)}
+                    {truncateAddress(address!)}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginTop: 2 }}>
                     {chainId === base.id ? "Base" : `Chain ID: ${chainId}`}
@@ -113,7 +110,7 @@ export default function WalletSettingsPage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "monospace" }}>
-                      {truncate(w.address)}
+                      {truncateAddress(w.address)}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginTop: 2 }}>
                       Verified on Farcaster
