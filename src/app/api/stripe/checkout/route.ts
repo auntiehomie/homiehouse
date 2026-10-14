@@ -13,7 +13,7 @@ import { verifyFarcasterSignerAuth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.app';
 
 export async function POST(req: NextRequest) {
   try {
