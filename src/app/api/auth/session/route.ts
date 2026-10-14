@@ -18,7 +18,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit } from '@/lib/ratelimit';
+import { checkRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import {
   createSession,
   verifySession,
@@ -26,6 +26,8 @@ import {
   refreshSession,
   SessionError,
 } from '@/lib/session';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,9 +35,23 @@ export async function POST(req: NextRequest) {
   try {
     const forwarded = req.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`auth-session:${ip}`, 10, 60);
+    const { success: rateLimitOk } = await checkRateLimit(
+      `auth-session:${rateLimitKeyFromRequest(req)}`,
+      10,
+      60,
+    );
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
+    // Session issuance is the authentication boundary. Require a direct
+    // approved-signer proof here; do not accept an existing session token as
+    // proof for minting another session.
+    if (req.headers.get('x-session-token')) {
+      return NextResponse.json(
+        { ok: false, error: 'Use an approved Farcaster signer to create a session' },
+        { status: 401 },
+      );
     }
 
     const body = await req.json().catch(() => ({}));
@@ -44,6 +60,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { ok: false, error: 'Valid FID required' },
         { status: 400 },
+      );
+    }
+
+    const verifiedFid = await verifyFarcasterSignerAuth(req);
+    if (verifiedFid !== fid) {
+      return NextResponse.json(
+        { ok: false, error: 'Authenticated FID does not match requested FID' },
+        { status: 403 },
       );
     }
 
@@ -62,6 +86,18 @@ export async function POST(req: NextRequest) {
       fid,
     });
   } catch (err: any) {
+    if (err instanceof SessionError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: err.status },
+      );
+    }
+    if (err instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: err.status },
+      );
+    }
     console.error('[auth/session] create error:', err?.message ?? err);
     return NextResponse.json(
       { ok: false, error: err?.message || 'Failed to create session' },

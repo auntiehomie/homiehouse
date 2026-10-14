@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { sql } from '@/lib/db';
+import { verifySession } from '@/lib/session';
 
 jest.mock('@noble/ed25519', () => ({
   getPublicKeyAsync: jest.fn(async () => Uint8Array.from({ length: 32 }, () => 2)),
@@ -108,5 +109,39 @@ describe('Farcaster signer authentication', () => {
       status: 401,
     });
     expect(mockSql).not.toHaveBeenCalled();
+  });
+
+  it('requires the shop write scope for Stripe mutation routes', async () => {
+    (verifySession as jest.Mock).mockResolvedValue({ fid: 123, scopes: ['write:shop'] });
+    const request = new NextRequest('http://localhost/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'x-session-token': 'valid-session' },
+    });
+
+    await expect(verifyFarcasterSignerAuth(request)).resolves.toBe(123);
+    expect(verifySession).toHaveBeenCalledWith('valid-session', 'write:shop');
+  });
+
+  it('requires read scope for session-authenticated reads', async () => {
+    (verifySession as jest.Mock).mockResolvedValue({ fid: 123, scopes: ['read:all'] });
+    const request = new NextRequest('http://localhost/api/pro-status', {
+      headers: { 'x-session-token': 'valid-session' },
+    });
+
+    await expect(verifyFarcasterSignerAuth(request)).resolves.toBe(123);
+    expect(verifySession).toHaveBeenCalledWith('valid-session', 'read:all');
+  });
+
+  it('rejects session-authenticated writes without a configured scope mapping', async () => {
+    const request = new NextRequest('http://localhost/api/unmapped-write', {
+      method: 'POST',
+      headers: { 'x-session-token': 'valid-session' },
+    });
+
+    await expect(verifyFarcasterSignerAuth(request)).rejects.toMatchObject({
+      code: 'SESSION_SCOPE_UNCONFIGURED',
+      status: 403,
+    });
+    expect(verifySession).not.toHaveBeenCalled();
   });
 });

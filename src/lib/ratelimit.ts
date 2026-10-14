@@ -103,6 +103,14 @@ export async function checkRateLimit(
     };
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    throw new AuthError(
+      'Distributed rate limiting is unavailable',
+      503,
+      'RATE_LIMIT_STORE_UNAVAILABLE',
+    );
+  }
+
   // Fallback to in-memory
   return memoryRatelimit(key, limit, windowSeconds);
 }
