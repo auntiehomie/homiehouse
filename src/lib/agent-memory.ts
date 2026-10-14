@@ -56,17 +56,25 @@ function engagementScore(p: AgentPost): number {
 
 /**
  * Fetch the N most recent posts by this agent FID.
- * Returns [] (not throws) if DB is unavailable.
+ * Throws if the DB is unavailable so autonomous publishers can fail closed.
+ */
+export async function getRecentPostsStrict(fid: number, limit = 10): Promise<AgentPost[]> {
+  await ensureTable();
+  const db = getDb();
+  const { rows } = await db.query<AgentPost>(
+    `SELECT * FROM agent_posts WHERE fid = $1 ORDER BY created_at DESC LIMIT $2`,
+    [fid, limit]
+  );
+  return rows;
+}
+
+/**
+ * Fetch recent posts for conversational callers that can continue without memory.
+ * Autonomous publishers should use getRecentPostsStrict so failed reads stop posting.
  */
 export async function getRecentPosts(fid: number, limit = 10): Promise<AgentPost[]> {
   try {
-    await ensureTable();
-    const db = getDb();
-    const { rows } = await db.query<AgentPost>(
-      `SELECT * FROM agent_posts WHERE fid = $1 ORDER BY created_at DESC LIMIT $2`,
-      [fid, limit]
-    );
-    return rows;
+    return await getRecentPostsStrict(fid, limit);
   } catch (err) {
     console.warn('[agent-memory] getRecentPosts failed:', (err as Error).message);
     return [];
