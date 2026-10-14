@@ -46,12 +46,27 @@ async function getSigningKey(): Promise<Uint8Array> {
 
   const secret = process.env.SESSION_SECRET;
   if (secret) {
+    if (new TextEncoder().encode(secret).byteLength < 32) {
+      throw new SessionError(
+        'SESSION_SECRET must be at least 32 bytes',
+        500,
+        'SESSION_SECRET_INVALID',
+      );
+    }
     // Derive a 256-bit key from the secret using SHA-256
     const encoder = new TextEncoder();
     const hash = await crypto.subtle.digest('SHA-256', encoder.encode(secret));
     _signingKey = new Uint8Array(hash);
     _verificationKey = _signingKey; // symmetric
     return _signingKey;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new SessionError(
+      'SESSION_SECRET must be configured in production',
+      500,
+      'SESSION_SECRET_MISSING',
+    );
   }
 
   // Fallback: generate random key for process lifetime
@@ -95,6 +110,11 @@ async function ensureSessionsTable(): Promise<void> {
     sessionsTableReady = true;
   } catch (err: any) {
     console.warn('[session] could not ensure sessions table:', err?.message);
+    throw new SessionError(
+      'Session store unavailable',
+      503,
+      'SESSION_STORE_UNAVAILABLE',
+    );
   }
 }
 
@@ -194,8 +214,8 @@ export async function verifySession(
   // Check revocation
   const sessionId = payload.jti as string;
   if (sessionId) {
-    await ensureSessionsTable();
     try {
+      await ensureSessionsTable();
       const rows = await sql`
         SELECT revoked_at FROM sessions
         WHERE session_id = ${sessionId}
@@ -217,8 +237,12 @@ export async function verifySession(
       `;
     } catch (err: any) {
       if (err instanceof SessionError) throw err;
-      // DB check failure: fail-open if token is otherwise valid
       console.warn('[session] DB revocation check failed:', err?.message);
+      throw new SessionError(
+        'Session store unavailable',
+        503,
+        'SESSION_STORE_UNAVAILABLE',
+      );
     }
   }
 
@@ -267,6 +291,11 @@ export async function revokeSession(token: string): Promise<void> {
     `;
   } catch (err: any) {
     console.warn('[session] revoke failed:', err?.message);
+    throw new SessionError(
+      'Session store unavailable; session was not revoked',
+      503,
+      'SESSION_STORE_UNAVAILABLE',
+    );
   }
 }
 
@@ -282,6 +311,11 @@ export async function revokeAllSessions(fid: number): Promise<void> {
     `;
   } catch (err: any) {
     console.warn('[session] revoke-all failed:', err?.message);
+    throw new SessionError(
+      'Session store unavailable; sessions were not revoked',
+      503,
+      'SESSION_STORE_UNAVAILABLE',
+    );
   }
 }
 

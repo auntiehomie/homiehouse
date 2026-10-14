@@ -231,9 +231,18 @@ export async function verifyFarcasterSignerAuth(
   const sessionToken = request.headers.get('x-session-token');
   if (sessionToken) {
     try {
-      const claims = await verifySession(sessionToken, requiredScope);
+      const scope = requiredScope ?? requiredSessionScope(request);
+      if (!scope) {
+        throw new AuthError(
+          'Session permissions are not configured for this write route',
+          403,
+          'SESSION_SCOPE_UNCONFIGURED',
+        );
+      }
+      const claims = await verifySession(sessionToken, scope);
       return claims.fid;
     } catch (err: any) {
+      if (err instanceof AuthError) throw err;
       if (err instanceof SessionError) {
         throw new AuthError(err.message, err.status, err.code);
       }
@@ -317,6 +326,33 @@ export async function verifyFarcasterSignerAuth(
   }
 
   return fid;
+}
+
+/** Require an explicit capability for every session-authenticated write. */
+function requiredSessionScope(request: NextRequest): SessionScope | null {
+  const method = request.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return 'read:all';
+
+  const path = new URL(request.url).pathname;
+  const groups: Array<[SessionScope, string[]]> = [
+    ['write:casts', ['/api/compose', '/api/schedule-cast', '/api/delete-cast']],
+    ['write:lists', ['/api/curated-lists', '/api/curation/']],
+    ['write:learn', [
+      '/api/learning-completion', '/api/learning-progress', '/api/learning-plan',
+      '/api/lesson', '/api/daily-challenge', '/api/streak-bonus', '/api/claim-hh2',
+      '/api/premium-track',
+    ]],
+    ['write:shop', [
+      '/api/stripe/', '/api/hh2-purchase', '/api/hh2-stake', '/api/owned-themes',
+      '/api/pro/subscribe-crypto',
+    ]],
+    ['write:profile', ['/api/pfp-studio', '/api/push/subscribe']],
+  ];
+
+  for (const [scope, prefixes] of groups) {
+    if (prefixes.some((prefix) => path === prefix || path.startsWith(prefix))) return scope;
+  }
+  return null;
 }
 
 /**

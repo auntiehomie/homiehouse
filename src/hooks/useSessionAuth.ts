@@ -159,9 +159,20 @@ export function useSessionAuth() {
   const createSession = useCallback(async (fid: number): Promise<boolean> => {
     setState((prev) => ({ ...prev, status: 'authenticating', error: null }));
     try {
+      const rawSigner = window.localStorage.getItem(`signer_${fid}`);
+      const signer = rawSigner ? JSON.parse(rawSigner) : null;
+      if (signer?.status !== 'approved' || typeof signer.private_key !== 'string') {
+        throw new Error('An approved Farcaster signer is required to create a session');
+      }
+
       const res = await fetch('/api/auth/session', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-farcaster-fid': String(fid),
+          'x-signer-key': signer.private_key,
+          ...(typeof signer.signer_uuid === 'string' ? { 'x-signer-uuid': signer.signer_uuid } : {}),
+        },
         body: JSON.stringify({ fid }),
       });
       const data = await res.json();

@@ -18,7 +18,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 export async function POST(req: NextRequest) {
   try {
     // Verify the user is authenticated
-    const fid = await verifyFarcasterSignerAuth(req);
+    const fid = await verifyFarcasterSignerAuth(req, 'write:shop');
     if (!fid) {
       return NextResponse.json(
         { ok: false, error: 'Authentication required' },
