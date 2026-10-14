@@ -40,6 +40,10 @@ async function ensureTable(): Promise<void> {
     `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS command_type TEXT DEFAULT 'mention'`,
     `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS reply_text   TEXT`,
     `ALTER TABLE bot_replies ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW()`,
+    // Older schemas created parent_hash NOT NULL; inserts with a null/empty
+    // tracking key then fail and replied=0 in production. Drop the constraint
+    // idempotently (no-op when already nullable).
+    `ALTER TABLE bot_replies ALTER COLUMN parent_hash DROP NOT NULL`,
     // Unique index backs the ON CONFLICT (parent_hash) upsert in recordReply.
     `CREATE UNIQUE INDEX IF NOT EXISTS bot_replies_parent_hash_key ON bot_replies (parent_hash)`,
   ];
