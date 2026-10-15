@@ -334,17 +334,43 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
  * Normalises the response to { user: { fid, username, display_name, pfp_url, profile, ... } }.
  */
 export async function fetchUserByUsername(username: string): Promise<any> {
-  const data = await hypersnapFetch(
-    `/v2/farcaster/user/by-username?username=${encodeURIComponent(username)}`
-  );
-  // Various shapes: { user }, { result: { ... } }, { data: { user } }
-  const user =
-    data?.user ??
-    data?.result ??
-    data?.data?.user ??
-    data?.data ??
-    data;
-  return { user };
+  const endpoint = `/v2/farcaster/user/by-username?username=${encodeURIComponent(username)}`;
+  const normalize = (data: any) => {
+    const user = data?.user ?? data?.result?.user ?? data?.result ?? data?.data?.user ?? data?.data ?? data;
+    return user?.fid || user?.id ? { ...data, user } : null;
+  };
+  let primaryError: unknown;
+  try {
+    const result = normalize(await hypersnapFetch(endpoint));
+    if (result) return result;
+  } catch (error) {
+    primaryError = error;
+  }
+  const fallback = normalize(await fallbackFetch(endpoint));
+  if (fallback) return fallback;
+  if (primaryError) throw primaryError;
+  return { user: null };
+}
+
+/** Fetch and normalize a user by FID from Hypersnap. */
+export async function fetchUserByFid(fid: number): Promise<any> {
+  if (!Number.isSafeInteger(fid) || fid <= 0) throw new Error('A valid FID is required');
+  const endpoint = `/v2/farcaster/user/bulk?fids=${fid}`;
+  const normalize = (data: any) => {
+    const user = data?.users?.[0] ?? data?.result?.users?.[0] ?? data?.user ?? data?.result?.user ?? (data?.result?.fid ? data.result : undefined);
+    return user?.fid || user?.id ? { ...data, user } : null;
+  };
+  let primaryError: unknown;
+  try {
+    const result = normalize(await hypersnapFetch(endpoint));
+    if (result) return result;
+  } catch (error) {
+    primaryError = error;
+  }
+  const fallback = normalize(await fallbackFetch(endpoint));
+  if (fallback) return fallback;
+  if (primaryError) throw primaryError;
+  return { user: null };
 }
 
 /**
@@ -389,12 +415,14 @@ export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
   // 1. Primary hub
   try {
     const data = await hypersnapFetch(endpoint);
-    if (Array.isArray(data?.channels) && data.channels.length > 0) return data;
+    const channels = data?.channels ?? data?.result?.channels ?? data?.data?.channels;
+    if (Array.isArray(channels) && channels.length > 0) return { ...data, channels };
   } catch {}
 
   // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
   const fallback = await fallbackFetch(endpoint);
-  if (Array.isArray(fallback?.channels) && fallback.channels.length > 0) return fallback;
+  const channels = fallback?.channels ?? fallback?.result?.channels ?? fallback?.data?.channels;
+  if (Array.isArray(channels) && channels.length > 0) return { ...fallback, channels };
 
   return { channels: [] };
 }
@@ -404,17 +432,36 @@ export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
  * GET /v2/farcaster/channel/list?limit=:limit
  */
 export async function fetchChannelList(limit = 50): Promise<any> {
-  return hypersnapFetch(`/v2/farcaster/channel/list?limit=${limit}`);
+  const data = await hypersnapFetch(`/v2/farcaster/channel/list?limit=${limit}`);
+  const channels = data?.channels ?? data?.result?.channels ?? data?.data?.channels;
+  return { ...data, channels: Array.isArray(channels) ? channels : [] };
 }
 
 /**
  * Fetch a single cast by hash.
  * GET /v2/farcaster/cast?identifier=:hash&type=hash
  */
+export function normalizeCastResponse(data: any): any {
+  // Hypersnap versions and proxy layers have returned each of these shapes.
+  // Keep downstream callers on one stable `{ cast }` contract.
+  const cast = data?.cast ?? data?.result?.cast ?? data?.data?.cast ?? data?.result?.data?.cast;
+  return cast ? { ...data, cast } : data;
+}
+
 export async function fetchCast(hash: string): Promise<any> {
-  return hypersnapFetch(
-    `/v2/farcaster/cast?identifier=${encodeURIComponent(hash)}&type=hash`
-  );
+  const endpoint = `/v2/farcaster/cast?identifier=${encodeURIComponent(hash)}&type=hash`;
+  let primaryError: unknown;
+  try {
+    const data = normalizeCastResponse(await hypersnapFetch(endpoint));
+    if (data?.cast) return data;
+  } catch (error) {
+    primaryError = error;
+  }
+
+  const fallback = normalizeCastResponse(await fallbackFetch(endpoint));
+  if (fallback?.cast) return fallback;
+  if (primaryError) throw primaryError;
+  return fallback;
 }
 
 /**

@@ -92,10 +92,12 @@ export function useFarcasterUser(): FarcasterAuthContext {
     // Listen for custom auth events dispatched by FarcasterLogin
     const handleAuthChange = () => readProfile();
     window.addEventListener('hh:auth:changed', handleAuthChange);
+    window.addEventListener('hh:profile:updated', handleAuthChange);
 
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('hh:auth:changed', handleAuthChange);
+      window.removeEventListener('hh:profile:updated', handleAuthChange);
     };
   }, []);
 

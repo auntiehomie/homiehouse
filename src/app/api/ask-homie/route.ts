@@ -5,8 +5,8 @@ import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
-import { sql } from '@/lib/db';
 import { isProUser } from '@/lib/pro';
+import { fetchCast } from '@/lib/hypersnap';
 
 // Module-level logger for helper functions
 const logger = createApiLogger('/ask-homie');
@@ -16,39 +16,6 @@ export const maxDuration = 30; // 30 seconds for Pro plan, will use max availabl
 
 // Provider selection: Free-tier chain (Cerebras → Groq → Gemini → OpenRouter) via AgentOrchestrator
 // Per docs/AI_PROVIDER_STRATEGY.md: no paid fallback unless explicitly justified
-
-// Detect if user is asking for a profile and extract username
-function detectProfileRequest(question: string): string | null {
-  const lowerQuestion = question.toLowerCase();
-  
-  // Profile request patterns
-  const patterns = [
-    /profile (?:of|for) @?(\w+)/i,
-    /who is @?(\w+)/i,
-    /tell me about @?(\w+)/i,
-    /info (?:on|about) @?(\w+)/i,
-    /pull (?:the )?profile (?:of|for) @?(\w+)/i,
-    /get (?:the )?profile (?:of|for) @?(\w+)/i,
-    /show me @?(\w+)(?:'s| )?(?:profile)?/i,
-    /look up @?(\w+)/i,
-    /find @?(\w+)(?:'s| )?(?:profile)?/i,
-  ];
-  
-  for (const pattern of patterns) {
-    const match = question.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  
-  // Check for standalone @mention or username in question
-  const mentionMatch = question.match(/@(\w+)/);
-  if (mentionMatch && (lowerQuestion.includes('profile') || lowerQuestion.includes('who'))) {
-    return mentionMatch[1];
-  }
-  
-  return null;
-}
 
 // Extract cast hash or URL from question
 function extractCastReference(question: string): string | null {
@@ -77,70 +44,14 @@ function extractCastReference(question: string): string | null {
 
 
 
-// Fetch cast data from Pinata Farcaster API
+// Fetch cast data from Hypersnap so Ask Homie shares the app's canonical index.
 async function fetchCastData(castHash: string) {
   try {
-    const jwt = process.env.PINATA_JWT;
-    if (!jwt) {
-      logger.warn('PINATA_JWT not configured');
-      return null;
-    }
-
-    const url = `https://api.pinata.cloud/v3/farcaster/casts/${encodeURIComponent(castHash)}`;
-    logger.info(`Fetching cast ${castHash} from Pinata API`);
-
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${jwt}`,
-      },
-    });
-
-    if (!response.ok) {
-      logger.error(`Cast fetch failed: ${response.status} ${response.statusText}`);
-      return null;
-    }
-
-    const data = await response.json();
-    logger.info(`Cast fetched successfully: ${castHash}`);
-    // Pinata returns { data: { ... } } or { cast: { ... } }
-    return data?.data ?? data.cast;
+    logger.info(`Fetching cast ${castHash} from Hypersnap`);
+    const data = await fetchCast(castHash);
+    return data?.cast ?? null;
   } catch (error) {
-    logger.error('Error fetching cast', error);
-    return null;
-  }
-}
-
-// Fetch profile from Pinata Farcaster API
-async function fetchUserProfile(username: string) {
-  try {
-    const jwt = process.env.PINATA_JWT;
-    if (!jwt) {
-      logger.warn('PINATA_JWT not configured');
-      return null;
-    }
-
-    const url = `https://api.pinata.cloud/v3/farcaster/users/by_username?username=${encodeURIComponent(username)}`;
-    logger.info(`Fetching profile for ${username} from Pinata API`);
-
-    const response = await fetch(url, {
-      headers: {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${jwt}`,
-      },
-    });
-
-    if (!response.ok) {
-      logger.error(`Profile fetch failed: ${response.status} ${response.statusText}`);
-      return null;
-    }
-
-    const data = await response.json();
-    logger.info(`Profile fetched successfully for ${username}`);
-    // Pinata returns { data: { ... } } or { user: { ... } }
-    return data?.data ?? data.user;
-  } catch (error) {
-    logger.error('Error fetching profile', error);
+    logger.error('Hypersnap cast fetch failed', error);
     return null;
   }
 }

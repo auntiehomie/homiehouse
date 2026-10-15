@@ -7,6 +7,7 @@ import { useFarcasterUser } from '@/hooks/useFarcasterUser';
 import { ChannelSidebar } from './ChannelStrip';
 import NotificationBadge from './NotificationBadge';
 import HHLogo from './HHLogo';
+import ProfileSummary from './ProfileSummary';
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -335,6 +336,10 @@ export default function MobileNav() {
               >
                 {CloseIcon}
               </button>
+            </div>
+
+            <div style={{ padding: '0 12px' }}>
+              <ProfileSummary />
             </div>
 
             {/* Drawer body — full nav */}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
-import { fetchUserByUsername, hypersnapFetch, fallbackFetch } from '@/lib/hypersnap';
+import { fetchUserByUsername, fetchUserByFid, fetchCastsByFid } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateUsername } from '@/lib/validation';
@@ -36,122 +36,16 @@ export async function GET(request: NextRequest) {
     let userFid: number | undefined;
 
     if (usernameParam) {
-      // Validate and fetch by username
       const username = validateUsername(usernameParam);
-     try {
-       const data = await fetchUserByUsername(username);
-       user = data.user;
-       userFid = user?.fid || data?.result?.user?.fid || user?.id;
-     } catch (primaryErr: any) {
-       logger.warn('Primary Hypersnap failed for username', { username, error: primaryErr?.message });
-     }
-    logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid });
-
-      // Fallback: try secondary Hypersnap node before Warpcast
-      if (!user) {
-        logger.info('Primary Hypersnap returned no user, trying fallback hub', { username });
-        try {
-          const fbData = await fallbackFetch(`/v2/farcaster/user/by-username?username=${encodeURIComponent(username)}`);
-          if (fbData) {
-            const fbUser = fbData?.user ?? fbData?.result ?? fbData?.data?.user ?? fbData?.data ?? fbData;
-            if (fbUser) {
-              user = fbUser;
-              userFid = user?.fid || user?.id;
-              logger.info('Fallback hub succeeded for username', { fid: userFid, username });
-            }
-          }
-        } catch (e) {
-          logger.warn('Fallback hub failed for username', { error: String(e) });
-        }
-      }
-
-     // Fallback: Warpcast public client API (same data, different indexing)
-     if (!user) {
-        logger.info('Hypersnap returned no user, trying Warpcast client API', { username });
-        try {
-          const wcRes = await fetch(
-            `https://client.warpcast.com/v2/user-by-username?username=${encodeURIComponent(username)}`,
-            { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
-          );
-          if (wcRes.ok) {
-            const wcData = await wcRes.json();
-            const wu = wcData?.result?.user;
-            if (wu) {
-              // Normalize Warpcast shape → our expected shape
-              user = {
-                fid: wu.fid,
-                username: wu.username,
-                display_name: wu.displayName || wu.username,
-                pfp_url: wu.pfp?.url || '',
-                follower_count: wu.followerCount || 0,
-                following_count: wu.followingCount || 0,
-                power_badge: wu.badges?.some((b: any) => b.type === 'power_badge') || false,
-                verified_addresses: wu.verifiedAddresses || { eth_addresses: [] },
-                profile: { bio: { text: wu.profile?.bio?.text || '' } },
-              };
-              userFid = wu.fid;
-              logger.info('Warpcast fallback succeeded', { fid: userFid, username });
-            }
-          }
-        } catch (e) {
-          logger.warn('Warpcast user fallback failed', { error: String(e) });
-        }
-      }
-   } else if (fidParam) {
-     // Validate and fetch by FID
-     userFid = validateFid(fidParam);
-      try {
-        const data = await hypersnapFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
-        user = data.users?.[0];
-      } catch (primaryErr: any) {
-        logger.warn('Primary Hypersnap failed for FID', { fid: userFid, error: primaryErr?.message });
-      }
-     logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
-
-      // Fallback: try secondary Hypersnap node before Warpcast
-      if (!user && userFid) {
-        logger.info('Primary Hypersnap returned no user by FID, trying fallback hub', { fid: userFid });
-        try {
-          const fbData = await fallbackFetch(`/v2/farcaster/user/bulk?fids=${userFid}`);
-          if (fbData?.users?.[0]) {
-            user = fbData.users[0];
-            logger.info('Fallback hub succeeded for FID', { fid: userFid });
-          }
-        } catch (e) {
-          logger.warn('Fallback hub failed for FID', { error: String(e) });
-        }
-      }
-
-     // Warpcast fallback when Hypersnap can't find the user by FID
-     if (!user && userFid) {
-        logger.info('Hypersnap returned no user by FID, trying Warpcast', { fid: userFid });
-        try {
-          const wcRes = await fetch(
-            `https://client.warpcast.com/v2/user?fid=${userFid}`,
-            { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
-          );
-          if (wcRes.ok) {
-            const wcData = await wcRes.json();
-            const wu = wcData?.result?.user;
-            if (wu) {
-              user = {
-                fid: wu.fid,
-                username: wu.username,
-                display_name: wu.displayName || wu.username,
-                pfp_url: wu.pfp?.url || '',
-                follower_count: wu.followerCount || 0,
-                following_count: wu.followingCount || 0,
-                power_badge: wu.badges?.some((b: any) => b.type === 'power_badge') || false,
-                verified_addresses: wu.verifiedAddresses || { eth_addresses: [] },
-                profile: { bio: { text: wu.profile?.bio?.text || '' } },
-              };
-              logger.info('Warpcast FID fallback succeeded', { fid: userFid });
-            }
-          }
-        } catch (e) {
-          logger.warn('Warpcast FID fallback failed', { error: String(e) });
-        }
-      }
+      const data = await fetchUserByUsername(username);
+      user = data.user;
+      userFid = user?.fid || user?.id;
+      logger.info('Fetched by username', { hasUser: !!user, extractedFid: userFid });
+    } else if (fidParam) {
+      userFid = validateFid(fidParam);
+      const data = await fetchUserByFid(userFid);
+      user = data.user;
+      logger.info('Fetched by FID', { hasUser: !!user, fidParam, userFid });
     }
 
     if (!user) {
@@ -172,8 +66,7 @@ export async function GET(request: NextRequest) {
     if (includeCasts && userFid) {
       try {
         logger.info('Fetching user casts', { fid: userFid });
-        const data = await hypersnapFetch(`/v2/farcaster/feed?feed_type=filter&filter_type=fids&fids=${userFid}&limit=25`);
-        casts = data.casts || [];
+        casts = await fetchCastsByFid(userFid, 25);
         logger.info('Casts fetched', { count: casts.length });
       } catch (error) {
         logger.warn('Failed to fetch casts', { error: String(error) });
@@ -184,36 +77,14 @@ export async function GET(request: NextRequest) {
     logger.success('Profile fetched', { fid: userFid });
     logger.end();
 
-    // Fetch Warpcast-filtered follower/following counts (excludes bots)
-    let warpcastFollowerCount: number | null = null;
-    let warpcastFollowingCount: number | null = null;
-    const warpcastUsername = user?.username;
-    if (warpcastUsername) {
-      try {
-        const warpRes = await fetch(
-          `https://client.warpcast.com/v2/user-by-username?username=${encodeURIComponent(warpcastUsername)}`,
-          { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(5000) }
-        );
-        if (warpRes.ok) {
-          const warpData = await warpRes.json();
-          const wu = warpData?.result?.user;
-          if (typeof wu?.followerCount === 'number') warpcastFollowerCount = wu.followerCount;
-          if (typeof wu?.followingCount === 'number') warpcastFollowingCount = wu.followingCount;
-          logger.info('Warpcast follower counts', { follower: warpcastFollowerCount, following: warpcastFollowingCount });
-        }
-      } catch (e) {
-        logger.warn('Warpcast follower fetch failed, falling back to hub counts', { error: String(e) });
-      }
-    }
-
     // Normalize and ensure required fields are always present
     const normalizedUser = {
       fid: userFid || 0,
       username: user?.username || `user_${userFid}`,
       display_name: user?.display_name || user?.username || 'Unknown User',
       pfp_url: user?.pfp_url || '',
-      follower_count: warpcastFollowerCount ?? (typeof user?.follower_count === 'number' ? user.follower_count : 0),
-      following_count: warpcastFollowingCount ?? (typeof user?.following_count === 'number' ? user.following_count : 0),
+      follower_count: typeof user?.follower_count === 'number' ? user.follower_count : 0,
+      following_count: typeof user?.following_count === 'number' ? user.following_count : 0,
       verified_addresses: user?.verified_addresses || { eth_addresses: [] },
       power_badge: user?.power_badge || false,
       profile: user?.profile || { bio: { text: '' } },

@@ -106,6 +106,41 @@ export function FarcasterAuthProvider({ children }: { children: React.ReactNode 
     }
   }, [refreshAuth])
 
+  // Revalidate the cached profile against Hypersnap so updated names and PFPs
+  // appear without requiring the user to sign out and back in.
+  useEffect(() => {
+    if (!fid) return;
+    let active = true;
+    fetch(`/api/profile?fid=${encodeURIComponent(String(fid))}`, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((fresh) => {
+        if (!active || !fresh?.fid || Number(fresh.fid) !== fid) return;
+        try {
+          const raw = localStorage.getItem('hh_profile');
+          const current = raw ? JSON.parse(raw) : null;
+          if (!current || Number(current.fid) !== fid) return;
+          const updated = {
+            ...current,
+            username: fresh.username || current.username || '',
+            displayName: fresh.display_name || fresh.username || current.displayName || '',
+            pfpUrl: fresh.pfp_url || current.pfpUrl || '',
+            bio: fresh.profile?.bio?.text || current.bio || '',
+            verified_addresses: fresh.verified_addresses || current.verified_addresses,
+          };
+          if (JSON.stringify(updated) === JSON.stringify(current)) return;
+          localStorage.setItem('hh_profile', JSON.stringify(updated));
+          setUsername(updated.username || null);
+          setDisplayName(updated.displayName || null);
+          setPfpUrl(updated.pfpUrl || null);
+          window.dispatchEvent(new Event('hh:profile:updated'));
+        } catch {
+          // A malformed cached profile should not break a valid session.
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [fid]);
+
   // ── signIn: fetch profile → trigger signer creation ──
 
   const signIn = useCallback(async (targetFid: number) => {

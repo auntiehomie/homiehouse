@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
+import { fetchUserByFid, fetchUserByUsername } from '@/lib/hypersnap';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,34 +22,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const PINATA_JWT = process.env.PINATA_JWT;
-    if (!PINATA_JWT) {
-      return NextResponse.json(
-        { error: 'API key not configured' },
-        { status: 500 }
-      );
-    }
-
-    // Fetch user from Pinata Farcaster API
-    // Note: Pinata supports by_username; bulk-by-fid uses /users/<fid>
-    const endpoint = username
-      ? `https://api.pinata.cloud/v3/farcaster/users/by_username?username=${username}`
-      : `https://api.pinata.cloud/v3/farcaster/users/${fid}`;
-
-    const response = await fetch(endpoint, {
-      headers: {
-        'accept': 'application/json',
-        'Authorization': `Bearer ${PINATA_JWT}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Farcaster API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    // Pinata returns { data: { ... } } for single-user endpoints
-    const user = data?.data ?? (username ? data.user : data.users?.[0]);
+    const data = username
+      ? await fetchUserByUsername(username.trim().replace(/^@/, ''))
+      : await fetchUserByFid(Number(fid));
+    const user = data?.user;
 
     if (!user) {
       return NextResponse.json(
