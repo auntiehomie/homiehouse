@@ -160,8 +160,8 @@ export default function ProPage() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {[
-            { q: 'How do I pay for Pro?', a: 'You have two options: pay $5 with a credit/debit card via Stripe (no crypto needed), or pay 5 USDC on the Base network with your wallet. Both give you the same Pro benefits.' },
-            { q: 'What is USDC?', a: 'USDC is a stablecoin — a crypto token pegged 1:1 to the US dollar. 5 USDC = $5. You can get USDC on Base through any major exchange like Coinbase, then transfer it to your wallet.' },
+            { q: 'How do I pay for Pro?', a: 'You have two options: pay $4/month with a credit/debit card via Stripe (no crypto needed), or pay 4 USDC on Base for 30 days with your wallet. Crypto payments do not renew automatically.' },
+            { q: 'What is USDC?', a: 'USDC is a stablecoin — a crypto token pegged 1:1 to the US dollar. 4 USDC is approximately $4. You can get USDC on Base through any major exchange like Coinbase, then transfer it to your wallet.' },
             { q: 'What is Base?', a: 'Base is a fast, low-cost blockchain built by Coinbase. Transaction fees are typically less than a cent. It\'s the perfect network for small payments like Pro subscriptions.' },
             { q: 'Can I cancel anytime?', a: 'Yes. Card subscribers can manage or cancel from the Stripe Customer Portal (accessible from your Pro page). Crypto subscribers: Pro benefits last 30 days from payment with no auto-renew.' },
             { q: 'What is "deeper research mode"?', a: 'Pro users get access to an enhanced research pipeline that searches more sources, runs longer analysis, and produces more detailed responses.' },
