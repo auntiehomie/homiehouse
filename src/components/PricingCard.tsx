@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useAccount, useChainId, useSwitchChain } from 'wagmi';
+import { useAccount, useChainId, useSwitchChain, useWalletClient } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { parseAbi, createWalletClient, custom } from 'viem';
+import { parseAbi } from 'viem';
 import { getAuthHeaders } from '@/lib/client-auth';
 
 // Base USDC contract address
@@ -17,8 +17,8 @@ const USDC_ABI = parseAbi([
   'function decimals() view returns (uint8)',
 ]);
 
-// 5 USDC (6 decimals)
-const PRO_PRICE = 5_000_000n;
+// 4 USDC (6 decimals)
+const PRO_PRICE = 4_000_000n;
 
 type PaymentMethod = 'card' | 'crypto';
 
@@ -37,6 +37,9 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
+  // Use the active Wagmi connector instead of window.ethereum. Embedded wallets
+  // (including Farcaster) do not always inject a global Ethereum provider.
+  const { data: walletClient } = useWalletClient({ chainId: base.id });
 
   const isOnBase = chainId === base.id;
 
@@ -109,11 +112,12 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
       // Step 2: Send USDC transfer via wallet
       setStep('sending');
 
-      const walletClient = createWalletClient({
-        account: address,
-        chain: base,
-        transport: custom((window as any).ethereum),
-      });
+      if (!walletClient) {
+        setError('Wallet connection is not ready. Reconnect your wallet and try again.');
+        setLoading(false);
+        setStep('idle');
+        return;
+      }
 
       const treasury = process.env.NEXT_PUBLIC_PRO_TREASURY_ADDRESS;
       if (!treasury) {
@@ -173,7 +177,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
       setLoading(false);
       setStep('idle');
     }
-  }, [userFid, address, isOnBase, switchChainAsync]);
+  }, [userFid, address, isOnBase, switchChainAsync, walletClient]);
 
   // ── Manage subscription (Stripe Customer Portal) ───────────────────────────
   const handleManageSubscription = useCallback(async () => {
@@ -230,10 +234,10 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
           HomieHouse Pro
         </div>
         <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--text-on-dark)', marginBottom: 2 }}>
-          $5<span style={{ fontSize: 16, fontWeight: 500, color: 'var(--muted-on-dark)' }}>/mo</span>
+          $4<span style={{ fontSize: 16, fontWeight: 500, color: 'var(--muted-on-dark)' }}>/mo</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
-          Pay with card or crypto · Cancel anytime
+          Card: $4/month, renews monthly · Crypto: 4 USDC for 30 days
         </div>
       </div>
 
@@ -342,7 +346,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
                     transition: 'background 0.2s',
                   }}
                 >
-                  {loading ? 'Redirecting to Stripe…' : 'Pay $5 with Card'}
+                  {loading ? 'Redirecting to Stripe…' : 'Pay $4/month with Card'}
                 </button>
                 <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', textAlign: 'center', marginTop: 6 }}>
                   Secure card payment via Stripe · No crypto needed
@@ -380,7 +384,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
                         transition: 'background 0.2s',
                       }}
                     >
-                      {step === 'idle' && 'Pay 5 USDC on Base'}
+                      {step === 'idle' && 'Pay 4 USDC on Base'}
                       {step === 'sending' && 'Confirm in wallet…'}
                       {step === 'verifying' && 'Verifying payment…'}
                       {step === 'done' && '✓ Pro Activated!'}
@@ -393,7 +397,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
                   </>
                 )}
                 <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', textAlign: 'center', marginTop: 6 }}>
-                  USDC on Base · No KYC · Decentralized
+                  4 USDC for 30 days on Base · Manual renewal
                 </div>
               </>
             )}

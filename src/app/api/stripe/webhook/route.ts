@@ -11,7 +11,7 @@
  * - invoice.payment_failed → mark past_due
  *
  * This endpoint must be configured in the Stripe Dashboard as a webhook
- * endpoint pointing to: https://homiehouse.lol/api/stripe/webhook
+ * endpoint pointing to: https://homiehouse.app/api/stripe/webhook
  */
 
 import { NextRequest, NextResponse } from 'next/server';

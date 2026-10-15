@@ -802,7 +802,7 @@ export default function SettingsPage() {
                 onClick={() => router.push("/pro")}
                 icon={<span style={{ fontSize: 16 }}>⚡</span>}
                 label="HomieHouse Pro"
-                sublabel="Unlimited AI, deeper research, priority routing — $5/mo"
+                sublabel="Unlimited AI, deeper research, priority routing — $4/mo"
               />
             </Card>
           </div>
