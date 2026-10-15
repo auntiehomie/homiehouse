@@ -56,7 +56,6 @@ export async function POST(req: NextRequest) {
       cancel_url: `${BASE_URL}/pro?status=cancelled`,
       allow_promotion_codes: true,
       billing_address_collection: 'auto',
-      customer_creation: 'always',
     });
 
     return NextResponse.json({
