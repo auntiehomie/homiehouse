@@ -1,7 +1,7 @@
 /**
  * Crypto-native Pro subscription logic.
  *
- * Users pay 5 USDC/month on Base to a HomieHouse treasury address.
+ * Users pay 4 USDC for 30 days on Base to a HomieHouse treasury address.
  * No Stripe, no KYC, no contract deployment — just verified on-chain transfers.
  *
  * Flow:
@@ -21,7 +21,7 @@ export const BASE_USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 export const PRO_TREASURY_ADDRESS = process.env.PRO_TREASURY_ADDRESS || '';
 
 // Pro subscription price in USDC (6 decimals)
-export const PRO_PRICE_USDC = 5_000_000n; // 5 USDC
+export const PRO_PRICE_USDC = 4_000_000n; // 4 USDC
 
 // Subscription duration in days
 export const PRO_DURATION_DAYS = 30;
