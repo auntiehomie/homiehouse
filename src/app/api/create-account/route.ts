@@ -71,19 +71,31 @@ export async function GET(req: NextRequest) {
   const signerKey = searchParams.get('signerKey')  as `0x${string}` | null;
   const deadline  = searchParams.get('deadline');
 
-  if (!address || !signerKey || !deadline) {
-    return NextResponse.json({ error: 'address, signerKey, deadline required' }, { status: 400 });
+  if (!address || (!!signerKey !== !!deadline)) {
+    return NextResponse.json({ error: 'address is required; signerKey and deadline must be supplied together for legacy signer metadata' }, { status: 400 });
   }
 
   const APP_MNEMONIC          = process.env.APP_MNEMONIC;
   const APP_FID               = process.env.APP_FID;
   const APP_WALLET_PRIVATE_KEY = process.env.APP_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
 
-  if (!APP_MNEMONIC || !APP_FID || !APP_WALLET_PRIVATE_KEY) {
+  if (!APP_WALLET_PRIVATE_KEY || (signerKey && (!APP_MNEMONIC || !APP_FID))) {
     return NextResponse.json({ error: 'Server configuration incomplete' }, { status: 500 });
   }
 
   try {
+    if (!signerKey || !deadline) {
+      const [registerNonce, price] = await Promise.all([
+        publicClient.readContract({ address: ID_REGISTRY, abi: idRegistryAbi, functionName: 'nonces', args: [address] }),
+        publicClient.readContract({ address: ID_GATEWAY, abi: idGatewayAbi, functionName: 'price', args: [0n] }),
+      ]);
+      return NextResponse.json({ registerNonce: registerNonce.toString(), price: price.toString() });
+    }
+
+    if (!APP_MNEMONIC || !APP_FID) {
+      return NextResponse.json({ error: 'Legacy signer metadata configuration is incomplete' }, { status: 500 });
+    }
+
     const deadlineBn = BigInt(deadline);
     const appFid     = BigInt(APP_FID);
     const cleanMnemonic = APP_MNEMONIC.trim().replace(/^["']|["']$/g, '');
@@ -160,7 +172,7 @@ export async function POST(req: NextRequest) {
     username,
   } = body;
 
-  if (!custodyAddress || !signerPublicKey || !registerSig || !registerDeadline || !username) {
+  if (!custodyAddress || !registerSig || !registerDeadline || !username) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
@@ -214,7 +226,7 @@ export async function POST(req: NextRequest) {
 
     // ── 4. Register signer key on-chain (non-fatal if it fails) ─────────────
     let signerTxHash: string | null = null;
-    if (keyAddSig && signedKeyRequestMetadata) {
+    if (keyAddSig && signedKeyRequestMetadata && signerPublicKey) {
       try {
         signerTxHash = await walletClient.writeContract({
           address: KEY_REGISTRY,

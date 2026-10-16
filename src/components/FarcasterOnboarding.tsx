@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAccount, useSwitchChain } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
-import { ed25519 } from "@noble/curves/ed25519";
+import { registerHypersnapSigner, type KeyAddSigningPayload } from "@/lib/hypersnap-signer-client";
 
 // ── Farcaster EIP-712 domains ─────────────────────────────────────────────────
 const ID_GATEWAY_DOMAIN = {
@@ -10,13 +12,6 @@ const ID_GATEWAY_DOMAIN = {
   version: "1",
   chainId: 10,
   verifyingContract: "0x00000000Fc25870C6eD6b6c7E41Fb078b7656f69",
-};
-
-const KEY_REGISTRY_DOMAIN = {
-  name: "Farcaster KeyRegistry",
-  version: "1",
-  chainId: 10,
-  verifyingContract: "0x00000000Fc1237824fb747aBDE0FF18990E59b7e",
 };
 
 const FNAME_DOMAIN = {
@@ -45,10 +40,6 @@ interface CreatingStatus {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function buf2hex(b: Uint8Array): `0x${string}` {
-  return `0x${Buffer.from(b).toString("hex")}` as `0x${string}`;
-}
 
 async function signTypedData(
   provider: any,
@@ -143,6 +134,9 @@ function UsernameStep({
 
 export default function FarcasterOnboarding() {
   const { fid: authFid } = useFarcasterAuth();
+  const { address: connectedAddress, connector, isConnected, chainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
+  const { openConnectModal } = useConnectModal();
 
   const [show, setShow] = useState(false);
   const [step, setStep] = useState<Step>("welcome");
@@ -151,6 +145,7 @@ export default function FarcasterOnboarding() {
   const [checking, setChecking] = useState(false);
   const [status, setStatus] = useState<CreatingStatus>({ fid: false, signer: false, fname: false });
   const [error, setError] = useState("");
+  const [signerWarning, setSignerWarning] = useState("");
   const [newFid, setNewFid] = useState<number | null>(null);
   const [starterPicks, setStarterPicks] = useState<Set<string>>(new Set(STARTER_CHANNELS.map((c) => c.id)));
 
@@ -175,34 +170,25 @@ export default function FarcasterOnboarding() {
     }
   }
 
-  // Get browser wallet provider (MetaMask, Rainbow, etc.)
+  // Use the active wagmi connector, supporting injected wallets and WalletConnect.
   async function getEthProvider() {
-    if (typeof window === 'undefined' || !(window as any).ethereum) {
-      throw new Error("No wallet detected. Please install MetaMask or another browser wallet.");
+    if (!isConnected || !connectedAddress || !connector) {
+      openConnectModal?.();
+      throw new Error("Connect a wallet to continue account creation.");
     }
-    const provider = (window as any).ethereum;
-
-    // Request accounts
-    const accounts = await provider.request({ method: "eth_requestAccounts" });
-    if (!accounts || accounts.length === 0) {
-      throw new Error("No accounts found. Please unlock your wallet.");
-    }
-    const address = accounts[0];
+    const provider = await connector.getProvider() as any;
 
     // Switch to Optimism
     try {
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0xa" }], // 10 = Optimism
-      });
+      if (chainId !== 10) await switchChainAsync({ chainId: 10 });
     } catch (switchErr: any) {
-      if (switchErr.code === 4902) {
+      if (switchErr?.code === 4902) {
         throw new Error("Please add the Optimism network to your wallet.");
       }
       throw switchErr;
     }
 
-    return { provider, address };
+    return { provider, address: connectedAddress };
   }
 
   async function createAccount() {
@@ -212,28 +198,20 @@ export default function FarcasterOnboarding() {
     try {
       const { provider, address: custodyAddress } = await getEthProvider();
 
-      // 1. Generate Ed25519 signer keypair
-      const signerPrivBytes = ed25519.utils.randomPrivateKey();
-      const signerPubBytes  = ed25519.getPublicKey(signerPrivBytes);
-      const signerPublicKey  = buf2hex(signerPubBytes);
-      const signerPrivateKey = Buffer.from(signerPrivBytes).toString("hex");
-
-      // 2. Pick deadlines (24 h from now)
+      // 1. Prepare an FID registration. The Hypersnap signer is generated and
+      // authorized after the FID registration receipt provides its tx hash.
       const now = Math.floor(Date.now() / 1000);
       const registerDeadline = now + 86_400;
-      const keyAddDeadline   = now + 86_400;
       const fnameTimestamp   = now;
 
-      // 3. Fetch nonces + price + signed key request metadata from server
-      const prepRes = await fetch(
-        `/api/create-account?address=${custodyAddress}&signerKey=${signerPublicKey}&deadline=${keyAddDeadline}`,
-      );
+      // 2. Fetch registration nonce and price.
+      const prepRes = await fetch(`/api/create-account?address=${custodyAddress}`);
       if (!prepRes.ok) {
         const err = await prepRes.json();
         throw new Error(err.error || "Failed to prepare registration");
       }
       const prep = await prepRes.json();
-      const { registerNonce, keyAddNonce, signedKeyRequestMetadata } = prep;
+      const { registerNonce } = prep;
 
       // 4. Sign Register EIP-712 (IdGateway, Optimism)
       const registerSig = await signTypedData(
@@ -257,35 +235,7 @@ export default function FarcasterOnboarding() {
         },
       );
 
-      // 5. Sign Add EIP-712 (KeyRegistry, Optimism)
-      const keyAddSig = await signTypedData(
-        provider,
-        custodyAddress,
-        KEY_REGISTRY_DOMAIN,
-        {
-          Add: [
-            { name: "owner",        type: "address" },
-            { name: "keyType",      type: "uint32"  },
-            { name: "key",          type: "bytes"   },
-            { name: "metadataType", type: "uint32"  },
-            { name: "metadata",     type: "bytes"   },
-            { name: "nonce",        type: "uint256" },
-            { name: "deadline",     type: "uint256" },
-          ],
-        },
-        "Add",
-        {
-          owner:        custodyAddress,
-          keyType:      1,
-          key:          signerPublicKey,
-          metadataType: 1,
-          metadata:     signedKeyRequestMetadata,
-          nonce:        keyAddNonce,
-          deadline:     String(keyAddDeadline),
-        },
-      );
-
-      // 6. Sign UserNameProof EIP-712 (fname, Ethereum mainnet domain)
+      // 4. Sign UserNameProof EIP-712 (fname, Ethereum mainnet domain)
       const fnameSig = await signTypedData(
         provider,
         custodyAddress,
@@ -301,7 +251,7 @@ export default function FarcasterOnboarding() {
         { name: username, timestamp: String(fnameTimestamp), owner: custodyAddress },
       );
 
-      // 7. Call server to execute all on-chain actions
+      // 5. Register the FID and username. No KeyRegistry signer is added.
       setStep("creating");
 
       const createRes = await fetch("/api/create-account", {
@@ -309,12 +259,8 @@ export default function FarcasterOnboarding() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           custodyAddress,
-          signerPublicKey,
-          signedKeyRequestMetadata,
           registerSig,
           registerDeadline,
-          keyAddSig,
-          keyAddDeadline,
           fnameSig,
           fnameTimestamp,
           username,
@@ -326,29 +272,75 @@ export default function FarcasterOnboarding() {
         throw new Error(result.error || "Registration failed");
       }
 
-      setStatus({ fid: true, signer: !!result.signerTxHash, fname: result.fnameRegistered });
+      setStatus({ fid: true, signer: false, fname: result.fnameRegistered });
       setNewFid(result.fid);
 
-      // 8. Persist signer key + update profile
-      const signerRecord = {
-        public_key:  signerPublicKey,
-        private_key: signerPrivateKey,
-        status:      result.signerTxHash ? "approved" : "pending_approval",
-        signer_uuid: null,
-      };
-      localStorage.setItem(`signer_${result.fid}`, JSON.stringify(signerRecord));
-
+      // 6. Persist identity, then enroll a narrowly-scoped Hypersnap signer.
       const newProfile = {
         fid:          result.fid,
         username:     username,
         displayName:  username,
         pfpUrl:       "",
         bio:          "",
-        signer_uuid:  signerPublicKey,
+        signer_uuid:  "",
         verified_addresses: { eth_addresses: [custodyAddress] },
       };
       localStorage.setItem("hh_profile", JSON.stringify(newProfile));
       window.dispatchEvent(new Event("hh:auth:changed"));
+
+      try {
+        const signer = await registerHypersnapSigner(
+          Number(result.fid),
+          custodyAddress,
+          async (payload: KeyAddSigningPayload) => signTypedData(
+            provider,
+            custodyAddress,
+            payload.domain,
+            payload.types,
+            payload.primaryType,
+            {
+              fid: payload.message.fid.toString(),
+              key: payload.message.key,
+              keyType: payload.message.keyType,
+              scopes: payload.message.scopes,
+              ttl: payload.message.ttl,
+              nonce: payload.message.nonce,
+              deadline: payload.message.deadline.toString(),
+            },
+          ) as Promise<`0x${string}`>,
+          result.registerTxHash as `0x${string}`,
+        );
+        const signerRecord = {
+          public_key: `0x${signer.publicKeyHex}`,
+          private_key: signer.privateKeyHex,
+          status: "pending_hypersnap",
+          registration: "hypersnap-key-add",
+          signer_uuid: null,
+        };
+        localStorage.setItem(`signer_${result.fid}`, JSON.stringify(signerRecord));
+        let active = false;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1_000));
+          const response = await fetch(`/api/hypersnap/signer?fid=${result.fid}&publicKey=${encodeURIComponent(signerRecord.public_key)}`, { cache: "no-store" });
+          const data = await response.json().catch(() => ({}));
+          if (data.ok && data.active) {
+            signerRecord.status = "approved";
+            localStorage.setItem(`signer_${result.fid}`, JSON.stringify(signerRecord));
+            active = true;
+            break;
+          }
+        }
+        setStatus({ fid: true, signer: active, fname: !!result.fnameRegistered });
+        if (active) window.dispatchEvent(new Event("hh:signer:approved"));
+        else {
+          setSignerWarning("The FID is created and the Hypersnap key request was submitted, but activation is still pending. You can check again from the posting setup prompt.");
+          window.dispatchEvent(new CustomEvent("hh:request:signer", { detail: { fid: Number(result.fid) } }));
+        }
+      } catch (signerErr: any) {
+        console.error("Hypersnap signer enrollment failed after FID creation:", signerErr);
+        setSignerWarning(signerErr?.message || "The FID was created, but Hypersnap posting still needs wallet authorization.");
+        window.dispatchEvent(new CustomEvent("hh:request:signer", { detail: { fid: Number(result.fid) } }));
+      }
 
       setStep("done");
     } catch (err: any) {
@@ -402,15 +394,15 @@ export default function FarcasterOnboarding() {
           <>
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🟣</div>
-              <h2 style={{ margin: "0 0 8px", fontSize: 22 }}>Create your Farcaster account</h2>
+              <h2 style={{ margin: "0 0 8px", fontSize: 22 }}>Create your HomieHouse identity</h2>
               <p style={{ color: "var(--muted-on-dark)", fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-                Farcaster is a decentralized social protocol. Your account lives on-chain — no single company controls it.
+                Your FID is registered on Optimism and used by Hypersnap. HomieHouse creates a scoped posting key directly on Hypersnap—no Farcaster app approval or recovery phrase.
               </p>
             </div>
             <div style={{ background: "var(--bg-dark)", borderRadius: 12, padding: "14px 16px", marginBottom: 24, border: "1px solid var(--border)" }}>
               {[
                 ["🪪", "Permanent ID", "Your FID is minted on Optimism"],
-                ["✍️",  "Sign messages", "3 quick wallet signatures"],
+                ["✍️",  "Approve with wallet", "3 signature prompts; no recovery phrase"],
                 ["💸", "App covers gas", "No ETH needed — HomieHouse pays"],
               ].map(([icon, label, sub]) => (
                 <div key={label} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "6px 0" }}>
@@ -424,11 +416,10 @@ export default function FarcasterOnboarding() {
             </div>
             <button
               onClick={() => {
-                // Check if browser wallet is available
-                if (typeof window !== 'undefined' && (window as any).ethereum) {
+                if (isConnected && connectedAddress) {
                   setStep("username");
                 } else {
-                  setStep("no-wallet");
+                  openConnectModal?.();
                 }
               }}
               style={{
@@ -458,7 +449,7 @@ export default function FarcasterOnboarding() {
             <div style={{ fontSize: 48, marginBottom: 12 }}>🦊</div>
             <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Wallet required</h2>
             <p style={{ color: "var(--muted-on-dark)", fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
-              Creating a Farcaster account requires a browser wallet (MetaMask, Rainbow, etc.) to sign on-chain registration messages. Please install a wallet extension and try again.
+              Connect a wallet with RainbowKit or WalletConnect to sign the FID registration. HomieHouse will not ask for your recovery phrase.
             </p>
             <button
               onClick={() => window.open("https://metamask.io", "_blank")}
@@ -468,7 +459,7 @@ export default function FarcasterOnboarding() {
                 fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 8,
               }}
             >
-              Get MetaMask →
+              Connect wallet →
             </button>
             <button
               onClick={() => setShow(false)}
@@ -504,9 +495,9 @@ export default function FarcasterOnboarding() {
         {step === "signing" && (
           <div style={{ textAlign: "center", padding: "24px 0" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>✍️</div>
-            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Sign to create account</h2>
+            <h2 style={{ margin: "0 0 8px", fontSize: 20 }}>Sign to create your identity</h2>
             <p style={{ color: "var(--muted-on-dark)", fontSize: 14, lineHeight: 1.5 }}>
-              Your wallet will ask you to sign <strong style={{ color: "var(--text-on-dark)" }}>3 messages</strong> — no ETH required, just authorization.
+              Your wallet will ask you to sign the FID registration, username, and scoped Hypersnap signer authorization. The signer request is not a transaction.
             </p>
             <div style={{ marginTop: 16, fontSize: 13, color: "var(--muted-on-dark)" }}>
               Check your wallet for signature requests…
@@ -528,7 +519,7 @@ export default function FarcasterOnboarding() {
             </p>
             {[
               { key: "fid",    label: "Minting your FID" },
-              { key: "signer", label: "Registering signer key" },
+              { key: "signer", label: "Registering scoped Hypersnap key" },
               { key: "fname",  label: `Claiming @${username}` },
             ].map(({ key, label }) => (
               <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", fontSize: 14 }}>
@@ -547,14 +538,14 @@ export default function FarcasterOnboarding() {
         {step === "done" && (
           <div style={{ textAlign: "center", padding: "16px 0" }}>
             <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-            <h2 style={{ margin: "0 0 8px", fontSize: 22 }}>Welcome to Farcaster!</h2>
+            <h2 style={{ margin: "0 0 8px", fontSize: 22 }}>Welcome to HomieHouse!</h2>
             <p style={{ color: "var(--muted-on-dark)", fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
               Your account <strong style={{ color: "var(--text-on-dark)" }}>@{username}</strong> (FID {newFid}) is live on-chain.
             </p>
             <div style={{ background: "var(--bg-dark)", borderRadius: 12, padding: "12px 16px", marginBottom: 24, border: "1px solid var(--border)", textAlign: "left" }}>
               {[
                 ["FID minted", status.fid],
-                ["Signer registered", status.signer],
+                ["Hypersnap signer active", status.signer],
                 [`@${username} claimed`, status.fname],
               ].map(([label, ok]) => (
                 <div key={label as string} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "3px 0" }}>
@@ -566,6 +557,11 @@ export default function FarcasterOnboarding() {
             {!status.fname && (
               <p style={{ fontSize: 12, color: "#f87171", marginBottom: 16 }}>
                 Username claim failed — you can set it later in settings or try again.
+              </p>
+            )}
+            {signerWarning && (
+              <p role="status" style={{ fontSize: 12, color: "#fbbf24", marginBottom: 16 }}>
+                {signerWarning}
               </p>
             )}
             <button

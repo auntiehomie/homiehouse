@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Use an approved Farcaster signer to create a session',
+          error: 'Use a verified Hypersnap protocol token or approved signer to create a session',
         },
         { status: 401 },
       );

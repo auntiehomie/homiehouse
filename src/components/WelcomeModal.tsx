@@ -1,276 +1,178 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { QRCodeSVG } from 'qrcode.react';
+import { useCallback, useEffect, useState } from 'react';
+import { useAccount, useSignTypedData, useSwitchChain } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { optimism } from 'wagmi/chains';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
-import { provisionSignerWithMnemonic } from '@/lib/fc-key-add';
 import { getStoredFid } from '@/lib/client-auth';
+import {
+  registerHypersnapSigner,
+  type KeyAddSigningPayload,
+} from '@/lib/hypersnap-signer-client';
 
 export default function WelcomeModal() {
   const { fid: authFid } = useFarcasterAuth();
+  const { address, isConnected, chainId } = useAccount();
+  const { signTypedDataAsync } = useSignTypedData();
+  const { switchChainAsync } = useSwitchChain();
+  const { openConnectModal } = useConnectModal();
   const [show, setShow] = useState(false);
-  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [method, setMethod] = useState<'farcaster' | 'phrase'>('farcaster');
-  const [phrase, setPhrase] = useState('');
   const [provisioning, setProvisioning] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'pending' | 'active'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [standalone, setStandalone] = useState(false);
 
   useEffect(() => {
-    setStandalone(
-      (window.navigator as Navigator & { standalone?: boolean }).standalone === true ||
-      window.matchMedia('(display-mode: standalone)').matches
-    );
-  }, []);
-
-  useEffect(() => {
-    const handleShowModal = (event: any) => {
-      const url = event.detail.approvalUrl ?? null;
-      setApprovalUrl(url);
-      setShow(true);
-      setMethod(url ? 'farcaster' : 'phrase');
-      setPhrase('');
-      setError(null);
+    const handleShow = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.mode === 'hypersnap') {
+        setShow(true);
+        setError(null);
+        const fid = getStoredFid();
+        const raw = fid ? localStorage.getItem(`signer_${fid}`) : null;
+        let pending = false;
+        try { pending = raw ? JSON.parse(raw)?.status === 'pending_hypersnap' : false; } catch { /* ignore malformed cache */ }
+        setStatus(pending ? 'pending' : 'idle');
+      }
     };
-    window.addEventListener("showWelcomeModal", handleShowModal);
-    return () => window.removeEventListener("showWelcomeModal", handleShowModal);
+    const handlePending = () => setStatus('pending');
+    window.addEventListener('showWelcomeModal', handleShow);
+    window.addEventListener('hh:signer:pending', handlePending);
+    return () => {
+      window.removeEventListener('showWelcomeModal', handleShow);
+      window.removeEventListener('hh:signer:pending', handlePending);
+    };
   }, []);
 
-  function getFid(): number | null {
+  const getFid = useCallback((): number | null => {
     if (authFid) return authFid;
-    try {
-      const stored = localStorage.getItem("hh_profile");
-      return stored ? JSON.parse(stored)?.fid ?? null : null;
-    } catch { return null; }
-  }
+    return getStoredFid();
+  }, [authFid]);
 
-  const checkApprovalStatus = async () => {
-    setChecking(true);
+  const pollForActivation = useCallback(async (fid: number, publicKey: string) => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1_000));
+      try {
+        const response = await fetch(`/api/hypersnap/signer?fid=${fid}&publicKey=${encodeURIComponent(publicKey)}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (data.ok && data.active) {
+          const key = `signer_${fid}`;
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const signer = JSON.parse(raw);
+            signer.status = 'approved';
+            signer.registration = 'hypersnap-key-add';
+            localStorage.setItem(key, JSON.stringify(signer));
+          }
+          setStatus('active');
+          window.dispatchEvent(new Event('hh:signer:approved'));
+          return true;
+        }
+      } catch { /* retry briefly while Hypersnap commits the key */ }
+    }
+    setStatus('pending');
+    return false;
+  }, []);
+
+  async function enablePosting() {
     setError(null);
-    try {
-      const fid = authFid ?? getStoredFid();
-      if (!fid) { setError('Could not find your Farcaster ID.'); return; }
-
-      const key = `signer_${fid}`;
-      const stored = localStorage.getItem(key);
-      if (!stored) { setError('No signer found. Try refreshing.'); return; }
-
-      const parsed = JSON.parse(stored);
-      const signerUuid = parsed.signer_uuid;
-      if (!signerUuid) { setError('No signer UUID found.'); return; }
-
-      const res = await fetch(`/api/signer?signer_uuid=${signerUuid}`);
-      const data = await res.json();
-
-      if (data.ok && data.status === "approved") {
-        if (!parsed.private_key) {
-          // Key was lost (old version of app stored without private_key) — clear and restart
-          localStorage.removeItem(key);
-          setError("Approval confirmed, but the signing key was lost. Creating a new signer — please wait…");
-          const newFid = getFid();
-          if (newFid) window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: newFid } }));
+    const fid = getFid();
+    if (!fid) {
+      setError('Sign in with your wallet first, then enable posting.');
+      return;
+    }
+    const signerKey = `signer_${fid}`;
+    const existingRaw = localStorage.getItem(signerKey);
+    if (existingRaw) {
+      try {
+        const existing = JSON.parse(existingRaw);
+        if (existing.status === 'pending_hypersnap' && existing.public_key) {
+          setProvisioning(true);
+          const active = await pollForActivation(fid, existing.public_key);
+          if (active) setTimeout(() => window.location.reload(), 400);
+          setProvisioning(false);
           return;
         }
-        parsed.status = "approved";
-        localStorage.setItem(key, JSON.stringify(parsed));
-        window.dispatchEvent(new Event('hh:signer:approved'));
-        setShow(false);
-        setTimeout(() => window.location.reload(), 300);
-      } else {
-        setError("Not approved yet — please approve in the Farcaster app first.");
-      }
-    } catch (e: any) {
-      setError(e.message || 'Error checking status');
-    } finally {
-      setChecking(false);
+      } catch { /* continue with a new explicit authorization */ }
     }
-  };
+    if (!isConnected || !address) {
+      openConnectModal?.();
+      return;
+    }
 
-  useEffect(() => {
-    if (!show || !standalone || !approvalUrl) return;
-    const checkOnReturn = () => {
-      if (document.visibilityState !== 'visible') return;
-      const fid = authFid ?? getStoredFid();
-      if (fid) window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));
-    };
-    document.addEventListener('visibilitychange', checkOnReturn);
-    window.addEventListener('pageshow', checkOnReturn);
-    return () => {
-      document.removeEventListener('visibilitychange', checkOnReturn);
-      window.removeEventListener('pageshow', checkOnReturn);
-    };
-  }, [show, standalone, approvalUrl, authFid]);
-
-  useEffect(() => {
-    const approved = () => setShow(false);
-    window.addEventListener('hh:signer:approved', approved);
-    return () => window.removeEventListener('hh:signer:approved', approved);
-  }, []);
-
-  const handleProvisionWithPhrase = async () => {
-    setError(null);
     setProvisioning(true);
+    const originalChainId = chainId;
     try {
-      const fid = getFid();
-      if (!fid) throw new Error('Could not find your Farcaster ID. Please sign in again.');
-
-      const result = await provisionSignerWithMnemonic(fid, phrase);
-      setPhrase('');
-
-      // Signer is registered on-chain directly — always approved
+      // Hypersnap's current KEY_ADD verifier uses chainId 1 in the EIP-712 domain.
+      // Switch only for the signature; this is not a transaction and costs no gas.
+      if (originalChainId !== 1) await switchChainAsync({ chainId: 1 });
+      const result = await registerHypersnapSigner(
+        fid,
+        address,
+        (payload) => signTypedDataAsync(payload as KeyAddSigningPayload),
+      );
       localStorage.setItem(`signer_${fid}`, JSON.stringify({
-        signer_uuid: result.signer_uuid ?? null,
+        signer_uuid: null,
         public_key: `0x${result.publicKeyHex}`,
         private_key: result.privateKeyHex,
-        status: 'approved',
-        signer_approval_url: null,
+        status: 'pending_hypersnap',
+        registration: 'hypersnap-key-add',
       }));
-      window.dispatchEvent(new Event('hh:signer:approved'));
-      setShow(false);
-      setTimeout(() => window.location.reload(), 300);
-    } catch (e: any) {
-      setError(e.message || 'Failed to set up signer');
+      window.dispatchEvent(new Event('hh:signer:pending'));
+      const active = await pollForActivation(fid, `0x${result.publicKeyHex}`);
+      if (active) {
+        setTimeout(() => window.location.reload(), 400);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not enable Hypersnap posting.');
     } finally {
+      // Restore the wallet's original chain when possible.
+      if (originalChainId && originalChainId !== 1) {
+        try { await switchChainAsync({ chainId: originalChainId as typeof optimism.id }); } catch { /* wallet may not expose the prior chain */ }
+      }
       setProvisioning(false);
     }
-  };
-
-  const handleClose = () => {
-    setShow(false);
-    setPhrase('');
-    setError(null);
-    sessionStorage.setItem("signer_approval_skipped", "true");
-  };
+  }
 
   if (!show) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 500 }}>
+    <div className="modal-overlay" onClick={() => !provisioning && setShow(false)}>
+      <div className="modal" style={{ maxWidth: 500 }} onClick={(event) => event.stopPropagation()}>
         <div style={{ textAlign: 'center', padding: '24px 16px' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
-          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-            Enable Posting
-          </h3>
-          <p style={{ color: 'var(--muted-on-dark)', marginBottom: 20, fontSize: 14, lineHeight: 1.5 }}>
-            Approve HomieHouse to post on your behalf — a one-time setup.
+          <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Enable Hypersnap posting</h3>
+          <p style={{ color: 'var(--muted-on-dark)', marginBottom: 16, fontSize: 14, lineHeight: 1.5 }}>
+            Your wallet will authorize a HomieHouse signing key directly with Hypersnap. No recovery phrase, Farcaster app approval, or gas transaction is used.
           </p>
-
-          {/* Tab switcher */}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
-            <button
-              onClick={() => { setMethod('farcaster'); setError(null); }}
-              style={{
-                flex: 1, padding: '8px 0', fontSize: 13, fontWeight: method === 'farcaster' ? 600 : 400,
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                borderBottom: method === 'farcaster' ? '2px solid var(--foreground)' : '2px solid transparent',
-                color: method === 'farcaster' ? 'var(--foreground)' : 'var(--muted-on-dark)',
-                marginBottom: -1,
-              }}
-            >
-              Farcaster App
-            </button>
-            <button
-              onClick={() => { setMethod('phrase'); setError(null); }}
-              style={{
-                flex: 1, padding: '8px 0', fontSize: 13, fontWeight: method === 'phrase' ? 600 : 400,
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                borderBottom: method === 'phrase' ? '2px solid var(--foreground)' : '2px solid transparent',
-                color: method === 'phrase' ? 'var(--foreground)' : 'var(--muted-on-dark)',
-                marginBottom: -1,
-              }}
-            >
-              Recovery Phrase
-            </button>
+          <div style={{ textAlign: 'left', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
+            <strong>Permissions:</strong> casts, cast removal, likes/recasts, and follows.
+            <br />
+            <strong>Expiry:</strong> 30-day sliding window.
+            <br />
+            <strong>Wallet:</strong> must be the FID&apos;s custody wallet (EOA).
           </div>
-
-          {method === 'farcaster' ? (
-            <>
-              {approvalUrl && (
-                <>
-                  <div style={{ background: 'white', padding: 16, borderRadius: 8, display: 'inline-block', marginBottom: 12 }}>
-                    <QRCodeSVG value={approvalUrl} size={180} />
-                  </div>
-                  <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 12 }}>
-                    Scan with your phone or tap below:
-                  </p>
-                  <a
-                    href={approvalUrl}
-                    target={standalone ? undefined : '_blank'}
-                    rel={standalone ? undefined : 'noopener noreferrer'}
-                    onClick={(event) => {
-                      if (!standalone) return;
-                      event.preventDefault();
-                      window.location.assign(approvalUrl);
-                    }}
-                    className="btn primary"
-                    style={{ display: 'block', textAlign: 'center', marginBottom: 12, padding: 12, width: '100%' }}
-                  >
-                    {standalone ? 'Open Farcaster to approve →' : 'Approve in Farcaster →'}
-                  </a>
-                  {standalone && (
-                    <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: '-4px 0 12px' }}>
-                      Come back to HomieHouse after approving. We’ll check automatically.
-                    </p>
-                  )}
-                </>
-              )}
-              <button
-                className="btn"
-                onClick={checkApprovalStatus}
-                disabled={checking}
-                style={{ width: '100%', padding: 12, marginBottom: 8 }}
-              >
-                {checking ? "Checking…" : "I've Approved — Continue"}
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{
-                background: 'rgba(255,200,0,0.08)', border: '1px solid rgba(255,200,0,0.25)',
-                borderRadius: 8, padding: '10px 14px', marginBottom: 16, textAlign: 'left',
-              }}>
-                <p style={{ fontSize: 12, color: '#d4aa00', margin: 0, lineHeight: 1.5 }}>
-                  ⚠️ Your recovery phrase never leaves your device. It is used only to sign the key registration and is never stored or sent to any server.
-                </p>
-              </div>
-              <textarea
-                value={phrase}
-                onChange={e => { setPhrase(e.target.value); setError(null); }}
-                placeholder="Enter your 12 or 24-word Farcaster recovery phrase…"
-                rows={4}
-                disabled={provisioning}
-                style={{
-                  width: '100%', padding: '10px 12px', borderRadius: 8,
-                  border: '1px solid var(--border)', background: 'var(--surface)',
-                  color: 'var(--foreground)', fontSize: 14, resize: 'vertical',
-                  fontFamily: 'monospace', marginBottom: 12, boxSizing: 'border-box',
-                }}
-              />
-              <button
-                className="btn primary"
-                onClick={handleProvisionWithPhrase}
-                disabled={provisioning || !phrase.trim()}
-                style={{ width: '100%', padding: 12, marginBottom: 8 }}
-              >
-                {provisioning ? "Connecting…" : "Connect Instantly"}
-              </button>
-            </>
+          {error && <p role="alert" style={{ color: '#f87171', fontSize: 13, margin: '0 0 12px' }}>{error}</p>}
+          {status === 'pending' && !error && (
+            <p role="status" style={{ color: 'var(--muted-on-dark)', fontSize: 13, margin: '0 0 12px' }}>
+              Authorization submitted. Waiting for Hypersnap to activate the signer; you can close this and check again later.
+            </p>
           )}
-
-          {error && (
-            <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(239,68,68,0.1)', borderRadius: 6, fontSize: 13, color: '#f87171', textAlign: 'left' }}>
-              {error}
-            </div>
-          )}
-
+          {status === 'active' && <p role="status" style={{ color: '#22c55e', fontSize: 13 }}>Hypersnap posting is enabled.</p>}
           <button
-            onClick={handleClose}
-            style={{ background: 'transparent', border: 'none', color: 'var(--muted-on-dark)', cursor: 'pointer', fontSize: 13, padding: 8, marginTop: 8, textDecoration: 'underline' }}
+            className="btn primary"
+            onClick={enablePosting}
+            disabled={provisioning || status === 'active'}
+            style={{ width: '100%', padding: 13 }}
           >
-            Skip for now
+            {provisioning ? 'Checking Hypersnap…' : status === 'active' ? 'Posting enabled' : status === 'pending' ? 'Check activation status' : isConnected ? 'Authorize Hypersnap signer' : 'Connect wallet'}
           </button>
+          <button className="btn" onClick={() => setShow(false)} disabled={provisioning} style={{ width: '100%', marginTop: 8, padding: 11 }}>
+            Not now
+          </button>
+          <p style={{ color: 'var(--muted-on-dark)', fontSize: 11, marginTop: 12 }}>
+            The signer key is generated in this browser. HomieHouse never receives your custody private key or recovery phrase.
+          </p>
         </div>
       </div>
     </div>

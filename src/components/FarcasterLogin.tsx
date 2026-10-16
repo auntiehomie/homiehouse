@@ -1,227 +1,179 @@
 'use client';
 
-/**
- * FarcasterLogin – Farcaster-native login using Hypersnap.
- *
- * Users enter their Farcaster username or FID.
- * 1. App fetches their profile from /api/profile (→ Hypersnap / Warpcast fallback)
- * 2. App stores the profile in localStorage as hh_profile
- * 3. App dispatches hh:auth:changed so FarcasterAuthProvider picks it up
- * 4. App dispatches hh:request:signer so SignerInit creates/checks the signer
- */
+import { useCallback, useEffect, useState } from 'react';
+import { useAccount, useSignMessage } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { createMessage, encodeToken } from '@farcasterorg/quick-auth/token';
+import { useSessionAuth } from '@/hooks/useSessionAuth';
 
-import { useState } from 'react';
+interface LinkedAccount {
+  fid: number;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  link: { method: string; address?: string };
+}
 
 interface FarcasterLoginProps {
-  /** Called after successful login */
   onLogin?: () => void;
-  /** Show as inline (false) or modal overlay (true) */
   modal?: boolean;
-  /** Called to dismiss the modal */
   onDismiss?: () => void;
 }
 
 export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: FarcasterLoginProps) {
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  const { openConnectModal } = useConnectModal();
+  const { createSessionFromProtocolToken } = useSessionAuth();
+  const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [signingFid, setSigningFid] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleLogin() {
-    const trimmed = input.trim();
-    if (!trimmed) {
-      setError('Enter a Farcaster username or FID');
+  const loadAccounts = useCallback(async () => {
+    if (!address) {
+      setAccounts([]);
       return;
     }
-
-    setLoading(true);
+    setLoadingAccounts(true);
     setError(null);
-
     try {
-      // Determine if input is an FID (pure number) or username
-      const isFid = /^\d+$/.test(trimmed);
-      const param = isFid ? `fid=${trimmed}` : `username=${encodeURIComponent(trimmed)}`;
-
-      const res = await fetch(`/api/profile?${param}`);
-      if (!res.ok) {
-        throw new Error('Profile not found. Check your username or FID.');
+      const response = await fetch(`/api/auth/linked-accounts?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 404) {
+        setAccounts([]);
+        return;
       }
+      if (!response.ok) throw new Error(data.error || 'Could not look up accounts on Hypersnap.');
+      setAccounts(Array.isArray(data.accounts) ? data.accounts : []);
+    } catch (err: any) {
+      setError(err?.message || 'Could not look up accounts on Hypersnap.');
+      setAccounts([]);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }, [address]);
 
-      const profile = await res.json();
-      if (!profile?.fid) {
-        throw new Error('Could not find a Farcaster account for this input.');
-      }
+  useEffect(() => { void loadAccounts(); }, [loadAccounts]);
 
-      // Store in localStorage (same shape FarcasterAuthProvider expects)
-      const hhProfile = {
-        fid: profile.fid,
-        username: profile.username || '',
-        displayName: profile.display_name || profile.username || '',
-        pfpUrl: profile.pfp_url || '',
-        bio: profile.profile?.bio?.text || '',
+  async function signInAs(account: LinkedAccount) {
+    if (!address) {
+      openConnectModal?.();
+      return;
+    }
+    setError(null);
+    setSigningFid(account.fid);
+    try {
+      const domain = window.location.host;
+      const message = createMessage({
+        domain,
+        uri: `${window.location.origin}/`,
+        address: address as `0x${string}`,
+        chainId: 1,
+        fid: account.fid,
+        expiresIn: 15 * 60,
+      });
+      const signature = await signMessageAsync({ message });
+      const protocolToken = encodeToken({ message, signature });
+      const result = await createSessionFromProtocolToken(protocolToken);
+      if (!result) throw new Error('Hypersnap could not verify this wallet for the selected account.');
+
+      const profileResponse = await fetch(`/api/profile?fid=${account.fid}`, { cache: 'no-store' });
+      const profileData = profileResponse.ok ? await profileResponse.json() : {};
+      localStorage.setItem('hh_profile', JSON.stringify({
+        fid: account.fid,
+        username: profileData.username || account.username || '',
+        displayName: profileData.display_name || account.displayName || account.username || '',
+        pfpUrl: profileData.pfp_url || account.pfpUrl || '',
+        bio: profileData.profile?.bio?.text || '',
         signer_uuid: '',
-        verified_addresses: profile.verified_addresses || { eth_addresses: [] },
-      };
-      localStorage.setItem('hh_profile', JSON.stringify(hhProfile));
-
-      // Dispatch auth changed so FarcasterAuthProvider + useFarcasterAuth pick it up
+        verified_addresses: profileData.verified_addresses || { eth_addresses: [] },
+        auth_method: 'hypersnap-wallet',
+      }));
       window.dispatchEvent(new Event('hh:auth:changed'));
-
-      // Trigger signer creation / check
-      window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: profile.fid } }));
-
+      window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: account.fid } }));
       onLogin?.();
     } catch (err: any) {
-      setError(err.message || 'Failed to log in. Please try again.');
+      setError(err?.message || 'Wallet sign-in failed. Check that this wallet is linked to the selected FID.');
     } finally {
-      setLoading(false);
+      setSigningFid(null);
     }
   }
 
   const content = (
     <div style={{ textAlign: 'center' }}>
-      {/* Logo */}
-      <div style={{ fontSize: 48, marginBottom: 12 }}>🟣</div>
+      <div style={{ fontSize: 42, marginBottom: 12 }}>🟣</div>
       <h2 style={{ margin: '0 0 8px', fontSize: 22, fontWeight: 700, color: 'var(--text-on-dark)' }}>
-        Sign in to HomieHouse
+        Sign in with your wallet
       </h2>
-      <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>
-        Enter your Farcaster username or FID to get started.
-        No wallet connection needed — just your Farcaster identity.
+      <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, margin: '0 0 20px', lineHeight: 1.5 }}>
+        Hypersnap will find Farcaster accounts linked to your wallet. Sign a short-lived login message to prove control—no Farcaster app approval or recovery phrase.
       </p>
 
-      {/* Input */}
-      <div style={{ marginBottom: 12 }}>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => { setInput(e.target.value); setError(null); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleLogin(); }}
-          placeholder="username or FID (e.g. 1234)"
-          autoFocus
-          style={{
-            width: '100%',
-            padding: '14px 16px',
-            borderRadius: 12,
-            fontSize: 16,
-            fontFamily: 'monospace',
-            border: `1.5px solid ${error ? '#f87171' : 'var(--border)'}`,
-            background: 'var(--bg-dark)',
-            color: 'var(--text-on-dark)',
-            outline: 'none',
-            boxSizing: 'border-box',
-          }}
-        />
-      </div>
-
-      {/* Error */}
-      {error && (
-        <p style={{
-          color: '#f87171',
-          fontSize: 13,
-          margin: '0 0 12px',
-          padding: '8px 12px',
-          background: 'rgba(248,113,113,0.1)',
-          borderRadius: 8,
-          textAlign: 'left',
-        }}>
-          {error}
-        </p>
+      {!isConnected ? (
+        <button className="btn primary" onClick={() => openConnectModal?.()} style={{ width: '100%', padding: 13 }}>
+          Connect wallet
+        </button>
+      ) : (
+        <>
+          <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, margin: '0 0 14px', wordBreak: 'break-all' }}>
+            Connected: {address}
+          </p>
+          {loadingAccounts && <p role="status" style={{ color: 'var(--muted-on-dark)', fontSize: 13 }}>Finding linked accounts on Hypersnap…</p>}
+          {!loadingAccounts && accounts.length > 0 && (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {accounts.map((account) => (
+                <button
+                  key={account.fid}
+                  onClick={() => void signInAs(account)}
+                  disabled={signingFid !== null}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%', padding: 12, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', cursor: 'pointer' }}
+                >
+                  {account.pfpUrl ? <img src={account.pfpUrl} alt="" width={40} height={40} style={{ borderRadius: '50%', objectFit: 'cover' }} /> : <span style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--border)', display: 'grid', placeItems: 'center' }}>@</span>}
+                  <span style={{ flex: 1 }}>
+                    <strong style={{ display: 'block' }}>{account.displayName || account.username || `FID ${account.fid}`}</strong>
+                    <small style={{ color: 'var(--muted-on-dark)' }}>@{account.username || `FID ${account.fid}`} · {account.link.method}</small>
+                  </span>
+                  <span>{signingFid === account.fid ? 'Signing…' : 'Sign in →'}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {!loadingAccounts && accounts.length === 0 && !error && (
+            <p style={{ color: 'var(--muted-on-dark)', fontSize: 13 }}>
+              No existing FID is linked to this wallet. You can create an account with this wallet.
+            </p>
+          )}
+          {!loadingAccounts && accounts.length === 0 && (
+            <button
+              onClick={() => { window.dispatchEvent(new Event('hh:need:farcaster-account')); onDismiss?.(); }}
+              className="btn primary"
+              style={{ width: '100%', padding: 13, marginTop: 8 }}
+            >
+              Create account with this wallet
+            </button>
+          )}
+          <button className="btn" onClick={() => void loadAccounts()} disabled={loadingAccounts} style={{ width: '100%', marginTop: 8, padding: 10 }}>
+            Refresh linked accounts
+          </button>
+        </>
       )}
 
-      {/* Submit */}
-      <button
-        onClick={handleLogin}
-        disabled={loading || !input.trim()}
-        style={{
-          width: '100%',
-          padding: 14,
-          borderRadius: 12,
-          border: 'none',
-          background: loading || !input.trim() ? 'var(--border)' : 'var(--btn-primary-bg, #6366f1)',
-          color: loading || !input.trim() ? 'var(--muted-on-dark)' : 'var(--btn-primary-color, #fff)',
-          fontSize: 15,
-          fontWeight: 700,
-          cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {loading ? 'Looking you up…' : 'Sign in →'}
-      </button>
-
-      {/* No signup? Create account prompt */}
-      <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 16 }}>
-        Don&apos;t have a Farcaster account?{' '}
-        <button
-          onClick={() => {
-            window.dispatchEvent(new Event('hh:need:farcaster-account'));
-            onDismiss?.();
-          }}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--accent, #6366f1)',
-            cursor: 'pointer',
-            fontSize: 12,
-            textDecoration: 'underline',
-            padding: 0,
-          }}
-        >
-          Create one
-        </button>
+      {error && <p role="alert" style={{ color: '#f87171', fontSize: 13, margin: '12px 0 0', textAlign: 'left' }}>{error}</p>}
+      <p style={{ color: 'var(--muted-on-dark)', fontSize: 11, marginTop: 14 }}>
+        A successful login grants a read session. Posting permissions are a separate, optional Hypersnap signer approval.
       </p>
     </div>
   );
 
   if (!modal) {
-    return (
-      <div style={{
-        maxWidth: 400,
-        width: '100%',
-        margin: '40px auto',
-        padding: '32px 28px',
-        background: 'var(--surface)',
-        borderRadius: 24,
-        border: '1px solid var(--border)',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.4)',
-        maxHeight: '100dvh',
-        overflowY: 'auto',
-      }}>
-        {content}
-      </div>
-    );
+    return <div style={{ maxWidth: 400, width: '100%', margin: '40px auto', padding: '32px 28px', background: 'var(--surface)', borderRadius: 24, border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }}>{content}</div>;
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.85)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        padding: '16px',
-        paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
-        paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-      }}
-      onClick={onDismiss}
-    >
-      <div
-        style={{
-          maxWidth: 400,
-          width: '100%',
-          maxHeight: '100dvh',
-          overflowY: 'auto',
-          padding: '32px 28px',
-          background: 'var(--surface)',
-          borderRadius: 24,
-          border: '1px solid var(--border)',
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {content}
+    <div className="modal-overlay" onClick={onDismiss}>
+      <div className="modal" style={{ maxWidth: 440, width: '100%' }} onClick={(event) => event.stopPropagation()}>
+        <div style={{ padding: '28px 24px' }}>{content}</div>
       </div>
     </div>
   );

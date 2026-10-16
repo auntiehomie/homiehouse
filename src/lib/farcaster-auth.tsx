@@ -59,6 +59,9 @@ export function FarcasterAuthProvider({ children }: { children: React.ReactNode 
 
   const refreshAuth = useCallback(() => {
     try {
+      const sessionRaw = sessionStorage.getItem('hh_session_v1')
+      const session = sessionRaw ? JSON.parse(sessionRaw) : null
+      const sessionValid = !!session?.fid && Number(session.expiresAt) > Date.now()
       const raw = localStorage.getItem('hh_profile')
       if (raw) {
         const profile = JSON.parse(raw)
@@ -72,12 +75,23 @@ export function FarcasterAuthProvider({ children }: { children: React.ReactNode 
           const signerRaw = localStorage.getItem(`signer_${profile.fid}`)
           if (signerRaw) {
             const signer = JSON.parse(signerRaw)
-            setIsAuthenticated(signer.status === 'approved' && !!signer.private_key)
+          setIsAuthenticated(
+            (sessionValid && Number(session.fid) === profile.fid) ||
+            (signer.status === 'approved' && !!signer.private_key),
+          )
           } else {
-            setIsAuthenticated(false)
+            setIsAuthenticated(sessionValid && Number(session.fid) === profile.fid)
           }
           return
         }
+      }
+      if (sessionValid) {
+        setFid(Number(session.fid))
+        setUsername(null)
+        setDisplayName(null)
+        setPfpUrl(null)
+        setIsAuthenticated(true)
+        return
       }
     } catch {
       // corrupted storage — treat as signed-out
@@ -171,6 +185,15 @@ export function FarcasterAuthProvider({ children }: { children: React.ReactNode 
 
   const signOut = useCallback(() => {
     try {
+      const sessionRaw = sessionStorage.getItem('hh_session_v1')
+      const session = sessionRaw ? JSON.parse(sessionRaw) : null
+      if (session?.token) {
+        void fetch('/api/auth/session', {
+          method: 'DELETE',
+          headers: { 'x-session-token': session.token },
+        }).catch(() => {})
+      }
+      sessionStorage.removeItem('hh_session_v1')
       const raw = localStorage.getItem('hh_profile')
       if (raw) {
         const profile = JSON.parse(raw)

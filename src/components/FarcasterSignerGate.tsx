@@ -16,7 +16,7 @@ interface FarcasterSignerGateProps {
  * no Warpcast approval URL flow needed.
  */
 export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateProps) {
-  const { isAuthenticated, signIn, fid } = useFarcasterAuth();
+  const { isAuthenticated } = useFarcasterAuth();
   const { hasActiveSigner, requestSigner } = useFarcasterWrites();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,15 +26,8 @@ export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateP
       <div className="farcaster-signer-gate">
         {fallback ?? (
           <div style={{ padding: '16px', textAlign: 'center' }}>
-            <p>Sign in to post to Farcaster</p>
-            <button
-              onClick={async () => {
-                if (fid) await signIn(fid);
-              }}
-              style={{ marginTop: '8px', padding: '8px 16px', cursor: 'pointer' }}
-            >
-              Sign In
-            </button>
+            <p>Sign in with a wallet linked to your account to continue.</p>
+            <p style={{ fontSize: 12, opacity: 0.75 }}>Use the wallet sign-in control in the app menu. Entering an FID alone is not authentication.</p>
           </div>
         )}
       </div>
@@ -46,7 +39,7 @@ export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateP
       <div className="farcaster-signer-gate">
         {fallback ?? (
           <div style={{ padding: '16px', textAlign: 'center' }}>
-            <p>Connect your Farcaster account to post</p>
+            <p>Enable Hypersnap posting for your account</p>
             {error && <p style={{ color: 'red', marginTop: '8px' }}>{error}</p>}
             <button
               onClick={async () => {
@@ -55,7 +48,7 @@ export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateP
                 try {
                   await requestSigner();
                 } catch (e: any) {
-                  setError(e?.message ?? 'Failed to connect Farcaster account');
+                  setError(e?.message ?? 'Failed to enable Hypersnap posting');
                 } finally {
                   setLoading(false);
                 }
@@ -63,7 +56,7 @@ export function FarcasterSignerGate({ children, fallback }: FarcasterSignerGateP
               disabled={loading}
               style={{ marginTop: '8px', padding: '8px 16px', cursor: loading ? 'wait' : 'pointer' }}
             >
-              {loading ? 'Connecting…' : 'Connect Farcaster'}
+              {loading ? 'Opening…' : 'Enable Hypersnap posting'}
             </button>
           </div>
         )}

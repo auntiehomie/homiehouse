@@ -22,8 +22,10 @@ export enum MessageType {
   REACTION_REMOVE = 4,
   LINK_ADD = 5,
   LINK_REMOVE = 6,
-  KEY_ADD = 11,
-  KEY_REMOVE = 12,
+  // These are the Hypersnap/Snapchain protocol values. The previous values
+  // (11/12) are deprecated Farcaster signer messages, not gasless key ops.
+  KEY_ADD = 16,
+  KEY_REMOVE = 17,
 }
 
 export enum HashScheme {
@@ -203,6 +205,7 @@ export interface KeyAddInput {
   deadline: number;
   nonce: number;
   metadata: Uint8Array;         // ABI-encoded SignedKeyRequestMetadata
+  registrationTxHash?: Uint8Array; // FID registration tx for a newly-created FID
   scopes: number[];             // MessageType values allowed for this signer
   ttl: number;                  // seconds
 }
@@ -219,6 +222,7 @@ export function encodeKeyAddBody(input: KeyAddInput): Uint8Array {
   w.writeVarintField(5, input.nonce);
   w.writeBytesField(6, input.metadata);
   w.writeVarintField(7, METADATA_TYPE);
+  if (input.registrationTxHash?.length) w.writeBytesField(8, input.registrationTxHash);
   w.writePackedVarint(9, input.scopes.map(BigInt));
   w.writeVarintField(10, input.ttl);
   return w.bytes();

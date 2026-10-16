@@ -394,14 +394,14 @@ function ComposePageInner() {
             <div style={{ fontSize: 52, marginBottom: 16 }}>💬</div>
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10, color: 'var(--text-on-dark)' }}>Connect to Cast</h2>
             <p style={{ color: 'var(--muted-on-dark)', marginBottom: 28, maxWidth: 320, margin: '0 auto 28px', lineHeight: 1.6, fontSize: 14 }}>
-              You need a Farcaster account to post. Sign in or import your account to get started.
+              Sign in with a wallet linked to your account, or create an account to get started.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 280, margin: '0 auto' }}>
               <button
                 onClick={() => router.push('/')}
                 style={{ padding: '11px 24px', borderRadius: 24, background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer' }}
               >
-                Sign in with Farcaster
+                Sign in with wallet
               </button>
               <button
                 onClick={() => router.push('/settings')}
@@ -411,7 +411,7 @@ function ComposePageInner() {
               </button>
             </div>
             <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, marginTop: 20, lineHeight: 1.5 }}>
-              In Settings → Account, you can import any Farcaster account using your recovery phrase for full posting access.
+              Profile import is read-only. Posting access is granted separately by signing a Hypersnap authorization with the FID custody wallet.
             </p>
           </div>
         ) : userFid && !hasActiveSigner ? (
@@ -419,7 +419,7 @@ function ComposePageInner() {
             <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: 'var(--text-on-dark)' }}>Enable Posting</h2>
             <p style={{ ...muted, marginBottom: 28, maxWidth: 340, margin: '0 auto 28px', lineHeight: 1.5 }}>
-              To post casts from HomieHouse, approve posting permissions via Farcaster. This only needs to be done once.
+              Authorize a scoped HomieHouse signer with the wallet that controls this FID. No recovery phrase or Farcaster app approval is needed.
             </p>
             <button
               onClick={handleEnablePosting}
