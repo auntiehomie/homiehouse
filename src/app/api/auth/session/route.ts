@@ -1,15 +1,13 @@
 /**
  * POST /api/auth/session
  *
- * Exchange a verified Farcaster challenge payload for a short-lived
- * session JWT. The client must have already completed the challenge flow:
+ * Exchange either an approved Farcaster signer proof or a wallet-signed
+ * Hypersnap protocol token for a short-lived session JWT.
  *
- *   GET  /api/auth/challenge  → challenge string
- *   POST /api/auth/verify     → Hypersnap verification
- *   POST /api/auth/session    → session token (this endpoint)
+ *   POST /api/auth/session { protocolToken }
  *
- * Body: { fid: number, signerPublicKey?: string }
- * The fid must match the one verified in /api/auth/verify.
+ * The protocol token's FID is derived from server-side verification, never
+ * trusted from the request body. Existing approved-signer clients still work.
  *
  * Returns: { ok: true, token: string, expiresAt: number }
  *
@@ -28,6 +26,10 @@ import {
 } from '@/lib/session';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
+import {
+  getHomieHouseAuthDomain,
+  verifyHypersnapProtocolToken,
+} from '@/lib/hypersnap-protocol-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,29 +51,69 @@ export async function POST(req: NextRequest) {
     // proof for minting another session.
     if (req.headers.get('x-session-token')) {
       return NextResponse.json(
-        { ok: false, error: 'Use an approved Farcaster signer to create a session' },
+        {
+          ok: false,
+          error: 'Use an approved Farcaster signer to create a session',
+        },
         { status: 401 },
       );
     }
 
     const body = await req.json().catch(() => ({}));
-    const fid = parseInt(String(body.fid), 10);
-    if (!fid || isNaN(fid) || fid <= 0) {
-      return NextResponse.json(
-        { ok: false, error: 'Valid FID required' },
-        { status: 400 },
-      );
-    }
+    let fid: number;
+    let protocolAuth = false;
 
-    const verifiedFid = await verifyFarcasterSignerAuth(req);
-    if (verifiedFid !== fid) {
-      return NextResponse.json(
-        { ok: false, error: 'Authenticated FID does not match requested FID' },
-        { status: 403 },
+    if (typeof body.protocolToken === 'string') {
+      if (body.protocolToken.length > 8_192) {
+        return NextResponse.json(
+          { ok: false, error: 'Login token is too large' },
+          { status: 400 },
+        );
+      }
+
+      const verified = await verifyHypersnapProtocolToken(
+        body.protocolToken,
+        getHomieHouseAuthDomain(),
       );
+      fid = verified.fid;
+      protocolAuth = true;
+
+      if (body.fid !== undefined && Number(body.fid) !== fid) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'Authenticated FID does not match requested FID',
+          },
+          { status: 403 },
+        );
+      }
+    } else {
+      const requestedFid = parseInt(String(body.fid), 10);
+      if (!requestedFid || isNaN(requestedFid) || requestedFid <= 0) {
+        return NextResponse.json(
+          { ok: false, error: 'Valid FID or protocolToken required' },
+          { status: 400 },
+        );
+      }
+
+      const verifiedFid = await verifyFarcasterSignerAuth(req);
+      if (verifiedFid !== requestedFid) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: 'Authenticated FID does not match requested FID',
+          },
+          { status: 403 },
+        );
+      }
+      fid = verifiedFid;
     }
 
     const token = await createSession(fid, {
+      // A wallet-proven identity alone does not mean the user has an
+      // approved Ed25519 signer for Farcaster writes. Keep this session
+      // read-only until the existing signer-approval flow is completed.
+      ...(protocolAuth ? { scopes: ['read:all'] as const } : {}),
       userAgent: req.headers.get('user-agent'),
       ipAddress: ip,
     });
