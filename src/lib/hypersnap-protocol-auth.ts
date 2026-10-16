@@ -8,16 +8,34 @@ import { AuthError } from '@/lib/errors';
 
 const DEFAULT_HYPERSNAP_URL = 'https://haatz.quilibrium.com';
 
-export function getHomieHouseAuthDomain(): string {
-  const explicitDomain = process.env.HOMIEHOUSE_AUTH_DOMAIN?.trim();
-  if (explicitDomain) return explicitDomain;
-
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.app';
+function hostname(value: string | undefined): string | null {
+  if (!value?.trim()) return null;
   try {
-    return new URL(baseUrl).host;
+    return new URL(value.includes('://') ? value : `https://${value}`).host;
   } catch {
-    throw new Error('NEXT_PUBLIC_BASE_URL must be a valid absolute URL');
+    return null;
   }
+}
+
+/** Resolve the SIWE domain while allowing only configured deployment hosts. */
+export function getHomieHouseAuthDomain(requestHost?: string): string {
+  const explicitDomain = process.env.HOMIEHOUSE_AUTH_DOMAIN?.trim();
+  const baseUrl = explicitDomain || process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.app';
+  const productionDomain = hostname(baseUrl);
+  if (!productionDomain) throw new Error('NEXT_PUBLIC_BASE_URL must be a valid absolute URL');
+
+  if (requestHost) {
+    const allowedHosts = new Set([
+      productionDomain,
+      hostname(process.env.VERCEL_URL),
+      hostname(process.env.VERCEL_BRANCH_URL),
+      hostname(process.env.VERCEL_PROJECT_PRODUCTION_URL),
+    ].filter((host): host is string => Boolean(host)));
+    if (process.env.NODE_ENV !== 'production') allowedHosts.add(requestHost);
+    if (allowedHosts.has(requestHost)) return requestHost;
+  }
+
+  return productionDomain;
 }
 
 /**

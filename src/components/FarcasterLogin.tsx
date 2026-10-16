@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { createMessage, encodeToken } from '@farcasterorg/quick-auth/token';
 import { useSessionAuth } from '@/hooks/useSessionAuth';
@@ -24,6 +24,7 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { openConnectModal } = useConnectModal();
+  const { disconnectAsync } = useDisconnect();
   const { createSessionFromProtocolToken } = useSessionAuth();
   const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
@@ -76,7 +77,7 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
       const signature = await signMessageAsync({ message });
       const protocolToken = encodeToken({ message, signature });
       const result = await createSessionFromProtocolToken(protocolToken);
-      if (!result) throw new Error('Hypersnap could not verify this wallet for the selected account.');
+      if (!result.ok) throw new Error(result.error);
 
       const profileResponse = await fetch(`/api/profile?fid=${account.fid}`, { cache: 'no-store' });
       const profileData = profileResponse.ok ? await profileResponse.json() : {};
@@ -119,6 +120,16 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
           <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, margin: '0 0 14px', wordBreak: 'break-all' }}>
             Connected: {address}
           </p>
+          <button
+            className="btn"
+            onClick={async () => {
+              await disconnectAsync();
+              window.setTimeout(() => openConnectModal?.(), 0);
+            }}
+            style={{ width: '100%', marginBottom: 12, padding: 10 }}
+          >
+            Change wallet
+          </button>
           {loadingAccounts && <p role="status" style={{ color: 'var(--muted-on-dark)', fontSize: 13 }}>Finding linked accounts on Hypersnap…</p>}
           {!loadingAccounts && accounts.length > 0 && (
             <div style={{ display: 'grid', gap: 8 }}>
@@ -171,8 +182,8 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
   }
 
   return (
-    <div className="modal-overlay" onClick={onDismiss}>
-      <div className="modal" style={{ maxWidth: 440, width: '100%' }} onClick={(event) => event.stopPropagation()}>
+    <div className="modal-overlay wallet-login-modal-overlay" onClick={onDismiss}>
+      <div className="modal wallet-login-modal" style={{ maxWidth: 440, width: '100%' }} onClick={(event) => event.stopPropagation()}>
         <div style={{ padding: '28px 24px' }}>{content}</div>
       </div>
     </div>

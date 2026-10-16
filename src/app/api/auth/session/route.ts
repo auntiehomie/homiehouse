@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
       const verified = await verifyHypersnapProtocolToken(
         body.protocolToken,
-        getHomieHouseAuthDomain(),
+        getHomieHouseAuthDomain(req.nextUrl.host),
       );
       fid = verified.fid;
       protocolAuth = true;
