@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChannelSidebar } from './ChannelStrip';
 import NotificationBadge from './NotificationBadge';
+import ProfileSummary from './ProfileSummary';
 
 const NAV_ITEMS = [
   {
@@ -170,6 +171,8 @@ export default function SidebarNav() {
           );
         })}
       </nav>
+
+      <ProfileSummary />
 
       {/* Divider */}
       <div style={{ height: 1, background: 'var(--border)', marginBottom: 16 }} />

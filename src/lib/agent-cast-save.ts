@@ -11,6 +11,27 @@ export function isSaveCastCommand(text: string): boolean {
   );
 }
 
+/** Convert a cast hash or a public cast URL into the hash Hypersnap accepts. */
+export function resolveParentCastHash(...references: Array<unknown>): string | null {
+  for (const reference of references) {
+    if (typeof reference !== 'string' || !reference.trim()) continue;
+    const value = reference.trim();
+    const directHash = value.match(/^0x[\da-f]{40}$/i)?.[0];
+    if (directHash) return directHash.toLowerCase();
+
+    try {
+      const url = new URL(value);
+      const hash = url.pathname.match(/(?:^|\/)(0x[\da-f]{40})(?:\/|$)/i)?.[1];
+      if (hash) return hash.toLowerCase();
+      const queryHash = url.searchParams.get('hash')?.match(/^0x[\da-f]{40}$/i)?.[0];
+      if (queryHash) return queryHash.toLowerCase();
+    } catch {
+      // Ignore non-URL references that are not valid cast hashes.
+    }
+  }
+  return null;
+}
+
 function parseCastTimestamp(value: unknown): Date | null {
   if (typeof value !== 'number' && typeof value !== 'string') return null;
   const numeric = Number(value);
@@ -33,12 +54,13 @@ export async function saveReplyTargetCast(params: {
   if (!Number.isSafeInteger(params.userFid) || params.userFid <= 0) {
     throw new Error('A valid Farcaster user ID is required');
   }
-  if (!params.parentHash?.trim()) throw new Error('Reply directly to a cast to save it');
+  const parentHash = resolveParentCastHash(params.parentHash);
+  if (!parentHash) throw new Error('Reply directly to a public cast so its hash can be resolved');
 
-  const response = await fetchCast(params.parentHash);
-  const cast = response?.data?.cast ?? response?.cast;
+  const response = await fetchCast(parentHash);
+  const cast = response?.cast;
   const castText = extractCastText(cast);
-  const castHash = typeof cast?.hash === 'string' ? cast.hash : params.parentHash;
+  const castHash = resolveParentCastHash(cast?.hash) ?? parentHash;
   if (!castText) throw new Error('The parent cast could not be loaded');
 
   await sql`

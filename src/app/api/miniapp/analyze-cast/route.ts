@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
+import { fetchCast } from '@/lib/hypersnap';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,19 +22,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const PINATA_JWT = process.env.PINATA_JWT;
-    if (!PINATA_JWT) {
-      return NextResponse.json(
-        { error: 'API key not configured' },
-        { status: 500 }
-      );
-    }
-
     // Extract hash from URL if provided
     let hash = castHash;
     if (castUrl && !hash) {
-      const match = castUrl.match(/\/0x([a-fA-F0-9]+)/);
-      hash = match ? `0x${match[1]}` : null;
+      const match = castUrl.match(/0x[\da-f]{40}/i);
+      hash = match?.[0] ?? null;
     }
 
     if (!hash) {
@@ -43,24 +36,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch cast details from Pinata Farcaster API
-    const response = await fetch(
-      `https://api.pinata.cloud/v3/farcaster/casts/${encodeURIComponent(hash)}`,
-      {
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${PINATA_JWT}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Farcaster API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    // Pinata returns { data: { ... } } or { cast: { ... } }
-    const cast = data?.data ?? data.cast;
+    const data = await fetchCast(hash);
+    const cast = data?.cast;
 
     if (!cast) {
       return NextResponse.json(
