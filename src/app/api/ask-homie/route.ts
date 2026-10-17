@@ -7,6 +7,8 @@ import { rateLimit } from '@/lib/ratelimit';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { isProUser } from '@/lib/pro';
 import { fetchCast } from '@/lib/hypersnap';
+import { formatLiveCastContext, requiresLiveCastEvidence, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
+import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
 
 // Module-level logger for helper functions
 const logger = createApiLogger('/ask-homie');
@@ -201,8 +203,41 @@ ANALYZE THE CAST ABOVE. When the user asks about "this cast" or asks to find sim
 ${contextualMessage}`;
     }
 
+    // The free-tier provider chain cannot execute LangChain tools. Retrieve
+    // live evidence server-side before generation instead of asking the model
+    // to emit pseudo tool calls that it cannot actually run.
+    const researchIntent = intent || 'auto';
+    const liveCastSearchRequested = shouldSearchLiveCasts(userMessage, researchIntent);
+    if (liveCastSearchRequested) {
+      const searchQuestion = activeCastContext && /\b(similar|other casts|examples)\b/i.test(userMessage)
+        ? `${userMessage}\n${activeCastContext.text || ''}`
+        : userMessage;
+      const liveCastResearch = await searchRelevantCasts(searchQuestion);
+      if (liveCastResearch.casts.length === 0 && requiresLiveCastEvidence(userMessage)) {
+        return NextResponse.json({
+          response: "I couldn't verify this from matching live Farcaster casts. Hypersnap returned no matching posts for this search, which could mean the posts aren't indexed or the search wasn't available; it doesn't establish whether the claim is true or false. Try a shorter phrase or a specific account.",
+          suggestions: [],
+          agentRole: 'researcher',
+          metadata: {
+            liveCastSearch: {
+              provider: 'Hypersnap',
+              queries: liveCastResearch.queries,
+              resultCount: 0,
+              status: 'no-matches-or-unavailable',
+            },
+          },
+          mode: 'agent',
+          userStats: UserProfileStorage.getStats(userIdentifier),
+        });
+      }
+      contextualMessage = `${formatLiveCastContext(liveCastResearch)}\n${contextualMessage}`;
+    }
+
     // Process the request
-    const result = await orchestrator.processRequest(contextualMessage, intent || 'auto');
+    const effectiveIntent = researchIntent === 'auto' && liveCastSearchRequested
+      ? 'research'
+      : researchIntent;
+    const result = await orchestrator.processRequest(contextualMessage, effectiveIntent);
 
     // If this was a composition, save it
     if (result.role === 'composer' && result.suggestions && result.suggestions.length > 0) {
@@ -212,7 +247,7 @@ ${contextualMessage}`;
     }
 
     return NextResponse.json({
-      response: result.content,
+      response: sanitizeAssistantResponse(result.content),
       suggestions: result.suggestions,
       agentRole: result.role,
       metadata: result.metadata,

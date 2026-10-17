@@ -12,6 +12,8 @@ updated: 2026-10-11
 
 ## In Review
 
+- [ ] Fix Ask Homie live Farcaster research: retrieve casts from Hypersnap before answering, fail closed for current-event questions without evidence, and suppress model-emitted tool-call markup [branch::codex/ask-homie-live-cast-research]
+
 - [x] Ground personalized AI learning plans in synced KB source details and preserve KB modules in generation fallbacks [done::2026-10-10] [pr::https://github.com/auntiehomie/homiehouse/pull/219] [commit::cef139f]
 
 - [ ] Fix HH2 reward attempts not being registered: send `moduleId` to `/api/lesson` so the server records the signed-in attempt [added::2026-10-10] [pr::https://github.com/auntiehomie/homiehouse/pull/210] [status::open]

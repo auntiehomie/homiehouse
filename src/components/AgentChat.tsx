@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MentionInput from './MentionInput';
+import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
 type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
@@ -125,7 +126,11 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         const parsed = JSON.parse(savedMessages);
         // Only load if it's relatively recent (last 24 hours)
         if (parsed.timestamp && Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
-          setMessages(parsed.messages || []);
+          setMessages((parsed.messages || []).map((message: Message) =>
+            message.role === 'assistant'
+              ? { ...message, content: sanitizeAssistantResponse(message.content) }
+              : message,
+          ));
         } else {
           // Clear old history
           localStorage.removeItem('hh_chat_history');
@@ -233,7 +238,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: data.response || 'No response received.',
+        content: sanitizeAssistantResponse(data.response) || 'No response received.',
         suggestions: data.suggestions,
         agentRole: data.agentRole,
         metadata: data.metadata
@@ -494,7 +499,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                     em: ({ node, ...props }) => <em className="italic" {...props} />,
                   }}
                 >
-                  {msg.content}
+                  {sanitizeAssistantResponse(msg.content)}
                 </ReactMarkdown>
               ) : (
                 <div className="whitespace-pre-wrap">
@@ -508,7 +513,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   <button
                     onClick={() => {
                       const attribution = '\n\nshared from @auntiehomie';
-                      const finalText = msg.content + attribution;
+                      const finalText = sanitizeAssistantResponse(msg.content) + attribution;
                       router.push(`/compose?text=${encodeURIComponent(finalText)}`);
                     }}
                     className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors flex items-center gap-1"
@@ -519,7 +524,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   </button>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(msg.content);
+                      navigator.clipboard.writeText(sanitizeAssistantResponse(msg.content));
                       alert('Copied to clipboard!');
                     }}
                     className="text-xs px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded-lg transition-colors"

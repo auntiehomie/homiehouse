@@ -6,6 +6,19 @@ var getProfile = jest.fn();
 var getStats = jest.fn();
 var updateProfile = jest.fn();
 var addCast = jest.fn();
+var searchRelevantCasts = jest.fn();
+
+jest.mock('@/lib/ai/cast-research', () => ({
+  searchRelevantCasts: (...args: unknown[]) => searchRelevantCasts(...args),
+  shouldSearchLiveCasts: (question: string, intent?: string) =>
+    intent === 'research' || (intent === 'auto' && /farcaster|hypersnap/i.test(question) && /cast|recent|latest|news|discussion|trending|sale|acquisition|verify|read/i.test(question)),
+  requiresLiveCastEvidence: (question: string) => /recent|latest|news|sale|acquisition|verify/i.test(question),
+  formatLiveCastContext: (research: { queries: string[]; casts: unknown[] }) =>
+    `LIVE SEARCH ${research.queries.join(',')}: ${JSON.stringify(research.casts)}`,
+}));
+jest.mock('@/lib/ai/sanitize-response', () => ({
+  sanitizeAssistantResponse: (content: string) => content.includes('<function_calls>') ? 'Safe fallback' : content,
+}));
 
 jest.mock('@/lib/ai/agents', () => ({
   AgentOrchestrator: jest.fn().mockImplementation(() => ({ processRequest })),
@@ -37,6 +50,7 @@ describe('/api/ask-homie', () => {
     getProfile.mockReturnValue({});
     getStats.mockReturnValue({ casts: 0 });
     processRequest.mockResolvedValue({ content: 'Hello!', suggestions: [], role: 'assistant', metadata: {} });
+    searchRelevantCasts.mockResolvedValue({ queries: ['farcaster acquisition'], casts: [] });
   });
 
   it('returns the assistant response for a valid request', async () => {
@@ -61,6 +75,57 @@ describe('/api/ask-homie', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: 'Internal error' });
+  });
+
+  it('retrieves live Hypersnap cast evidence for auto-detected research questions', async () => {
+    searchRelevantCasts.mockResolvedValueOnce({
+      queries: ['farcaster acquisition'],
+      casts: [{ username: 'alice', text: 'A cast discussing the topic' }],
+    });
+    const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'What are recent Farcaster casts about the acquisition?' }],
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(searchRelevantCasts).toHaveBeenCalledWith('What are recent Farcaster casts about the acquisition?');
+    expect(processRequest).toHaveBeenCalledWith(
+      expect.stringContaining('A cast discussing the topic'),
+      'research',
+    );
+  });
+
+  it('replaces model-emitted pseudo tool-call markup with a safe fallback', async () => {
+    processRequest.mockResolvedValueOnce({
+      content: '<function_calls><invoke name="get_user_casts">',
+      suggestions: [], role: 'researcher', metadata: {},
+    });
+    const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'Hi' }] }),
+    }));
+
+    await expect(response.json()).resolves.toMatchObject({ response: 'Safe fallback' });
+  });
+
+  it('does not generate unsupported claims when a live-event search returns no casts', async () => {
+    const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'What are the latest Farcaster discussions about the sale?' }],
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(processRequest).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      metadata: { liveCastSearch: { status: 'no-matches-or-unavailable', resultCount: 0 } },
+    });
   });
 
   it('validates the userId for profile reads and updates', async () => {
