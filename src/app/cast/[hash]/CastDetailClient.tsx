@@ -46,6 +46,7 @@ export default function CastDetailClient() {
   const hash = params?.hash as string;
   const [cast, setCast] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingReplies, setLoadingReplies] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Interaction state
@@ -119,6 +120,26 @@ export default function CastDetailClient() {
     if (!hash) { setError("No cast hash provided"); setLoading(false); return; }
     fetchCastDetail().finally(() => setLoading(false));
   }, [hash, fetchCastDetail]);
+
+  const loadMoreReplies = async () => {
+    const cursor = cast?.replies_next?.cursor;
+    if (!cursor || loadingReplies) return;
+    setLoadingReplies(true);
+    try {
+      const response = await fetch(`/api/cast?hash=${encodeURIComponent(hash)}&replies_cursor=${encodeURIComponent(cursor)}`);
+      if (!response.ok) throw new Error('Failed to load replies');
+      const data = await response.json();
+      setCast((previous: any) => {
+        if (previous?.hash !== data.cast?.hash) return previous;
+        const merged = new Map((previous.direct_replies ?? []).map((r: any) => [r.hash, r]));
+        for (const reply of data.cast.direct_replies ?? []) merged.set(reply.hash, reply);
+        const casts = [...merged.values()];
+        return { ...previous, direct_replies: casts, replies: { ...previous.replies, casts }, replies_next: data.cast.replies_next };
+      });
+    } catch {
+      showToast('Could not load more replies. Please try again.', false);
+    } finally { setLoadingReplies(false); }
+  };
 
   const handleLike = async (castHash: string, authorFid: number) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
@@ -503,6 +524,10 @@ export default function CastDetailClient() {
                       {rText}
                     </div>
 
+                    <Link href={`/cast/${encodeURIComponent(reply.hash)}`} style={{ color: 'var(--accent)', fontSize: 13 }}>
+                      View conversation
+                    </Link>
+
                     {/* Action buttons on each reply */}
                     {renderActionRow(reply.hash, rFid, rText, rUsername)}
 
@@ -530,6 +555,13 @@ export default function CastDetailClient() {
           </div>
         )}
       </div>
+
+      {cast?.replies_unavailable && <p role="status">Some replies may be unavailable. Please reload to try again.</p>}
+      {cast?.replies_next?.cursor && (
+        <button className="btn" onClick={loadMoreReplies} disabled={loadingReplies}>
+          {loadingReplies ? 'Loading replies…' : 'Load more replies'}
+        </button>
+      )}
 
       {/* Quote Cast Modal */}
       {showQuoteModal && (

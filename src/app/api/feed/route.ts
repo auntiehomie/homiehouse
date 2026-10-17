@@ -3,7 +3,6 @@ import { fetchFeed, fetchChannelFeed } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateLimit } from '@/lib/validation';
-import { getOpenRankScores, isSpamAccount } from '@/lib/openrank';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
@@ -57,7 +56,7 @@ export async function GET(req: NextRequest) {
       if (feedType === "following" && fid) {
         fetchParams.feed_type = 'following'; fetchParams.fid = fid; fetchParams.viewer_fid = fid;
         data = await fetchFeed(fetchParams);
-        if (!data?.casts?.length) {
+        if (!cursor && !data?.casts?.length) {
           const fallback: any = { feed_type: 'filter', filter_type: 'global_trending', limit };
           if (cursor) fallback.cursor = cursor;
           if (fid) fallback.viewer_fid = fid;
@@ -72,32 +71,8 @@ export async function GET(req: NextRequest) {
     }
 
     let casts: any[] = data?.casts || [];
-    if (casts.length > 0) {
-      try {
-        const currentFid = fid ? Number(fid) : 0;
-        const authorFids = [...new Set(casts.map((c: any) => c.author?.fid).filter((f: any) => f && f !== currentFid))] as number[];
-        if (authorFids.length > 0) {
-          // Feed display should not wait several seconds for a cold OpenRank
-          // lookup. Spam scoring is already fail-open, so keep that behavior
-          // when enrichment misses this short budget and let the casts render.
-          let timeout: ReturnType<typeof setTimeout> | undefined;
-          const scorePromise = getOpenRankScores(authorFids).catch(() => null);
-          const scores = await Promise.race([
-            scorePromise,
-            new Promise<null>((resolve) => {
-              timeout = setTimeout(() => resolve(null), 350);
-            }),
-          ]);
-          if (timeout) clearTimeout(timeout);
-          if (scores) {
-            casts = casts.filter((cast: any) => {
-              const authorFid = cast.author?.fid;
-              return !authorFid || authorFid === currentFid || !isSpamAccount(authorFid, scores, cast.author);
-            });
-          }
-        }
-      } catch { /* Fail open: feed availability wins over enrichment. */ }
-    }
+    // Node casts remain visible regardless of third-party reputation scores.
+    // User-selected mute/hide preferences are applied by the client.
 
     const wantsRss = searchParams.get('format') === 'rss' || req.headers.get('accept')?.includes('application/rss+xml');
     if (wantsRss) {

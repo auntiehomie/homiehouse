@@ -111,8 +111,7 @@ export function useCastSearch(query: string, limit = 10) {
         typeof pageParam === 'string' && pageParam.length > 0
           ? pageParam
           : undefined;
-      const data = await searchCasts(query, limit);
-      // searchCasts doesn't natively paginate yet; cursor is future-proof
+      const data = await searchCasts(query, limit, cursor);
       return {
         casts: data?.casts ?? [],
         next_cursor: data?.next?.cursor ?? null,

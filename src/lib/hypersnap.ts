@@ -61,13 +61,14 @@ export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}, t
  * Only called when the primary Hypersnap node times out or returns empty.
  * Returns null if no fallback is configured or if the fallback also fails.
  */
-export async function fallbackFetch(endpoint: string): Promise<any> {
+export async function fallbackFetch(endpoint: string, opts: RequestInit = {}): Promise<any> {
   if (!HYPERSNAP_FALLBACK) return null;
   const url = `${HYPERSNAP_FALLBACK}${endpoint}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
     const res = await fetch(url, {
+      ...opts,
       signal: controller.signal,
       headers: { accept: 'application/json' },
     });
@@ -141,7 +142,7 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
   // making the global feed depend on OpenRank's availability or a fan-out of
   // per-cast hydration requests.
   if (isTrending) {
-    return fetchTrendingFeed({ limit: params.limit, viewer_fid: params.viewer_fid });
+    return fetchTrendingFeed(params);
   }
 
   const qs = new URLSearchParams();
@@ -156,177 +157,34 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
   // 1. Primary Hypersnap node
   try {
     const data = await hypersnapFetch(endpoint);
-    if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
+    if (Array.isArray(data?.casts)) return data;
   } catch (_) {}
 
   // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
   const fallback = await fallbackFetch(endpoint);
-  if (Array.isArray(fallback?.casts) && fallback.casts.length > 0) return fallback;
+  if (Array.isArray(fallback?.casts)) return fallback;
 
-  return { casts: [] };
+  throw new Error('Feed unavailable on both nodes');
 }
 
-/** OpenRank (Karma3Labs) cast graph — free, unauthenticated global + per-channel trending ranking. */
-const OPENRANK_CAST_BASE = 'https://graph.cast.k3l.io';
-
-/**
- * Fetch trending cast hashes, ranked, from OpenRank — globally, or scoped to
- * one channel when `channelId` is given.
- *
- * Global: GET /casts/global/trending?limit=:limit → { result: [{ cast_hash, cast_hour }] }
- * Channel: GET /channels/casts/popular/:channel?agg=sumsquare&weights=L1C10R5Y1&limit=:limit
- *          → same { result: [{ cast_hash, ... }] } shape.
- * (agg/weights are OpenRank's documented defaults for this endpoint — sumsquare
- * aggregation weighted toward recasts > replies > likes.)
- *
- * Neither OpenRank endpoint supports a time-window parameter — trending is
- * always "right now" per OpenRank's own rolling computation, hourly for
- * global and per its own cadence for channels. There is no way to ask for
- * e.g. "trending this week" from this data source.
- *
- * Returns [] on any failure so trending degrades gracefully.
- */
-async function fetchTrendingCastHashes(limit: number, channelId?: string): Promise<string[]> {
-  const url = channelId
-    ? `${OPENRANK_CAST_BASE}/channels/casts/popular/${encodeURIComponent(channelId)}?agg=sumsquare&weights=L1C10R5Y1&limit=${limit}&offset=0`
-    : `${OPENRANK_CAST_BASE}/casts/global/trending?limit=${limit}&offset=0`;
-  try {
-    const res = await fetch(url, {
-      headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(5000),
-      // OpenRank recomputes hourly — cache for 5 min on the server.
-      next: { revalidate: 300 },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const rows: any[] = Array.isArray(data?.result) ? data.result : [];
-    return rows.map((r) => r?.cast_hash).filter((h): h is string => typeof h === 'string' && h.length > 0);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Hydrate ranked cast hashes into full cast objects via Hypersnap.
- * Runs in parallel, preserves the input (rank) order, and drops any hash
- * that fails to resolve.
- */
-async function hydrateCastsByHash(hashes: string[]): Promise<any[]> {
-  const results = await Promise.all(
-    hashes.map(async (hash) => {
-      try {
-        const data = await fetchCast(hash);
-        return data?.cast ?? null;
-      } catch {
-        return null;
-      }
-    })
-  );
-  return results.filter(Boolean);
-}
-
-/**
- * High-signal Farcaster accounts used as a trending proxy when OpenRank is
- * unreachable. Their following feeds are a firehose of active, prominent casts.
- */
-const TRENDING_SEED_FIDS = [3, 99, 194, 2];
-
-/**
- * Node-only trending fallback for when OpenRank is down (e.g. its TLS cert
- * expires) and the node has no working /feed/trending. Aggregates recent casts
- * from a few high-signal following feeds, deduped and sorted newest-first.
- *
- * Not true engagement ranking — the node doesn't return reaction counts — but it
- * keeps the tab populated with active content instead of showing nothing.
- */
-async function fetchTrendingFallbackFromNode(limit: number): Promise<any[]> {
-  const perSeed = Math.max(10, Math.ceil(limit / 2));
-  const batches = await Promise.all(
-    TRENDING_SEED_FIDS.map(async (fid) => {
-      try {
-        const data = await hypersnapFetch(
-          `/v2/farcaster/feed/following?fid=${fid}&limit=${perSeed}`,
-          {},
-          6000
-        );
-        return Array.isArray(data?.casts) ? data.casts : [];
-      } catch {
-        return [];
-      }
-    })
-  );
-
-  const byHash = new Map<string, any>();
-  const parseTs = (c: any) => { const t = Date.parse(c?.timestamp); return isNaN(t) ? 0 : t; };
-  for (const cast of batches.flat()) {
-    if (cast?.hash && !byHash.has(cast.hash)) byHash.set(cast.hash, cast);
-  }
-  // Prefer top-level casts; fall back to including replies if that's too thin.
-  const all = [...byHash.values()];
-  const topLevel = all.filter((c) => !c.parent_hash);
-  const pool = topLevel.length >= limit ? topLevel : all;
-  return pool.sort((a, b) => parseTs(b) - parseTs(a)).slice(0, limit);
-}
-
-/**
- * Fetch the trending feed — globally, or scoped to one channel when
- * `params.channel_id` is set (Farcaster's channels are its closest thing to
- * "topics", so this is how you get "what's trending in this topic" rather
- * than just a single undifferentiated global list).
- *
- * For global discovery, use Hypersnap's native trending feed directly. This
- * endpoint is served by the configured network node and avoids OpenRank's
- * availability and per-cast hydration latency. For channel discovery, use
- * OpenRank ranking and hydrate through Hypersnap; if unavailable, fall back
- * to recent casts from the channel. If native global trending is unavailable,
- * fall back to recent casts from several high-signal accounts.
- *
- * `time_window`/`viewer_fid` in `params` are accepted for API compatibility
- * but currently do nothing: neither OpenRank endpoint nor the Hypersnap node
- * support time-windowed or personalized trending.
+/** Native discovery feeds preserve node ordering and pagination. No external
+ * reputation/ranking service is allowed to remove casts from these results.
  */
 export async function fetchTrendingFeed(params: Record<string, any> = {}): Promise<any> {
   const limit = Math.max(1, Math.min(Number(params.limit) || 25, 50));
-  const channelId: string | undefined = params.channel_id || undefined;
-
-  // 1. For global discovery, use the network's native trending feed first.
-  // It returns full casts and avoids external ranking + per-cast hydration.
-  if (!channelId) {
-    try {
-      const qs = new URLSearchParams();
-      for (const [k, v] of Object.entries(params)) {
-        if (v !== undefined && v !== null) qs.set(k, String(v));
-      }
-      const data = await hypersnapFetch(`/v2/farcaster/feed/trending?${qs.toString()}`, {}, 6000);
-      if (Array.isArray(data?.casts) && data.casts.length > 0) return data;
-    } catch {}
+  if (params.channel_id) {
+    return fetchChannelFeed(params.channel_id, { limit, cursor: params.cursor, viewerFid: params.viewer_fid });
   }
-
-  // 2. For channel discovery, rank via OpenRank and hydrate through Hypersnap.
-  // Keep a small buffer for hydration failures without doubling the number of
-  // downstream cast requests on every cold load.
-  const hashes = channelId
-    ? await fetchTrendingCastHashes(Math.min(limit + 5, 50), channelId)
-    : [];
-  if (hashes.length > 0) {
-    const casts = await hydrateCastsByHash(hashes);
-    if (casts.length > 0) return { casts: casts.slice(0, limit) };
-  }
-
-  // 3. Native global trending or channel ranking unavailable → recent casts.
-  // Channel-scoped: pull straight from the channel's own feed instead of the
-  // channel-agnostic high-signal-account fallback below.
-  if (channelId) {
-    try {
-      const data = await fetchChannelFeed(channelId, { limit });
-      const casts: any[] = data?.casts ?? [];
-      if (casts.length > 0) return { casts: casts.slice(0, limit) };
-    } catch {}
-    return { casts: [] };
-  }
-
-  const fallbackCasts = await fetchTrendingFallbackFromNode(limit);
-  return { casts: fallbackCasts };
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (params.cursor) qs.set('cursor', String(params.cursor));
+  const endpoint = `/v2/farcaster/feed/trending?${qs}`;
+  try {
+    const data = await hypersnapFetch(endpoint);
+    if (Array.isArray(data?.casts)) return data;
+  } catch {}
+  const fallback = await fallbackFetch(endpoint);
+  if (Array.isArray(fallback?.casts)) return fallback;
+  throw new Error('Trending feed unavailable on both nodes');
 }
 
 /**
@@ -374,39 +232,24 @@ export async function fetchUserByFid(fid: number): Promise<any> {
   return { user: null };
 }
 
-/**
- * Fetch a channel feed.
- * Tries /v2/farcaster/feed?feed_type=filter&filter_type=channel_id first,
- * then falls back to /v2/farcaster/feed/channels?channel_ids=:id.
- */
+/** Fetch channel casts using Hypersnap's supported channel endpoint. */
 export async function fetchChannelFeed(channelId: string, params: {
   limit?: number;
   cursor?: string;
   viewerFid?: number;
 } = {}): Promise<any> {
   const { limit = 25, cursor, viewerFid } = params;
-  const base = new URLSearchParams({ limit: String(limit) });
-  if (cursor) base.set('cursor', cursor);
-  if (viewerFid) base.set('viewer_fid', String(viewerFid));
-
-  // Primary: standard filter feed for a channel
+  const qs = new URLSearchParams({ channel_ids: channelId, limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
+  if (viewerFid) qs.set('viewer_fid', String(viewerFid));
+  const endpoint = `/v2/farcaster/feed/channels?${qs}`;
   try {
-    const qs = new URLSearchParams(base);
-    qs.set('feed_type', 'filter');
-    qs.set('filter_type', 'channel_id');
-    qs.set('channel_id', channelId);
-    const data = await hypersnapFetch(`/v2/farcaster/feed?${qs.toString()}`);
-    if (data?.casts?.length) return data;
-  } catch (_) {}
-
-  // Fallback: multi-channel feed endpoint
-  const qs2 = new URLSearchParams(base);
-  qs2.set('channel_ids', channelId);
-  try {
-    return await hypersnapFetch(`/v2/farcaster/feed/channels?${qs2.toString()}`);
-  } catch (_) {
-    return { casts: [], next: null };
-  }
+    const data = await hypersnapFetch(endpoint);
+    if (Array.isArray(data?.casts)) return data;
+  } catch {}
+  const fallback = await fallbackFetch(endpoint);
+  if (Array.isArray(fallback?.casts)) return fallback;
+  throw new Error('Channel feed unavailable on both nodes');
 }
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
@@ -465,35 +308,22 @@ export async function fetchCast(hash: string): Promise<any> {
   return fallback;
 }
 
-/**
- * Fetch direct replies to a cast.
- * GET /v2/farcaster/feed?feed_type=filter&filter_type=parent_hash&parent_hash=:hash
- */
-/**
- * Fetch recent casts by a specific FID.
- * GET /v2/farcaster/feed?feed_type=filter&fids=:fid&limit=:limit
- *
- * This is the correct way to query casts by author on Hypersnap nodes —
- * the `parent_hash` filter_type is NOT supported, but `fids` is required.
- * The response includes `parent_hash` for reply casts (type === 'cast-reply').
- */
-export async function fetchCastsByFid(fid: number, limit = 50): Promise<any[]> {
-  const qs = new URLSearchParams({
-    feed_type: 'filter',
-    fids: String(fid),
-    limit: String(limit),
-  });
-  const endpoint = `/v2/farcaster/feed?${qs.toString()}`;
-
+/** Native author feed uses a real hub page token; the multi-FID filter does not. */
+export async function fetchUserCastsPage(fid: number, limit = 50, cursor?: string): Promise<any> {
+  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
+  const endpoint = `/v2/farcaster/feed/user/casts?${qs}`;
   try {
     const data = await hypersnapFetch(endpoint);
-    return data?.casts ?? [];
-  } catch {
-    // Try fallback node
-    const fallback = await fallbackFetch(endpoint);
-    if (fallback !== null) return fallback?.casts ?? [];
-    throw new Error(`fetchCastsByFid: both nodes failed for fid=${fid}`);
-  }
+    if (Array.isArray(data?.casts)) return data;
+  } catch {}
+  const fallback = await fallbackFetch(endpoint);
+  if (Array.isArray(fallback?.casts)) return fallback;
+  throw new Error(`Author feed unavailable for fid=${fid}`);
+}
+
+export async function fetchCastsByFid(fid: number, limit = 50): Promise<any[]> {
+  return (await fetchUserCastsPage(fid, limit)).casts;
 }
 
 /**
@@ -524,7 +354,14 @@ export async function fetchCastConversation(hash: string): Promise<any> {
     reply_depth: '2',
     include_chronological_parent_casts: 'false',
   });
-  return hypersnapFetch(`/v2/farcaster/cast/conversation?${qs.toString()}`);
+  const endpoint = `/v2/farcaster/cast/conversation?${qs}`;
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    if (data?.conversation?.cast) return data;
+  } catch {}
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
+  if (fallback?.conversation?.cast) return fallback;
+  throw new Error('Conversation unavailable on both nodes');
 }
 
 /**
@@ -592,7 +429,7 @@ export async function searchUsers(query: string, limit = 10): Promise<any> {
  * Tries the primary Hypersnap node first; falls back to HYPERSNAP_FALLBACK_URL.
  * Returns { casts: [...] }.
  */
-export async function searchCasts(query: string, limit = 10): Promise<any> {
+export async function searchCasts(query: string, limit = 10, cursor?: string): Promise<any> {
   const normalize = (data: any) => {
     if (data?.result?.casts && !data?.casts) {
       return { casts: data.result.casts, next: data.result.next ?? {} };
@@ -601,6 +438,7 @@ export async function searchCasts(query: string, limit = 10): Promise<any> {
   };
 
   const qs = new URLSearchParams({ q: query, limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
   const endpoint = `/v2/farcaster/cast/search?${qs.toString()}`;
 
   // 1. Primary hub
@@ -619,14 +457,13 @@ export async function searchCasts(query: string, limit = 10): Promise<any> {
 /**
  * Fetch casts by username.
  * Resolves the FID via fetchUserByUsername, then fetches the feed.
- * GET /v2/farcaster/feed/user-casts?fid=:fid&limit=:limit
+ * GET /v2/farcaster/feed/user/casts?fid=:fid&limit=:limit
  */
 export async function getCastsByUsername(username: string, limit = 25): Promise<any> {
   const userData = await fetchUserByUsername(username);
   const fid = userData?.user?.fid;
   if (!fid) return { casts: [] };
-  const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-  return hypersnapFetch(`/v2/farcaster/feed/user-casts?${qs.toString()}`);
+  return fetchUserCastsPage(Number(fid), limit);
 }
 
 // ─── Write stubs ─────────────────────────────────────────────────────────────
