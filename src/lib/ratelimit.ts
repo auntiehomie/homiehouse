@@ -128,11 +128,13 @@ export async function enforceRateLimit(params: {
   limit?: number;
   windowSeconds?: number;
   label?: string;
+  allowInMemoryPreview?: boolean;
 }): Promise<void> {
   const { success, remaining } = await checkRateLimit(
     params.key,
     params.limit ?? 30,
-    params.windowSeconds ?? 60
+    params.windowSeconds ?? 60,
+    { allowInMemoryPreview: params.allowInMemoryPreview },
   );
 
   if (!success) {

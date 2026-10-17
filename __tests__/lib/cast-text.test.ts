@@ -15,6 +15,11 @@ describe('cast byte limits and threads', () => {
     expect(parts.every(part => castTextBytes(part) <= 1024)).toBe(true);
     expect(parts.every(part => !part.includes('\ufffd'))).toBe(true);
   });
+  it('accepts the node’s unprefixed 20-byte hash format', async () => {
+    const progress = { hashes: [] as string[] };
+    await publishCastParts(['one'], progress, async () => ({ castHash: 'a'.repeat(40) }));
+    expect(progress.hashes).toEqual(['a'.repeat(40)]);
+  });
   it('links each reply and retries only unacknowledged parts', async () => {
     const hashes = ['0x' + 'a'.repeat(40), '0x' + 'b'.repeat(40), '0x' + 'c'.repeat(40)];
     const publish = jest.fn().mockResolvedValueOnce({ castHash: hashes[0] }).mockRejectedValueOnce(new Error('offline'));

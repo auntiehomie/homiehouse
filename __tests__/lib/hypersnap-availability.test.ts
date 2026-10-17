@@ -14,6 +14,7 @@ it('does not replace a completed following feed with unrelated casts', async () 
   mockFetch.mockResolvedValue(ok({ casts: [], next: { cursor: null } }));
   expect((await fetchFeed({ fid: 123, cursor: 'end' })).casts).toEqual([]);
   expect(mockFetch).toHaveBeenCalledTimes(1);
+  expect(mockFetch.mock.calls[0][1].cache).toBe('no-store');
 });
 it('does not turn a node outage into a cached empty feed', async () => {
   mockFetch.mockRejectedValue(new Error('offline'));
