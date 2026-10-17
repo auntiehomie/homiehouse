@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
-import { fetchUserByUsername, fetchUserByFid, fetchCastsByFid } from '@/lib/hypersnap';
+import { fetchUserByUsername, fetchUserByFid, fetchUserCastsPage } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateUsername } from '@/lib/validation';
@@ -63,14 +63,17 @@ export async function GET(request: NextRequest) {
 
     // Optionally fetch user's casts
     let casts = null;
+    let next = null;
     if (includeCasts && userFid) {
       try {
         logger.info('Fetching user casts', { fid: userFid });
-        casts = await fetchCastsByFid(userFid, 25);
+        const page = await fetchUserCastsPage(userFid, 25, searchParams.get('cursor') || undefined);
+        casts = page.casts;
+        next = page.next ?? null;
         logger.info('Casts fetched', { count: casts.length });
       } catch (error) {
         logger.warn('Failed to fetch casts', { error: String(error) });
-        casts = [];
+        throw error;
       }
     }
 
@@ -96,7 +99,7 @@ export async function GET(request: NextRequest) {
       displayName: normalizedUser.display_name
     });
 
-    return NextResponse.json({ ...normalizedUser, casts }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
+    return NextResponse.json({ ...normalizedUser, casts, next }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');

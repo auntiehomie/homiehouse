@@ -259,6 +259,9 @@ function ProfileContent() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [castsLoading, setCastsLoading] = useState(true);
+  const [castsCursor, setCastsCursor] = useState<string | null>(null);
+  const [loadingMoreCasts, setLoadingMoreCasts] = useState(false);
+  const [castsPageError, setCastsPageError] = useState(false);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('casts');
@@ -339,6 +342,7 @@ function ProfileContent() {
 
         setProfile(normalizedUser as UserProfile);
         if (castsResp) setCasts(castsResp);
+        setCastsCursor(payload.next?.cursor ?? null);
         setCastsLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load profile');
@@ -350,6 +354,20 @@ function ProfileContent() {
 
     loadProfile();
   }, [router, searchParams]);
+
+  const loadMoreCasts = async () => {
+    if (!profile || !castsCursor || loadingMoreCasts) return;
+    setLoadingMoreCasts(true);
+    setCastsPageError(false);
+    try {
+      const response = await fetch(`/api/profile?fid=${profile.fid}&casts=true&cursor=${encodeURIComponent(castsCursor)}`);
+      if (!response.ok) throw new Error('Profile page unavailable');
+      const data = await response.json();
+      setCasts(previous => [...new Map([...previous, ...(data.casts ?? [])].map(c => [c.hash, c])).values()]);
+      setCastsCursor(data.next?.cursor ?? null);
+    } catch { setCastsPageError(true); }
+    finally { setLoadingMoreCasts(false); }
+  };
 
   // A cast opened from this profile should return to the same tab and scroll
   // anchor. The cast detail route stores this before navigating away.
@@ -646,6 +664,15 @@ function ProfileContent() {
             </div>
           )}
         </>
+      )}
+
+      {(activeTab === 'casts' || activeTab === 'replies') && castsCursor && (
+        <div>
+          {castsPageError && <p role="status">Could not load older casts. Please try again.</p>}
+          <button className="btn" onClick={loadMoreCasts} disabled={loadingMoreCasts}>
+            {loadingMoreCasts ? 'Loading older casts…' : 'Load older casts and replies'}
+          </button>
+        </div>
       )}
 
       {activeTab === 'trades' && (
