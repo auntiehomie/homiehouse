@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeOrThrow, getProSubscriber } from '@/lib/stripe';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     console.error('[stripe/portal] error:', err?.message ?? err);
     return NextResponse.json(
       { ok: false, error: err?.message || 'Failed to create portal session' },
-      { status: err?.statusCode || 500 },
+      { status: err instanceof AuthError ? err.status : err?.statusCode || 500 },
     );
   }
 }

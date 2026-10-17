@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { verifySession } from '@/lib/session';
+import { isActiveHypersnapSigner } from '@/lib/hypersnap-signer-auth';
+
+jest.mock('@/lib/hypersnap-signer-auth', () => ({ isActiveHypersnapSigner: jest.fn() }));
 
 jest.mock('@noble/ed25519', () => ({
   getPublicKeyAsync: jest.fn(async () => Uint8Array.from({ length: 32 }, () => 2)),
@@ -19,6 +22,20 @@ describe('Farcaster signer authentication', () => {
     jest.clearAllMocks();
     mockSql.mockResolvedValue([{ id: 'approved-signer' }]);
     global.fetch = jest.fn();
+    (isActiveHypersnapSigner as jest.Mock).mockResolvedValue(false);
+  });
+
+  it('accepts a Hypersnap-only signer for checkout without permanently caching it', async () => {
+    mockSql.mockResolvedValue([]);
+    (isActiveHypersnapSigner as jest.Mock).mockResolvedValue(true);
+    const request = new NextRequest('http://localhost/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'x-farcaster-fid': '123', 'x-signer-key': '01'.repeat(32) },
+    });
+    await expect(verifyFarcasterSignerAuth(request, 'write:shop')).resolves.toBe(123);
+    expect(isActiveHypersnapSigner).toHaveBeenCalledWith(123, `0x${'02'.repeat(32)}`);
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(mockSql.mock.calls.every(([strings]) => !strings.join('').includes('INSERT'))).toBe(true);
   });
 
   it('derives a public key and accepts an approved signer', async () => {

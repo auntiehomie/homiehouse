@@ -23,7 +23,7 @@ export interface FarcasterAuthHeaders {
  * HH-02: Prefers a session token (sessionStorage) when available.
  * Falls back to legacy x-signer-key (localStorage) during migration.
  */
-export function getAuthHeaders(): FarcasterAuthHeaders | null {
+export function getAuthHeaders(requiredScope?: string): FarcasterAuthHeaders | null {
   if (typeof window === 'undefined') return null;
 
   try {
@@ -32,7 +32,18 @@ export function getAuthHeaders(): FarcasterAuthHeaders | null {
     if (sessionRaw) {
       const session = JSON.parse(sessionRaw);
       if (session.token && session.expiresAt > Date.now()) {
-        return { 'x-session-token': session.token };
+        // A wallet login creates a read-only session. For a write, use the
+        // approved signer if that session lacks the requested capability.
+        // Decoding here only selects credentials; the server verifies them.
+        let hasScope = !requiredScope;
+        if (requiredScope) {
+          try {
+            const payload = session.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            const claims = JSON.parse(atob(payload));
+            hasScope = Array.isArray(claims.scopes) && claims.scopes.includes(requiredScope);
+          } catch { /* try the approved signer below */ }
+        }
+        if (hasScope) return { 'x-session-token': session.token };
       }
     }
 

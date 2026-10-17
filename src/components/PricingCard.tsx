@@ -63,7 +63,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
     setSuccess(null);
 
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = getAuthHeaders('write:shop');
 
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
@@ -139,7 +139,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
       // Step 3: Verify the payment on the backend
       setStep('verifying');
 
-      const authHeaders = getAuthHeaders();
+      const authHeaders = getAuthHeaders('write:shop');
 
       const verifyRes = await fetch('/api/pro/subscribe-crypto', {
         method: 'POST',
@@ -185,7 +185,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
     setError(null);
 
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = getAuthHeaders('write:shop');
 
       const res = await fetch('/api/stripe/portal', {
         method: 'POST',
