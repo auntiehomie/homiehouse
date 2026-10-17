@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import FeedList from "./FeedList";
+import { readFeedReturn } from "@/lib/feed-session";
 import TrendingList, { prefetchTrending } from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
 import { TooltipTrigger } from "@/lib/progressive-disclosure";
@@ -16,44 +17,10 @@ interface FeedTrendingTabsProps {
 }
 
 export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedScope = 'global' }: FeedTrendingTabsProps = {}) {
-  // Lazily initialize from sessionStorage so FeedList gets the correct props
-  // on the very first render — avoids a double-mount that breaks scroll restoration.
-  const [tab, setTab] = useState<'feed'|'trending'>(() => {
-    try {
-      const raw = sessionStorage.getItem('hh_feed_return');
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000) return 'feed';
-      }
-    } catch {}
-    return defaultTab;
-  });
-  const [feedType, setFeedType] = useState<FeedScope>(() => {
-    try {
-      const raw = sessionStorage.getItem('hh_feed_return');
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (
-          Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000 &&
-          (saved.feedType === 'following' || saved.feedType === 'global')
-        ) return saved.feedType;
-      }
-    } catch {}
-    return defaultFeedScope;
-  });
-  const [selectedChannel, setSelectedChannel] = useState<string | null>(() => {
-    try {
-      const raw = sessionStorage.getItem('hh_feed_return');
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (
-          Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000 &&
-          typeof saved.selectedChannel === 'string'
-        ) return saved.selectedChannel;
-      }
-    } catch {}
-    return null;
-  });
+  // Use the same memory-backed return state as the list, even if storage is full.
+  const [tab, setTab] = useState<'feed'|'trending'>(() => readFeedReturn() ? 'feed' : defaultTab);
+  const [feedType, setFeedType] = useState<FeedScope>(() => readFeedReturn()?.feedType ?? defaultFeedScope);
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(() => readFeedReturn()?.selectedChannel ?? null);
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
   const [showCurationSettings, setShowCurationSettings] = useState(false);

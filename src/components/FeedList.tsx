@@ -1,6 +1,7 @@
 "use client";
 
-import { pageScrollY, scrollPageTo } from "@/lib/cast-navigation";
+import { consumeFeedReturn, FEED_RETURN_TTL, feedSnapshotKey, readFeedReturn, readFeedSnapshot, saveFeedReturn as rememberFeedReturn, saveFeedSnapshot } from '@/lib/feed-session';
+import { feedScrollHost, restoreFeedScroll } from '@/lib/feed-scroll';
 
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import dynamic from 'next/dynamic';
@@ -145,10 +146,11 @@ export default function FeedList({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const feedContainerRef = useRef<HTMLDivElement | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [pullDist, setPullDist] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const touchStartYRef = useRef(0);
+  const touchStartYRef = useRef<number | null>(null);
   const PULL_THRESHOLD = 72;
   const [showActions, setShowActions] = useState<string | null>(null);
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
@@ -189,25 +191,16 @@ export default function FeedList({
   };
 
   const saveFeedReturn = (castHash: string) => {
-    const cacheKey = `hh_feed_${feedType}_${selectedChannel ?? 'all'}`;
-    try {
-      sessionStorage.setItem(cacheKey, JSON.stringify({
-        items: Array.isArray(items) ? items.slice(0, 300) : items,
-        cursor,
-        ts: Date.now(),
-      }));
-      sessionStorage.setItem('hh_feed_return', JSON.stringify({
-        scrollY: pageScrollY(),
-        castOffset: document.querySelectorAll('[data-feed-cast-hash]') && (() => {
-          const node = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-cast-hash]')).find(el => el.dataset.feedCastHash === castHash);
-          return node ? node.getBoundingClientRect().top : null;
-        })(),
-        feedType,
-        selectedChannel,
-        castHash,
-        ts: Date.now(),
-      }));
-    } catch {}
+    const container = feedContainerRef.current;
+    if (!container || !Array.isArray(items)) return;
+    const node = Array.from(container.querySelectorAll<HTMLElement>('[data-feed-cast-hash]'))
+      .find(element => element.dataset.feedCastHash === castHash);
+    rememberFeedReturn({
+      snapshotKey: feedSnapshotKey(feedType, selectedChannel),
+      scrollY: Math.max(0, feedScrollHost(container).scrollTop),
+      castOffset: node?.getBoundingClientRect().top ?? null,
+      feedType, selectedChannel, castHash,
+    }, { items, cursor, hasMore });
   };
 
   const openCastDetail = (castHash: string) => {
@@ -369,7 +362,7 @@ export default function FeedList({
 
   useEffect(() => {
     let mounted = true;
-    const cacheKey = `hh_feed_${feedType}_${selectedChannel ?? 'all'}`;
+    const cacheKey = feedSnapshotKey(feedType, selectedChannel);
     const isManualRefresh = manualRefreshRef.current;
     manualRefreshRef.current = false;
 
@@ -377,40 +370,22 @@ export default function FeedList({
     setCursor(null);
     setHasMore(true);
 
-    let restoredReturn = false;
-
-    // Restore from sessionStorage cache immediately (skip skeleton) unless pull-to-refresh.
-    // When returning from cast detail, keep that exact snapshot instead of
-    // replacing it with a fresh first page before scroll restoration completes.
-    if (!isManualRefresh) {
-      try {
-        const returnRaw = sessionStorage.getItem('hh_feed_return');
-        const returnState = returnRaw ? JSON.parse(returnRaw) : null;
-        const isReturn = returnState
-          && Date.now() - Number(returnState.ts || 0) < 10 * 60 * 1000
-          && returnState.feedType === feedType
-          && (returnState.selectedChannel ?? null) === selectedChannel;
-        const raw = sessionStorage.getItem(cacheKey);
-        if (raw) {
-          const { items: ci, cursor: cc, ts } = JSON.parse(raw);
-          if (Array.isArray(ci) && Date.now() - (ts ?? 0) < 5 * 60 * 1000) {
-            setItems(ci);
-            setCursor(cc ?? null);
-            setHasMore(!!cc);
-            restoredReturn = !!isReturn;
-          } else {
-            setItems(null);
-          }
-        } else {
-          setItems(null);
-        }
-      } catch {
+    if (isManualRefresh) {
+      const pending = readFeedReturn();
+      if (pending) consumeFeedReturn(pending);
+    } else {
+      const pending = readFeedReturn();
+      const isReturn = pending?.snapshotKey === cacheKey;
+      const snapshot = readFeedSnapshot<any>(cacheKey, isReturn ? FEED_RETURN_TTL : 5 * 60 * 1000);
+      if (snapshot) {
+        setItems(snapshot.items);
+        setCursor(snapshot.cursor);
+        setHasMore(snapshot.hasMore);
+        // A return is a resume of the loaded pages, never a first-page refresh.
+        if (isReturn) return () => { mounted = false; };
+      } else {
         setItems(null);
       }
-    }
-
-    if (restoredReturn) {
-      return () => { mounted = false; };
     }
 
     (async () => {
@@ -454,14 +429,9 @@ export default function FeedList({
         setItems(res);
         setCursor(nextCursor);
         setHasMore(!!nextCursor);
-        // Cache for instant restore on next navigation
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({
-            items: Array.isArray(res) ? res.slice(0, 60) : res,
-            cursor: nextCursor,
-            ts: Date.now(),
-          }));
-        } catch {}
+        if (Array.isArray(res)) saveFeedSnapshot(cacheKey, {
+          items: res, cursor: nextCursor, hasMore: !!nextCursor, ts: Date.now(),
+        });
       }
     })();
     return () => {
@@ -469,73 +439,11 @@ export default function FeedList({
     };
   }, [feedType, selectedChannel, refreshKey]);
 
-  const restoredScrollRef = useRef(false);
   useEffect(() => {
-    if (items === null || restoredScrollRef.current) return;
-    try {
-      const raw = sessionStorage.getItem('hh_feed_return');
-      if (!raw) return;
-      const saved = JSON.parse(raw);
-      if (
-        Date.now() - Number(saved.ts || 0) > 10 * 60 * 1000
-        || saved.feedType !== feedType
-        || (saved.selectedChannel ?? null) !== selectedChannel
-      ) return;
-
-      restoredScrollRef.current = true;
-      const target = Math.max(0, Number(saved.scrollY) || 0);
-      const anchorHash = typeof saved.castHash === 'string' ? saved.castHash : '';
-      const anchorOffset = typeof saved.castOffset === 'number' ? saved.castOffset : null;
-      const startedAt = performance.now();
-      let frame = 0;
-      let cancelled = false;
-      let settledFrames = 0;
-      let lastLayoutChange = startedAt;
-      const feedContainer = document.querySelector('.space-y-4');
-      const observer = typeof ResizeObserver !== 'undefined' && feedContainer
-        ? new ResizeObserver(() => { lastLayoutChange = performance.now(); })
-        : null;
-      if (feedContainer) observer?.observe(feedContainer);
-
-      // The feed can mount after a client-side navigation and its media/embed
-      // heights can settle later on iOS. Keep trying until the anchor is
-      // present and stable; the former 90-frame cutoff could expire while the
-      // restored feed was still rendering, leaving the user at the top.
-      const restore = () => {
-        if (cancelled) return;
-        const anchor = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-cast-hash]'))
-          .find(el => el.dataset.feedCastHash === anchorHash);
-        const anchoredY = anchor && anchorOffset !== null
-          ? pageScrollY() + anchor.getBoundingClientRect().top - anchorOffset
-          : target;
-        scrollPageTo(Math.max(0, anchoredY));
-
-        const anchorIsInPlace = anchor && anchorOffset !== null
-          && Math.abs(anchor.getBoundingClientRect().top - anchorOffset) <= 2;
-        settledFrames = anchorIsInPlace && performance.now() - lastLayoutChange > 300
-          ? settledFrames + 1
-          : 0;
-
-        if (settledFrames >= 8 || performance.now() - startedAt >= 8000) {
-          // If the original cast was removed/filtered, keep the best saved
-          // pixel position as a fallback; otherwise leave the anchor aligned.
-          if (!anchor || settledFrames < 8) {
-            scrollPageTo(target);
-          }
-          observer?.disconnect();
-          if (sessionStorage.getItem('hh_feed_return') === raw) sessionStorage.removeItem('hh_feed_return');
-          return;
-        }
-        frame = requestAnimationFrame(restore);
-      };
-      frame = requestAnimationFrame(restore);
-      return () => {
-        cancelled = true;
-        cancelAnimationFrame(frame);
-        observer?.disconnect();
-        restoredScrollRef.current = false;
-      };
-    } catch {}
+    if (items === null || !feedContainerRef.current) return;
+    const saved = readFeedReturn();
+    if (!saved || saved.snapshotKey !== feedSnapshotKey(feedType, selectedChannel)) return;
+    return restoreFeedScroll(feedContainerRef.current, saved, () => consumeFeedReturn(saved));
   }, [items, feedType, selectedChannel]);
 
   // loadMore: fetch next page and append
@@ -629,22 +537,28 @@ export default function FeedList({
     </div>
   );
 
+  const isAtFeedTop = () => !!feedContainerRef.current && feedScrollHost(feedContainerRef.current).scrollTop <= 1;
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY <= 0) touchStartYRef.current = e.touches[0].clientY;
+    touchStartYRef.current = isAtFeedTop() ? e.touches[0].clientY : null;
   };
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (window.scrollY > 0) { setPullDist(0); return; }
+    if (!isAtFeedTop() || touchStartYRef.current === null) {
+      touchStartYRef.current = null;
+      setPullDist(0);
+      return;
+    }
     const dist = e.touches[0].clientY - touchStartYRef.current;
-    if (dist > 0) setPullDist(Math.min(dist, PULL_THRESHOLD * 1.5));
+    setPullDist(Math.max(0, Math.min(dist, PULL_THRESHOLD * 1.5)));
   };
   const handleTouchEnd = () => {
-    if (pullDist >= PULL_THRESHOLD) {
+    if (touchStartYRef.current !== null && isAtFeedTop() && pullDist >= PULL_THRESHOLD) {
       manualRefreshRef.current = true;
       setIsRefreshing(true);
       setItems(null);
       setRefreshKey(k => k + 1);
       setTimeout(() => { setIsRefreshing(false); }, 800);
     }
+    touchStartYRef.current = null;
     setPullDist(0);
   };
 
@@ -705,6 +619,7 @@ export default function FeedList({
         const anchorHash = node?.closest<HTMLElement>('[data-feed-cast-hash]')?.dataset.feedCastHash;
         if (anchorHash && link && link.target !== '_blank' && new URL(link.href).pathname.startsWith('/cast/')) saveFeedReturn(anchorHash);
       }}
+      ref={feedContainerRef}
       className="space-y-4"
     >
       {filteredItems.map((it) => {

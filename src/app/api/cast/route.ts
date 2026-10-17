@@ -1,3 +1,4 @@
+import { fetchDirectReplies } from '@/lib/cast-replies';
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchCast, fetchCastConversation, getCastsByUsername } from '@/lib/hypersnap';
 
@@ -8,6 +9,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const hash = searchParams.get('hash');
   const username = searchParams.get('username');
+  const repliesCursor = searchParams.get('replies_cursor') || undefined;
 
   if (!hash) {
     return NextResponse.json({ ok: false, error: 'Missing hash parameter' }, { status: 400 });
@@ -41,13 +43,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Fetch cast + conversation (replies) in parallel
-    const [castData, convData] = await Promise.all([
-      fetchCast(hash),
-      fetchCastConversation(hash).catch(() => null),
-    ]);
+    const castData = await fetchCast(hash);
 
-    const cast = castData?.cast ?? castData;
+    const cast = castData?.cast;
     if (!cast) {
       return NextResponse.json({ ok: false, error: 'Cast not found' }, { status: 404 });
     }
@@ -62,13 +60,27 @@ export async function GET(request: NextRequest) {
     }
     cast.reactions = rxn;
 
-    // Use replies from conversation endpoint when available (parent_hash filter often unsupported)
-    const convCast = convData?.conversation?.cast;
-    const replyCasts: any[] =
-      convCast?.direct_replies ??
-      convCast?.replies?.casts ??
-      [];
+    // Page direct replies from the hub; use the bounded conversation service only as a fallback.
+    let convCast: any = null;
+    let replyCasts: any[] = [];
 
+    let repliesNext = null;
+    let repliesUnavailable = false;
+    try {
+      const page = await fetchDirectReplies(cast.author.fid, hash, repliesCursor);
+      replyCasts = page.casts;
+      repliesNext = page.next;
+    } catch {
+      // Keep the conversation result if the raw hub API is unavailable.
+      // Never turn a failed subsequent page into a successful empty page.
+      if (repliesCursor) throw new Error('Failed to load reply page');
+      const conversation = await fetchCastConversation(hash).catch(() => null);
+      convCast = conversation?.conversation?.cast;
+      replyCasts = convCast?.direct_replies ?? convCast?.replies?.casts ?? [];
+      repliesUnavailable = true;
+    }
+    cast.replies_next = repliesNext;
+    cast.replies_unavailable = repliesUnavailable;
     cast.direct_replies = replyCasts;
     const knownCount = cast.replies?.count ?? 0;
     const convCount = convCast?.replies?.count ?? 0;
@@ -93,7 +105,7 @@ export async function GET(request: NextRequest) {
     }
     cast.parent_chain = parentChain;
 
-    return NextResponse.json({ ok: true, cast }, { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' } });
+    return NextResponse.json({ ok: true, cast }, { headers: { 'Cache-Control': repliesUnavailable ? 'no-store' : 'public, s-maxage=30, stale-while-revalidate=60' } });
   } catch (error: any) {
     console.error('[api/cast] error:', error);
     return NextResponse.json(

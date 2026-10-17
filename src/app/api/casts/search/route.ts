@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Query parameter "q" is required' }, { status: 400 });
     }
 
-    const results = await searchCasts(query, limit);
+    const results = await searchCasts(query, limit, searchParams.get('cursor') || undefined);
     const casts = results.casts || results.result?.casts || [];
 
-    return NextResponse.json({ casts, query });
+    return NextResponse.json({ casts, query, next: results.next ?? null });
   } catch (error: any) {
     return handleApiError(error, 'GET /casts/search');
   }
