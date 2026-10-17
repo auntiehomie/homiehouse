@@ -164,6 +164,7 @@ export default function PricingCard({ userFid, isPro = false }: PricingCardProps
 
       setStep('done');
       setSuccess('Pro activated! Enjoy unlimited Ask Homie, deeper research, and premium features.');
+      window.dispatchEvent(new Event('hh:pro-updated'));
 
       // Refresh the page after a moment
       setTimeout(() => window.location.reload(), 2500);

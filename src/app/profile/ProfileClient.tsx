@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
+import { directMessageUrl } from '@/lib/direct-messages';
 import HH2Badge from '@/components/HH2Badge';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
@@ -491,11 +492,14 @@ function ProfileContent() {
           </div>
 
           {/* Name + Follow button row */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem' }}>
             <div style={{ minWidth: 0 }}>
               <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{profile.display_name}</h1>
               <p style={{ color: 'var(--muted-on-dark)', margin: 0 }}>@{profile.username}</p>
             </div>
+            {viewerFid !== profile.fid && directMessageUrl(profile.fid) && <a
+              className="btn" href={directMessageUrl(profile.fid)!} target="_blank" rel="noopener noreferrer"
+              title="Open a conversation in Farcaster">Message ↗</a>}
             {viewerFid && viewerFid !== profile.fid && (
               <button
                 onClick={async () => {

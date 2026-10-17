@@ -29,6 +29,7 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  { href: '/messages', label: 'Messages', exact: true, icon: <span style={{ fontSize: 18 }}>✉️</span> },
   {
     href: '/learn',
     label: 'Learn',

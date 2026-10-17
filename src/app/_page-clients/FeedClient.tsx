@@ -10,12 +10,13 @@ import SidebarNav from "@/components/SidebarNav";
 import SignInButton from "@/components/SignInButton";
 import HHLogo from "@/components/HHLogo";
 import NotificationBadge from "@/components/NotificationBadge";
+import { useProStatus } from "@/hooks/useProStatus";
 
 export default function FeedClient() {
   const [mounted, setMounted] = useState(false);
   const { isAuthenticated } = useFarcasterAuth();
   const { fid: viewerFid } = useFarcasterAuth();
-  const [isPro, setIsPro] = useState(false);
+  const { isPro } = useProStatus();
 
   // Feed components consume viewerFid from useFarcasterAuth context directly;
   // the value is also available here for any feed-level logic in the future.
@@ -23,14 +24,6 @@ export default function FeedClient() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Check Pro status
-  useEffect(() => {
-    if (!viewerFid) return;
-    fetch(`/api/pro-status?fid=${viewerFid}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setIsPro(d.is_pro); })
-      .catch(() => {});
-  }, [viewerFid]);
 
   if (!mounted) {
     return (
