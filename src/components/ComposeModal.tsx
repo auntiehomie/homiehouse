@@ -568,7 +568,7 @@ export default function ComposeModal() {
         <div
           role="dialog"
           aria-modal="true"
-          style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          style={{ position: 'fixed', inset: 0, top: 'var(--hh-viewport-top, 0px)', bottom: 'auto', height: 'var(--hh-viewport-height, 100dvh)', zIndex: 10001, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

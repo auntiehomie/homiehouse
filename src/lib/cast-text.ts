@@ -39,7 +39,7 @@ export async function publishCastParts(
   while (progress.hashes.length < parts.length) {
     const index = progress.hashes.length;
     const result = await publish(parts[index], progress.hashes[index - 1]);
-    if (!/^0x[0-9a-f]{40}$/i.test(result.castHash)) throw new Error('The node did not confirm a cast hash. Check your profile before retrying.');
+    if (!/^(?:0x)?[0-9a-f]{40}$/i.test(result.castHash)) throw new Error('The node did not confirm a cast hash. Check your profile before retrying.');
     progress.hashes.push(result.castHash);
   }
 }

@@ -33,12 +33,13 @@ function trendingUrl(limit: number, channelId?: string): string {
   return `/api/trending?${params.toString()}`;
 }
 
-function requestTrending(limit: number, channelId?: string): Promise<TrendingResponse> {
+function requestTrending(limit: number, channelId?: string, fresh = false): Promise<TrendingResponse> {
   const url = trendingUrl(limit, channelId);
+  if (fresh) trendingRequests.delete(url);
   const existing = trendingRequests.get(url);
   if (existing) return existing;
 
-  const request = fetch(url)
+  const request = fetch(url, { cache: fresh ? 'no-store' : 'default' })
     .then(async (res) => {
       if (!res.ok) throw new Error(`Trending request failed (${res.status})`);
       return res.json() as Promise<TrendingResponse>;
@@ -116,6 +117,7 @@ function SponsoredCastCard({ sponsored }: { sponsored: SponsoredCast }) {
 
 export default function TrendingList({ limit = 10, channelId }: TrendingListProps) {
   const [items, setItems] = useState<any[] | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [sponsored, setSponsored] = useState<SponsoredCast | null>(null);
 
   useEffect(() => {
@@ -124,7 +126,7 @@ export default function TrendingList({ limit = 10, channelId }: TrendingListProp
     setSponsored(null);
     (async () => {
       try {
-        const data = await requestTrending(limit, channelId);
+        const data = await requestTrending(limit, channelId, refreshKey > 0);
         const casts = data?.data ?? [];
         if (mounted) {
           setItems(Array.isArray(casts) ? casts : []);
@@ -135,7 +137,7 @@ export default function TrendingList({ limit = 10, channelId }: TrendingListProp
       }
     })();
     return () => { mounted = false; };
-  }, [limit, channelId]);
+  }, [limit, channelId, refreshKey]);
 
   if (items === null)
     return (
@@ -143,7 +145,7 @@ export default function TrendingList({ limit = 10, channelId }: TrendingListProp
         <TrendingSkeleton count={2} />
       </div>
     );
-  if (!items.length && !sponsored) return <div className="surface">No trending casts{channelId ? ` in #${channelId}` : ""}.</div>;
+  if (!items.length && !sponsored) return <div className="surface">No trending casts{channelId ? ` in #${channelId}` : ""}. <button className="btn" onClick={() => setRefreshKey(key => key + 1)}>Refresh discovery</button></div>;
 
   // Inject sponsored cast at position 3 (index 2) in the rendered list
   const renderItems: Array<{ type: 'cast' | 'sponsored'; data: any }> = items.map(it => ({ type: 'cast' as const, data: it }));
@@ -154,6 +156,7 @@ export default function TrendingList({ limit = 10, channelId }: TrendingListProp
 
   return (
     <div className="space-y-3">
+      <button className="btn" onClick={() => setRefreshKey(key => key + 1)}>Refresh discovery</button>
       {renderItems.map((entry, idx) => {
         if (entry.type === 'sponsored') {
           return <SponsoredCastCard key={`sponsored-${entry.data.id}`} sponsored={entry.data} />;

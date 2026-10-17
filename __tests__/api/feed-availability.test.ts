@@ -18,3 +18,15 @@ it('does not switch a finished following page to global discovery', async () => 
   expect((await res.json()).data).toEqual([]);
   expect(feed).toHaveBeenCalledTimes(1);
 });
+it('does not substitute ranked discovery for an empty first Following page', async () => {
+  feed.mockResolvedValue({ casts: [], next: { cursor: null } });
+  const res = await GET(new NextRequest('https://homiehouse.app/api/feed?feed_type=following&fid=123'));
+  expect(await res.json()).toMatchObject({ data: [], meta: { feedType: 'following', automatedSpamFiltering: false } });
+  expect(feed).toHaveBeenCalledTimes(1);
+  expect(res.headers.get('cache-control')).toBe('no-store');
+});
+it('requires an identity for Following rather than showing Global under its label', async () => {
+  const res = await GET(new NextRequest('https://homiehouse.app/api/feed?feed_type=following'));
+  expect(res.status).toBe(400);
+  expect(feed).not.toHaveBeenCalled();
+});

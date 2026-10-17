@@ -1,3 +1,4 @@
+import { AUTOMATED_SPAM_FILTERING } from './feed-policy';
 /**
  * OpenRank (Karma3Labs) spam filtering utility.
  *
@@ -118,6 +119,7 @@ async function fetchFromOpenRank(fids: number[]): Promise<Map<number, number>> {
  */
 export async function getOpenRankScores(fids: number[]): Promise<Map<number, number>> {
   const scores = new Map<number, number>();
+  if (!AUTOMATED_SPAM_FILTERING) return new Map(fids.map(fid => [fid, 1]));
   if (!fids.length) return scores;
 
   // Circuit breaker: if OpenRank was unreachable within the last 60s,
@@ -186,6 +188,7 @@ export function isSpamAccount(
   scores: Map<number, number>,
   author?: { follower_count?: number }
 ): boolean {
+  if (!AUTOMATED_SPAM_FILTERING) return false;
   const score = scores.get(fid) ?? 1.0; // default to trusted when unknown
   if (score > 0) return false;
 

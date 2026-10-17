@@ -44,7 +44,7 @@ export default function FeedClient() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
       <header className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex-shrink-0 flex items-center gap-2">
             <Link href="/learn">
               <HHLogo size={36} />
@@ -65,7 +65,7 @@ export default function FeedClient() {
               }}
             />
           </div>
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
             {isPro && (
               <Link
                 href="/pro"
@@ -123,17 +123,17 @@ export default function FeedClient() {
           >
             <SidebarNav />
           </aside>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 hh-feed-column">
             {isAuthenticated && null /* LearningHeroCard moved to home page */}
             <div className="flex items-center mb-3">
               <h3 className="text-lg font-semibold">Explore</h3>
             </div>
             {isAuthenticated ? (
-              <FeedTrendingTabs />
+              <FeedTrendingTabs key={`member-${viewerFid}`} />
             ) : (
               // Guests have no following graph — start on Trending (fully public data)
               // instead of an empty/broken "Following" feed.
-              <FeedTrendingTabs defaultTab="trending" defaultFeedScope="global" />
+              <FeedTrendingTabs key="guest" defaultTab="trending" defaultFeedScope="global" />
             )}
           </div>
         </div>

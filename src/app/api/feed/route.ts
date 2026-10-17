@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
     const cursor = searchParams.get("cursor");
     const limit = validateLimit(limitParam, 100);
     const fid = fidParam ? validateFid(fidParam).toString() : undefined;
+    if (feedType === 'following' && !fid && !channel) {
+      return NextResponse.json({ error: 'Sign in to load your Following feed.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+    }
     let data: any;
 
     if (channel) {
@@ -56,13 +59,7 @@ export async function GET(req: NextRequest) {
       if (feedType === "following" && fid) {
         fetchParams.feed_type = 'following'; fetchParams.fid = fid; fetchParams.viewer_fid = fid;
         data = await fetchFeed(fetchParams);
-        if (!cursor && !data?.casts?.length) {
-          const fallback: any = { feed_type: 'filter', filter_type: 'global_trending', limit };
-          if (cursor) fallback.cursor = cursor;
-          if (fid) fallback.viewer_fid = fid;
-          const fallbackData = await fetchFeed(fallback);
-          if (fallbackData?.casts?.length) data = fallbackData;
-        }
+
       } else {
         fetchParams.feed_type = 'filter'; fetchParams.filter_type = 'global_trending';
         if (fid) fetchParams.viewer_fid = fid;
@@ -70,7 +67,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    let casts: any[] = data?.casts || [];
+    const casts: any[] = data?.casts || [];
     // Node casts remain visible regardless of third-party reputation scores.
     // User-selected mute/hide preferences are applied by the client.
 
@@ -81,8 +78,7 @@ export async function GET(req: NextRequest) {
 
     const rawCursor = data?.next?.cursor || null;
     const cursor_out = rawCursor === '5b6e756c6c2c6e756c6c5d' ? null : rawCursor;
-    const isPersonalFeed = feedType === 'following' && !!fid;
-    return NextResponse.json({ data: casts, cursor: cursor_out }, { headers: { 'Cache-Control': isPersonalFeed ? 'private, max-age=20, stale-while-revalidate=40' : 'public, s-maxage=30, stale-while-revalidate=60' } });
+    return NextResponse.json({ data: casts, cursor: cursor_out, meta: { source: 'hypersnap', feedType: channel ? 'channel' : feedType, checkedAt: new Date().toISOString(), automatedSpamFiltering: false } }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: any) {
     logger.error('Failed to fetch feed', error);
     return handleApiError(error, 'GET /feed');

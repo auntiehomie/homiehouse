@@ -3,10 +3,10 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import FeedList from "./FeedList";
+import { DEFAULT_MEMBER_FEED } from '@/lib/feed-policy';
 import { readFeedReturn } from "@/lib/feed-session";
 import TrendingList, { prefetchTrending } from "./TrendingList";
 import FeedCurationChat from "./FeedCurationChat";
-import { TooltipTrigger } from "@/lib/progressive-disclosure";
 
 export type FeedScope = 'following' | 'global';
 
@@ -16,7 +16,7 @@ interface FeedTrendingTabsProps {
   defaultFeedScope?: FeedScope;
 }
 
-export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedScope = 'global' }: FeedTrendingTabsProps = {}) {
+export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedScope = DEFAULT_MEMBER_FEED }: FeedTrendingTabsProps = {}) {
   // Use the same memory-backed return state as the list, even if storage is full.
   const [tab, setTab] = useState<'feed'|'trending'>(() => readFeedReturn() ? 'feed' : defaultTab);
   const [feedType, setFeedType] = useState<FeedScope>(() => readFeedReturn()?.feedType ?? defaultFeedScope);
@@ -37,41 +37,14 @@ export default function FeedTrendingTabs({ defaultTab = 'feed', defaultFeedScope
         <Link href="/shop" className="btn text-xs" style={{ padding: '8px 12px' }}>✨ Earn & redeem</Link>
         <Link href="/community" className="btn text-xs" style={{ padding: '8px 12px' }}>🤝 Connect</Link>
       </nav>
-      <div className="flex gap-2 mb-4 items-center overflow-x-auto pb-1" style={{ flexWrap: 'nowrap', scrollbarWidth: 'none' }}>
-        <button
-          onClick={() => setTab('feed')}
-          className={"btn text-sm shrink-0 " + (tab === 'feed' ? 'primary' : '')}
-          style={{ padding: '8px 16px', minWidth: 'auto' }}
-        >
-          <TooltipTrigger termKey="cast">Feed</TooltipTrigger>
-        </button>
-        <button
-          onClick={() => setTab('trending')}
-          className={"btn text-sm shrink-0 " + (tab === 'trending' ? 'primary' : '')}
-          style={{ padding: '8px 16px', minWidth: 'auto' }}
-        >
-          <TooltipTrigger termKey="cast">Trending</TooltipTrigger>
-        </button>
-
-        {tab === 'feed' && (
-          <>
-            <div className="w-px bg-zinc-700 h-5 mx-1 shrink-0" />
-            <button
-              onClick={() => { setFeedType('global'); setSelectedChannel(null); }}
-              className={"btn text-xs shrink-0 " + (feedType === 'global' ? 'primary' : '')}
-              style={{ padding: '6px 12px', minWidth: 'auto' }}
-            >
-              <TooltipTrigger termKey="cast">Global</TooltipTrigger>
-            </button>
-            <button
-              onClick={() => { setFeedType('following'); setSelectedChannel(null); }}
-              className={"btn text-xs shrink-0 " + (feedType === 'following' ? 'primary' : '')}
-              style={{ padding: '6px 12px', minWidth: 'auto' }}
-            >
-              <TooltipTrigger termKey="cast">Following</TooltipTrigger>
-            </button>
-          </>
-        )}
+      <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 12px' }}>
+        {tab === 'feed' && feedType === 'following' ? 'Following · newest first from Hypersnap' : 'Discovery · ranked casts, not every network post'}
+        {' · Automated spam filtering is temporarily off. Your mute and hide choices still apply.'}
+      </p>
+      <div aria-label="Feed views" className="hh-feed-tabs">
+        <button className="btn" aria-pressed={tab === 'feed' && feedType === 'following'} onClick={() => { setTab('feed'); setFeedType('following'); setSelectedChannel(null); }}>Following</button>
+        <button className="btn" aria-pressed={tab === 'feed' && feedType === 'global'} onClick={() => { setTab('feed'); setFeedType('global'); setSelectedChannel(null); }} title="Ranked discovery, not the newest network casts">Global</button>
+        <button className="btn" aria-pressed={tab === 'trending'} onClick={() => setTab('trending')}>Trending</button>
       </div>
 
       {selectedChannel && (

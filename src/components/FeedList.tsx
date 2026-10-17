@@ -10,7 +10,8 @@ import EmbedRenderer, { findFarcasterCastUrls, parseFarcasterCastUrl } from './E
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 import ParentCastBadge from './ParentCastBadge';
 import AICurationSuggestions from './AICurationSuggestions';
-import { fetchFeed } from "../lib/farcaster";
+import { getStoredFid } from '@/lib/client-auth';
+import { useFeedFreshness } from '@/hooks/useFeedFreshness';
 import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import { FeedScope } from "./FeedTrendingTabs";
@@ -34,30 +35,6 @@ const LazyMarkdown = dynamic(
   },
   { ssr: false }
 );
-
-// Module-level helpers — defined once, never recreated
-function getUserInterests(): string[] {
-  try {
-    const stored = localStorage.getItem('hh_feed_interests');
-    if (stored) return JSON.parse(stored);
-  } catch {}
-  return [];
-}
-
-function scoreCast(cast: any, interests: string[]): number {
-  if (!interests.length) return 0;
-  const text = (cast.text || '').toLowerCase();
-  const channelId = cast.channel?.id?.toLowerCase() || '';
-  let score = 0;
-  for (const interest of interests) {
-    const li = interest.toLowerCase();
-    if (text.includes(li)) score += 10;
-    if (channelId === li) score += 15;
-    const hashtags = text.match(/#\w+/g) || [];
-    if (hashtags.some((tag: string) => tag.toLowerCase().includes(li))) score += 12;
-  }
-  return score;
-}
 
 function renderCastText(text: string) {
   const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
@@ -147,6 +124,12 @@ export default function FeedList({
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const feedContainerRef = useRef<HTMLDivElement | null>(null);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const feedParams = new URLSearchParams({ feed_type: feedType });
+  const viewerFid = getStoredFid();
+  if (viewerFid) feedParams.set('fid', String(viewerFid));
+  if (selectedChannel) feedParams.set('channel', selectedChannel);
+  const { updates, checkedAt, checkError } = useFeedFreshness(`/api/feed?${feedParams}`, items);
   const [refreshKey, setRefreshKey] = useState(0);
   const [pullDist, setPullDist] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -166,7 +149,6 @@ export default function FeedList({
   const [showQuoteModal, setShowQuoteModal] = useState<string | null>(null);
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [seeLessAuthors, setSeeLessAuthors] = useState<Set<string>>(new Set());
   const [curatingCast, setCuratingCast] = useState<string | null>(null);
   const [curateListName, setCurateListName] = useState("");
   const [curationFid, setCurationFid] = useState<number | null>(null);
@@ -347,17 +329,6 @@ export default function FeedList({
     }
   };
 
-  // Load see less preferences on mount
-  useEffect(() => {
-    const stored = localStorage.getItem('hh_see_less');
-    if (stored) {
-      try {
-        const authors = JSON.parse(stored);
-        setSeeLessAuthors(new Set(authors));
-      } catch (e) {}
-    }
-  }, []);
-
   // Signer approval handled natively via Ed25519 — no polling needed
 
   useEffect(() => {
@@ -366,6 +337,7 @@ export default function FeedList({
     const isManualRefresh = manualRefreshRef.current;
     manualRefreshRef.current = false;
 
+    setFeedError(null);
     // Reset pagination cursors
     setCursor(null);
     setHasMore(true);
@@ -411,18 +383,23 @@ export default function FeedList({
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
 
-        const feedRes = await fetch(url);
+        const feedRes = await fetch(url, { cache: 'no-store' });
 
         if (feedRes.ok) {
           const json = await feedRes.json();
           res = json?.data ?? json;
           nextCursor = json?.cursor || null;
         } else {
-          res = await fetchFeed(20);
+          const failure = await feedRes.json().catch(() => ({}));
+          throw new Error(failure.error || `Feed unavailable (${feedRes.status})`);
         }
       } catch (e) {
         console.error('[FeedList] Error fetching feed:', e);
-        res = await fetchFeed(20);
+        if (mounted) {
+          setFeedError(e instanceof Error ? e.message : 'Feed unavailable. Try again.');
+          setItems(previous => previous ?? []);
+        }
+        return;
       }
 
       if (mounted) {
@@ -450,6 +427,7 @@ export default function FeedList({
   const loadMore = async () => {
     if (loadingMore || !hasMore || !cursor) return;
     setLoadingMore(true);
+    setFeedError(null);
     try {
       let fid: number | undefined = undefined;
       try {
@@ -464,22 +442,25 @@ export default function FeedList({
       if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
       if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
 
-      const feedRes = await fetch(url);
+      const feedRes = await fetch(url, { cache: 'no-store' });
       if (feedRes.ok) {
         const json = await feedRes.json();
         const newItems = json?.data ?? json;
         const nextCursor = json?.cursor || null;
         if (Array.isArray(newItems)) {
-          setItems(prev => [...(prev ?? []), ...newItems]);
+          setItems(prev => {
+            const known = new Set((prev ?? []).map(cast => cast.hash || cast.id));
+            return [...(prev ?? []), ...newItems.filter(cast => !known.has(cast.hash || cast.id))];
+          });
         }
         setCursor(nextCursor);
         setHasMore(!!nextCursor);
       } else {
-        setHasMore(false);
+        setFeedError('Could not load older casts. Retry without losing your place.');
       }
     } catch (e) {
       console.error('[FeedList] loadMore error:', e);
-      setHasMore(false);
+      setFeedError('Could not load older casts. Retry without losing your place.');
     } finally {
       setLoadingMore(false);
     }
@@ -490,36 +471,29 @@ export default function FeedList({
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasMore && !loadingMore) {
+      if (entries[0].isIntersecting && hasMore && !loadingMore && !feedError) {
         loadMore();
       }
     }, { threshold: 0.1 });
     observer.observe(sentinel);
     return () => observer.disconnect();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, loadingMore, cursor]);
+  }, [hasMore, loadingMore, cursor, feedError]);
 
   // Must be before any early returns — hooks can't be called conditionally
   const filteredItems = useMemo(() => {
-    const interests = getUserInterests();
-    let result = (items || []).filter((it, index) => {
+    const result = (items || []).filter((it) => {
       const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
       const rawUser = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
       const authorUsername = rawUser && /^fid:\d+$/i.test(rawUser) ? null : rawUser;
       const castHash = it.hash || it.id;
       if (authorUsername && mutedUsers.has(authorUsername)) return false;
       if (castHash && hiddenCasts.has(castHash)) return false;
-      if (authorUsername && seeLessAuthors.has(authorUsername)) return index % 4 === 0;
       return true;
     });
-    if (interests.length > 0) {
-      result = result
-        .map(cast => ({ ...cast, _interestScore: scoreCast(cast, interests) }))
-        .sort((a, b) => b._interestScore - a._interestScore);
-    }
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, mutedUsers, hiddenCasts, seeLessAuthors]);
+  }, [items, mutedUsers, hiddenCasts]);
 
   if (items === null)
     return (
@@ -527,13 +501,18 @@ export default function FeedList({
         <FeedSkeleton count={3} />
       </div>
     );
+  const refreshFeed = () => {
+    manualRefreshRef.current = true;
+    setRefreshKey(key => key + 1);
+  };
   if (!items.length) return (
     <div className="surface" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted-on-dark)' }}>
-      {selectedChannel
+      {feedError || (selectedChannel
         ? `No casts found in #${selectedChannel}.`
         : feedType === 'following'
-        ? 'No casts to show yet. Follow people on Farcaster to populate your feed.'
-        : 'No casts available right now. Pull down to refresh or try again shortly.'}
+        ? 'Hypersnap returned no Following casts. Your follow graph or this node may be incomplete.'
+        : 'No casts available right now. Try Refresh.') }
+      <div><button className="btn" onClick={refreshFeed}>Refresh feed</button></div>
     </div>
   );
 
@@ -564,6 +543,11 @@ export default function FeedList({
 
   return (
     <>
+    <div className="hh-feed-status" role="status">
+      <span>{feedError || checkError || (checkedAt ? `Checked ${new Date(checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Checks for updates every minute while visible.')}</span>
+      {feedError && cursor && <button className="btn" onClick={loadMore} disabled={loadingMore}>Retry older casts</button>}
+      <button className="btn" onClick={refreshFeed}>{updates ? `Load ${updates} new casts` : 'Refresh feed'}</button>
+    </div>
     {/* Non-blocking toast for reply/post feedback */}
     {toast && (
       <div
@@ -576,7 +560,7 @@ export default function FeedList({
           fontSize: 14, fontWeight: 500, zIndex: 20000,
           boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
           animation: 'hhFadeIn 0.15s ease-out',
-          whiteSpace: 'nowrap',
+          whiteSpace: 'normal', maxWidth: 'calc(100vw - 24px)', overflowWrap: 'anywhere', boxSizing: 'border-box',
           cursor: toast.msg === 'Saved to Notes' ? 'pointer' : 'default',
           display: 'flex', alignItems: 'center', gap: 6,
         }}
@@ -620,7 +604,7 @@ export default function FeedList({
         if (anchorHash && link && link.target !== '_blank' && new URL(link.href).pathname.startsWith('/cast/')) saveFeedReturn(anchorHash);
       }}
       ref={feedContainerRef}
-      className="space-y-4"
+      className="space-y-4 hh-feed-cards"
     >
       {filteredItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
@@ -744,31 +728,6 @@ export default function FeedList({
                 zIndex: 10,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
               }}>
-                <button
-                  onClick={() => {
-                    if (authorUsername) {
-                      setSeeLessAuthors(prev => new Set([...prev, authorUsername]));
-                      localStorage.setItem('hh_see_less', JSON.stringify([...seeLessAuthors, authorUsername]));
-                    }
-                    setShowActions(null);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--foreground)',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    whiteSpace: 'nowrap'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  👎 See less of this
-                </button>
                 <button
                   onClick={() => {
                     onHideCast(key);

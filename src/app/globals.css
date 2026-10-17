@@ -913,3 +913,21 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   main { margin-top: .75rem; }
   .btn { min-height: 46px; }
 }
+
+/* Keep feed controls reachable at narrow widths, desktop zoom and landscape. */
+.hh-feed-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.hh-feed-tabs > button { flex: 1 1 90px; min-width: 0; white-space: normal; padding: 10px 12px; }
+.hh-feed-tabs > button[aria-pressed="true"] { background: var(--btn-primary-bg); color: var(--btn-primary-color); }
+.hh-feed-column { max-width: 760px; }
+.hh-feed-cards { min-width: 0; max-width: 100%; }
+.hh-feed-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; font-size: 12px; color: var(--muted-on-dark); }
+.hh-feed-status > span { flex: 1 1 150px; overflow-wrap: anywhere; }
+.modal, .modal-overlay, .wallet-login-modal { box-sizing: border-box; }
+.wallet-login-modal-overlay { top: var(--hh-viewport-top, 0px); bottom: auto; height: var(--hh-viewport-height, 100dvh); }
+.wallet-login-modal { max-height: calc(var(--hh-viewport-height, 100dvh) - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 640px) {
+  .wallet-login-modal { max-height: calc(var(--hh-viewport-height, 100dvh) - 16px - env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-height: 500px) {
+  .modal { max-height: calc(var(--hh-viewport-height, 100dvh) - 16px); }
+}

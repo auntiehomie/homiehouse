@@ -156,12 +156,12 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
 
   // 1. Primary Hypersnap node
   try {
-    const data = await hypersnapFetch(endpoint);
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
     if (Array.isArray(data?.casts)) return data;
   } catch (_) {}
 
   // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
-  const fallback = await fallbackFetch(endpoint);
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
   if (Array.isArray(fallback?.casts)) return fallback;
 
   throw new Error('Feed unavailable on both nodes');
@@ -179,10 +179,10 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
   if (params.cursor) qs.set('cursor', String(params.cursor));
   const endpoint = `/v2/farcaster/feed/trending?${qs}`;
   try {
-    const data = await hypersnapFetch(endpoint);
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
     if (Array.isArray(data?.casts)) return data;
   } catch {}
-  const fallback = await fallbackFetch(endpoint);
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
   if (Array.isArray(fallback?.casts)) return fallback;
   throw new Error('Trending feed unavailable on both nodes');
 }

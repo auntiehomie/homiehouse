@@ -4,7 +4,6 @@ import { fetchNotifications } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
-import { getOpenRankScores, isSpamAccount } from '@/lib/openrank';
 
 // Sentry for notification pipeline alerting — lazily loaded so the route works
 // without @sentry/nextjs installed.
@@ -114,29 +113,8 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Filter spam actors from passive notification types (likes, follows, quotes).
-    // Replies and mentions are always shown — the user explicitly interacted.
-    let finalNotifications = transformedNotifications;
-    try {
-      const passiveTypes = new Set(['likes', 'recasts', 'follows', 'quote']);
-      const actorFids = [...new Set(
-        finalNotifications
-          .filter((n: any) => passiveTypes.has(n.type))
-          .flatMap((n: any) => (n.actors as any[]).map((a: any) => a?.fid).filter(Boolean))
-      )] as number[];
-
-      if (actorFids.length > 0) {
-        const scores = await getOpenRankScores(actorFids);
-        finalNotifications = finalNotifications.filter((notif: any) => {
-          if (!passiveTypes.has(notif.type)) return true;
-          const actors: any[] = notif.actors ?? [];
-          // Keep notification if at least one actor passes the spam check
-          return actors.some((a: any) => !isSpamAccount(a?.fid, scores, a));
-        });
-      }
-    } catch {
-      // Fail open
-    }
+    // Temporary visibility audit: show every node notification, without OpenRank.
+    const finalNotifications = transformedNotifications;
 
     logger.success('Notifications fetched', { count: finalNotifications.length, ...fetchMeta });
     logger.end();

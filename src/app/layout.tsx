@@ -1,3 +1,4 @@
+import ViewportSync from '@/components/ViewportSync';
 import CastNavigationTracker from "@/components/CastNavigationTracker";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
@@ -132,6 +133,7 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" href="/splash.png" />
       </head>
       <body className={`antialiased`}>
+        <ViewportSync />
         <WagmiProviders>
           <FarcasterAuthProvider>
             <QueryProvider>
