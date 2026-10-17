@@ -1,0 +1,26 @@
+.dialog {
+  width: min(620px, calc(100vw - 24px));
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px);
+  margin: auto;
+  padding: clamp(18px, 4vw, 30px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface, #19191d);
+  color: var(--text-on-dark, #fff);
+  box-shadow: 0 24px 90px #0008;
+}
+.dialog::backdrop { background: #000b; }
+.steps { list-style: none; padding: 0; margin: 24px 0; display: grid; gap: 18px; }
+.step { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; }
+.number { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-dark, #101014); border: 1px solid var(--border); font-size: 13px; font-weight: 700; }
+.step h3 { margin: 0 0 5px; font-size: 16px; }
+.step p { margin: 0 0 10px; font-size: 14px; line-height: 1.5; color: var(--muted-on-dark, #bbb); }
+.form { display: flex; flex-wrap: wrap; gap: 8px; }
+.input { flex: 1 1 170px; min-width: 0; padding: 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-dark); color: var(--text-on-dark); font-size: 16px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.note { color: var(--muted-on-dark); font-size: 12px; line-height: 1.5; }
+
+.summary { cursor: pointer; padding: 3px 0 10px; font-size: 15px; }
+.summary h3 { display: inline; }

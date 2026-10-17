@@ -1,5 +1,7 @@
 'use client';
 
+import GettingStartedButton from './GettingStartedButton';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
@@ -389,6 +391,8 @@ export default function MobileNav() {
                   );
                 })}
               </nav>
+
+              <GettingStartedButton onOpen={() => setDrawerOpen(false)} />
 
               {/* Divider */}
               <div style={{ height: 1, background: 'var(--border)', marginBottom: 16 }} />

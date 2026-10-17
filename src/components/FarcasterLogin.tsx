@@ -19,9 +19,10 @@ interface FarcasterLoginProps {
   onLogin?: () => void;
   modal?: boolean;
   onDismiss?: () => void;
+  requestPostingOnLogin?: boolean;
 }
 
-export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: FarcasterLoginProps) {
+export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requestPostingOnLogin = true }: FarcasterLoginProps) {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { openConnectModal } = useConnectModal();
@@ -93,7 +94,7 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
         auth_method: 'hypersnap-wallet',
       }));
       window.dispatchEvent(new Event('hh:auth:changed'));
-      window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: account.fid } }));
+      if (requestPostingOnLogin) window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: account.fid } }));
       onLogin?.();
     } catch (err: any) {
       setError(err?.message || 'Wallet sign-in failed. Check that this wallet is linked to the selected FID.');
