@@ -1,46 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import PricingCard from '@/components/PricingCard';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { useProStatus } from '@/hooks/useProStatus';
+import SignInButton from '@/components/SignInButton';
 
 export default function ProPage() {
   const router = useRouter();
-  const [userFid, setUserFid] = useState<number | null>(null);
-  const [isPro, setIsPro] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const storedProfile = localStorage.getItem('hh_profile');
-        let fid: number | null = null;
-        if (storedProfile) {
-          try {
-            const profile = JSON.parse(storedProfile);
-            fid = profile?.fid ?? null;
-          } catch {}
-        }
-
-        if (mounted && fid) {
-          setUserFid(fid);
-          const res = await fetch(`/api/pro-status?fid=${fid}`);
-          const data = await res.json();
-          if (mounted && data.ok) {
-            setIsPro(data.is_pro);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load Pro status:', err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-    load();
-    return () => { mounted = false; };
-  }, []);
+  const { fid: userFid } = useFarcasterAuth();
+  const { isPro, loading, error, refresh } = useProStatus();
 
   if (loading) {
     return (
@@ -55,6 +25,11 @@ export default function ProPage() {
 
   return (
     <AppShell>
+      {error && <div role="alert" className="surface" style={{ padding: 16, marginBottom: 20 }}>
+        <p>{error}</p>
+        <button className="btn" onClick={refresh}>Refresh access</button>
+        <SignInButton />
+      </div>}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
         <button
@@ -124,7 +99,7 @@ export default function ProPage() {
           Supercharge your HomieHouse experience with Pro. Pay with card (Stripe) or USDC on Base — your choice. Cancel anytime.
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-          <PricingCard userFid={userFid} isPro={isPro} />
+          {!error && <PricingCard userFid={userFid} isPro={isPro} />}
         </div>
       </div>
 

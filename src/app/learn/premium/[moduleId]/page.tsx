@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import { fetchPremiumTrack } from '@/lib/pro-client';
 
 interface PremiumModuleDetail {
   id: string;
@@ -56,6 +56,7 @@ export default function PremiumModulePage() {
   const [module, setModule] = useState<PremiumModuleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
   const [isPro, setIsPro] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
@@ -63,10 +64,11 @@ export default function PremiumModulePage() {
 
   useEffect(() => {
     let mounted = true;
+    setLoading(true);
+    setError(null);
     async function load() {
       try {
-        const headers = getAuthHeaders() as Record<string, string>;
-        const res = await fetch(`/api/premium-track?module=${encodeURIComponent(moduleId)}`, { headers });
+        const res = await fetchPremiumTrack(moduleId);
         const data = await res.json();
         if (mounted) {
           if (data.pro_required) {
@@ -90,7 +92,7 @@ export default function PremiumModulePage() {
     }
     load();
     return () => { mounted = false; };
-  }, [moduleId]);
+  }, [moduleId, revision]);
 
   const trackMeta = module?.track ? TRACK_NAMES[module.track] : null;
   const concepts = module?.concepts;
@@ -102,11 +104,12 @@ export default function PremiumModulePage() {
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 16px', textAlign: 'center' }}>
         <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 8px' }}>
-          Module Not Found
+          {error ? 'Unable to load lesson' : 'Module Not Found'}
         </h2>
         <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 16px' }}>
           {error || "We couldn't find this premium module."}
         </p>
+        {error && <button className="btn" onClick={() => setRevision(value => value + 1)}>Retry access</button>}
         <button
           onClick={() => router.push('/learn')}
           style={{

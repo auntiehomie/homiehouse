@@ -16,6 +16,7 @@ import { base as baseChain } from 'wagmi/chains';
 import { formatUnits } from 'viem';
 import { prefetchLesson } from '@/lib/lesson-client-cache';
 import DailyChallengeClient from './DailyChallengeClient';
+import { fetchPremiumTrack } from '@/lib/pro-client';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -71,16 +72,30 @@ interface PremiumTrackItem {
 
 function PremiumTracksPanel() {
   const router = useRouter();
+  const { fid, isAuthenticated } = useFarcasterAuth();
+  const [revision, setRevision] = useState(0);
   const [tracks, setTracks] = useState<PremiumTrackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPro, setIsPro] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const refresh = () => setRevision(value => value + 1);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('hh:pro-updated', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('hh:pro-updated', refresh);
+    };
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
+    setLoading(true);
+    setError(null);
     async function load() {
       try {
-        const res = await fetch('/api/premium-track');
+        const res = await fetchPremiumTrack();
         const data = await res.json();
         if (mounted) {
           setTracks(data.tracks ?? []);
@@ -95,7 +110,7 @@ function PremiumTracksPanel() {
     }
     load();
     return () => { mounted = false; };
-  }, []);
+  }, [fid, isAuthenticated, revision]);
 
   if (loading) {
     return (
@@ -104,6 +119,12 @@ function PremiumTracksPanel() {
       </div>
     );
   }
+
+  if (error) return <section role="alert" className="surface" style={{ padding: 20 }}>
+    <p>{error}</p>
+    <button className="btn" onClick={() => setRevision(value => value + 1)}>Refresh access</button>
+    {' '}<Link className="btn" href="/pro">Check Pro access</Link>
+  </section>;
 
   const diffColor: Record<string, string> = { beginner: '#22c55e', intermediate: '#f97316', advanced: '#a855f7' };
 
@@ -143,16 +164,6 @@ function PremiumTracksPanel() {
           >
             Go Pro →
           </button>
-        </div>
-      )}
-
-      {error && (
-        <div style={{
-          padding: '12px 16px', borderRadius: 10, marginBottom: 20,
-          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-          color: '#fca5a5', fontSize: 13,
-        }}>
-          {error}
         </div>
       )}
 

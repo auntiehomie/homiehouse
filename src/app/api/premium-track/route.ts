@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { privateJson } from '@/lib/private-response';
 import { PREMIUM_TRACKS, PREMIUM_MODULE_IDS, getPremiumModule, getPremiumLessonContent } from '@/lib/premium-curriculum';
 import { isProUser } from '@/lib/pro';
 import { enforceRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { createApiLogger } from '@/lib/logger';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
+export const dynamic = 'force-dynamic';
 
 // GET /api/premium-track — return premium track listings and module detail
 //
@@ -32,21 +34,18 @@ export async function GET(req: NextRequest) {
     const moduleId = searchParams.get('module');
     const trackId = searchParams.get('track');
 
-    // Determine if user is Pro — best-effort, auth is optional for public teasers
+    // Anonymous visitors get teasers. Invalid credentials are an error,
+    // rather than silently demoting a paying member to the free view.
     let isPro = false;
-    try {
-      const fid = await verifyFarcasterSignerAuth(req);
-      if (fid) {
-        isPro = await isProUser(fid);
-      }
-    } catch {
-      // Auth is not required — free users see teasers
+    if (['x-session-token', 'x-farcaster-fid', 'x-signer-key', 'authorization'].some(name => req.headers.has(name))) {
+      const fid = await verifyFarcasterSignerAuth(req, 'read:all');
+      isPro = await isProUser(fid);
     }
 
     // ── Single module detail (Pro only) ──────────────────────────────────────
     if (moduleId) {
       if (!PREMIUM_MODULE_IDS.has(moduleId)) {
-        return NextResponse.json(
+        return privateJson(
           { ok: false, error: `Unknown module: ${moduleId}` },
           { status: 404 }
         );
@@ -54,7 +53,7 @@ export async function GET(req: NextRequest) {
 
       if (!isPro) {
         const mod = getPremiumModule(moduleId);
-        return NextResponse.json({
+        return privateJson({
           ok: true,
           pro_required: true,
           module: mod
@@ -76,7 +75,7 @@ export async function GET(req: NextRequest) {
       // Pro user — return full module with lesson content
       const mod = getPremiumModule(moduleId);
       const lesson = getPremiumLessonContent(moduleId);
-      return NextResponse.json({
+      return privateJson({
         ok: true,
         pro_required: false,
         module: mod,
@@ -89,14 +88,14 @@ export async function GET(req: NextRequest) {
     if (trackId) {
       const track = PREMIUM_TRACKS.find(t => t.id === trackId);
       if (!track) {
-        return NextResponse.json(
+        return privateJson(
           { ok: false, error: `Unknown track: ${trackId}. Available: ${PREMIUM_TRACKS.map(t => t.id).join(', ')}` },
           { status: 404 }
         );
       }
 
       if (!isPro) {
-        return NextResponse.json({
+        return privateJson({
           ok: true,
           pro_required: true,
           track: {
@@ -120,7 +119,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      return NextResponse.json({
+      return privateJson({
         ok: true,
         pro_required: false,
         track: {
@@ -153,27 +152,20 @@ export async function GET(req: NextRequest) {
       })),
     }));
 
-    return NextResponse.json(
+    return privateJson(
       {
         ok: true,
         pro_required: !isPro,
         tracks,
         ...(isPro ? { unlocked: true } : { message: 'Upgrade to Pro to unlock all premium content.' }),
       },
-      {
-        headers: {
-          'Cache-Control': isPro
-            ? 'private, s-maxage=60, stale-while-revalidate=300'
-            : 'public, s-maxage=300, stale-while-revalidate=600',
-        },
-      }
     );
   } catch (err: any) {
     if (err instanceof AuthError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+      return privateJson({ ok: false, error: err.message }, { status: err.status });
     }
     logger.error('Premium track fetch failed', err);
-    return NextResponse.json(
+    return privateJson(
       { ok: false, error: 'Failed to fetch premium tracks' },
       { status: 500 }
     );
