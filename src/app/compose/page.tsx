@@ -5,15 +5,21 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import ComposeInspiration from '@/components/ComposeInspiration';
+import { splitCastText, publishCastParts, type ThreadProgress } from '@/lib/cast-text';
 import { getAuthHeaders } from '@/lib/client-auth';
 
 function ComposePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { fid: userFid } = useFarcasterAuth()
-  const { hasActiveSigner, requestSigner, submitCast, getPrivateKeyHex } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, reply, getPrivateKeyHex } = useFarcasterWrites();
 
   const [text, setText] = useState(searchParams.get('text') || "");
+  const returnTo = searchParams.get('returnTo');
+  const fromAskHomie = returnTo === '/ask-homie' || returnTo?.startsWith('/ask-homie?');
+  const closeComposer = () => fromAskHomie ? router.replace(returnTo!, { scroll: false }) : router.back();
+  const parts = splitCastText(text);
+  const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -327,6 +333,10 @@ function ComposePageInner() {
       }
 
       // If scheduled, save to database instead of posting immediately
+      if (isScheduled && parts.length > 1) {
+        setStatus('Scheduling threads is not supported yet. Turn off scheduling to post this thread now.');
+        return;
+      }
       if (isScheduled && scheduleTime) {
         const scheduledDate = new Date(scheduleTime);
         const now = new Date();
@@ -377,7 +387,7 @@ function ComposePageInner() {
           setUrlPreview(null);
           setDetectedUrl(null);
           setTimeout(() => {
-            router.back();
+            closeComposer();
           }, 1500);
         } else {
           const errorMsg = data.error || data.message || "unknown error";
@@ -387,19 +397,28 @@ function ComposePageInner() {
           setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
         }
             } else {
-        // Post immediately via local signer
-        await submitCast({
-          text: body.text,
-          embeds: body.embeds,
-          channelKey: body.channelKey,
-        });
+        const fingerprint = JSON.stringify([userFid, body.text, body.embeds, body.channelKey]);
+        if (threadProgress.current.fingerprint !== fingerprint) {
+          threadProgress.current = { fingerprint, progress: { hashes: [] } };
+        }
+        const progress = threadProgress.current.progress;
+        try {
+          await publishCastParts(parts, progress, (part, parentHash) => parentHash
+            ? reply({ text: part, parentCastHash: parentHash, parentCastFid: userFid })
+            : submitCast({ text: part, embeds: body.embeds, channelKey: body.channelKey }));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(progress.hashes.length
+            ? `${progress.hashes.length} of ${parts.length} parts posted. Retry to continue the remaining parts. ${message}`
+            : message);
+        }
         setStatus("✓ Posted successfully!");
         setText("");
         setUploadedImages([]);
         setUrlPreview(null);
         setDetectedUrl(null);
         setTimeout(() => {
-          router.back();
+          closeComposer();
         }, 1500);
       }
     } catch (err: any) {
@@ -418,10 +437,10 @@ function ComposePageInner() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
-          <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button aria-label={fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
+          {fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          </svg>}
         </button>
         <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-on-dark)' }}>New Cast</h1>
         <div style={{ width: 22 }} />
@@ -472,6 +491,7 @@ function ComposePageInner() {
         ) : null}
         {userFid && hasActiveSigner && (
           <div>
+            {parts.length > 1 && <p role="status" style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>This draft will post as a thread of {parts.length} casts. Your full text is preserved.</p>}
             {/* Textarea with floating autocomplete */}
             <div style={{ position: 'relative' }}>
               <textarea
@@ -714,22 +734,10 @@ function ComposePageInner() {
             {text.length > 260 && (
               <span style={{
                 fontSize: 12,
-                color: text.length > 10000
-                  ? '#f87171'
-                  : text.length > 9900
-                  ? '#f87171'
-                  : text.length > 9700
-                  ? '#fb923c'
-                  : text.length > 320
-                  ? 'var(--muted-on-dark)'
-                  : text.length > 300
-                  ? '#fb923c'
-                  : text.length > 280
-                  ? '#f87171'
-                  : 'var(--muted-on-dark)',
+                color: 'var(--muted-on-dark)',
                 minWidth: 28, textAlign: 'right',
               }}>
-                {text.length > 320 ? `${text.length.toLocaleString()} / 10,000` : text.length}
+                {text.length.toLocaleString()}
               </span>
             )}
             <button
@@ -742,7 +750,7 @@ function ComposePageInner() {
                 opacity: (loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
               }}
             >
-              {loading ? '…' : (isScheduled ? 'Schedule' : 'Post')}
+              {loading ? '…' : (isScheduled ? 'Schedule' : parts.length > 1 ? `Post thread (${parts.length})` : 'Post')}
             </button>
           </div>
         </div>
