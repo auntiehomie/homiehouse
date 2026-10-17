@@ -77,11 +77,24 @@ export async function GET(req: NextRequest) {
         const currentFid = fid ? Number(fid) : 0;
         const authorFids = [...new Set(casts.map((c: any) => c.author?.fid).filter((f: any) => f && f !== currentFid))] as number[];
         if (authorFids.length > 0) {
-          const scores = await getOpenRankScores(authorFids);
-          casts = casts.filter((cast: any) => {
-            const authorFid = cast.author?.fid;
-            return !authorFid || authorFid === currentFid || !isSpamAccount(authorFid, scores, cast.author);
-          });
+          // Feed display should not wait several seconds for a cold OpenRank
+          // lookup. Spam scoring is already fail-open, so keep that behavior
+          // when enrichment misses this short budget and let the casts render.
+          let timeout: ReturnType<typeof setTimeout> | undefined;
+          const scorePromise = getOpenRankScores(authorFids).catch(() => null);
+          const scores = await Promise.race([
+            scorePromise,
+            new Promise<null>((resolve) => {
+              timeout = setTimeout(() => resolve(null), 350);
+            }),
+          ]);
+          if (timeout) clearTimeout(timeout);
+          if (scores) {
+            casts = casts.filter((cast: any) => {
+              const authorFid = cast.author?.fid;
+              return !authorFid || authorFid === currentFid || !isSpamAccount(authorFid, scores, cast.author);
+            });
+          }
         }
       } catch { /* Fail open: feed availability wins over enrichment. */ }
     }

@@ -137,9 +137,9 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
   const isTrending =
     feedType === 'filter' && params.filter_type === 'global_trending';
 
-  // Global/trending routes through the resilient trending path (OpenRank ranking
-  // + Hypersnap hydration, with a node fallback). The node's own /feed/trending
-  // endpoint is dead, so hitting it here just returned empty.
+  // Global/trending routes through Hypersnap's native feed first. This avoids
+  // making the global feed depend on OpenRank's availability or a fan-out of
+  // per-cast hydration requests.
   if (isTrending) {
     return fetchTrendingFeed({ limit: params.limit, viewer_fid: params.viewer_fid });
   }
@@ -274,13 +274,12 @@ async function fetchTrendingFallbackFromNode(limit: number): Promise<any[]> {
  * "topics", so this is how you get "what's trending in this topic" rather
  * than just a single undifferentiated global list).
  *
- * The Hypersnap node's own /feed/trending endpoint is unavailable (it times
- * out — trending computation isn't served by the self-hosted node) and never
- * supported channel scoping anyway, so we rank via OpenRank (globally or via
- * its per-channel endpoint) and hydrate the resulting hashes through
- * Hypersnap. If OpenRank is unreachable too, fall back to recent casts —
- * from the channel itself when one was requested, otherwise from a few
- * high-signal accounts — so the feed is never empty.
+ * For global discovery, use Hypersnap's native trending feed directly. This
+ * endpoint is served by the configured network node and avoids OpenRank's
+ * availability and per-cast hydration latency. For channel discovery, use
+ * OpenRank ranking and hydrate through Hypersnap; if unavailable, fall back
+ * to recent casts from the channel. If native global trending is unavailable,
+ * fall back to recent casts from several high-signal accounts.
  *
  * `time_window`/`viewer_fid` in `params` are accepted for API compatibility
  * but currently do nothing: neither OpenRank endpoint nor the Hypersnap node
@@ -290,17 +289,8 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
   const limit = Math.max(1, Math.min(Number(params.limit) || 25, 50));
   const channelId: string | undefined = params.channel_id || undefined;
 
-  // 1. Rank via OpenRank (global or channel-scoped), then hydrate through Hypersnap.
-  // Keep a small buffer for hydration failures without doubling the number of
-  // downstream cast requests on every cold load.
-  const hashes = await fetchTrendingCastHashes(Math.min(limit + 5, 50), channelId);
-  if (hashes.length > 0) {
-    const casts = await hydrateCastsByHash(hashes);
-    if (casts.length > 0) return { casts: casts.slice(0, limit) };
-  }
-
-  // 2. Try the node's native trending endpoint (in case it comes back).
-  // Channel scoping was never supported here, so only try this path globally.
+  // 1. For global discovery, use the network's native trending feed first.
+  // It returns full casts and avoids external ranking + per-cast hydration.
   if (!channelId) {
     try {
       const qs = new URLSearchParams();
@@ -312,7 +302,18 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
     } catch {}
   }
 
-  // 3. OpenRank (+ node trending, if applicable) unavailable → recent casts.
+  // 2. For channel discovery, rank via OpenRank and hydrate through Hypersnap.
+  // Keep a small buffer for hydration failures without doubling the number of
+  // downstream cast requests on every cold load.
+  const hashes = channelId
+    ? await fetchTrendingCastHashes(Math.min(limit + 5, 50), channelId)
+    : [];
+  if (hashes.length > 0) {
+    const casts = await hydrateCastsByHash(hashes);
+    if (casts.length > 0) return { casts: casts.slice(0, limit) };
+  }
+
+  // 3. Native global trending or channel ranking unavailable → recent casts.
   // Channel-scoped: pull straight from the channel's own feed instead of the
   // channel-agnostic high-signal-account fallback below.
   if (channelId) {
