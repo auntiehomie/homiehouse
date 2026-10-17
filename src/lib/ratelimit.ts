@@ -1,8 +1,8 @@
 /**
  * Rate limiting utility — Upstash Redis-backed for distributed/serverless use.
  *
- * Falls back to in-memory store when UPSTASH_REDIS_REST_URL is not configured
- * (e.g., local development without Redis).
+ * Falls back to in-memory store when Upstash is not configured in development.
+ * Selected auth routes may also opt into this fallback on Vercel Preview only.
  */
 
 import { AuthError } from './errors';
@@ -81,7 +81,8 @@ export interface RateLimitResult {
 
 /**
  * Check rate limit for a given key.
- * Uses Upstash Redis when configured, falls back to in-memory.
+ * Uses Upstash Redis when configured. In-memory fallback is available in
+ * development, and may be explicitly enabled for Vercel Preview by a route.
  *
  * @param key - Unique identifier (IP, user ID, etc.)
  * @param limit - Max requests allowed in the window
@@ -90,7 +91,8 @@ export interface RateLimitResult {
 export async function checkRateLimit(
   key: string,
   limit: number = 30,
-  windowSeconds: number = 60
+  windowSeconds: number = 60,
+  options: { allowInMemoryPreview?: boolean } = {},
 ): Promise<RateLimitResult> {
   const upstash = getUpstashRatelimit();
 
@@ -103,7 +105,9 @@ export async function checkRateLimit(
     };
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  const isAllowedPreviewFallback =
+    options.allowInMemoryPreview === true && process.env.VERCEL_ENV === 'preview';
+  if (process.env.NODE_ENV === 'production' && !isAllowedPreviewFallback) {
     throw new AuthError(
       'Distributed rate limiting is unavailable',
       503,

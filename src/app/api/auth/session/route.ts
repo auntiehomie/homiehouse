@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       `auth-session:${rateLimitKeyFromRequest(req)}`,
       10,
       60,
+      { allowInMemoryPreview: true },
     );
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
