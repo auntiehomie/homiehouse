@@ -1,5 +1,7 @@
 'use client';
 
+import GettingStartedButton from './GettingStartedButton';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChannelSidebar } from './ChannelStrip';
@@ -172,6 +174,7 @@ export default function SidebarNav() {
         })}
       </nav>
 
+      <GettingStartedButton />
       <ProfileSummary />
 
       {/* Divider */}

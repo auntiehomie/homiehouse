@@ -6,6 +6,8 @@
 
 import dynamic from "next/dynamic";
 
+const MigrationGuide = dynamic(() => import("./MigrationGuide"), { ssr: false });
+
 const SdkDevMock = dynamic(() => import("./SdkDevMock"), { ssr: false });
 const SignerInit = dynamic(() => import("./SignerInit"), { ssr: false });
 const WelcomeModal = dynamic(() => import("./WelcomeModal"), { ssr: false });
@@ -23,6 +25,7 @@ export default function LazyClientComponents({
 }) {
   return (
     <>
+      <MigrationGuide />
       <SdkDevMock />
       <SignerInit />
       <WelcomeModal />
