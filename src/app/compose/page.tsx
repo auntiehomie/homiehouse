@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import ComposeInspiration from '@/components/ComposeInspiration';
@@ -27,6 +27,45 @@ function ComposePageInner() {
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const composeTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isEditingCast, setIsEditingCast] = useState(false);
+
+  // iOS Safari can pan the document to the end of a long compose page when
+  // its software keyboard opens, leaving the focused textarea above the
+  // visible area. Re-center it after the visual viewport finishes resizing.
+  useEffect(() => {
+    if (!isEditingCast) return;
+
+    const textarea = composeTextareaRef.current;
+    const viewport = window.visualViewport;
+    if (!textarea || !viewport) return;
+
+    let frame = 0;
+    const revealFocusedEditor = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (document.activeElement !== textarea) return;
+
+        const rect = textarea.getBoundingClientRect();
+        const visibleTop = viewport.offsetTop;
+        const visibleBottom = visibleTop + viewport.height;
+        if (rect.top < visibleTop || rect.bottom > visibleBottom) {
+          textarea.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+        }
+      });
+    };
+
+    viewport.addEventListener('resize', revealFocusedEditor);
+    // Safari reports the final keyboard viewport size asynchronously.
+    const settleTimer = window.setTimeout(revealFocusedEditor, 180);
+    revealFocusedEditor();
+
+    return () => {
+      viewport.removeEventListener('resize', revealFocusedEditor);
+      window.clearTimeout(settleTimer);
+      cancelAnimationFrame(frame);
+    };
+  }, [isEditingCast]);
 
   // Unified inline trigger autocomplete (@mention, /channel, $token)
   const [activeTrigger, setActiveTrigger] = useState<{ type: '@' | '/' | '$'; query: string; startPos: number } | null>(null);
@@ -436,10 +475,10 @@ function ComposePageInner() {
             {/* Textarea with floating autocomplete */}
             <div style={{ position: 'relative' }}>
               <textarea
+                ref={composeTextareaRef}
                 value={text}
                 onChange={handleTextChange}
                 placeholder="What's on your mind?"
-                autoFocus
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   background: 'var(--surface)', color: 'var(--text-on-dark)',
@@ -448,8 +487,14 @@ function ComposePageInner() {
                   outline: 'none', resize: 'none', minHeight: 130,
                   fontFamily: 'inherit',
                 }}
-                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
-                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+                onFocus={e => {
+                  e.target.style.borderColor = 'var(--accent)';
+                  setIsEditingCast(true);
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = 'var(--border)';
+                  setIsEditingCast(false);
+                }}
               />
 
               {/* Autocomplete dropdown */}
