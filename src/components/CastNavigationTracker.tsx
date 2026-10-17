@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { feedDestination, pageScrollY, readCastNavigation, visitRoute, writeCastNavigation } from '@/lib/cast-navigation';
+import { readFeedReturn } from '@/lib/feed-session';
 
 export default function CastNavigationTracker() {
   const pathname = usePathname();
@@ -34,13 +35,11 @@ export default function CastNavigationTracker() {
       saveScroll(true);
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[data-feed-navigation]') : null;
       if (!link || link.target === '_blank') return;
-      const current = window.location.pathname + window.location.search;
-      const target = feedDestination(readCastNavigation(), current);
+      const target = feedDestination();
       event.preventDefault();
-      event.stopPropagation();
-      // A tab should pop the current thread level, not add another feed entry.
-      if (current.startsWith('/cast/')) router.replace(target, { scroll: false });
-      else router.push(target, { scroll: false });
+      // Let drawer click handlers close the menu. Next's Link respects
+      // defaultPrevented, so it won't issue a second navigation.
+      router.push(target, { scroll: !readFeedReturn() });
     };
     window.addEventListener('touchstart', onUserInput, { passive: true });
     window.addEventListener('wheel', onUserInput, { passive: true });

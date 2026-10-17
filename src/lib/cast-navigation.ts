@@ -3,12 +3,14 @@ export const CAST_NAV_KEY = 'hh_cast_navigation_v1';
 export const CAST_NAV_TTL = 30 * 60 * 1000;
 export type NavigationEntry = { path: string; scrollY: number };
 export type CastNavigation = { entries: NavigationEntry[]; index: number; lastCast: string | null; ts: number };
+let fallbackNavigation: CastNavigation | null = null;
 
 export function isLocalPath(path: unknown): path is string {
   return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') && !/[\\\r\n]/.test(path);
 }
 
 export function readCastNavigation(): CastNavigation {
+  if (fallbackNavigation && Date.now() - fallbackNavigation.ts < CAST_NAV_TTL) return fallbackNavigation;
   try {
     const saved = JSON.parse(sessionStorage.getItem(CAST_NAV_KEY) || 'null');
     if (saved && Date.now() - saved.ts < CAST_NAV_TTL && Array.isArray(saved.entries)
@@ -21,7 +23,11 @@ export function readCastNavigation(): CastNavigation {
 }
 
 export function writeCastNavigation(state: CastNavigation) {
-  try { sessionStorage.setItem(CAST_NAV_KEY, JSON.stringify({ ...state, ts: Date.now() })); } catch {}
+  const saved = { ...state, ts: Date.now() };
+  try {
+    sessionStorage.setItem(CAST_NAV_KEY, JSON.stringify(saved));
+    fallbackNavigation = null;
+  } catch { fallbackNavigation = saved; }
 }
 
 export function visitRoute(state: CastNavigation, path: string): CastNavigation {
@@ -39,10 +45,9 @@ export function previousRoute(state: CastNavigation, current: string): string | 
     ? state.entries[state.index - 1].path : null;
 }
 
-export function feedDestination(state: CastNavigation, current: string): string {
-  if (current.startsWith('/cast/')) return previousRoute(state, current) || '/feed';
-  if (current === '/feed' || current.startsWith('/feed?')) return '/feed';
-  return state.lastCast || '/feed';
+export function feedDestination(): string {
+  // Feed is a destination, not a second Back button or a hidden thread resume.
+  return '/feed';
 }
 
 export function pageScrollY(): number {
