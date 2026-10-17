@@ -32,7 +32,7 @@ test('parent/quoted links preserve feed position; Back and Feed retrace and resu
       : card(quoted, 'Quoted conversation');
     return route.fulfill({ json: { cast } });
   });
-  await page.goto('/feed');
+  await page.goto('/feed', { waitUntil: 'domcontentloaded' });
   const original = page.locator(`[data-feed-cast-hash="${feed[16].hash}"]`);
   const parentLink = original.locator(`a[href="/cast/${parent}"]`);
   await parentLink.scrollIntoViewIfNeeded();
@@ -62,7 +62,7 @@ test('native Back and Forward retain the detail scroll position', async ({ page 
     const hash = new URL(route.request().url()).searchParams.get('hash')!;
     return route.fulfill({ json: { cast: { ...card(hash, 'Thread body '.repeat(400)), embeds: hash === parent ? [{ url: `https://warpcast.com/~/conversations/${quoted}` }] : [] } } });
   });
-  await page.goto(`/cast/${parent}`);
+  await page.goto(`/cast/${parent}`, { waitUntil: 'domcontentloaded' });
   const link = page.locator(`a[href="/cast/${quoted}"]`);
   await link.scrollIntoViewIfNeeded();
   const before = await page.evaluate(() => Math.max(window.scrollY, document.body.scrollTop));
