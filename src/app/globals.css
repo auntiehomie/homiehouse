@@ -609,12 +609,16 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 
 /* Keep wallet login usable in short mobile viewports and Safari's browser chrome. */
 .wallet-login-modal-overlay {
+  z-index: 10000;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
 }
 
 .wallet-login-modal {
+  width: 100%;
+  max-width: 440px;
+  min-height: 0;
   max-height: calc(100dvh - max(24px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
   overflow-y: auto;
   padding: 0;

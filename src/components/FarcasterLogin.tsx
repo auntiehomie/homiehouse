@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { createMessage, encodeToken } from '@farcasterorg/quick-auth/token';
@@ -181,11 +182,19 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss }: Fa
     return <div style={{ maxWidth: 400, width: '100%', margin: '40px auto', padding: '32px 28px', background: 'var(--surface)', borderRadius: 24, border: '1px solid var(--border)', boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }}>{content}</div>;
   }
 
-  return (
+  // Escape transformed and backdrop-filtered ancestors (hero CTA and sticky header).
+  // Those ancestors otherwise become the containing block for a fixed overlay.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className="modal-overlay wallet-login-modal-overlay" onClick={onDismiss}>
-      <div className="modal wallet-login-modal" style={{ maxWidth: 440, width: '100%' }} onClick={(event) => event.stopPropagation()}>
-        <div style={{ padding: '28px 24px' }}>{content}</div>
+      <div className="modal wallet-login-modal" role="dialog" aria-modal="true" aria-label="Sign in with your wallet" onClick={(event) => event.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 8px 0' }}>
+          <button type="button" className="btn" aria-label="Close sign-in" onClick={onDismiss}>✕</button>
+        </div>
+        <div style={{ padding: '0 24px 28px' }}>{content}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
