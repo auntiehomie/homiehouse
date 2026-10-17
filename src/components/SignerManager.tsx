@@ -12,7 +12,7 @@ export default function SignerManager() {
     setLoading(true);
     try {
       await requestSigner();
-      // Warpcast approval flow opens natively; collapse after request initiated
+      // The Hypersnap wallet-authorization modal owns the approval step.
       setExpanded(false);
     } catch (e: any) {
       console.error("Signer request failed:", e);
@@ -62,7 +62,7 @@ export default function SignerManager() {
           ) : (
             <>
               <div style={{ marginBottom: "10px", fontSize: "13px", color: "var(--muted-on-dark)" }}>
-                Grant posting access to your Farcaster account. You'll approve this in Warpcast — it only takes a few seconds.
+                Authorize a browser-generated signer with the FID custody wallet. This uses a wallet signature, not a recovery phrase or app approval.
               </div>
               <button
                 onClick={handleRequestSigner}
@@ -78,7 +78,7 @@ export default function SignerManager() {
                   fontSize: "14px",
                 }}
               >
-                {loading ? "Opening Warpcast…" : "Enable Posting"}
+                {loading ? "Opening authorization…" : "Enable Hypersnap Posting"}
               </button>
             </>
           )}

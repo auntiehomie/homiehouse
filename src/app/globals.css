@@ -607,6 +607,39 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   animation: slideUp 0.3s ease-out;
 }
 
+/* Keep wallet login usable in short mobile viewports and Safari's browser chrome. */
+.wallet-login-modal-overlay {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+}
+
+.wallet-login-modal {
+  max-height: calc(100dvh - max(24px, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .wallet-login-modal-overlay {
+    display: block;
+    height: 100dvh;
+    padding: 0;
+  }
+
+  .wallet-login-modal {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: env(safe-area-inset-bottom, 0px);
+    max-height: 82dvh;
+    border-radius: 16px 16px 0 0;
+    width: auto;
+    margin: 0 auto;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

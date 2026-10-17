@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       `auth-session:${rateLimitKeyFromRequest(req)}`,
       10,
       60,
+      { allowInMemoryPreview: true },
     );
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Use an approved Farcaster signer to create a session',
+          error: 'Use a verified Hypersnap protocol token or approved signer to create a session',
         },
         { status: 401 },
       );
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
 
       const verified = await verifyHypersnapProtocolToken(
         body.protocolToken,
-        getHomieHouseAuthDomain(),
+        getHomieHouseAuthDomain(req.nextUrl.host),
       );
       fid = verified.fid;
       protocolAuth = true;

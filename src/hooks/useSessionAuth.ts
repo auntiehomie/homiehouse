@@ -198,6 +198,28 @@ export function useSessionAuth() {
     }
   }, []);
 
+  /** Exchange a wallet-signed Hypersnap protocol token for a read session. */
+  const createSessionFromProtocolToken = useCallback(async (protocolToken: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+    setState((prev) => ({ ...prev, status: 'authenticating', error: null }));
+    try {
+      const res = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ protocolToken }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Hypersnap could not verify this login.');
+      storeSession(data.token, data.fid, data.expiresAt);
+      setState({ token: data.token, fid: data.fid, expiresAt: data.expiresAt, status: 'authenticated', error: null });
+      window.dispatchEvent(new Event('hh:auth:changed'));
+      return { ok: true };
+    } catch (err: any) {
+      const message = err?.message || 'Hypersnap login failed';
+      setState((prev) => ({ ...prev, status: 'error', error: message }));
+      return { ok: false, error: message };
+    }
+  }, []);
+
   /**
    * Revoke the current session (logout).
    */
@@ -249,6 +271,7 @@ export function useSessionAuth() {
   return {
     ...state,
     createSession,
+    createSessionFromProtocolToken,
     destroySession,
     getAuthHeaders,
     isAuthenticated: state.status === 'authenticated',
