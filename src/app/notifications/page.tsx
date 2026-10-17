@@ -142,6 +142,14 @@ export default function NotificationsPage() {
     loadNotifications();
   }, [loadNotifications]);
 
+  // Allow profile shortcuts to open directly on replies to the signed-in user.
+  useEffect(() => {
+    const requestedFilter = new URLSearchParams(window.location.search).get('filter');
+    if (requestedFilter && FILTER_LABELS.includes(requestedFilter as NotificationFilter)) {
+      setFilter(requestedFilter as NotificationFilter);
+    }
+  }, []);
+
   const filteredNotifications = notifications.filter(notif => {
     if (filter === 'all') return true;
     return FILTER_TYPES[filter]?.includes(notif.type) ?? false;
@@ -238,15 +246,26 @@ export default function NotificationsPage() {
                   <>
                     <div style={{ fontSize: '3rem' }}>🔔</div>
                     <div style={{ color: 'var(--muted-on-dark)', textAlign: 'center' }}>
-                      {filter === 'all' ? 'No notifications yet' : `No ${filter} notifications`}
+                      {filter === 'all'
+                        ? 'No notifications yet'
+                        : hasMore && cursor
+                          ? `No ${filter} notifications on this page. Older notifications may have them.`
+                          : `No ${filter} notifications`}
                     </div>
                     {filter !== 'all' && (
-                      <button
-                        onClick={() => setFilter('all')}
-                        style={{ color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
-                      >
-                        View all notifications
-                      </button>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0.75rem' }}>
+                        <button
+                          onClick={() => setFilter('all')}
+                          style={{ color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
+                        >
+                          View all notifications
+                        </button>
+                        {hasMore && cursor && (
+                          <button onClick={loadMore} className="btn primary" disabled={loadingMore} aria-busy={loadingMore}>
+                            {loadingMore ? 'Loading…' : `Load older ${filter}`}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </>
                 )}

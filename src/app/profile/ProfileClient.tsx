@@ -52,6 +52,17 @@ interface Trade {
 
 type Tab = 'casts' | 'replies' | 'trades' | 'learning';
 
+interface ProfileCastReturn {
+  path: string;
+  scrollY: number;
+  castHash: string;
+  castOffset: number | null;
+  tab: Tab;
+  ts: number;
+}
+
+const CAST_RETURN_KEY = 'hh_cast_return';
+
 function LearningTab({ profileFid }: { profileFid: number }) {
   const [plan, setPlan] = useState<any>(null);
   const [progress, setProgress] = useState<Set<string>>(new Set());
@@ -167,7 +178,7 @@ function LearningTab({ profileFid }: { profileFid: number }) {
   );
 }
 
-function CastCard({ cast }: { cast: Cast }) {
+function CastCard({ cast, onOpen }: { cast: Cast; onOpen?: () => void }) {
   let timeLabel = '';
   try {
     if (cast?.timestamp) {
@@ -179,6 +190,8 @@ function CastCard({ cast }: { cast: Cast }) {
   return (
     <Link
       href={`/cast/${cast.hash}`}
+      data-profile-cast-hash={cast.hash}
+      onClick={onOpen}
       className="surface"
       style={{ display: 'block', padding: '1rem', borderRadius: 10, textDecoration: 'none', color: 'inherit', transition: 'border-color 0.2s' }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
@@ -249,6 +262,7 @@ function ProfileContent() {
   const [tradesLoading, setTradesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('casts');
+  const [pendingCastReturn, setPendingCastReturn] = useState<ProfileCastReturn | null>(null);
   const [viewerFid, setViewerFid] = useState<number | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -256,6 +270,22 @@ function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { follow, unfollow } = useFarcasterWrites();
+
+  const saveCastReturn = (castHash: string, tab: Tab) => {
+    try {
+      const castCard = Array.from(document.querySelectorAll<HTMLElement>('[data-profile-cast-hash]'))
+        .find((element) => element.dataset.profileCastHash === castHash);
+      const state: ProfileCastReturn = {
+        path: `${window.location.pathname}${window.location.search}`,
+        scrollY: window.scrollY,
+        castHash,
+        castOffset: castCard?.getBoundingClientRect().top ?? null,
+        tab,
+        ts: Date.now(),
+      };
+      sessionStorage.setItem(CAST_RETURN_KEY, JSON.stringify(state));
+    } catch {}
+  };
 
   useEffect(() => {
     try {
@@ -321,6 +351,42 @@ function ProfileContent() {
     loadProfile();
   }, [router, searchParams]);
 
+  // A cast opened from this profile should return to the same tab and scroll
+  // anchor. The cast detail route stores this before navigating away.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(CAST_RETURN_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as ProfileCastReturn;
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      if (
+        saved.path === currentPath
+        && Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000
+        && ['casts', 'replies', 'trades', 'learning'].includes(saved.tab)
+      ) {
+        setActiveTab(saved.tab);
+        setPendingCastReturn(saved);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!pendingCastReturn || loading || castsLoading || activeTab !== pendingCastReturn.tab) return;
+    const frame = requestAnimationFrame(() => {
+      const castCard = Array.from(document.querySelectorAll<HTMLElement>('[data-profile-cast-hash]'))
+        .find((element) => element.dataset.profileCastHash === pendingCastReturn.castHash);
+      if (castCard && typeof pendingCastReturn.castOffset === 'number') {
+        const target = window.scrollY + castCard.getBoundingClientRect().top - pendingCastReturn.castOffset;
+        window.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
+      } else {
+        window.scrollTo({ top: Math.max(0, pendingCastReturn.scrollY || 0), behavior: 'auto' });
+      }
+      sessionStorage.removeItem(CAST_RETURN_KEY);
+      setPendingCastReturn(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, castsLoading, loading, pendingCastReturn]);
+
   // Check follow status once profile and viewerFid are both known
   useEffect(() => {
     if (!profile || !viewerFid || viewerFid === profile.fid) return;
@@ -367,7 +433,7 @@ function ProfileContent() {
 
   const TAB_ITEMS: { id: Tab; label: string }[] = [
     { id: 'casts', label: 'Recent Casts' },
-    { id: 'replies', label: 'Replies' },
+    { id: 'replies', label: viewerFid === profile.fid ? 'My Replies' : 'Replies' },
     { id: 'trades', label: 'Recent Trades' },
     { id: 'learning', label: '🎓 Learning' },
   ];
@@ -553,21 +619,33 @@ function ProfileContent() {
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>No casts yet</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {topLevelCasts.map((cast) => <CastCard key={cast.hash} cast={cast} />)}
+            {topLevelCasts.map((cast) => <CastCard key={cast.hash} cast={cast} onOpen={() => saveCastReturn(cast.hash, activeTab)} />)}
           </div>
         )
       )}
 
       {activeTab === 'replies' && (
-        castsLoading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading replies...</div>
-        ) : replies.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>No replies in recent casts</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {replies.map((cast) => <CastCard key={cast.hash} cast={cast} />)}
-          </div>
-        )
+        <>
+          {viewerFid === profile.fid && (
+            <div style={{ padding: '12px 14px', marginBottom: 12, borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <p style={{ margin: '0 0 8px', color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.45 }}>
+                These are replies you wrote. To see people replying to your casts, open your reply alerts.
+              </p>
+              <Link href="/notifications?filter=replies" style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
+                Replies to my casts →
+              </Link>
+            </div>
+          )}
+          {castsLoading ? (
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading replies...</div>
+          ) : replies.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>No replies in recent casts</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {replies.map((cast) => <CastCard key={cast.hash} cast={cast} onOpen={() => saveCastReturn(cast.hash, activeTab)} />)}
+            </div>
+          )}
+        </>
       )}
 
       {activeTab === 'trades' && (
