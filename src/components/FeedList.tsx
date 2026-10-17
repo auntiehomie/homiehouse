@@ -1,5 +1,7 @@
 "use client";
 
+import { pageScrollY, scrollPageTo } from "@/lib/cast-navigation";
+
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import dynamic from 'next/dynamic';
 import UrlPreview from './UrlPreview';
@@ -186,7 +188,7 @@ export default function FeedList({
     }
   };
 
-  const openCastDetail = (castHash: string) => {
+  const saveFeedReturn = (castHash: string) => {
     const cacheKey = `hh_feed_${feedType}_${selectedChannel ?? 'all'}`;
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({
@@ -195,7 +197,7 @@ export default function FeedList({
         ts: Date.now(),
       }));
       sessionStorage.setItem('hh_feed_return', JSON.stringify({
-        scrollY: window.scrollY,
+        scrollY: pageScrollY(),
         castOffset: document.querySelectorAll('[data-feed-cast-hash]') && (() => {
           const node = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-cast-hash]')).find(el => el.dataset.feedCastHash === castHash);
           return node ? node.getBoundingClientRect().top : null;
@@ -206,6 +208,10 @@ export default function FeedList({
         ts: Date.now(),
       }));
     } catch {}
+  };
+
+  const openCastDetail = (castHash: string) => {
+    saveFeedReturn(castHash);
     router.push(`/cast/${castHash}`);
   };
 
@@ -481,6 +487,8 @@ export default function FeedList({
       const anchorHash = typeof saved.castHash === 'string' ? saved.castHash : '';
       const anchorOffset = typeof saved.castOffset === 'number' ? saved.castOffset : null;
       const startedAt = performance.now();
+      let frame = 0;
+      let cancelled = false;
       let settledFrames = 0;
       let lastLayoutChange = startedAt;
       const feedContainer = document.querySelector('.space-y-4');
@@ -494,12 +502,13 @@ export default function FeedList({
       // present and stable; the former 90-frame cutoff could expire while the
       // restored feed was still rendering, leaving the user at the top.
       const restore = () => {
+        if (cancelled) return;
         const anchor = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-cast-hash]'))
           .find(el => el.dataset.feedCastHash === anchorHash);
         const anchoredY = anchor && anchorOffset !== null
-          ? window.scrollY + anchor.getBoundingClientRect().top - anchorOffset
+          ? pageScrollY() + anchor.getBoundingClientRect().top - anchorOffset
           : target;
-        window.scrollTo({ top: Math.max(0, anchoredY), behavior: 'auto' });
+        scrollPageTo(Math.max(0, anchoredY));
 
         const anchorIsInPlace = anchor && anchorOffset !== null
           && Math.abs(anchor.getBoundingClientRect().top - anchorOffset) <= 2;
@@ -511,15 +520,21 @@ export default function FeedList({
           // If the original cast was removed/filtered, keep the best saved
           // pixel position as a fallback; otherwise leave the anchor aligned.
           if (!anchor || settledFrames < 8) {
-            window.scrollTo({ top: target, behavior: 'auto' });
+            scrollPageTo(target);
           }
           observer?.disconnect();
-          sessionStorage.removeItem('hh_feed_return');
+          if (sessionStorage.getItem('hh_feed_return') === raw) sessionStorage.removeItem('hh_feed_return');
           return;
         }
-        requestAnimationFrame(restore);
+        frame = requestAnimationFrame(restore);
       };
-      requestAnimationFrame(restore);
+      frame = requestAnimationFrame(restore);
+      return () => {
+        cancelled = true;
+        cancelAnimationFrame(frame);
+        observer?.disconnect();
+        restoredScrollRef.current = false;
+      };
     } catch {}
   }, [items, feedType, selectedChannel]);
 
@@ -681,6 +696,15 @@ export default function FeedList({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onClickCapture={(event) => {
+        // Parent/quoted cast links stop bubbling and never call openCastDetail.
+        // Save the containing feed card, whose hash differs from the link target.
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const node = event.target instanceof Element ? event.target : null;
+        const link = node?.closest<HTMLAnchorElement>('a[href]');
+        const anchorHash = node?.closest<HTMLElement>('[data-feed-cast-hash]')?.dataset.feedCastHash;
+        if (anchorHash && link && link.target !== '_blank' && new URL(link.href).pathname.startsWith('/cast/')) saveFeedReturn(anchorHash);
+      }}
       className="space-y-4"
     >
       {filteredItems.map((it) => {

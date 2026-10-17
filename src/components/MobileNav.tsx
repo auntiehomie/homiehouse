@@ -222,6 +222,7 @@ export default function MobileNav() {
               return (
                 <Link
                   key={item.href}
+                  data-feed-navigation={item.href === '/feed' ? 'true' : undefined}
                   href={item.href}
                   scroll={item.href === '/feed' && pathname.startsWith('/cast/') ? false : undefined}
                   aria-label={item.label}
@@ -359,6 +360,7 @@ export default function MobileNav() {
                   return (
                     <Link
                       key={item.href}
+                  data-feed-navigation={item.href === '/feed' ? 'true' : undefined}
                       href={href}
                       scroll={item.href === '/feed' && pathname.startsWith('/cast/') ? false : undefined}
                       style={{

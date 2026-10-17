@@ -20,10 +20,15 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
+  webServer: [{
+    command: 'node e2e/fixtures/hypersnap-server.cjs',
+    url: 'http://127.0.0.1:3001',
+    reuseExistingServer: false,
+  }, {
+    command: 'npm run dev -- --hostname 127.0.0.1',
+    env: { NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: 'ci-mock-project-id', NEXT_PUBLIC_HYPERSNAP_URL: 'http://127.0.0.1:3001', HYPERSNAP_FALLBACK_URL: 'http://127.0.0.1:3001' },
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
-  },
+  }],
 });

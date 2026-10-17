@@ -142,6 +142,7 @@ export default function SidebarNav() {
           return (
             <Link
               key={item.href}
+                  data-feed-navigation={item.href === '/feed' ? 'true' : undefined}
               href={item.href}
               style={{
                 display: 'flex',

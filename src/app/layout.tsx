@@ -1,3 +1,4 @@
+import CastNavigationTracker from "@/components/CastNavigationTracker";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { FarcasterAuthProvider } from "../lib/farcaster-auth";
@@ -140,6 +141,7 @@ export default function RootLayout({
                 </div>
               </PageTransition>
             </QueryProvider>
+            <CastNavigationTracker />
             <MobileNav />
             <ScrollToTop />
             <ThemeSync />
