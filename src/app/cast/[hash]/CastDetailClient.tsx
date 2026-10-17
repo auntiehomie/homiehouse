@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
 import EmbedRenderer from "@/components/EmbedRenderer";
+import { previousRoute, readCastNavigation, scrollPageTo, visitRoute, writeCastNavigation } from "@/lib/cast-navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 
 function ActionBtn({
@@ -63,37 +64,19 @@ export default function CastDetailClient() {
 
   const { hasActiveSigner, requestSigner, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn, submitCast } = useFarcasterWrites();
 
-  const handleBack = useCallback(() => {
-    try {
-      const profileReturnRaw = sessionStorage.getItem('hh_cast_return');
-      const profileReturn = profileReturnRaw ? JSON.parse(profileReturnRaw) : null;
-      if (
-        profileReturn
-        && profileReturn.castHash === hash
-        && typeof profileReturn.path === 'string'
-        && profileReturn.path.startsWith('/')
-        && Date.now() - Number(profileReturn.ts || 0) < 10 * 60 * 1000
-      ) {
-        // A profile may have an older feed-return snapshot in sessionStorage;
-        // honor the actual page that opened this cast first.
-        router.replace(profileReturn.path, { scroll: false });
-        return;
-      }
-      if (profileReturnRaw && profileReturn?.castHash !== hash) {
-        sessionStorage.removeItem('hh_cast_return');
-      }
+  useEffect(() => {
+    writeCastNavigation(visitRoute(readCastNavigation(), window.location.pathname + window.location.search));
+  }, [hash]);
 
-      const saved = sessionStorage.getItem('hh_feed_return');
-      if (saved) {
-        // The feed snapshot and scroll anchor live in sessionStorage. Route
-        // directly to the feed so its restoration logic runs reliably in the
-        // installed PWA, where browser history restoration can land at y=0.
-        router.replace('/feed', { scroll: false });
-        return;
-      }
-    } catch {}
-    router.push('/feed');
-  }, [hash, router]);
+  const handleBack = useCallback(() => {
+    const previous = previousRoute(readCastNavigation(), window.location.pathname + window.location.search);
+    if (previous) {
+      // Retrace the actual route, including parent/quoted casts and profile tabs.
+      router.replace(previous, { scroll: false });
+      return;
+    }
+    router.replace('/feed', { scroll: false });
+  }, [router]);
 
   const showToast = useCallback((msg: string, ok: boolean) => {
     setToast({ msg, ok });
@@ -121,6 +104,30 @@ export default function CastDetailClient() {
     fetchCastDetail().finally(() => setLoading(false));
   }, [hash, fetchCastDetail]);
 
+  useEffect(() => {
+    if (loading || !cast || cast.hash !== hash) return;
+    const path = window.location.pathname + window.location.search;
+    const saved = readCastNavigation().entries.find(entry => entry.path === path);
+    if (!saved || saved.scrollY <= 0) return;
+    const target = saved.scrollY;
+    let frame = 0;
+    let stopped = false;
+    const started = performance.now();
+    const stop = () => { stopped = true; cancelAnimationFrame(frame); };
+    const restore = () => {
+      if (stopped) return;
+      scrollPageTo(target);
+      if (performance.now() - started < 1200) frame = requestAnimationFrame(restore);
+    };
+    frame = requestAnimationFrame(restore);
+    window.addEventListener('touchstart', stop, { passive: true });
+    window.addEventListener('wheel', stop, { passive: true });
+    return () => {
+      stop();
+      window.removeEventListener('touchstart', stop);
+      window.removeEventListener('wheel', stop);
+    };
+  }, [cast, hash, loading]);
   const loadMoreReplies = async () => {
     const cursor = cast?.replies_next?.cursor;
     if (!cursor || loadingReplies) return;
@@ -341,7 +348,7 @@ export default function CastDetailClient() {
   }
 
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <div data-cast-detail-ready={cast.hash === hash ? hash : undefined} style={{ minHeight: '100vh' }}>
       {/* Toast */}
       {toast && (
         <div style={{
