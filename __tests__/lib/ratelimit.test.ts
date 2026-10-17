@@ -1,4 +1,4 @@
-import { checkRateLimit } from '@/lib/ratelimit';
+import { checkRateLimit, enforceRateLimit } from '@/lib/ratelimit';
 
 describe('checkRateLimit preview fallback', () => {
   const originalNodeEnv = process.env.NODE_ENV;
@@ -42,5 +42,13 @@ describe('checkRateLimit preview fallback', () => {
 
     await expect(checkRateLimit(`production-test:${Date.now()}`, 1, 60, { allowInMemoryPreview: true }))
       .rejects.toMatchObject({ code: 'RATE_LIMIT_STORE_UNAVAILABLE', status: 503 });
+  });
+  it('permits public read route opt-in in Preview and still rejects it in Production', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.VERCEL_ENV = 'preview';
+    await expect(enforceRateLimit({ key: 'preview-public-feed', allowInMemoryPreview: true })).resolves.toBeUndefined();
+    process.env.VERCEL_ENV = 'production';
+    await expect(enforceRateLimit({ key: 'production-public-feed', allowInMemoryPreview: true }))
+      .rejects.toMatchObject({ status: 503, code: 'RATE_LIMIT_STORE_UNAVAILABLE' });
   });
 });

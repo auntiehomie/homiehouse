@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   logger.start();
 
   try {
-    await enforceRateLimit({ key: rateLimitKeyFromRequest(req), limit: 60, windowSeconds: 60, label: 'feed' });
+    await enforceRateLimit({ key: rateLimitKeyFromRequest(req), limit: 60, windowSeconds: 60, label: 'feed', allowInMemoryPreview: true });
     const { searchParams } = new URL(req.url);
     const feedType = searchParams.get("feed_type") || "following";
     const fidParam = searchParams.get("fid");

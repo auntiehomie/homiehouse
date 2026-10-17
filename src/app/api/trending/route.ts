@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     // Now a guest-accessible entry point (feed/page.tsx shows this to signed-out
     // visitors) — response is already CDN-cached (see Cache-Control below), this
     // is just defense-in-depth against direct API abuse.
-    await enforceRateLimit({ key: rateLimitKeyFromRequest(req), limit: 60, windowSeconds: 60, label: 'trending' });
+    await enforceRateLimit({ key: rateLimitKeyFromRequest(req), limit: 60, windowSeconds: 60, label: 'trending', allowInMemoryPreview: true });
 
     const { searchParams } = new URL(req.url);
     const limitParam = searchParams.get("limit");

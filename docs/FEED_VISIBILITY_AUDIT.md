@@ -35,3 +35,9 @@ For a concrete missing account/cast:
 ## Verification limits
 
 Automated tests cover no-filter policy, no ranked substitution, credentials for Following, cache behavior, unseen-hash comparison and accepted node hash formats. Added a fixture browser matrix for Android-sized portrait/landscape, iPad and desktop. Physical Android, desktop browser layouts, keyboard interaction and all-account coverage are not yet verified; local browser runs remain blocked by the previously recorded optional wallet dependency and missing Chromium binary. No wallet signing, live posting, payment, server reconfiguration or external moderation changes were performed.
+
+## Approved preview browser follow-up
+
+Amanda approved temporary preview access. A 1363×936 desktop browser showed the migration guide, sidebar and feed controls within the viewport. The check exposed `Distributed rate limiting is unavailable` on Preview: Redis credentials are configured for Production, and these public feed routes had not opted into the existing Preview-only local limiter. Feed/trending reads now opt in; the shared limiter remains required in Production, with regression coverage. This does not alter deployment protection or production access controls.
+
+Global and Trending were duplicate presentations of the same native ranking endpoint. The navigation now offers Following and Discovery; guests start on Discovery, and signed-in fresh visits remain Following. This removes the misleading impression of two independent global feeds.

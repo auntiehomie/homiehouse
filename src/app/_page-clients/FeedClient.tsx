@@ -131,9 +131,8 @@ export default function FeedClient() {
             {isAuthenticated ? (
               <FeedTrendingTabs key={`member-${viewerFid}`} />
             ) : (
-              // Guests have no following graph — start on Trending (fully public data)
-              // instead of an empty/broken "Following" feed.
-              <FeedTrendingTabs key="guest" defaultTab="trending" defaultFeedScope="global" />
+              // Guests have no following graph, so start on ranked Discovery.
+              <FeedTrendingTabs key="guest" defaultFeedScope="global" />
             )}
           </div>
         </div>

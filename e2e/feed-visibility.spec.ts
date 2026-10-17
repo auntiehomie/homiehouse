@@ -29,7 +29,7 @@ for (const viewport of [{ width: 393, height: 851 }, { width: 851, height: 393 }
       await page.goto('/feed');
       await expect(page.getByText('Previous node cast', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Following', exact: true })).toHaveAttribute('aria-pressed', 'true');
-      for (const name of ['Following', 'Global', 'Trending', 'Refresh feed']) {
+      for (const name of ['Following', 'Discovery', 'Refresh feed']) {
         const control = page.getByRole('button', { name, exact: true });
         await expect(control).toBeVisible();
         const box = (await control.boundingBox())!;
