@@ -64,6 +64,24 @@ export default function CastDetailClient() {
 
   const handleBack = useCallback(() => {
     try {
+      const profileReturnRaw = sessionStorage.getItem('hh_cast_return');
+      const profileReturn = profileReturnRaw ? JSON.parse(profileReturnRaw) : null;
+      if (
+        profileReturn
+        && profileReturn.castHash === hash
+        && typeof profileReturn.path === 'string'
+        && profileReturn.path.startsWith('/')
+        && Date.now() - Number(profileReturn.ts || 0) < 10 * 60 * 1000
+      ) {
+        // A profile may have an older feed-return snapshot in sessionStorage;
+        // honor the actual page that opened this cast first.
+        router.replace(profileReturn.path, { scroll: false });
+        return;
+      }
+      if (profileReturnRaw && profileReturn?.castHash !== hash) {
+        sessionStorage.removeItem('hh_cast_return');
+      }
+
       const saved = sessionStorage.getItem('hh_feed_return');
       if (saved) {
         // The feed snapshot and scroll anchor live in sessionStorage. Route
@@ -74,7 +92,7 @@ export default function CastDetailClient() {
       }
     } catch {}
     router.push('/feed');
-  }, [router]);
+  }, [hash, router]);
 
   const showToast = useCallback((msg: string, ok: boolean) => {
     setToast({ msg, ok });
