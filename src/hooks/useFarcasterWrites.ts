@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { castTypeForText } from '@/lib/cast-text';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
@@ -18,7 +19,6 @@ import {
   hexToBytes,
   MessageType,
   ReactionType,
-  CastType,
   type FarcasterSigner,
   type CastEmbed,
 } from '@/lib/fc-message-builder';
@@ -35,7 +35,7 @@ async function submitMessage(message: Uint8Array): Promise<unknown> {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const detail = data?.error || data?.hub?.errMsg || data?.hub?.message || `hub error ${res.status}`;
+    const detail = data?.details || data?.hub?.error_detail || data?.error || data?.hub?.errMsg || data?.hub?.message || `hub error ${res.status}`;
     throw new Error(detail);
   }
   return data;
@@ -139,8 +139,8 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
     const resolvedParentUrl = params.parentUrl || (params.channelKey ? channelKeyToParentUrl(params.channelKey) : undefined);
-    // Use LONG_CAST type for text longer than 320 characters (FIP-8 / Snapchain)
-    const castType = params.text.length > 320 ? CastType.LONG_CAST : CastType.CAST;
+    // Protocol cast limits are UTF-8 bytes, including emoji and punctuation.
+    const castType = castTypeForText(params.text);
     const message = await buildSignedMessage(
       { type: MessageType.CAST_ADD, fid, body: { castAddBody: {
         text: params.text,
@@ -208,6 +208,7 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     const message = await buildSignedMessage(
       { type: MessageType.CAST_ADD, fid, body: { castAddBody: {
         text: params.text,
+        type: castTypeForText(params.text),
         embeds: embeds.length ? embeds : undefined,
         parent: { castId: { fid: params.parentCastFid, hash: hexToBytes(params.parentCastHash) } },
       } } },

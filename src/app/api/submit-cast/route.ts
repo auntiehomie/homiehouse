@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       const errMsg = data?.message || data?.errMsg || data?.error || rawText.slice(0, 300) || `Hub error ${hubRes.status}`;
       console.error(`[submit-cast] hub ${hubRes.status}: ${errMsg}`, JSON.stringify(data));
       return NextResponse.json(
-        { ok: false, error: errMsg, hub: data },
+        { ok: false, error: errMsg, details: data?.error_detail || data?.errorDetail || undefined, hub: data },
         { status: hubRes.status }
       );
     }

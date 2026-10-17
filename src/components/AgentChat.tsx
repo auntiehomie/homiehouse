@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MentionInput from './MentionInput';
+import { chatHistoryKey, loadChatSnapshot, saveChatSnapshot } from '@/lib/ask-homie-history';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
@@ -117,61 +118,51 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const [showSettings, setShowSettings] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Load conversation history from localStorage on mount (skip if cast context is in URL)
+  const contextId = castContext?.hash || (castContext ? JSON.stringify([castContext.author, castContext.text]) : undefined);
+  const historyKey = chatHistoryKey(userId, contextId);
+  const [loadedHistoryKey, setLoadedHistoryKey] = useState<string | null>(null);
+
   useEffect(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('cast')) return;
-    try {
-      const savedMessages = localStorage.getItem('hh_chat_history');
-      if (savedMessages) {
-        const parsed = JSON.parse(savedMessages);
-        // Only load if it's relatively recent (last 24 hours)
-        if (parsed.timestamp && Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
-          setMessages((parsed.messages || []).map((message: Message) =>
-            message.role === 'assistant'
-              ? { ...message, content: sanitizeAssistantResponse(message.content) }
-              : message,
-          ));
-        } else {
-          // Clear old history
-          localStorage.removeItem('hh_chat_history');
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load chat history:', error);
+    const saved = loadChatSnapshot(historyKey);
+    if (saved) {
+      setMessages(saved.messages.map(message => message.role === 'assistant'
+        ? { ...message, content: sanitizeAssistantResponse(message.content) } : message) as Message[]);
+      setInput(saved.input || '');
+      setMode((['auto', 'compose', 'analyze', 'learn', 'research'].includes(saved.mode) ? saved.mode : 'auto') as AgentMode);
+    } else {
+      const author = typeof castContext?.author === 'string' ? castContext.author : castContext?.author?.username || 'someone';
+      const preview = (castContext?.text || '').slice(0, 140);
+      setMessages(castContext ? [{ role: 'assistant', content: `I see you have a cast from @${author}:\n\n"${preview}"\n\nWhat would you like to know about it?` }] : []);
+      setInput(initialMessage || '');
+      setMode('auto');
     }
-  }, []);
+    setLoadedHistoryKey(historyKey);
+    // historyKey identifies both the account and cast context. Repeated context
+    // object creation must not reset the restored conversation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyKey]);
 
-  // When castContext is set, show a greeting and clear old history
-  useEffect(() => {
-    if (!castContext) return;
-    const authorName = typeof castContext.author === 'string'
-      ? castContext.author
-      : (castContext.author?.username || 'someone');
-    const text = castContext.text || '';
-    const preview = text.length > 140 ? text.slice(0, 140) + '…' : text;
-    const greeting = `I see you have a cast from @${authorName}:\n\n"${preview}"\n\nWhat would you like to know about it?`;
-    setMessages([{ role: 'assistant', content: greeting }]);
-    localStorage.removeItem('hh_chat_history');
-  }, [castContext]);
-
-  // Update input when a starter question chip is clicked
   useEffect(() => {
     if (initialMessage) setInput(initialMessage);
   }, [initialMessage]);
 
-  // Save conversation history to localStorage whenever messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      try {
-        localStorage.setItem('hh_chat_history', JSON.stringify({
-          messages,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        console.error('Failed to save chat history:', error);
-      }
+  const saveConversation = () => {
+    if (loadedHistoryKey === historyKey) {
+      saveChatSnapshot(historyKey, { messages: messages.slice(-100), input, mode, timestamp: Date.now() });
     }
-  }, [messages]);
+  };
+
+  useEffect(() => {
+    saveConversation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, input, mode, historyKey, loadedHistoryKey]);
+
+  const shareCast = (text: string) => {
+    saveConversation();
+    const returnTo = window.location.pathname === '/ask-homie'
+      ? window.location.pathname + window.location.search : '/ask-homie';
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=${encodeURIComponent(returnTo)}`);
+  };
 
   const agentIcons: Record<AgentRole, string> = {
     composer: '✍️',
@@ -514,7 +505,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                     onClick={() => {
                       const attribution = '\n\nshared from @auntiehomie';
                       const finalText = sanitizeAssistantResponse(msg.content) + attribution;
-                      router.push(`/compose?text=${encodeURIComponent(finalText)}`);
+                      shareCast(finalText);
                     }}
                     className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors flex items-center gap-1"
                     title="Share as cast"
