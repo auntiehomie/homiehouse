@@ -17,6 +17,7 @@ import { AuthError } from './errors';
 import { sql } from './db';
 import { verifySession, SessionError } from './session';
 import type { SessionScope } from './session';
+import { isActiveHypersnapSigner } from './hypersnap-signer-auth';
 
 const WARPCAST_API = 'https://api.warpcast.com';
 const KEY_REGISTRY = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
@@ -300,6 +301,10 @@ export async function verifyFarcasterSignerAuth(
     `;
 
     if (rows.length === 0) {
+      // Hypersnap gasless KEY_ADD registrations are not in the legacy
+      // Warpcast cache or Optimism Key Registry, even when posting works.
+      if (await isActiveHypersnapSigner(fid, publicKeyHex)) return fid;
+
       // A valid signer can outlive the database cache. Recover it from the
       // Farcaster approval record, while still requiring an exact FID/key match.
       const recovered = await recoverApprovedSigner(fid, publicKeyHex, signerToken);

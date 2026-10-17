@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeOrThrow, PRO_PRICE_ID } from '@/lib/stripe';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
     console.error('[stripe/checkout] error:', err?.message ?? err);
     return NextResponse.json(
       { ok: false, error: err?.message || 'Failed to create checkout session' },
-      { status: err?.statusCode || 500 },
+      { status: err instanceof AuthError ? err.status : err?.statusCode || 500 },
     );
   }
 }
