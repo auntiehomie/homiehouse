@@ -14,15 +14,14 @@ beforeEach(() => {
 test('Back retraces nested casts before returning to the source feed', () => {
   let state = travel('/feed', '/cast/parent', '/cast/quoted');
   expect(previousRoute(state, '/cast/quoted')).toBe('/cast/parent');
-  expect(feedDestination(state, '/cast/quoted')).toBe('/cast/parent');
   state = visitRoute(state, '/cast/parent');
   expect(previousRoute(state, '/cast/parent')).toBe('/feed');
-  expect(feedDestination(state, '/cast/parent')).toBe('/feed');
+  expect(feedDestination()).toBe('/feed');
 });
 
-test('Feed resumes the thread after visiting Compose or Learn', () => {
+test('Back retains the thread but Feed always opens the full feed', () => {
   const state = travel('/feed', '/cast/parent', '/compose', '/learn');
-  expect(feedDestination(state, '/learn')).toBe('/cast/parent');
+  expect(feedDestination()).toBe('/feed');
   const resumed = visitRoute(state, '/cast/parent');
   expect(previousRoute(resumed, '/cast/parent')).toBe('/feed');
 });
@@ -37,7 +36,8 @@ test('native Back/Forward preserve scroll and the exact profile query', () => {
 
 test('leaving a conversation for the feed clears tab resume', () => {
   const state = travel('/feed', '/cast/parent', '/feed', '/learn');
-  expect(feedDestination(state, '/learn')).toBe('/feed');
+  expect(state.lastCast).toBeNull();
+  expect(feedDestination()).toBe('/feed');
 });
 
 test('session survives reloads and rejects stale, malformed or external paths', () => {
@@ -54,9 +54,17 @@ test('session survives reloads and rejects stale, malformed or external paths', 
 });
 
 test('a direct cast link has a safe feed fallback and history is bounded', () => {
-  expect(feedDestination(travel('/cast/direct'), '/cast/direct')).toBe('/feed');
+  expect(feedDestination()).toBe('/feed');
   expect(previousRoute(travel('/cast/direct'), '/cast/direct')).toBeNull();
   const state = travel(...Array.from({ length: 80 }, (_, index) => `/cast/${index}`));
   expect(state.entries).toHaveLength(50);
   expect(state.index).toBe(49);
+});
+
+test('Back retains the Home origin when browser storage rejects writes', () => {
+  jest.resetModules();
+  const navigation: typeof import('@/lib/cast-navigation') = require('@/lib/cast-navigation');
+  sessionStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+  navigation.writeCastNavigation(travel('/', '/cast/home-preview'));
+  expect(navigation.previousRoute(navigation.readCastNavigation(), '/cast/home-preview')).toBe('/');
 });

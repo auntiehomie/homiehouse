@@ -9,7 +9,9 @@ export function feedScrollHost(node: HTMLElement): HTMLElement {
 }
 
 /** Follow the cast anchor through late embed layout, until input or timeout. */
-export function restoreFeedScroll(container: HTMLElement, saved: FeedReturn, onRestored: () => void): () => void {
+export type FeedPosition = Pick<FeedReturn, 'castHash' | 'castOffset' | 'scrollY'>;
+
+export function restoreFeedScroll(container: HTMLElement, saved: FeedPosition, onRestored: () => void): () => void {
   let stopped = false;
   let frame = 0;
   let restored = false;
