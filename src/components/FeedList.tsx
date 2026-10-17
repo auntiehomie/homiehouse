@@ -480,8 +480,19 @@ export default function FeedList({
       const target = Math.max(0, Number(saved.scrollY) || 0);
       const anchorHash = typeof saved.castHash === 'string' ? saved.castHash : '';
       const anchorOffset = typeof saved.castOffset === 'number' ? saved.castOffset : null;
-      let attempts = 0;
-      // Preserve the viewed cast's position while image and embed heights settle.
+      const startedAt = performance.now();
+      let settledFrames = 0;
+      let lastLayoutChange = startedAt;
+      const feedContainer = document.querySelector('.space-y-4');
+      const observer = typeof ResizeObserver !== 'undefined' && feedContainer
+        ? new ResizeObserver(() => { lastLayoutChange = performance.now(); })
+        : null;
+      if (feedContainer) observer?.observe(feedContainer);
+
+      // The feed can mount after a client-side navigation and its media/embed
+      // heights can settle later on iOS. Keep trying until the anchor is
+      // present and stable; the former 90-frame cutoff could expire while the
+      // restored feed was still rendering, leaving the user at the top.
       const restore = () => {
         const anchor = Array.from(document.querySelectorAll<HTMLElement>('[data-feed-cast-hash]'))
           .find(el => el.dataset.feedCastHash === anchorHash);
@@ -489,9 +500,24 @@ export default function FeedList({
           ? window.scrollY + anchor.getBoundingClientRect().top - anchorOffset
           : target;
         window.scrollTo({ top: Math.max(0, anchoredY), behavior: 'auto' });
-        attempts += 1;
-        if (attempts < 90) requestAnimationFrame(restore);
-        else sessionStorage.removeItem('hh_feed_return');
+
+        const anchorIsInPlace = anchor && anchorOffset !== null
+          && Math.abs(anchor.getBoundingClientRect().top - anchorOffset) <= 2;
+        settledFrames = anchorIsInPlace && performance.now() - lastLayoutChange > 300
+          ? settledFrames + 1
+          : 0;
+
+        if (settledFrames >= 8 || performance.now() - startedAt >= 8000) {
+          // If the original cast was removed/filtered, keep the best saved
+          // pixel position as a fallback; otherwise leave the anchor aligned.
+          if (!anchor || settledFrames < 8) {
+            window.scrollTo({ top: target, behavior: 'auto' });
+          }
+          observer?.disconnect();
+          sessionStorage.removeItem('hh_feed_return');
+          return;
+        }
+        requestAnimationFrame(restore);
       };
       requestAnimationFrame(restore);
     } catch {}

@@ -69,7 +69,7 @@ export default function CastDetailClient() {
         // The feed snapshot and scroll anchor live in sessionStorage. Route
         // directly to the feed so its restoration logic runs reliably in the
         // installed PWA, where browser history restoration can land at y=0.
-        router.replace('/feed');
+        router.replace('/feed', { scroll: false });
         return;
       }
     } catch {}

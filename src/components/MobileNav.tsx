@@ -217,10 +217,13 @@ export default function MobileNav() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}>
             {QUICK_ITEMS.map((item) => {
               const active = isActive(item.href, item.exact);
+              // Returning from cast detail uses FeedList's saved anchor, so
+              // don't let Next's default top-scroll override that restoration.
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  scroll={item.href === '/feed' && pathname.startsWith('/cast/') ? false : undefined}
                   aria-label={item.label}
                   style={{
                     display: 'flex',
@@ -357,6 +360,7 @@ export default function MobileNav() {
                     <Link
                       key={item.href}
                       href={href}
+                      scroll={item.href === '/feed' && pathname.startsWith('/cast/') ? false : undefined}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
