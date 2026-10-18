@@ -12,15 +12,16 @@ export default function MessagesPage() {
     <main style={{ maxWidth: 720, margin: '0 auto', padding: '24px 0' }}>
       <h1>Messages</h1>
       <p style={{ color: 'var(--muted-on-dark)', lineHeight: 1.6 }}>
-        Continue your existing Farcaster conversations. Your inbox opens in Farcaster;
-        messages are not yet synced inside Homiehouse.
+        Public casts are stored on decentralized networks such as Hypersnap. Private
+        messages use a separate service that HomieHouse cannot currently read through
+        Hypersnap, so open your Farcaster inbox to continue existing conversations.
       </p>
       <a className="btn primary" href={FARCASTER_INBOX_URL} target="_blank" rel="noopener noreferrer">
         Open Farcaster inbox ↗
       </a>
       <section className="surface" style={{ padding: 20, marginTop: 24 }} aria-labelledby="message-person">
         <h2 id="message-person">Message someone</h2>
-        <p>Use Message on a person’s profile, or enter their Farcaster ID below.</p>
+        <p>Open a conversation with someone by entering their Farcaster ID. The conversation is handled by Farcaster’s current messaging service.</p>
         <label htmlFor="message-recipient">Recipient FID</label>
         <input id="message-recipient" inputMode="numeric" value={recipient}
           onChange={event => setRecipient(event.target.value)} placeholder="e.g. 3103"
