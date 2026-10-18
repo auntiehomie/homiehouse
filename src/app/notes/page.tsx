@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import SidebarNav from '@/components/SidebarNav';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -441,7 +442,10 @@ export default function NotesPage() {
     }
 
     let cancelled = false;
-    fetch(`/api/saved-casts?fid=${encodeURIComponent(String(fid))}`, { cache: 'no-store' })
+    fetch(`/api/saved-casts?fid=${encodeURIComponent(String(fid))}`, {
+      cache: 'no-store',
+      headers: { ...(getAuthHeaders() ?? {}) },
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error('Could not load saved casts');
         return response.json();
@@ -505,7 +509,7 @@ export default function NotesPage() {
       try {
         const response = await fetch('/api/saved-casts', {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(getAuthHeaders('write:casts') ?? {}) },
           body: JSON.stringify({ fid, cast_hash: savedCast.source }),
         });
         if (!response.ok) return;

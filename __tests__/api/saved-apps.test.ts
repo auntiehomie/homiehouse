@@ -3,6 +3,7 @@ import { DELETE, GET, POST } from '@/app/api/saved-apps/route';
 import { sql } from '@/lib/db';
 
 jest.mock('@/lib/db', () => ({ sql: jest.fn() }));
+jest.mock('@/lib/auth', () => ({ verifyFarcasterSignerAuth: jest.fn(async () => 123) }));
 const mockSql = sql as jest.Mock;
 const request = (url: string, init?: RequestInit) => new NextRequest(`http://localhost${url}`, init);
 
@@ -34,12 +35,18 @@ describe('/api/saved-apps', () => {
     await expect(response.json()).resolves.toEqual({ deleted: true });
   });
 
-  it.each([
-    () => GET(request('/api/saved-apps')),
-    () => POST(json('POST', { fid: 123 })),
-    () => DELETE(json('DELETE', { fid: 123 })),
-  ])('rejects invalid input', async (invoke) => {
-    const response = await invoke();
+  it('rejects attempts to read another FID\'s saved apps', async () => {
+    const response = await GET(request('/api/saved-apps?fid=456'));
+    expect(response.status).toBe(403);
+  });
+
+  it('rejects attempts to save for another FID', async () => {
+    const response = await POST(json('POST', { fid: 456, app_id: 'demo', app_data: { name: 'Demo' } }));
+    expect(response.status).toBe(403);
+  });
+
+  it('rejects a delete with no app ID', async () => {
+    const response = await DELETE(json('DELETE', { fid: 123 }));
     expect(response.status).toBe(400);
   });
 

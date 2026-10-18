@@ -2,29 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
-import dns from 'dns/promises';
+import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
 
 export const maxDuration = 30;
-
-function isPrivateIP(ip: string): boolean {
-  if (ip === '::1' || ip === '::') return true;
-  if (ip.startsWith('fc') || ip.startsWith('fd')) return true;
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(isNaN)) return false;
-  const [a, b] = parts;
-  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
-    || a === 127 || (a === 169 && b === 254) || a === 0;
-}
-
-async function checkHost(hostname: string) {
-  if (isPrivateIP(hostname)) throw new Error('Private IP blocked');
-  try {
-    const addrs = await dns.resolve4(hostname);
-    if (addrs.some(isPrivateIP)) throw new Error('Private IP blocked');
-  } catch (e: any) {
-    if (e.message === 'Private IP blocked') throw e;
-  }
-}
 
 function extractContent(html: string): { title: string; text: string } {
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -188,12 +168,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only HTTP/HTTPS URLs supported' }, { status: 400 });
     }
 
-    try {
-      await checkHost(parsed.hostname);
-    } catch {
-      return NextResponse.json({ error: 'URL not allowed' }, { status: 400 });
-    }
-
     logger.info('Fetching URL', { url });
 
     // Strategy 1: direct fetch with a realistic browser UA
@@ -202,7 +176,8 @@ export async function POST(req: NextRequest) {
     let fetchOk = false;
 
     try {
-      const directRes = await fetch(url, {
+      const directRes = await safeFetchPublicUrl(url, {
+        method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -211,8 +186,9 @@ export async function POST(req: NextRequest) {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
         },
-        signal: AbortSignal.timeout(10000),
-        redirect: 'follow',
+        timeoutMs: 10000,
+        maxRedirects: 3,
+        maxBytes: 1_500_000,
       });
 
       if (directRes.ok) {
@@ -230,34 +206,10 @@ export async function POST(req: NextRequest) {
       }
     } catch (_) {}
 
-    // Strategy 2: Jina AI Reader — converts any URL to clean AI-readable text,
-    // bypasses paywalls and bot-detection that block direct server fetches.
+    // Page unreadable — use AI knowledge about the URL itself. Do not delegate
+    // fetching the user-supplied URL to a third-party reader service.
     if (!fetchOk) {
-      logger.info('Direct fetch failed, trying Jina Reader', { url });
-      try {
-        const jinaRes = await fetch(`https://r.jina.ai/${url}`, {
-          headers: {
-            'Accept': 'text/plain, text/markdown',
-            'X-Return-Format': 'markdown',
-          },
-          signal: AbortSignal.timeout(20000),
-        });
-        if (jinaRes.ok) {
-          const md = await jinaRes.text();
-          if (md.length >= 80) {
-            // Jina prepends "Title: ..." and "URL Source: ..." — extract them
-            const titleLine = md.match(/^Title:\s*(.+)/m);
-            pageTitle = titleLine?.[1]?.trim() ?? '';
-            pageText = md.slice(0, 10000);
-            fetchOk = true;
-          }
-        }
-      } catch (_) {}
-    }
-
-    // Strategy 3: page unreadable — use AI knowledge about the URL itself
-    if (!fetchOk) {
-      logger.info('Both fetch strategies failed, using AI knowledge fallback', { url });
+      logger.info('Direct fetch failed, using AI knowledge fallback', { url });
       try {
         const summary = await summarizeWithAI(url, pageTitle, '', true);
         logger.success('AI knowledge fallback succeeded', { url });

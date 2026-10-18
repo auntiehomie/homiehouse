@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
-import dns from 'dns/promises';
+import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
 
 export const maxDuration = 30;
 
@@ -22,63 +22,6 @@ interface OpenGraphData {
   url?: string;
   siteName?: string;
   type?: string;
-}
-
-/**
- * Check if an IP address belongs to a private/internal range (SSRF protection).
- */
-function isPrivateIP(ip: string): boolean {
-  // IPv6 loopback
-  if (ip === '::1' || ip === '::') return true;
-
-  // IPv6 private (fc00::/7)
-  if (ip.startsWith('fc') || ip.startsWith('fd')) return true;
-
-  // IPv4
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(isNaN)) return false;
-
-  const [a, b] = parts;
-  if (a === 10) return true;                         // 10.0.0.0/8
-  if (a === 172 && b >= 16 && b <= 31) return true;  // 172.16.0.0/12
-  if (a === 192 && b === 168) return true;            // 192.168.0.0/16
-  if (a === 127) return true;                         // 127.0.0.0/8
-  if (a === 169 && b === 254) return true;            // 169.254.0.0/16
-  if (a === 0) return true;                           // 0.0.0.0/8
-
-  return false;
-}
-
-/**
- * Resolve hostname and verify it doesn't point to a private IP.
- */
-async function resolveAndCheckHost(hostname: string): Promise<void> {
-  // Check if hostname is already an IP literal
-  if (isPrivateIP(hostname)) {
-    throw new Error('URL resolves to a private/internal IP address');
-  }
-
-  try {
-    const addresses = await dns.resolve4(hostname);
-    for (const addr of addresses) {
-      if (isPrivateIP(addr)) {
-        throw new Error('URL resolves to a private/internal IP address');
-      }
-    }
-  } catch (err: any) {
-    if (err.message?.includes('private')) throw err;
-    // Also try IPv6
-    try {
-      const addresses6 = await dns.resolve6(hostname);
-      for (const addr of addresses6) {
-        if (isPrivateIP(addr)) {
-          throw new Error('URL resolves to a private/internal IP address');
-        }
-      }
-    } catch {
-      // If DNS fails entirely, fetch will also fail
-    }
-  }
 }
 
 /**
@@ -239,16 +182,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // SSRF protection: resolve hostname and block private IPs
-    try {
-      await resolveAndCheckHost(validUrl.hostname);
-    } catch {
-      return NextResponse.json(
-        { error: 'URL not allowed' },
-        { status: 400 }
-      );
-    }
-
     logger.info('Fetching URL preview', { url });
 
     // Return cached value when fresh
@@ -270,11 +203,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the URL
-    const response = await fetch(url, {
+    const response = await safeFetchPublicUrl(validUrl, {
+      method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; HomieHouseBot/1.0; +https://homiehouse.lol)',
       },
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
+      maxRedirects: 3,
+      maxBytes: MAX_RESPONSE_SIZE,
     });
 
     if (!response.ok) {
