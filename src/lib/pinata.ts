@@ -1,5 +1,5 @@
 /**
- * Piñata — combined IPFS storage + Farcaster API connector.
+ * Piñata IPFS storage service.
  *
  * Farcaster functions at the bottom of this file are now thin re-exports
  * delegating to src/lib/hypersnap.ts, which replaced the Pinata Farcaster API.
@@ -11,44 +11,6 @@
 import pinataSDK from '@pinata/sdk';
 import { pinataConfig } from '@/config/web3';
 import { Web3Error } from '@/config/web3';
-
-// ─── IPFS-only fetch (kept for PinataService internals) ──────────────────────
-
-const PINATA_FARCASTER_BASE = 'https://api.pinata.cloud/v3/farcaster';
-
-export interface PinataFetchOptions extends RequestInit {
-  method?: string;
-  body?: BodyInit;
-}
-
-function getPinataJwt(): string {
-  const jwt = process.env.PINATA_JWT;
-  if (!jwt) throw new Error('PINATA_JWT environment variable is not set');
-  return jwt;
-}
-
-/**
- * Generic authenticated fetch to the Pinata Farcaster API.
- * Kept for backward compat; Farcaster reads now go through hypersnap.ts.
- */
-export async function pinataFetch(endpoint: string, opts: PinataFetchOptions = {}): Promise<any> {
-  const jwt = getPinataJwt();
-  const url = `${PINATA_FARCASTER_BASE}${endpoint}`;
-  const res = await fetch(url, {
-    ...opts,
-    headers: {
-      'accept': 'application/json',
-      'Authorization': `Bearer ${jwt}`,
-      ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(opts.headers || {}),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Pinata Farcaster API error ${res.status}: ${text}`);
-  }
-  return res.json();
-}
 
 // ─── Farcaster API — delegated to Hypersnap ──────────────────────────────────
 //

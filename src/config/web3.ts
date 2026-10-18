@@ -65,12 +65,6 @@ export const pinataConfig = {
   gateway: process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://gateway.pinata.cloud',
 };
 
-// Farcaster Configuration
-export const farcasterConfig = {
-  hubUrl: process.env.NEXT_PUBLIC_FARCASTER_HUB_URL || 'https://hub.pinata.cloud',
-  network: process.env.NEXT_PUBLIC_FARCASTER_NETWORK || 'mainnet',
-};
-
 // Multi-chain token configuration
 export const supportedChains = {
   ethereum: {

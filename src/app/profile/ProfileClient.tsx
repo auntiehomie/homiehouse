@@ -513,7 +513,7 @@ function ProfileContent() {
                       setIsFollowing(true);
                     }
                   } catch (err: any) {
-                    alert(err?.message || 'Failed — make sure your signer is approved in Warpcast.');
+                    alert(err?.message || 'Follow failed — make sure your Hypersnap signer is active.');
                   } finally {
                     setFollowLoading(false);
                   }

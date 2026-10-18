@@ -1,13 +1,8 @@
 'use client';
 
 /**
- * useFarcasterWrites — app-mnemonic signer approach.
- *
- * The browser generates an Ed25519 keypair and sends only its public key to
- * POST /api/signer, which uses APP_FID + APP_MNEMONIC to sign the Warpcast
- * key-registration request. SignerInit keeps the private key in localStorage
- * under `signer_<fid>`. Once the user approves in Warpcast,
- * all write operations sign directly with that key — no third-party TEE dependency.
+ * Cast, reaction and follow writes are signed locally with a scoped Hypersnap
+ * signer and submitted to HomieHouse's Hypersnap relay.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -107,17 +102,13 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     const raw = localStorage.getItem(`signer_${fid}`);
     if (!raw) {
       window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));
-      throw new Error('Setting up your signer — please approve in Warpcast when prompted.');
+      throw new Error('Set up a Hypersnap signer to publish from HomieHouse.');
     }
 
     const data = JSON.parse(raw);
     if (data.status !== 'approved') {
-      if (data.signer_approval_url) {
-        window.dispatchEvent(new CustomEvent('showWelcomeModal', {
-          detail: { approvalUrl: data.signer_approval_url },
-        }));
-      }
-      throw new Error('Please approve your signer in Warpcast to post.');
+      window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));
+      throw new Error('Set up a Hypersnap signer to publish from HomieHouse.');
     }
 
     if (!data.private_key) throw new Error('Signer key missing. Please sign out and sign in again.');
