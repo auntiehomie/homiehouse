@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import FeedTrendingTabs from "@/components/FeedTrendingTabs";
 import SidebarNav from "@/components/SidebarNav";
@@ -14,6 +15,8 @@ import { useProStatus } from "@/hooks/useProStatus";
 
 export default function FeedClient() {
   const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
+  const forceFollowing = searchParams.get('feed_type') === 'following';
   const { isAuthenticated } = useFarcasterAuth();
   const { fid: viewerFid } = useFarcasterAuth();
   const { isPro } = useProStatus();
@@ -122,7 +125,7 @@ export default function FeedClient() {
               <h3 className="text-lg font-semibold">Explore</h3>
             </div>
             {isAuthenticated ? (
-              <FeedTrendingTabs key={`member-${viewerFid}`} />
+              <FeedTrendingTabs key={`member-${viewerFid}-${forceFollowing ? 'following' : 'saved'}`} forceDefaultFeedScope={forceFollowing} />
             ) : (
               // Guests have no following graph, so start on ranked Discovery.
               <FeedTrendingTabs key="guest" defaultFeedScope="global" />

@@ -69,6 +69,11 @@ export default function CastDetailClient() {
   }, [hash]);
 
   const handleBack = useCallback(() => {
+    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+    if (returnTo === '/feed?feed_type=following') {
+      router.replace(returnTo, { scroll: false });
+      return;
+    }
     const previous = previousRoute(readCastNavigation(), window.location.pathname + window.location.search);
     if (previous) {
       // Retrace the actual route, including parent/quoted casts and profile tabs.
