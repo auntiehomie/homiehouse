@@ -70,22 +70,22 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn, cast, and grow',
+    description: 'Turn casts into personalized lessons, plain-English answers, and ideas you can use.',
     url: BASE_URL,
     images: [
       {
         url: '/api/og',
         width: 1200,
         height: 630,
-        alt: 'HomieHouse — Learn Web3. Connect with your community.',
+        alt: 'HomieHouse — Learn, cast, and grow.',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn, cast, and grow',
+    description: 'Turn casts into personalized lessons, plain-English answers, and ideas you can use.',
     images: ['/api/og'],
   },
   robots: {
