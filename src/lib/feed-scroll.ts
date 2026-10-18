@@ -48,7 +48,8 @@ export function restoreFeedScroll(container: HTMLElement, saved: FeedReturn, onR
   window.addEventListener('touchstart', onInput, { capture: true, passive: true });
   window.addEventListener('wheel', onInput, { capture: true, passive: true });
   window.addEventListener('keydown', onInput, true);
-  // Initial layout, then follow only actual size changes rather than fighting scrolling.
-  schedule();
+  // Align in the layout effect before paint, then follow actual size changes
+  // rather than exposing a frame at the top of the feed or fighting scrolling.
+  align();
   return stop;
 }
