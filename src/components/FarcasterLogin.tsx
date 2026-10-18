@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
+import { useAccount, useConnect, useConnectors, useDisconnect, useSignMessage } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { createMessage, encodeToken } from '@farcasterorg/quick-auth/token';
 import { useSessionAuth } from '@/hooks/useSessionAuth';
@@ -24,6 +24,8 @@ interface FarcasterLoginProps {
 
 export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requestPostingOnLogin = true }: FarcasterLoginProps) {
   const { address, isConnected } = useAccount();
+  const { connectAsync, isPending: isConnecting } = useConnect();
+  const connectors = useConnectors();
   const { signMessageAsync } = useSignMessage();
   const { openConnectModal } = useConnectModal();
   const { disconnectAsync } = useDisconnect();
@@ -32,6 +34,22 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requ
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [signingFid, setSigningFid] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const walletConnectConnector = connectors.find((connector) => connector.id === 'walletConnect');
+
+  async function connectWithWalletConnectQr() {
+    if (!walletConnectConnector) {
+      setError('WalletConnect QR is unavailable. Please use a browser wallet or try again later.');
+      return;
+    }
+    setError(null);
+    try {
+      // The WalletConnect connector opens its QR modal, allowing a phone wallet
+      // such as Rainbow to pair without relying on a desktop-to-mobile deep link.
+      await connectAsync({ connector: walletConnectConnector });
+    } catch (err: any) {
+      setError(err?.shortMessage || err?.message || 'Could not start WalletConnect. Please try again.');
+    }
+  }
 
   const loadAccounts = useCallback(async () => {
     if (!address) {
@@ -110,13 +128,21 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requ
         Sign in with your wallet
       </h2>
       <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, margin: '0 0 20px', lineHeight: 1.5 }}>
-        Hypersnap will find Farcaster accounts linked to your wallet. Sign a short-lived login message to prove control—no Farcaster app approval or recovery phrase.
+        Hypersnap will find Farcaster accounts linked to your wallet. Sign a short-lived login message to prove control—no Farcaster app approval or recovery phrase. On a computer, connect a browser wallet or pair a phone wallet by QR code.
       </p>
 
       {!isConnected ? (
-        <button className="btn primary" onClick={() => openConnectModal?.()} style={{ width: '100%', padding: 13 }}>
-          Connect wallet
-        </button>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <button className="btn primary" onClick={() => openConnectModal?.()} style={{ width: '100%', padding: 13 }}>
+            Connect browser wallet
+          </button>
+          {walletConnectConnector && <button className="btn" onClick={() => void connectWithWalletConnectQr()} disabled={isConnecting} style={{ width: '100%', padding: 13 }}>
+            {isConnecting ? 'Waiting for wallet…' : 'Connect phone wallet with QR'}
+          </button>}
+          <small style={{ color: 'var(--muted-on-dark)', lineHeight: 1.5 }}>
+            Scan the QR code with Rainbow or another wallet that supports WalletConnect.
+          </small>
+        </div>
       ) : (
         <>
           <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, margin: '0 0 14px', wordBreak: 'break-all' }}>
