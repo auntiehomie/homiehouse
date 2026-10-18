@@ -14,6 +14,7 @@
 
 - `src/lib/auth.ts`: removed signed-key-request lookup at Warpcast; legacy cache recovery uses the onchain key registry.
 - `src/app/api/signer/route.ts`, `src/app/api/register-user-key/route.ts`: retired old Warpcast signer routes with explicit `410 Gone` responses.
+- `__tests__/api/signer.test.ts`: asserts both retired routes and the legacy user-key route return `410 Gone` with the Hypersnap migration path.
 - `scripts/setup-agent-signer.ts`: retired the Warpcast registration/polling script.
 - `src/lib/pinata.ts`: removed unused Pinata Farcaster API request implementation.
 - `src/hooks/useFarcasterWrites.ts`: corrected stale signer setup copy and routes stale signer state into the Hypersnap enrollment UI.
@@ -24,7 +25,7 @@
 
 ## Verification
 
-- All 229 Jest tests across 44 suites pass, including auth fallback and message-link coverage.
+- All 230 Jest tests across 44 suites pass, including auth fallback, legacy-route retirement, and message-link coverage.
 - Changed-source ESLint completes with zero errors; it reports existing warnings.
 - `npm run build` passes, including TypeScript validation and route generation.
 - `git diff --check` passes.
