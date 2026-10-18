@@ -3,7 +3,7 @@
 import { consumeFeedReturn, FEED_RETURN_TTL, feedSnapshotKey, readFeedReturn, readFeedSnapshot, saveFeedReturn as rememberFeedReturn, saveFeedSnapshot } from '@/lib/feed-session';
 import { feedScrollHost, restoreFeedScroll } from '@/lib/feed-scroll';
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import dynamic from 'next/dynamic';
 import UrlPreview from './UrlPreview';
 import EmbedRenderer, { findFarcasterCastUrls, parseFarcasterCastUrl } from './EmbedRenderer';
@@ -331,7 +331,9 @@ export default function FeedList({
 
   // Signer approval handled natively via Ed25519 — no polling needed
 
-  useEffect(() => {
+  // Resolve an in-tab return from the cached snapshot before the browser paints.
+  // A passive effect briefly shows the feed at its default position before restoring it.
+  useLayoutEffect(() => {
     let mounted = true;
     const cacheKey = feedSnapshotKey(feedType, selectedChannel);
     const isManualRefresh = manualRefreshRef.current;
@@ -416,7 +418,7 @@ export default function FeedList({
     };
   }, [feedType, selectedChannel, refreshKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (items === null || !feedContainerRef.current) return;
     const saved = readFeedReturn();
     if (!saved || saved.snapshotKey !== feedSnapshotKey(feedType, selectedChannel)) return;
