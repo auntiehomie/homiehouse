@@ -2,6 +2,19 @@
 
 Farcaster Mini App implementation for the Ask Homie AI assistant.
 
+## Hosting other Mini Apps in HomieHouse
+
+When an embedded Mini App calls `sdk.actions.signIn`, HomieHouse checks that the
+connected wallet is linked to the signed-in FID through Hypersnap, then asks the
+wallet to sign a domain-bound Sign In With Farcaster message for that Mini App.
+The signature is returned directly to the Mini App; this flow does not open the
+Farcaster approval relay. Only the custody wallet and approved Auth Addresses
+are accepted. A verified profile address alone is not enough to sign in.
+
+This proves the user's Farcaster identity to that Mini App. It does not enable
+HomieHouse posting; posting still requires the separate Hypersnap signer
+authorization.
+
 ## 🏗️ Setup Complete
 
 ### Files Created
