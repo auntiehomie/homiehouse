@@ -95,7 +95,7 @@ export default function ListsClient() {
   // Fetch followed lists
   const fetchFollowing = () => {
     if (!user?.fid) return;
-    fetch(`/api/curated-lists/followed?fid=${user.fid}`)
+    fetch(`/api/curated-lists/followed?fid=${user.fid}`, { headers: { ...(getAuthHeaders() ?? {}) }, cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
         const followed: CuratedList[] = data.lists || [];

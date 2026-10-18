@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFarcasterUser } from "@/hooks/useFarcasterUser";
+import { getAuthHeaders } from "@/lib/client-auth";
 
 interface Curator {
   fid: number;
@@ -55,7 +56,10 @@ export default function UnifiedListFeedPage() {
       });
       if (cursor) params.set("cursor", cursor);
 
-      const response = await fetch(`/api/curated-lists/feed?${params.toString()}`);
+      const response = await fetch(`/api/curated-lists/feed?${params.toString()}`, {
+        headers: { ...(getAuthHeaders() ?? {}) },
+        cache: 'no-store',
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to load followed-list feed");
 
