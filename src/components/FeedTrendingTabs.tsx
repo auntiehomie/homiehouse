@@ -10,12 +10,13 @@ export type FeedScope = 'following' | 'global';
 
 interface FeedTrendingTabsProps {
   defaultFeedScope?: FeedScope;
+  forceDefaultFeedScope?: boolean;
 }
 
-export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEED }: FeedTrendingTabsProps = {}) {
+export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEED, forceDefaultFeedScope = false }: FeedTrendingTabsProps = {}) {
   // Use the same memory-backed return state as the list, even if storage is full.
-  const [feedType, setFeedType] = useState<FeedScope>(() => readFeedReturn()?.feedType ?? defaultFeedScope);
-  const [selectedChannel, setSelectedChannel] = useState<string | null>(() => readFeedReturn()?.selectedChannel ?? null);
+  const [feedType, setFeedType] = useState<FeedScope>(() => forceDefaultFeedScope ? defaultFeedScope : readFeedReturn()?.feedType ?? defaultFeedScope);
+  const [selectedChannel, setSelectedChannel] = useState<string | null>(() => forceDefaultFeedScope ? null : readFeedReturn()?.selectedChannel ?? null);
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
 
