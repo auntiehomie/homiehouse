@@ -39,7 +39,7 @@ const PILLARS = [
       </svg>
     ),
     title: 'Learn at your pace',
-    desc: 'Bite-sized lessons that explain crypto in plain English. Start as a total beginner — no prior knowledge needed.',
+    desc: 'Bite-sized lessons that explain AI, crypto, decentralization, privacy, encryption, and decentralized social in plain English. Start as a total beginner — no prior knowledge needed.',
     color: '#34d399',
     bg: 'rgba(52,211,153,0.08)',
     border: 'rgba(52,211,153,0.2)',
@@ -51,7 +51,7 @@ const PILLARS = [
       </svg>
     ),
     title: 'Join real conversations',
-    desc: 'See what people are actually talking about in crypto and social media — and finally understand the jargon.',
+    desc: 'Explore casts about AI, crypto, privacy, and decentralized social — and finally understand the jargon.',
     color: '#818cf8',
     bg: 'rgba(99,102,241,0.08)',
     border: 'rgba(99,102,241,0.2)',
@@ -74,8 +74,8 @@ const PILLARS = [
 
 const EXPLAINER_STEPS = [
   {
-    q: 'What is Farcaster?',
-    a: 'It\'s a social network — like Twitter, but nobody owns it. Your posts and followers are yours, not a company\'s. HomieHouse is a client for Farcaster, meaning it\'s one way to use it.',
+    q: 'What is Homiehouse?',
+    a: 'Homiehouse is a Hypersnap client that helps you learn about the ideas and technology behind the topics discussed in casts. Explore AI, crypto, Web3, decentralization, privacy, encryption, and decentralized social through plain-English lessons.',
   },
   {
     q: 'Do I need to know crypto?',
@@ -191,7 +191,7 @@ export default function HomeClient() {
             fontSize: 13, fontWeight: 600, color: '#6ee7b7',
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', display: 'inline-block', animation: 'hh-pulse 2s ease-in-out infinite' }} />
-            {learnerCount > 0 ? `${learnerCount.toLocaleString()} people learning here` : 'Free crypto lessons, no experience needed'}
+            {learnerCount > 0 ? `${learnerCount.toLocaleString()} people learning here` : 'Learn from casts, no experience needed'}
             <style>{`@keyframes hh-pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
           </div>
 
@@ -201,11 +201,11 @@ export default function HomeClient() {
             background: 'linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)',
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           }}>
-            Learn crypto.<br />Actually understand it.
+            Learn. Cast. Grow.<br />Understand what’s behind the casts.
           </h1>
 
           <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', color: '#71717a', maxWidth: 540, lineHeight: 1.7, margin: '0 0 28px' }}>
-            Short, plain-English lessons that take you from &ldquo;what is crypto?&rdquo; to confidently joining the conversation. No jargon, no pressure, no wallet required to start.
+            Turn casts into personalized lessons. Explore AI, crypto, Web3, decentralization, privacy, encryption, and decentralized social with Homiehouse, a Hypersnap client built to help you understand the conversation.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
@@ -221,7 +221,7 @@ export default function HomeClient() {
               </div>
             </div>
             <span style={{ fontSize: 12, color: '#3f3f46', marginTop: 4 }}>
-              Free · Sign in with Farcaster · No wallet setup needed
+              Free lessons · Explore casts with Hypersnap
             </span>
           </div>
         </section>
@@ -237,7 +237,7 @@ export default function HomeClient() {
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}
           >
-            <span>Wait — what is Farcaster? Do I need to know crypto?</span>
+            <span>What is Homiehouse? What can I learn here?</span>
             <span style={{ fontSize: 18 }}>{showExplainer ? '−' : '+'}</span>
           </button>
           {showExplainer && (

@@ -13,6 +13,25 @@ export interface KnowledgeTopic {
 
 export const KNOWLEDGE_TOPICS: KnowledgeTopic[] = [
   {
+    id: 'homiehouse',
+    title: 'What is Homiehouse?',
+    keywords: ['homiehouse', 'homie house', 'hypersnap'],
+    content: `Homiehouse is a Hypersnap client that helps people learn about the ideas and technology behind topics discussed in casts. Its learning scope includes AI, crypto, Web3, decentralization, privacy, encryption, and decentralized social. Ask Homie helps explain unfamiliar concepts in plain English.
+An open protocol, its clients, and its infrastructure operators are distinct. Open participation does not mean nobody owns the companies, apps, or infrastructure involved. Discuss control, governance, moderation, data portability, and dependencies separately rather than promising absolute ownership or censorship resistance.`,
+  },
+  {
+    id: 'decentralized_social',
+    title: 'Decentralized Social',
+    keywords: ['decentralized social', 'federation', 'federated', 'activitypub', 'social graph', 'portable identity'],
+    content: `Decentralized social distributes some control over identity, content, or hosting across participants. Different designs include federation and shared protocols. Evaluate who operates servers, controls keys, moderates content, and can change rules. Account and social-graph portability depend on the protocol and available clients. Public casts are not private messages; decentralization alone does not provide confidentiality.`,
+  },
+  {
+    id: 'encryption',
+    title: 'Encryption Basics',
+    keywords: ['encryption', 'encrypt', 'ciphertext', 'end-to-end', 'end to end', 'e2ee'],
+    content: `Encryption turns readable data into ciphertext using cryptographic keys. Encryption in transit protects a connection; encryption at rest protects stored data. End-to-end encryption keeps message decryption keys with the intended endpoints, so a relay should store ciphertext without being able to read message contents. Metadata may still be visible. Recipient verification, key recovery, and multi-device access affect security. Digital signatures establish authenticity and integrity; they do not hide content. Public casts are not end-to-end encrypted.`,
+  },
+  {
     id: 'farcaster_protocol',
     title: 'Farcaster Protocol',
     keywords: [
@@ -447,13 +466,14 @@ export function getRelevantKnowledge(question: string): { topics: string[]; cont
 
 /** Suggested starter questions for the UI */
 export const SUGGESTED_QUESTIONS = [
-  { label: 'What is Farcaster?', topic: 'farcaster' },
+  { label: 'What is Homiehouse?', topic: 'homiehouse' },
   { label: 'How do I get started?', topic: 'getting_started' },
   { label: 'How do L2s work?', topic: 'ethereum' },
   { label: 'What are ZK proofs?', topic: 'privacy' },
   { label: 'Explain decentralization', topic: 'decentralization' },
   { label: 'AI + Web3?', topic: 'ai' },
-  { label: 'What is a FID?', topic: 'farcaster' },
+  { label: 'How does decentralized social work?', topic: 'decentralized_social' },
+  { label: 'How does encryption protect messages?', topic: 'encryption' },
   { label: 'What is Base?', topic: 'ethereum' },
   { label: 'Self-custody explained', topic: 'privacy' },
   { label: 'What is Degen?', topic: 'crypto_culture' },
