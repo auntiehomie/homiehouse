@@ -1,14 +1,16 @@
 import { exposeToIframe } from '@farcaster/miniapp-host';
-import type { MiniAppHost, MiniAppClientEvent } from '@farcaster/miniapp-core';
+import type { MiniAppHost, MiniAppClientEvent, SignInOptions } from '@farcaster/miniapp-core';
 import { Context } from '@farcaster/miniapp-core';
-import { signInToMiniApp } from './miniapp-auth';
 
 export interface MiniAppHostConfig {
   context?: Partial<Context.MiniAppContext>;
   overrides?: Partial<Omit<MiniAppHost, 'ethProviderRequestV2'>>;
   ethProvider?: Parameters<typeof exposeToIframe>[0]['ethProvider'];
-  requestSignInApproval?: (url: string, domain: string) => Promise<void>;
-  onSignInComplete?: () => void;
+  authorizeSignIn?: (request: {
+    miniAppUrl: string;
+    expectedFid: number;
+    options: SignInOptions;
+  }) => ReturnType<MiniAppHost['signIn']>;
 }
 export type MiniAppCleanup = () => void;
 export interface FrameActionPayload { action: string; data?: Record<string, unknown>; }
@@ -41,8 +43,7 @@ export function createMiniAppHost(
     context,
     overrides,
     ethProvider,
-    requestSignInApproval,
-    onSignInComplete,
+    authorizeSignIn,
   } = config;
 
   const iframeEndpoints = new WeakMap<
@@ -65,15 +66,10 @@ export function createMiniAppHost(
       },
       signIn: (options) => {
         if (overrides?.signIn) return overrides.signIn(options);
-        if (!requestSignInApproval) {
-          throw new Error('Farcaster sign-in is unavailable in this host');
+        if (!authorizeSignIn) {
+          throw new Error('Wallet-based Hypersnap sign-in is unavailable in this host');
         }
-        return signInToMiniApp({
-          miniAppUrl: snapOrigin,
-          expectedFid: ctx.user.fid,
-          options,
-          requestApproval: requestSignInApproval,
-        }).finally(onSignInComplete);
+        return authorizeSignIn({ miniAppUrl: snapOrigin, expectedFid: ctx.user.fid, options });
       },
       signManifest: (options) => {
         if (overrides?.signManifest) return overrides.signManifest(options);
