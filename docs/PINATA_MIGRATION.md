@@ -1,5 +1,10 @@
 # Pinata Farcaster API Migration
 
+> Historical migration record from 2026-03-30. This is not the current provider map:
+> Farcaster social reads and writes now route through Hypersnap. See
+> [READ_WRITE_INFRASTRUCTURE.md](./READ_WRITE_INFRASTRUCTURE.md) and
+> [MESSAGE_AND_CHANNEL_PROVIDER_AUDIT.md](./MESSAGE_AND_CHANNEL_PROVIDER_AUDIT.md).
+
 **Status:** Complete (with known gaps — see below)  
 **Commit:** `feat: swap Farcaster API connector to Pinata Farcaster API`  
 **Date:** 2026-03-30

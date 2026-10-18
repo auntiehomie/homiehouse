@@ -99,7 +99,7 @@ export default function SmartEmbed({ url, castHash }: Props) {
       case 'submit': {
         if (!fid) { setError('Sign in to interact'); return; }
         const signer = getSignerForFid(fid);
-        if (!signer) { setError('Approve your signer in Warpcast first'); return; }
+        if (!signer) { setError('Enable a Hypersnap signer in HomieHouse first'); return; }
         setSubmitting(true);
         setError(null);
         try {

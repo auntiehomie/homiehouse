@@ -1,4 +1,6 @@
 import { validateSignerRegistrationBody } from '@/lib/signer-registration';
+import { GET as retiredSignerGet, POST as retiredSignerPost } from '@/app/api/signer/route';
+import { POST as retiredUserKeyPost } from '@/app/api/register-user-key/route';
 
 describe('signer registration input', () => {
   const publicKey = `0x${'ab'.repeat(32)}`;
@@ -38,5 +40,23 @@ describe('signer registration input', () => {
       ok: false,
       error: 'Only public_key is accepted',
     });
+  });
+});
+
+describe('retired Warpcast signer endpoints', () => {
+  it('returns a migration response for legacy signer routes', async () => {
+    const responses = await Promise.all([
+      retiredSignerGet(),
+      retiredSignerPost(),
+      retiredUserKeyPost(),
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(410);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        replacement: '/api/hypersnap/signer',
+      });
+    }
   });
 });

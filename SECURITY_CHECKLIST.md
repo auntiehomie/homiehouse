@@ -24,7 +24,7 @@
 - [x] `/api/notifications` - Full security & validation
 - [x] `/api/curated-lists` - Full security & validation (GET/POST/DELETE)
 - [x] `/api/curation` - Full security & validation (GET/POST/PUT/DELETE)
-- [x] `/api/signer` - Secure mnemonic handling, full validation (GET/POST)
+- [x] `/api/signer` - Retired legacy Warpcast signer API (410; use `/api/hypersnap/signer`)
 - [x] `/api/profile` - Full security & validation
 - [x] `/api/search-users` - Full security & validation
 - [x] `/api/privy-feed` - Full security & validation

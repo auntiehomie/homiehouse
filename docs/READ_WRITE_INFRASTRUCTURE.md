@@ -1,96 +1,33 @@
-# Read/Write Infrastructure — Pinata + Farcaster API
+# Read/write infrastructure
 
-**Status:** Complete (Pinata primary, Farcaster API for signer lifecycle only)  
-**Updated:** 2026-04-12
+**Status:** Hypersnap handles Farcaster protocol reads, signer registration, and writes. Private Direct Cast inbox reads are not supported by the current integration.
 
----
+## Provider map
 
-## Architecture
-
-HomieHouse uses a split-provider model:
-
-| Capability | Provider | Notes |
+| Capability | Path | Provider / behavior |
 |---|---|---|
-| Feed reads | Pinata Farcaster API | `/feed/following`, `/feed/trending` |
-| Cast reads | Pinata Farcaster API | `/casts/<hash>` |
-| User reads | Pinata Farcaster API | `/users/by_username`, `/user/bulk` |
-| Channel reads | Pinata Farcaster API | `/channel/list` |
-| Notification reads | Pinata Farcaster API | `/notifications` |
-| Cast writes (publish) | Pinata Farcaster API | `POST /casts` |
-| Reaction writes (like/recast) | Pinata Farcaster API | `POST /reactions` |
-| Signer creation | Farcaster API | `/signer`, `/signer/signed_key` — no Pinata equivalent |
-| Signer verification | Farcaster API | `GET /signer?signer_uuid=` |
+| User/channel feeds and channel metadata | `/api/*` routes and query hooks → `src/lib/hypersnap.ts` | Hypersnap read APIs (`/v2/farcaster/...`) |
+| Casts, reactions, follows | `useFarcasterWrites` → `/api/submit-cast` | Signed Farcaster protocol messages submitted to Hypersnap `/v1/submitMessage` |
+| Signer registration/status | `/api/hypersnap/signer` | Custody-authorized `KEY_ADD`, Hypersnap nonce/status and message relay |
+| Existing private conversations | `/messages` and profile Message links | Explicit handoff to Farcaster; no inbox sync or private-message fetch |
+| Media/IPFS uploads | `src/lib/pinata.ts` | Pinata IPFS storage only |
 
----
+## Channels
 
-## Signer Flow
+The channel selector in `CastComposer` loads channels from HomieHouse API routes backed by Hypersnap. The composer includes a canonical Farcaster channel URL such as `https://warpcast.com/~/channel/<id>` in the signed cast's `parent.url`. That value is protocol data identifying the channel; it is not an HTTP request to Warpcast. The resulting message is submitted to Hypersnap.
 
-A **signer** is a Farcaster keypair that authorizes on-chain writes. The flow:
+Keep the canonical channel URL format unless the Farcaster protocol changes it. API requests for channel lists, user channels, channel details, and channel feeds belong on Hypersnap.
 
-1. User clicks "Enable Posting" in the ComposeModal.
-2. Client calls `POST /api/signer` → creates a signer via Farcaster API's API.
-3. Farcaster API returns a `signer_uuid` and a `signer_approval_url`.
-4. User approves the signer in Warpcast (QR code or deep link).
-5. `signer_uuid` + status are stored in `localStorage` under key `signer_<fid>`.
-6. All write calls (compose, reply, like, recast) include `signer_uuid`.
-7. Pinata's write endpoints accept the Farcaster API-issued `signer_uuid` directly.
+## Signers
 
-> **Why Farcaster API for signers?** Pinata's Farcaster API does not currently expose
-> a signer management endpoint. Farcaster API handles signer creation and the
-> delegation approval flow. This is the only remaining Farcaster API dependency.
+Current signer enrollment uses the user's FID custody wallet to authorize a scoped, expiring Hypersnap signer. The old `/api/signer` and `/api/register-user-key` Warpcast Signed Key Request endpoints return `410 Gone` and point callers to `/api/hypersnap/signer`. The old `setup-agent-signer` command is retired for the same reason; it no longer contacts Warpcast.
 
----
+Legacy signer authentication can still verify a cached key, an active Hypersnap signer, or an older active key through the onchain Farcaster Key Registry. The app does not make Warpcast API calls to recover signed-key request status.
 
-## Environment Variables
+## Direct Cast inbox limitation
 
-```env
-# Required for all Farcaster reads + writes
-PINATA_JWT=your_pinata_jwt_here
+Direct Casts are private client-service data, not ordinary public casts in the protocol feed. HomieHouse does not currently have a supported Hypersnap inbox read endpoint or verified app authorization contract for private messages. The Messages UI therefore states that limitation and opens the existing Farcaster inbox/composer. Do not guess private endpoints or reuse a public-post signer for DM access.
 
-# Required ONLY for signer creation/verification
-FARCASTER_API_KEY=your_farcaster-api_api_key_here
-```
+The share URLs used for opening the inbox and starting a conversation are intentional user-facing handoffs. They are not provider API requests.
 
----
-
-## Key Files
-
-| File | Purpose |
-|---|---|
-| `src/lib/pinata.ts` | All Farcaster API functions (reads + writes) |
-| `src/lib/farcaster-api.ts` | Thin re-export shim for backward compat |
-| `src/lib/auth.ts` | Signer verification via Farcaster API |
-| `src/app/api/signer/route.ts` | Signer creation endpoint (uses Farcaster API) |
-| `src/app/api/privy-compose/route.ts` | Cast publish (uses Pinata via `publishCast`) |
-| `src/app/api/privy-reply/route.ts` | Reply publish |
-| `src/app/api/like/route.ts` | Like / unlike |
-| `src/app/api/recast/route.ts` | Recast / un-recast |
-
----
-
-## Quote Casts
-
-Quote casts are normal casts where the `embeds` array contains the URL of
-the quoted cast. The canonical URL format is:
-
-```
-https://warpcast.com/~/conversations/<cast_hash>
-```
-
-The `ComposeModal` and the `FeedList.handleQuoteCast` function both produce
-this embed automatically. The server-side `privy-compose` route guards against
-duplicate embed insertion.
-
----
-
-## Future: Privy Integration
-
-Privy (`@privy-io/react-auth`, `@privy-io/server-auth`) is installed but not
-yet wired for signer management. Privy's embedded wallet could replace the
-Farcaster API signer flow by:
-
-1. Creating a Farcaster signer keypair client-side via Privy's embedded wallet.
-2. Broadcasting the signed delegation to the hub directly.
-
-This would eliminate the last Farcaster API dependency. See Privy's Farcaster
-integration docs for the implementation path.
+See [PRO_ACCESS_AND_MESSAGES.md](./PRO_ACCESS_AND_MESSAGES.md) for the current message product decision and [HYPERSNAP_WALLET_SIGNER_MIGRATION.md](./HYPERSNAP_WALLET_SIGNER_MIGRATION.md) for signer authorization details.

@@ -171,7 +171,6 @@ export function useSessionAuth() {
           'content-type': 'application/json',
           'x-farcaster-fid': String(fid),
           'x-signer-key': signer.private_key,
-          ...(typeof signer.signer_uuid === 'string' ? { 'x-signer-uuid': signer.signer_uuid } : {}),
         },
         body: JSON.stringify({ fid }),
       });

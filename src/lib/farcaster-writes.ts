@@ -8,7 +8,8 @@
  *
  * Server-side writes require HOMIEHOUSELOL_SIGNER_KEY — an Ed25519 private key
  * (hex, no 0x prefix) that has been registered as an authorized signer for the
- * bot's FID via /api/signer and approved in Warpcast.
+ * bot's FID as a Farcaster protocol signer. This key is provisioned out of
+ * band and messages are submitted to the configured Snapchain/Hypersnap hub.
  */
 
 import {
