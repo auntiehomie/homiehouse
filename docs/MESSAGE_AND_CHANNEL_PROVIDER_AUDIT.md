@@ -22,6 +22,12 @@
 - `src/app/messages/page.tsx`: clarifies why inbox reads remain an external handoff.
 - `docs/READ_WRITE_INFRASTRUCTURE.md`: replaced the obsolete Pinata/Warpcast architecture description.
 
-## Verification still required
+## Verification
 
-Run auth and channel tests, lint changed files, and build the application. Verify the retired routes return 410 and the live channel selector continues to populate and submit a cast through Hypersnap in Preview. Full inbox sync remains blocked on a documented provider API and authorization flow.
+- All 229 Jest tests across 44 suites pass, including auth fallback and message-link coverage.
+- Changed-source ESLint completes with zero errors; it reports existing warnings.
+- `npm run build` passes, including TypeScript validation and route generation.
+- `git diff --check` passes.
+- The retired signer endpoints build and return the migration response from their route handlers. Preview should confirm those responses and verify channel discovery/feed/posting through Hypersnap.
+
+Full inbox sync remains blocked on a documented provider API and authorization flow.
