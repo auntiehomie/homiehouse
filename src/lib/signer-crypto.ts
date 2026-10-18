@@ -11,11 +11,12 @@
 
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
 
-const ENCRYPTION_KEY = process.env.SIGNER_ENCRYPTION_KEY || process.env.DATABASE_URL?.slice(0, 32) || 'hh-fallback-key-change-me';
-
 function getKey(): Buffer {
-  // Derive a 32-byte key from the configured secret
-  return scryptSync(ENCRYPTION_KEY, 'homiehouse-salt', 32);
+  const encryptionKey = process.env.SIGNER_ENCRYPTION_KEY;
+  if (!encryptionKey || Buffer.byteLength(encryptionKey) < 32) {
+    throw new Error('SIGNER_ENCRYPTION_KEY must be configured with at least 32 bytes');
+  }
+  return scryptSync(encryptionKey, 'homiehouse-salt', 32);
 }
 
 const ALGORITHM = 'aes-256-gcm';
@@ -49,8 +50,8 @@ export function encryptSignerKey(privateKeyHex: string): string {
 export function decryptSignerKey(storedValue: string): string | null {
   if (!storedValue || storedValue === 'app-managed') return null;
   if (!storedValue.startsWith('enc:')) {
-    // Legacy unencrypted key (pre-security-fix) — return as-is for backward compat
-    return storedValue;
+    // Never treat a legacy plaintext signer key as usable signing material.
+    return null;
   }
 
   try {

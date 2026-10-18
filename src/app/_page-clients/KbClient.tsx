@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useFarcasterUser } from "@/hooks/useFarcasterUser";
+import { getAuthHeaders } from "@/lib/client-auth";
 import Link from "next/link";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -62,7 +63,10 @@ export default function KbClient() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/saved-casts?fid=${fid}`);
+      const res = await fetch(`/api/saved-casts?fid=${fid}`, {
+        headers: { ...(getAuthHeaders() ?? {}) },
+        cache: 'no-store',
+      });
       if (!res.ok) throw new Error("Failed to load saved casts");
       const data = await res.json();
       setCasts(data.casts || []);
@@ -86,7 +90,7 @@ export default function KbClient() {
     try {
       const res = await fetch("/api/cast-notes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(getAuthHeaders('write:casts') ?? {}) },
         body: JSON.stringify({ fid, cast_id: castId, note: noteText.trim() }),
       });
       if (!res.ok) throw new Error("Failed to save note");
@@ -108,7 +112,7 @@ export default function KbClient() {
     try {
       await fetch("/api/saved-casts", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(getAuthHeaders('write:casts') ?? {}) },
         body: JSON.stringify({ fid, cast_hash: castHash }),
       });
       setCasts(prev => prev.filter(c => c.id !== castId));

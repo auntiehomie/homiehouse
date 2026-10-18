@@ -361,6 +361,31 @@ export async function verifyFarcasterSigner(
   return fid;
 }
 
+/** Verify that a provided Ed25519 private key belongs to an active signer for a FID. */
+export async function verifyFarcasterSignerKey(fid: number, signerKey: string): Promise<number> {
+  if (!fid || !Number.isSafeInteger(fid) || fid <= 0) {
+    throw new AuthError('Valid FID required', 401, 'INVALID_FID');
+  }
+  const publicKeyHex = await derivePublicKey(signerKey);
+  try {
+    await ensureSignersTable();
+    const rows = await sql`
+      SELECT id FROM user_signers
+      WHERE user_fid = ${fid}
+        AND signer_public_key = ${publicKeyHex}
+        AND status = 'approved'
+      LIMIT 1
+    `;
+    if (rows.length > 0) return fid;
+    if (await isActiveHypersnapSigner(fid, publicKeyHex)) return fid;
+    if (await recoverApprovedSigner(fid, publicKeyHex)) return fid;
+    throw new AuthError('Invalid or unapproved signer key for this FID', 401, 'INVALID_SIGNER_KEY');
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    throw new AuthError('Unable to verify signer key', 500, 'SIGNER_VERIFICATION_FAILED');
+  }
+}
+
 // ── Bearer token auth ────────────────────────────────────────────────────────
 
 /**

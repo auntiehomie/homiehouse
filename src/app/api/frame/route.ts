@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
 
 function extractMeta(html: string, property: string): string | null {
   // Match <meta property="..." content="..."> or name= variant
@@ -32,12 +33,14 @@ export async function GET(request: NextRequest) {
   if (!url) return NextResponse.json({ isFrame: false });
 
   try {
-    const res = await fetch(url, {
+    const res = await safeFetchPublicUrl(url, {
+      method: 'GET',
       headers: {
         Accept: 'text/html,application/xhtml+xml',
         'User-Agent': 'farcasterbot/1.0',
       },
-      signal: AbortSignal.timeout(6000),
+      maxBytes: 1024 * 1024,
+      timeoutMs: 6000,
     });
 
     if (!res.ok) return NextResponse.json({ isFrame: false });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
+import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
 
 const SNAP_MIME = 'application/vnd.farcaster.snap+json';
 
@@ -17,9 +18,12 @@ export async function GET(request: NextRequest) {
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
-    const res = await fetch(url, {
+    const res = await safeFetchPublicUrl(url, {
+      method: 'GET',
       headers: { Accept: SNAP_MIME },
-      signal: AbortSignal.timeout(8000),
+      timeoutMs: 8000,
+      maxRedirects: 2,
+      maxBytes: 1024 * 1024,
     });
 
     const contentType = res.headers.get('content-type') || '';
@@ -36,20 +40,30 @@ export async function GET(request: NextRequest) {
 
 /** Forward a signed JFS token to the snap server and return the next snap page. */
 export async function POST(request: NextRequest) {
+  const forwarded = request.headers.get('x-forwarded-for');
+  const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+  const { success: rateLimitOk } = rateLimit(`snap-post:${ip}`, 20, 60);
+  if (!rateLimitOk) return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+
   const body = await request.json().catch(() => null);
   if (!body?.url || !body?.jfsToken) {
     return NextResponse.json({ error: 'url and jfsToken required' }, { status: 400 });
   }
 
   try {
-    const res = await fetch(body.url, {
+    if (typeof body.url !== 'string' || typeof body.jfsToken !== 'string' || body.jfsToken.length > 20_000) {
+      return NextResponse.json({ error: 'Invalid snap request.' }, { status: 400 });
+    }
+    const res = await safeFetchPublicUrl(body.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain',
         Accept: SNAP_MIME,
       },
       body: body.jfsToken,
-      signal: AbortSignal.timeout(10000),
+      timeoutMs: 10000,
+      maxRedirects: 0,
+      maxBytes: 1024 * 1024,
     });
 
     if (!res.ok) {

@@ -3,6 +3,8 @@ import { getDb } from '@/lib/db';
 import { hypersnapFetch } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 /** GET /api/curated-lists/followed?fid=X — public lists this fid follows. */
 export async function GET(request: NextRequest) {
@@ -10,11 +12,13 @@ export async function GET(request: NextRequest) {
   logger.start();
 
   try {
+    const authenticatedFid = await verifyFarcasterSignerAuth(request, 'read:all');
     const { searchParams } = new URL(request.url);
-    const fid = Number(searchParams.get('fid'));
-    if (!fid || isNaN(fid)) {
-      return NextResponse.json({ error: 'fid is required' }, { status: 400 });
+    const fidParam = searchParams.get('fid');
+    if (fidParam && (!/^\d+$/.test(fidParam) || Number(fidParam) !== authenticatedFid)) {
+      return NextResponse.json({ error: 'You can only view lists you follow' }, { status: 403 });
     }
+    const fid = authenticatedFid;
 
     const db = getDb();
     await db.query(`
@@ -57,6 +61,7 @@ export async function GET(request: NextRequest) {
     logger.end();
     return NextResponse.json({ lists });
   } catch (error: any) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     logger.error('Failed to fetch followed lists', error);
     return handleApiError(error, 'GET /curated-lists/followed');
   }
