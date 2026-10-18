@@ -1176,11 +1176,11 @@ export async function POST(req: NextRequest) {
     };
 
     const trackDescriptions: Record<string, string> = {
-      decentralization: 'understand Web3 concepts, wallets, blockchains, DAOs, and how decentralized systems work',
+      decentralization: 'understand decentralization, privacy, encryption, decentralized social, Web3 concepts, wallets, blockchains, and DAOs',
       finance: 'manage assets, understand DeFi tokens, tokenomics, portfolio management, and on-chain financial literacy',
       ai: 'understand AI agents, LLMs, how AI intersects with crypto, AI security, and the AI-crypto frontier',
       creator: 'build things on-chain, write smart contracts, create NFTs, and understand Web3 developer tooling',
-      all: 'full picture — a broad curriculum spanning decentralization, finance, AI, and building on Web3',
+      all: 'full picture — a broad curriculum spanning decentralization, privacy, encryption, decentralized social, finance, AI, and building on Web3',
     };
 
     const trackDescription = trackDescriptions[normalizedTrack] || trackDescriptions.decentralization;
@@ -1218,6 +1218,8 @@ Available topic areas to draw from (pick the most relevant for this user's track
   - Prompt injection & AI security: the "flash loan attack" of the AI world, how agents that read untrusted content get manipulated, defensive patterns
   - AI x crypto convergence: decentralized compute (Render, Akash, io.net), agent-to-agent stablecoin payments, on-chain content provenance — and how to tell real infrastructure from hype
 - Web3 philosophy: decentralization principles, censorship resistance, permissionless systems, ownership
+- Privacy and encryption: data minimization, public versus private content, encryption in transit and at rest, end-to-end encryption, metadata, key management
+- Decentralized social: federation, portable identity and social graphs, client and infrastructure ownership, moderation and governance tradeoffs
 - NFTs: ERC-721, use cases beyond art, gaming, ticketing, music royalties
 - DAOs: governance tokens, voting, Snapshot, Tally, Gnosis Safe, real examples
 
