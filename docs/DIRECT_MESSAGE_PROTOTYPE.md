@@ -13,3 +13,5 @@ The `/messages/prototype` route provides a local UI and transport-boundary demo 
 ## Future integration boundary
 
 `DirectMessageTransport` in `src/lib/direct-message-prototype.ts` is a UI-facing interface. A production implementation would need a specified interoperable message envelope, audited end-to-end encryption and device/key lifecycle, authenticated read/write APIs, durable storage and delivery semantics, and retention/abuse controls. A Hypersnap adapter must use a documented supported protocol; the local demo is not evidence that Hypersnap accepts direct messages.
+
+See [the protocol design and threat model](./DIRECT_MESSAGE_PROTOCOL_DESIGN.md) for the proposed device lifecycle, relay storage model, metadata exposure, and two-device boundary test. That design is still a draft and the test is not a production crypto implementation.
