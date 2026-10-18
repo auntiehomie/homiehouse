@@ -23,7 +23,7 @@ const parent = '0x' + 'a'.repeat(40);
 const quoted = '0x' + 'b'.repeat(40);
 const card = (hash: string, text: string) => ({ hash, text, author: { fid: 321, username: 'navigationtest', display_name: 'Navigation Test' }, timestamp: '2026-10-17T12:00:00Z', embeds: [], replies: { count: 0, casts: [] }, reactions: { likes_count: 0, recasts_count: 0 } });
 
-test('parent/quoted links preserve feed position; Back and Feed retrace and resume detail', async ({ page }) => {
+test('parent/quoted links preserve feed position; Back retraces detail and Feed always opens the full feed', async ({ page }) => {
   const feed = Array.from({ length: 22 }, (_, index) => ({ ...card(`0x${String(index).padStart(40, '0')}`, `Feed cast ${index}: ${'A long test post to make the feed scroll. '.repeat(5)}`), ...(index === 16 ? { parent_hash: parent } : {}) }));
   await page.route('**/api/feed?**', route => route.fulfill({ json: { data: feed, cursor: null } }));
   await page.route('**/api/cast?**', route => {
@@ -52,8 +52,6 @@ test('parent/quoted links preserve feed position; Back and Feed retrace and resu
   await page.getByRole('link', { name: 'Cast', exact: true }).click();
   await expect(page).toHaveURL('/compose');
   await page.getByRole('link', { name: 'Feed', exact: true }).click();
-  await expect(page).toHaveURL(`/cast/${parent}`);
-  await page.getByRole('button', { name: '← Back', exact: true }).click();
   await expect(page).toHaveURL('/feed');
 });
 
