@@ -2,7 +2,7 @@
   "id": "/",
   "name": "HomieHouse",
   "short_name": "HomieHouse",
-  "description": "Your Farcaster social hub — browse feeds, compose casts, and connect on the decentralized web.",
+  "description": "Learn how decentralized social networks work with personalized lessons, community feeds, and plain-English AI guidance.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

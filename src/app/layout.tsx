@@ -20,7 +20,7 @@ const jsonLd = {
   '@type': 'WebSite',
   name: 'HomieHouse',
   url: BASE_URL,
-  description: 'A Farcaster social client — browse your feed, compose casts, and explore the decentralized web.',
+  description: 'A learning hub for decentralized social networks, with personalized lessons, community feeds, and plain-English AI guidance.',
   potentialAction: {
     '@type': 'SearchAction',
     target: {
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     title: 'HomieHouse',
     statusBarStyle: 'black-translucent',
   },
-  description: 'HomieHouse — Your Farcaster social hub. Browse feeds, compose casts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.',
+  description: 'HomieHouse — Learn how decentralized social networks work through personalized lessons, community feeds, AI guidance, and your own notes.',
   keywords: [
     'Farcaster', 'social client', 'decentralized social', 'casts', 'web3 social',
     'Ask Homie', 'AI assistant', 'knowledge base', 'crypto social', 'Farcaster client',
@@ -70,22 +70,22 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn decentralized social',
+    description: 'Learn how decentralized social networks work through personalized lessons, plain-English AI answers, and community feeds.',
     url: BASE_URL,
     images: [
       {
         url: '/api/og',
         width: 1200,
         height: 630,
-        alt: 'HomieHouse — Learn Web3. Connect with your community.',
+        alt: 'HomieHouse — Learn about decentralized social networks with HomieHouse.',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse — Your home on Farcaster',
-    description: 'Personalized Web3 learning plans, Farcaster feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn decentralized social',
+    description: 'Learn how decentralized social networks work through personalized lessons, plain-English AI answers, and community feeds.',
     images: ['/api/og'],
   },
   robots: {
