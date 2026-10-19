@@ -11,7 +11,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockSql.query.mockResolvedValue([]);
   mockSql.mockResolvedValue([]);
-  global.fetch = jest.fn(async (url) => new Response(String(url).includes('rufus-vault') ? entries : summaries)) as typeof fetch;
+  global.fetch = jest.fn(async (url) => new Response(String(url).includes('Knowledge%20Base%20Article%20Context.md') ? summaries : entries)) as typeof fetch;
 });
 
 it('executes schema DDL before inserts, and reports usable content', async () => {
@@ -31,10 +31,10 @@ it('does not write or execute DDL in a sync preview', async () => {
 });
 
 it('reports source failures while preserving an existing enriched row', async () => {
-  global.fetch = jest.fn(async (url) => String(url).includes('rufus-vault') ? new Response(entries) : new Response('', { status: 503 })) as typeof fetch;
+  global.fetch = jest.fn(async (url) => String(url).includes('Knowledge%20Base%20Article%20Context.md') ? new Response('', { status: 503 }) : new Response(entries)) as typeof fetch;
   mockSql.mockImplementation(async (parts: TemplateStringsArray) => parts.join('').includes('COUNT(*)') ? [{ usable: 1 }] : []);
   const result = await syncKnowledgeBase({ skipIndex: true });
-  expect(result.errors[0]).toContain('summaries:');
+  expect(result.errors[0]).toContain('article context:');
   const upsert = mockSql.mock.calls[0][0].join('');
   expect(upsert).toContain('COALESCE(NULLIF(BTRIM(EXCLUDED.summary)');
   expect(upsert).toContain('ELSE kb_articles.learning_points END');
@@ -43,12 +43,20 @@ it('reports source failures while preserving an existing enriched row', async ()
 it('keeps personalized notes out of lesson and bot context while syncing article takeaways', async () => {
   const title = 'The Network State: How to Start a New Country';
   const entry = `| [${title}](https://thenetworkstate.com/book/tns.pdf) | thenetworkstate.com | 2026-10-18 | philosophy, crypto, decentralization, governance, network states |`;
-  const summary = `1. [${title}](https://thenetworkstate.com/book/tns.pdf) — philosophy, crypto, decentralization, governance, network states\n\n**Summary:** A book proposing a staged path for building an online-first community that can grow into a network state.\n\n**3 Things I Learned:**\n- A startup society can be valuable before it becomes a network state.\n- Online alignment and trust precede the growth of physical communities.\n- A DAO or online group alone does not meet the book's full definition.\n\n**Why it matters to this reader:** This is a private personal annotation.`;
-  global.fetch = jest.fn(async (url) => new Response(String(url).includes('rufus-vault') ? entry : summary)) as typeof fetch;
+  const summary = `1. [${title}](https://thenetworkstate.com/book/tns.pdf) — philosophy, crypto, decentralization, governance, network states\n\n**Summary:** A book proposing a staged path for building an online-first community that can grow into a network state.\n\n**3 Things I Learned:**\n- A startup society can be valuable before it becomes a network state.\n- Online alignment and trust precede the growth of physical communities.\n- A DAO or online group alone does not meet the book's full definition.\n\n**Why it matters to this reader:** This is a private personal annotation.\n\n74. [Context without a Rufus index entry](https://example.com/unlisted) — test\n\n**Summary:** This must not enter the canonical KB cache.\n\n**3 Things I Learned:**\n- This context is not indexed.`;
+  global.fetch = jest.fn(async (url) => new Response(String(url).includes('Knowledge%20Base%20Article%20Context.md') ? summary : entry)) as typeof fetch;
   mockSql.mockImplementation(async (parts: TemplateStringsArray) => parts.join('').includes('COUNT(*)') ? [{ usable: 1 }] : []);
 
   const result = await syncKnowledgeBase({ skipIndex: true });
+  const sourceUrls = (global.fetch as jest.Mock).mock.calls.map(([url]) => String(url));
+  expect(sourceUrls).toHaveLength(2);
+  expect(sourceUrls.every((url) => url.includes('auntiehomie/rufus-vault/'))).toBe(true);
+  expect(sourceUrls.some((url) => url.includes('homie-knowledge'))).toBe(false);
   const insertCall = mockSql.mock.calls.find((call) => call[0].join('').includes('INSERT INTO kb_articles'));
+  expect(mockSql.mock.calls.filter((call) => call[0].join('').includes('INSERT INTO kb_articles'))).toHaveLength(1);
+  const reconcileCall = mockSql.mock.calls.find((call) => call[0].join('').includes('DELETE FROM kb_articles'));
+  expect(reconcileCall?.[0].join('')).toContain('LOWER(BTRIM(title))');
+  expect(reconcileCall?.[1]).toEqual([title.toLowerCase()]);
   expect(result).toMatchObject({ upserted: 1, usable: 1, errors: [] });
   expect(insertCall?.[1]).toBe(title);
   expect(insertCall?.[5]).toContain('A book proposing a staged path');
@@ -70,6 +78,7 @@ it('keeps personalized notes out of lesson and bot context while syncing article
   }]);
   const context = formatKBContext(await getRelevantKBArticles('network state governance'));
   expect(context).toContain(title);
+  expect(context).toContain('Source URL: https://thenetworkstate.com/book/tns.pdf');
   expect(context).toContain('A startup society can be valuable before it becomes a network state.');
   expect(context).not.toContain('Why it matters to this reader');
 });
