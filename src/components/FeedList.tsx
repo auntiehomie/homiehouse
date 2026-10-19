@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 import UrlPreview from './UrlPreview';
 import EmbedRenderer, { findFarcasterCastUrls, parseFarcasterCastUrl } from './EmbedRenderer';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
+import ConversationLearningLinks from './ConversationLearningLinks';
 import ParentCastBadge from './ParentCastBadge';
 import AICurationSuggestions from './AICurationSuggestions';
 import { getStoredFid } from '@/lib/client-auth';
@@ -1033,6 +1034,12 @@ export default function FeedList({
               />
             </div>
             
+            <ConversationLearningLinks cast={{
+              hash: String(key),
+              text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+              author: { username: authorUsername },
+            }} />
+
             {/* Reply input */}
             {replyingTo === key && (
               <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>

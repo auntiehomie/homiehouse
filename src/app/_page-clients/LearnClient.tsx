@@ -773,6 +773,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
                 : m
             ),
             mode: 'agent',
+            learningMode: 'explain',
             eli5: getEli5Mode(),
           }),
         });
@@ -1374,6 +1375,13 @@ function LearnPageContent() {
           <ChannelSidebar />
         </aside>
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
+          {activeTab !== 'homie' && activeTab !== 'feed' && (
+            <section className="surface" aria-label="Learn from your curiosity" style={{ margin: '16px auto', maxWidth: 688, padding: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>Saw something you want to understand?</h2>
+              <p style={{ fontSize: 14, margin: '0 0 12px', color: 'var(--muted-on-dark)' }}>Use Ask Homie to explain an idea in plain English or build a focused lesson around your question. You can also start directly from a cast.</p>
+              <Link className="btn primary" href="/ask-homie?learning=lesson">Build a lesson with Ask Homie</Link>
+            </section>
+          )}
           {activeTab === 'homie'
             ? <HomieReadPanel currentPlan={plan} />
             : activeTab === 'feed'
