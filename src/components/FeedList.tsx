@@ -655,6 +655,12 @@ export default function FeedList({
 
         return (
           <article key={key} data-feed-cast-hash={String(key)} className="surface" style={{ position: 'relative' }}>
+            {feedType === 'community' && Array.isArray(it.community_ranking?.reasons) && (
+              <details style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 8 }}>
+                <summary>Why this cast?</summary>
+                <ul>{it.community_ranking.reasons.map((reason: string) => <li key={reason}>{reason}</li>)}</ul>
+              </details>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'start', flex: 1 }}>
                 <Link href={profileHref}>
