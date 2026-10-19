@@ -1,9 +1,9 @@
 /**
- * Dynamic Knowledge Base sync — fetches Amanda's KB articles from GitHub
- * (rufus-vault entries table + homie-knowledge summaries) and caches them
+ * Dynamic Knowledge Base sync — fetches Amanda's KB index and article context
+ * from Rufus-vault and caches them
  * in the Neon `kb_articles` table for the bot to query at runtime.
  *
- * The sync runs daily via the /api/agent/kb-sync cron. At runtime the bot
+ * The sync runs hourly via the /api/agent/kb-sync cron. At runtime the bot
  * calls `getRelevantKBArticles()` to pull context for replies and posts
  * without hitting GitHub on every mention.
  */
@@ -56,8 +56,8 @@ async function ensureTable(): Promise<void> {
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 const RUFUS_VAULT_RAW =
   'https://raw.githubusercontent.com/auntiehomie/rufus-vault/master/projects/Knowledge%20Base.md';
-const HOMIE_KNOWLEDGE_SUMMARIES_RAW =
-  'https://raw.githubusercontent.com/auntiehomie/homie-knowledge/main/organized/Knowledge%20Base/knowledge%20base%20summaries.md';
+const RUFUS_VAULT_CONTEXT_RAW =
+  'https://raw.githubusercontent.com/auntiehomie/rufus-vault/master/projects/Knowledge%20Base%20Article%20Context.md';
 
 async function fetchRaw(url: string): Promise<string> {
   const headers: Record<string, string> = { accept: 'text/plain' };
@@ -120,7 +120,7 @@ function parseEntriesTable(markdown: string): ParsedEntry[] {
 }
 
 /**
- * Parse the homie-knowledge summaries file.
+ * Parse the article-context file stored alongside Rufus-vault's KB index.
  * Each article is numbered, with a title link, tags, a summary, and 3 learning points.
  */
 function parseSummaries(markdown: string): Map<string, ParsedSummary> {
@@ -187,23 +187,22 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?:
 
   })(), (async () => {
   try {
-    const summariesMd = await fetchRaw(HOMIE_KNOWLEDGE_SUMMARIES_RAW);
+    const summariesMd = await fetchRaw(RUFUS_VAULT_CONTEXT_RAW);
     summaries = parseSummaries(summariesMd);
-    if (!summaries.size) errors.push('summaries: source parsed zero articles');
+    if (!summaries.size) errors.push('article context: source parsed zero articles');
   } catch (err: any) {
-    errors.push(`summaries: ${err.message}`);
+    errors.push(`article context: ${err.message}`);
   }
   })() ]);
 
-  if (!entries.length && !summaries.size) {
-    return { fetched: 0, upserted: 0, errors };
-  }
-
-  const summaryOnlyCount = [...summaries.keys()].filter(
-    (lowerTitle) => !entries.some((entry) => entry.title.toLowerCase() === lowerTitle),
-  ).length;
   const fetched = entries.length + summaries.size;
-  const wouldUpsert = entries.length + summaryOnlyCount;
+  const wouldUpsert = entries.length;
+
+  // Rufus-vault's index is the canonical allowlist. Without it, do not let a
+  // context file alone populate the cache or trigger reconciliation.
+  if (!entries.length) {
+    return { fetched, upserted: 0, wouldUpsert: 0, errors };
+  }
 
   // A dry run validates both sources and reports the number of rows that would
   // be written without creating tables, upserting rows, or indexing embeddings.
@@ -211,9 +210,8 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?:
     return { fetched, upserted: 0, wouldUpsert, errors };
   }
 
-  // Merge: entries table has the canonical titles + URLs + sources.
-  // Summaries file has the rich summary + learning points.
-  // Also include summaries that don't appear in the entries table.
+  // The index supplies canonical titles, URLs and source tags; matching rows
+  // in the Rufus-vault context file enrich those entries with article context.
   await ensureTable();
 
   let upserted = 0;
@@ -253,33 +251,16 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?:
     }
   }
 
-  // Also upsert summaries that aren't in the entries table
-  for (const [lowerTitle, sm] of summaries) {
-    const existsInEntries = entries.some((e) => e.title.toLowerCase() === lowerTitle);
-    if (existsInEntries) continue;
-
-    try {
-      await sql`
-        INSERT INTO kb_articles (title, url, source, tags, summary, learning_points)
-        VALUES (
-          ${sm.title},
-          NULL,
-          NULL,
-          ${sm.tags},
-          ${sm.summary},
-          ${sm.learningPoints}
-        )
-        ON CONFLICT (title) DO UPDATE SET
-          tags = EXCLUDED.tags,
-          summary = COALESCE(NULLIF(BTRIM(EXCLUDED.summary), ''), kb_articles.summary),
-          learning_points = CASE WHEN cardinality(EXCLUDED.learning_points) > 0
-            THEN EXCLUDED.learning_points ELSE kb_articles.learning_points END,
-          synced_at = NOW()
-      `;
-      upserted++;
-    } catch (err: any) {
-      errors.push(`upsert summary "${sm.title}": ${err.message}`);
-    }
+  // Remove cached rows that are no longer present in the Rufus-vault index.
+  // This also retires legacy summary-only rows from the former second source.
+  try {
+    const canonicalTitles = entries.map((entry) => entry.title.toLowerCase());
+    await sql`
+      DELETE FROM kb_articles
+      WHERE NOT (LOWER(BTRIM(title)) = ANY(${canonicalTitles}::text[]))
+    `;
+  } catch (err: any) {
+    errors.push(`reconcile canonical KB entries: ${err.message}`);
   }
 
   // Keep the semantic index aligned with KB summaries so the mention agent
@@ -410,6 +391,7 @@ export function formatKBContext(articles: KBArticle[]): string {
   const parts = articles.map((a) => {
     const lines = [`## ${a.title}`];
     if (a.source) lines.push(`Source: ${a.source}`);
+    if (a.url) lines.push(`Source URL: ${a.url}`);
     if (a.tags.length) lines.push(`Tags: ${a.tags.join(', ')}`);
     if (a.summary) lines.push(``, a.summary.slice(0, 800));
     if (a.learning_points?.length) {
