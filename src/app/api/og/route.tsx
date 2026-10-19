@@ -71,16 +71,16 @@ export async function GET(request: Request) {
               borderRadius: 20, padding: '6px 16px',
             }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#34d399', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                Your home on Farcaster
+                Learn, cast, and grow
               </span>
             </div>
             <div style={{ fontSize: 56, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em', display: 'flex', flexDirection: 'column' }}>
               Learn Web3.
-              Connect with
-              your community.
+              Turn casts into
+              personalized lessons.
             </div>
             <div style={{ fontSize: 22, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, maxWidth: 640 }}>
-              Personalized learning plans, Farcaster feeds, mini-apps, and AI insights — all in one place.
+              Turn casts into personalized lessons, plain-English answers, and ideas you can use.
             </div>
           </div>
 
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
           <div style={{ display: 'flex', gap: 12 }}>
             {[
               { emoji: '📚', label: 'Learning Hub', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.25)' },
-              { emoji: '📡', label: 'Farcaster Feed', color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)' },
+              { emoji: '📡', label: 'Hypersnap Feed', color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)' },
               { emoji: '🤖', label: 'Ask Homie AI', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)' },
               { emoji: '📝', label: 'Notes', color: '#fb923c', bg: 'rgba(251,146,60,0.1)', border: 'rgba(251,146,60,0.25)' },
             ].map(({ emoji, label, color, bg, border }) => (

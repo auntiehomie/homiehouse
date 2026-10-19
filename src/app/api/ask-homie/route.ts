@@ -9,6 +9,8 @@ import { isProUser } from '@/lib/pro';
 import { fetchCast } from '@/lib/hypersnap';
 import { formatLiveCastContext, requiresLiveCastEvidence, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
+import { formatLiveWebContext, searchTopicWeb } from '@/lib/ai/news';
+import { shouldSearchWeb } from '@/lib/agent-context';
 
 // Module-level logger for helper functions
 const logger = createApiLogger('/ask-homie');
@@ -208,6 +210,16 @@ ${contextualMessage}`;
     // to emit pseudo tool calls that it cannot actually run.
     const researchIntent = intent || 'auto';
     const liveCastSearchRequested = shouldSearchLiveCasts(userMessage, researchIntent);
+    const liveWebSearchRequested = researchIntent === 'research' ||
+      (researchIntent === 'auto' && shouldSearchWeb(userMessage));
+    let liveWebResearch: Awaited<ReturnType<typeof searchTopicWeb>> = null;
+
+    if (liveWebSearchRequested) {
+      const castText = activeCastContext?.text ? `\n\nCast to explain:\n${activeCastContext.text}` : '';
+      liveWebResearch = await searchTopicWeb(`${userMessage}${castText}`);
+      if (liveWebResearch) contextualMessage = `${formatLiveWebContext(liveWebResearch)}\n${contextualMessage}`;
+    }
+
     if (liveCastSearchRequested) {
       const searchQuestion = activeCastContext && /\b(similar|other casts|examples)\b/i.test(userMessage)
         ? `${userMessage}\n${activeCastContext.text || ''}`
@@ -250,7 +262,16 @@ ${contextualMessage}`;
       response: sanitizeAssistantResponse(result.content),
       suggestions: result.suggestions,
       agentRole: result.role,
-      metadata: result.metadata,
+      metadata: {
+        ...result.metadata,
+        ...(liveWebSearchRequested ? {
+          liveWebSearch: {
+            provider: 'Brave Search',
+            status: liveWebResearch ? 'searched' : 'unavailable',
+            citations: liveWebResearch?.citations ?? [],
+          },
+        } : {}),
+      },
       mode: 'agent',
       userStats: UserProfileStorage.getStats(userIdentifier)
     });

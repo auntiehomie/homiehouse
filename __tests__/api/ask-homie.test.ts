@@ -7,6 +7,7 @@ var getStats = jest.fn();
 var updateProfile = jest.fn();
 var addCast = jest.fn();
 var searchRelevantCasts = jest.fn();
+var searchTopicWeb = jest.fn();
 
 jest.mock('@/lib/ai/cast-research', () => ({
   searchRelevantCasts: (...args: unknown[]) => searchRelevantCasts(...args),
@@ -15,6 +16,14 @@ jest.mock('@/lib/ai/cast-research', () => ({
   requiresLiveCastEvidence: (question: string) => /recent|latest|news|sale|acquisition|verify/i.test(question),
   formatLiveCastContext: (research: { queries: string[]; casts: unknown[] }) =>
     `LIVE SEARCH ${research.queries.join(',')}: ${JSON.stringify(research.casts)}`,
+}));
+jest.mock('@/lib/ai/news', () => ({
+  searchTopicWeb: (...args: unknown[]) => searchTopicWeb(...args),
+  formatLiveWebContext: (research: { summary: string; citations: string[] }) =>
+    `LIVE WEB ${research.summary} ${research.citations.join(' ')}`,
+}));
+jest.mock('@/lib/agent-context', () => ({
+  shouldSearchWeb: (question: string) => question.includes('?'),
 }));
 jest.mock('@/lib/ai/sanitize-response', () => ({
   sanitizeAssistantResponse: (content: string) => content.includes('<function_calls>') ? 'Safe fallback' : content,
@@ -51,6 +60,7 @@ describe('/api/ask-homie', () => {
     getStats.mockReturnValue({ casts: 0 });
     processRequest.mockResolvedValue({ content: 'Hello!', suggestions: [], role: 'assistant', metadata: {} });
     searchRelevantCasts.mockResolvedValue({ queries: ['farcaster acquisition'], casts: [] });
+    searchTopicWeb.mockResolvedValue(null);
   });
 
   it('returns the assistant response for a valid request', async () => {
@@ -96,6 +106,27 @@ describe('/api/ask-homie', () => {
       expect.stringContaining('A cast discussing the topic'),
       'research',
     );
+  });
+
+  it('adds live web research and source links to Ask Homie answers', async () => {
+    searchTopicWeb.mockResolvedValueOnce({
+      summary: 'A current, sourced explanation.',
+      citations: ['https://example.org/article'],
+    });
+    const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Explain this cast: what does it mean?' }],
+        castContext: { text: 'A cast about decentralized identity.' },
+      }),
+    }));
+
+    expect(searchTopicWeb).toHaveBeenCalledWith(expect.stringContaining('A cast about decentralized identity.'));
+    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining('LIVE WEB A current, sourced explanation.'), 'auto');
+    await expect(response.json()).resolves.toMatchObject({
+      metadata: { liveWebSearch: { provider: 'Brave Search', status: 'searched', citations: ['https://example.org/article'] } },
+    });
   });
 
   it('replaces model-emitted pseudo tool-call markup with a safe fallback', async () => {

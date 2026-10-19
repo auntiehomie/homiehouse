@@ -498,6 +498,25 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                 </div>
               )}
 
+              {msg.role === 'assistant' && msg.metadata?.liveWebSearch && (
+                <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
+                  <div>
+                    Live web search {msg.metadata.liveWebSearch.status === 'searched' ? 'sources' : 'unavailable'}
+                  </div>
+                  {msg.metadata.liveWebSearch.citations?.map((url: string, sourceIndex: number) => (
+                    <a
+                      key={`${url}-${sourceIndex}`}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block truncate text-indigo-300 hover:underline"
+                    >
+                      {url.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0]}
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {/* Share button for assistant messages */}
               {msg.role === 'assistant' && (
                 <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">

@@ -1,12 +1,12 @@
 /**
  * Live crypto news lookup for the @thehomie posting cron.
  *
- * Uses Perplexity's `sonar` model, which does its own web search, to surface
- * one specific, recent, real crypto news item the agent can react to —
- * distinct from `fetchTrendingFeed` in hypersnap.ts, which only sees what's
- * trending *on Farcaster*, not the wider web.
+ * `fetchCryptoNews` uses Perplexity for the autonomous poster's crypto-news
+ * item. `searchTopicWeb` uses Brave's LLM Context endpoint for Ask Homie and
+ * mention replies. Brave retrieves independent web sources; the configured
+ * model then explains them alongside Hypersnap cast context.
  *
- * Fully optional: if PERPLEXITY_API_KEY isn't set, callers should treat a
+ * Fully optional: if BRAVE_API_KEY isn't set, callers should treat a
  * null return the same way they treat "no trend found" and fall back to
  * another post mode.
  */
@@ -20,6 +20,16 @@ export interface CryptoNewsItem {
 export interface TopicWebContext {
   summary: string;
   citations: string[];
+}
+
+interface BraveContextResponse {
+  grounding?: {
+    generic?: Array<{
+      url?: unknown;
+      title?: unknown;
+      snippets?: unknown;
+    }>;
+  };
 }
 
 const NEWS_SYSTEM = `You are a crypto news lookup tool. Search the web for ONE specific, real crypto/web3/blockchain news story from the last 48 hours — something with a real headline and a real source, not a general trend.
@@ -81,55 +91,65 @@ export async function fetchCryptoNews(): Promise<CryptoNewsItem | null> {
 }
 
 /**
- * Search the wider web for a cast topic and return a compact sourced brief.
- * This is separate from fetchCryptoNews, which always searches for a general
- * recent crypto headline. Mention replies should search the topic they were
- * asked about and retain Perplexity's actual citation URLs.
+ * Search the wider web for a question or cast topic and return grounded text
+ * with the source URLs Brave used to retrieve it.
  */
 export async function searchTopicWeb(query: string): Promise<TopicWebContext | null> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  const cleanQuery = query.trim().slice(0, 700);
+  const apiKey = process.env.BRAVE_API_KEY;
+  const cleanQuery = query.trim().slice(0, 600);
   if (!apiKey || cleanQuery.length < 5) return null;
 
   try {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
+    const endpoint = new URL('https://api.search.brave.com/res/v1/llm/context');
+    endpoint.searchParams.set('q', cleanQuery);
+    endpoint.searchParams.set('count', '6');
+    endpoint.searchParams.set('maximum_number_of_urls', '6');
+    endpoint.searchParams.set('maximum_number_of_tokens', '4096');
+    endpoint.searchParams.set('maximum_number_of_snippets', '18');
+    endpoint.searchParams.set('context_threshold_mode', 'balanced');
+    endpoint.searchParams.set('safesearch', 'moderate');
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+        'X-Subscription-Token': apiKey,
       },
-      body: JSON.stringify({
-        model: 'sonar',
-        messages: [
-          {
-            role: 'system',
-            content: 'Research the cast topic using current web sources. Return a concise factual brief that distinguishes established facts from claims or uncertainty. Do not invent URLs or sources.',
-          },
-          {
-            role: 'user',
-            content: `Find useful web context for this Farcaster topic. Focus on the entities and question in the text; return at most 3 short factual sentences.\n\n${cleanQuery}`,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 350,
-      }),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(12000),
     });
 
     if (!response.ok) {
-      console.warn('[news] Perplexity topic search failed:', response.status);
+      console.warn('[news] Brave topic search failed:', response.status);
       return null;
     }
 
-    const data = await response.json();
-    const summary = String(data?.choices?.[0]?.message?.content ?? '').trim().slice(0, 1200);
-    const citations = Array.isArray(data?.citations)
-      ? data.citations.filter((url: unknown) => typeof url === 'string' && /^https?:\/\//i.test(url)).slice(0, 4)
-      : [];
-    if (!summary || summary.toLowerCase() === 'no results') return null;
-    return { summary, citations };
+    const data = await response.json() as BraveContextResponse;
+    const sources = Array.isArray(data?.grounding?.generic) ? data.grounding.generic : [];
+    const citations: string[] = [];
+    const excerpts = sources.flatMap((source) => {
+      const url = typeof source?.url === 'string' && /^https?:\/\//i.test(source.url) ? source.url : '';
+      if (!url) return [];
+      citations.push(url);
+      const snippets = Array.isArray(source?.snippets)
+        ? source.snippets.filter((snippet: unknown) => typeof snippet === 'string').slice(0, 3)
+        : [];
+      if (!snippets.length) return [];
+      return [`${String(source.title || url).slice(0, 180)} (${url})\n${snippets.join('\n')}`];
+    });
+    const summary = excerpts.join('\n\n').slice(0, 7000);
+    if (!summary) return null;
+    return { summary, citations: [...new Set(citations)].slice(0, 6) };
   } catch (error) {
-    console.warn('[news] topic web search unavailable:', (error as Error).message);
+    console.warn('[news] Brave topic search unavailable:', (error as Error).message);
     return null;
   }
+}
+
+/** Format live web results as source-grounded context for Ask Homie's model. */
+export function formatLiveWebContext(context: TopicWebContext): string {
+  const citations = context.citations.length
+    ? context.citations.map((url, index) => `[${index + 1}] ${url}`).join('\n')
+    : 'No citation URLs were returned.';
+
+  return `\n\n[LIVE WEB SEARCH — Brave Search]\nThis is retrieved web material and may be incomplete or wrong. Use it as evidence, distinguish verified facts from uncertainty, and cite claims from it using the exact source URLs below. Do not invent citations.\n${context.summary}\nSources:\n${citations}\n[END LIVE WEB SEARCH]\n`;
 }
