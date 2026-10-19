@@ -36,8 +36,28 @@ it('reports source failures while preserving an existing enriched row', async ()
   const result = await syncKnowledgeBase({ skipIndex: true });
   expect(result.errors[0]).toContain('article context:');
   const upsert = mockSql.mock.calls[0][0].join('');
-  expect(upsert).toContain('COALESCE(NULLIF(BTRIM(EXCLUDED.summary)');
+  expect(upsert).toContain('ELSE kb_articles.summary END');
   expect(upsert).toContain('ELSE kb_articles.learning_points END');
+});
+
+it('clears cached article context when it is absent from a successfully loaded Rufus context file', async () => {
+  global.fetch = jest.fn(async (url) => new Response(
+    String(url).includes('Knowledge%20Base%20Article%20Context.md')
+      ? '1. [Different article](https://example.com/different) — test\n\n**Summary:** An unrelated article summary.\n\n**3 Things I Learned:**\n- One explicit takeaway.'
+      : entries,
+  )) as typeof fetch;
+  mockSql.mockImplementation(async (parts: TemplateStringsArray) => parts.join('').includes('COUNT(*)') ? [{ usable: 0 }] : []);
+
+  const result = await syncKnowledgeBase({ skipIndex: true });
+  const upsert = mockSql.mock.calls.find((call) => call[0].join('').includes('INSERT INTO kb_articles'));
+  const query = upsert?.[0].join('') ?? '';
+  expect(query).toContain('CASE WHEN');
+  expect(query).toContain('THEN EXCLUDED.summary ELSE kb_articles.summary END');
+  expect(query).toContain('THEN EXCLUDED.learning_points ELSE kb_articles.learning_points END');
+  expect(upsert?.[1]).toBe('Wallets');
+  expect(upsert?.[5]).toBeNull();
+  expect(upsert?.[6]).toEqual([]);
+  expect(result.errors).toContain('No content-bearing knowledge-base articles available');
 });
 
 it('keeps personalized notes out of lesson and bot context while syncing article takeaways', async () => {
