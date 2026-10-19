@@ -174,6 +174,7 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?:
   const errors: string[] = [];
   let entries: ParsedEntry[] = [];
   let summaries = new Map<string, ParsedSummary>();
+  let contextLoaded = false;
 
   // Fetch independent sources concurrently to stay within the cron budget.
   await Promise.all([ (async () => {
@@ -189,7 +190,11 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?:
   try {
     const summariesMd = await fetchRaw(RUFUS_VAULT_CONTEXT_RAW);
     summaries = parseSummaries(summariesMd);
-    if (!summaries.size) errors.push('article context: source parsed zero articles');
+    if (!summaries.size) {
+      errors.push('article context: source parsed zero articles');
+    } else {
+      contextLoaded = true;
+    }
   } catch (err: any) {
     errors.push(`article context: ${err.message}`);
   }
@@ -240,9 +245,8 @@ export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?:
           url = EXCLUDED.url,
           source = EXCLUDED.source,
           tags = EXCLUDED.tags,
-          summary = COALESCE(NULLIF(BTRIM(EXCLUDED.summary), ''), kb_articles.summary),
-          learning_points = CASE WHEN cardinality(EXCLUDED.learning_points) > 0
-            THEN EXCLUDED.learning_points ELSE kb_articles.learning_points END,
+          summary = CASE WHEN ${contextLoaded} THEN EXCLUDED.summary ELSE kb_articles.summary END,
+          learning_points = CASE WHEN ${contextLoaded} THEN EXCLUDED.learning_points ELSE kb_articles.learning_points END,
           synced_at = NOW()
       `;
       upserted++;
