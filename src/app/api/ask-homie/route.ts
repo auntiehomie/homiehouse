@@ -1,3 +1,4 @@
+import { isLearningMode } from '@/lib/conversation-learning';
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
@@ -14,7 +15,7 @@ import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
 const logger = createApiLogger('/ask-homie');
 
 // Increase timeout for agent tool calls and processing
-export const maxDuration = 30; // 30 seconds for Pro plan, will use max available on free plan
+export const maxDuration = 120; // Thread retrieval and full lessons need the same headroom as /api/lesson.
 
 // Provider selection: Free-tier chain (Cerebras → Groq → Gemini → OpenRouter) via AgentOrchestrator
 // Per docs/AI_PROVIDER_STRATEGY.md: no paid fallback unless explicitly justified
@@ -76,7 +77,16 @@ export async function POST(req: NextRequest) {
       intent,
       feedback,
       eli5 = false,
+      learningMode,
+      learningTopic,
     } = await req.json();
+
+    if (!Array.isArray(messages) || (!messages.length && !feedback) || (isLearningMode(learningMode) && !messages.some((message: any) => message?.role === 'user')) || messages.length > 100 ||
+      messages.some((message: any) => !['user', 'assistant'].includes(message?.role) || typeof message?.content !== 'string' || message.content.length > 20000) ||
+      (learningMode !== undefined && !isLearningMode(learningMode)) ||
+      (learningTopic !== undefined && (typeof learningTopic !== 'string' || learningTopic.length > 200))) {
+      return NextResponse.json({ error: 'Invalid conversation or learning request' }, { status: 400 });
+    }
 
     // Check Pro status if userFid provided
     const userFidForPro = userContext?.fid ? Number(userContext.fid) : 0;
@@ -89,6 +99,14 @@ export async function POST(req: NextRequest) {
           ? 'Rate limited. Try again later.'
           : 'Rate limit reached (10/hour for free users). Upgrade to Pro for 60/hour.',
       }, { status: 429 });
+    }
+
+    if (isLearningMode(learningMode)) {
+      const { generateConversationLearning } = await import('@/lib/ai/conversation-learning');
+      const result = await generateConversationLearning({ mode: learningMode, messages, castContext, topic: learningTopic });
+      return NextResponse.json({ ...result, response: sanitizeAssistantResponse(result.response) }, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
     }
 
     logger.info('Processing AI request', { 

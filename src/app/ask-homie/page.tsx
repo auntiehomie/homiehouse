@@ -3,11 +3,12 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from "next/link";
 import HHLogo from '@/components/HHLogo';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import AgentChat from '@/components/AgentChat';
 import FeedCurationChat from '@/components/FeedCurationChat';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
+import { isLearningMode } from '@/lib/conversation-learning';
 import SidebarNav from '@/components/SidebarNav';
 
 function AskHomieContent() {
@@ -15,6 +16,7 @@ function AskHomieContent() {
   const [showCurationModal, setShowCurationModal] = useState(false);
   const [starterQuestion, setStarterQuestion] = useState<string | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const { fid } = useFarcasterAuth();
   const userId = fid ? `fid_${fid}` : undefined;
@@ -23,20 +25,22 @@ function AskHomieContent() {
     const castData = searchParams.get('cast');
     if (castData) {
       try {
-        setCastContext(JSON.parse(decodeURIComponent(castData)));
-        localStorage.setItem('hh_ask_context', castData);
+        setCastContext(JSON.parse(castData));
+        try { localStorage.setItem('hh_ask_context', castData); } catch {}
       } catch {}
     } else {
-      const stored = localStorage.getItem('hh_ask_context');
+      let stored: string | null = null;
+      try { stored = localStorage.getItem('hh_ask_context'); } catch {}
       if (stored) {
-        try { setCastContext(JSON.parse(decodeURIComponent(stored))); } catch {}
+        try { setCastContext(JSON.parse(stored)); } catch {}
       }
     }
   }, [searchParams]);
 
   const clearContext = () => {
     setCastContext(null);
-    localStorage.removeItem('hh_ask_context');
+    try { localStorage.removeItem('hh_ask_context'); } catch {}
+    router.replace('/ask-homie');
   };
 
   const handleCastSelect = (cast: string) => {
@@ -53,7 +57,7 @@ function AskHomieContent() {
             <HHLogo size={36} />
           </Link>
           <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 2 }}>
-            Ask Homie — AI assistant
+            Ask Homie — turn curiosity into understanding
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -88,7 +92,7 @@ function AskHomieContent() {
           <SidebarNav />
         </aside>
 
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 80 }}>
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, paddingBottom: 80 }}>
         {/* Cast context card */}
         {castContext && (
           <div style={{
@@ -180,7 +184,9 @@ function AskHomieContent() {
             userId={userId || undefined}
             castContext={castContext}
             onCastSelect={handleCastSelect}
-            initialMessage={starterQuestion || undefined}
+            initialMessage={starterQuestion || searchParams.get('q') || undefined}
+            initialLearningMode={isLearningMode(searchParams.get('learning')) ? searchParams.get('learning') as 'explain' | 'lesson' : undefined}
+            contextReady={!searchParams.get('cast') || !!castContext}
           />
         </div>
         </main>

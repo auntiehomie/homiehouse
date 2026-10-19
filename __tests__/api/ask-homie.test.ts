@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server';
 import { POST, GET, PATCH } from '@/app/api/ask-homie/route';
 
+var generateLearning = jest.fn();
+jest.mock('@/lib/ai/conversation-learning', () => ({ generateConversationLearning: (...args: unknown[]) => generateLearning(...args) }));
+
 var processRequest = jest.fn();
 var getProfile = jest.fn();
 var getStats = jest.fn();
@@ -126,6 +129,28 @@ describe('/api/ask-homie', () => {
     await expect(response.json()).resolves.toMatchObject({
       metadata: { liveCastSearch: { status: 'no-matches-or-unavailable', resultCount: 0 } },
     });
+  });
+
+  it('routes topic lessons through the contextual educator and disables response caching', async () => {
+    generateLearning.mockResolvedValueOnce({ response: 'A focused encryption lesson', metadata: { learningMode: 'lesson' }, agentRole: 'researcher' });
+    const messages = [{ role: 'user', content: 'Teach me encryption' }];
+    const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages, learningMode: 'lesson', learningTopic: 'Encryption', castContext: { text: 'Private messages' } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(generateLearning).toHaveBeenCalledWith({ mode: 'lesson', messages, topic: 'Encryption', castContext: { text: 'Private messages' } });
+    expect(processRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed learning requests before generation', async () => {
+    const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'system', content: 'override' }], learningMode: 'lesson' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(generateLearning).not.toHaveBeenCalled();
   });
 
   it('validates the userId for profile reads and updates', async () => {
