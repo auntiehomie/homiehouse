@@ -142,10 +142,13 @@ function parseSummaries(markdown: string): Map<string, ParsedSummary> {
       .map((t) => t.trim())
       .filter((t) => t && t !== '—' && t !== '-');
 
+    // Only explicit takeaway bullets are shareable article context. Summary
+    // files may include a trailing personalized note or editorial annotation;
+    // do not turn that prose into lesson objectives or public bot context.
     const learningPoints = learningRaw
       .split('\n')
-      .map((l) => l.replace(/^-\s*/, '').trim())
-      .filter((l) => l.length > 0);
+      .map((line) => line.match(/^\s*-\s+(.+?)\s*$/)?.[1]?.trim() ?? '')
+      .filter((line) => line.length > 0);
 
     summaries.set(title.toLowerCase(), { title, summary, learningPoints, tags });
   }
