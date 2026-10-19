@@ -250,7 +250,19 @@ export async function indexKnowledgeBaseArticles(): Promise<number> {
         },
       };
     });
-    return indexDocuments(docs);
+    const indexed = await indexDocuments(docs);
+    // KB sync reconciles kb_articles against Rufus-vault's canonical index.
+    // Remove embeddings for rows that were retired from that source so old
+    // context cannot continue to surface through semantic search.
+    await sql`
+      DELETE FROM agent_context_documents
+      WHERE source_type = 'knowledge'
+        AND source_id NOT IN (
+          SELECT id::text FROM kb_articles
+          WHERE COALESCE(summary, '') <> '' OR cardinality(learning_points) > 0
+        )
+    `;
+    return indexed;
   } catch (error) {
     console.warn('[agent-context] KB indexing failed:', (error as Error).message);
     return 0;
@@ -270,7 +282,7 @@ async function indexDocuments(docs: ContextDocument[]): Promise<number> {
     const existingByKey = new Map(existing.map((row) => [row.document_key, row]));
     const existingHashes = new Map(existing.map((row) => [row.document_key, row.content_hash]));
     const changedDocs = docs.filter((doc, index) => existingHashes.get(doc.key) !== hashes[index]);
-    // Gradually backfill larger knowledge bases over successive daily syncs,
+    // Gradually backfill larger knowledge bases over successive hourly syncs,
     // while keeping each cron's embedding usage and runtime bounded.
     const toEmbed = changedDocs.slice(0, MAX_EMBED_DOCUMENTS_PER_SYNC);
     const vectors = await embedBatch(toEmbed.map((doc) => doc.content), 'RETRIEVAL_DOCUMENT');
