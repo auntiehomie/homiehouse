@@ -1050,7 +1050,7 @@ function LearnPageContent() {
       if (storedPlan) { setPlan(JSON.parse(storedPlan) as LearningPlan); setPageState('plan'); }
       if (storedProgress) setCompletedIds(new Set(JSON.parse(storedProgress) as string[]));
     } catch { }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (plan) { try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(plan)); } catch { } }
