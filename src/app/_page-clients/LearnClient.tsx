@@ -47,6 +47,8 @@ type LearnTab = 'plan' | 'completed' | 'premium' | 'homie' | 'feed';
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
 const LS_COMPLETIONS_KEY = 'hh_learning_completions';
+const RELATED_BACKUP_PLAN_KEY = 'hh_related_backup_plan';
+const RELATED_BACKUP_PROGRESS_KEY = 'hh_related_backup_progress';
 
 // ─── Premium Tracks Panel ────────────────────────────────────────────────────
 
@@ -1029,22 +1031,69 @@ function LearnPageContent() {
   }) as { data: bigint | undefined };
   const onChainBalance = hh2Raw && decRaw ? Number(formatUnits(hh2Raw, Number(decRaw))) : 0;
 
-  // Deep-link pre-selection
+  // Cast lesson links open a real track plan, using the beginner path as a
+  // useful default so learners reach lessons without another setup detour.
   useEffect(() => {
     const t = searchParams.get('track') as Track | null;
     const valid: Track[] = ['ai', 'finance', 'creator', 'decentralization', 'all'];
-    // Legacy track mapping for URLs still using old track names
-    if (t) {
-      const legacyMap: Record<string, string> = { learner: 'decentralization', financial: 'finance', survival: 'decentralization' };
-      const normalized = legacyMap[t] || t;
-      if (valid.includes(normalized as Track)) setTrack(normalized as Track);
+    const legacyMap: Record<string, string> = { learner: 'decentralization', financial: 'finance', survival: 'decentralization' };
+    const normalized = t ? legacyMap[t] || t : null;
+    if (normalized && valid.includes(normalized as Track)) {
+      setTrack(normalized as Track);
+      if (searchParams.get('related') === '1') {
+        // Keep the learner's existing plan and progress available when they
+        // return from this cast-specific lesson path.
+        try {
+          if (sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) === null) {
+            sessionStorage.setItem(RELATED_BACKUP_PLAN_KEY, JSON.stringify(localStorage.getItem(LS_PLAN_KEY)));
+            sessionStorage.setItem(RELATED_BACKUP_PROGRESS_KEY, JSON.stringify(localStorage.getItem(LS_PROGRESS_KEY)));
+          }
+        } catch { }
+        setLevel('beginner');
+        setGoals('Explore lessons related to a cast');
+        setStep(3);
+        setError(null);
+        setPageState('generating');
+        let cancelled = false;
+        fetch(`/api/learning-plan?track=${encodeURIComponent(normalized)}&level=beginner`)
+          .then(async (response) => {
+            if (!response.ok) throw new Error('Could not load related lessons');
+            const relatedPlan = await response.json() as LearningPlan;
+            if (!relatedPlan.modules?.length) throw new Error('No related lessons are available yet');
+            if (cancelled) return;
+            setPlan(relatedPlan);
+            setCompletedIds(new Set());
+            setPageState('plan');
+          })
+          .catch(() => {
+            if (cancelled) return;
+            setError('Related lessons could not be loaded. You can retry by generating this learning path.');
+            setPageState('quiz');
+          });
+        if (searchParams.get('tab') === 'homie') setActiveTab('homie');
+        return () => { cancelled = true; };
+      }
     }
     if (searchParams.get('tab') === 'homie') setActiveTab('homie');
   }, [searchParams]);
 
-  // Load persisted data
+  // Load persisted data. A cast-specific lesson path temporarily uses the
+  // selected track's plan; restore the learner's prior plan on the next normal
+  // visit to the hub.
   useEffect(() => {
     try {
+      const isRelatedPath = searchParams.get('related') === '1';
+      if (!isRelatedPath && sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) !== null) {
+        const previousPlan = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) || 'null') as string | null;
+        const previousProgress = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PROGRESS_KEY) || 'null') as string | null;
+        if (previousPlan === null) localStorage.removeItem(LS_PLAN_KEY);
+        else localStorage.setItem(LS_PLAN_KEY, previousPlan);
+        if (previousProgress === null) localStorage.removeItem(LS_PROGRESS_KEY);
+        else localStorage.setItem(LS_PROGRESS_KEY, previousProgress);
+        sessionStorage.removeItem(RELATED_BACKUP_PLAN_KEY);
+        sessionStorage.removeItem(RELATED_BACKUP_PROGRESS_KEY);
+      }
+      if (isRelatedPath) return;
       const storedPlan = localStorage.getItem(LS_PLAN_KEY);
       const storedProgress = localStorage.getItem(LS_PROGRESS_KEY);
       if (storedPlan) { setPlan(JSON.parse(storedPlan) as LearningPlan); setPageState('plan'); }
