@@ -1,4 +1,5 @@
 import { getAuthHeaders } from '@/lib/client-auth';
+import { correctLessonRepositoryReferences } from '@/lib/lesson-source-corrections';
 
 export interface LessonModuleRequest {
   id: string;
@@ -88,7 +89,11 @@ export function getCachedLesson(module: LessonModuleRequest, eli5: boolean): Les
       return null;
     }
     touchIndex(key);
-    return cached.lesson;
+    const lesson = correctLessonRepositoryReferences(cached.lesson);
+    if (JSON.stringify(lesson) !== JSON.stringify(cached.lesson)) {
+      window.localStorage.setItem(key, JSON.stringify({ ...cached, lesson }));
+    }
+    return lesson;
   } catch {
     return null;
   }
@@ -124,7 +129,7 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
     .then(async response => {
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Failed to load lesson');
-      const lesson = data as LessonContent;
+      const lesson = correctLessonRepositoryReferences(data as LessonContent);
       // Don't cache fallback lessons — they're temporary content from AI provider failures.
       if (response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
         cacheLesson(module, eli5, lesson);
