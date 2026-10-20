@@ -8,6 +8,7 @@ import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { rateLimit } from '@/lib/ratelimit';
 import { createApiLogger } from '@/lib/logger';
 import { getSafetyLesson } from '@/lib/safety-curriculum';
+import { correctLessonRepositoryReferences } from '@/lib/lesson-source-corrections';
 
 const logger = createApiLogger('/lesson');
 
@@ -304,6 +305,7 @@ async function rewardTrackedLessonResponse(
   lesson: LessonContent,
   init?: ResponseInit
 ) {
+  lesson = correctLessonRepositoryReferences(lesson);
   if (!moduleId || fid === null || !Array.isArray(lesson.quiz) || lesson.quiz.length === 0) {
     return NextResponse.json(lesson, init);
   }
