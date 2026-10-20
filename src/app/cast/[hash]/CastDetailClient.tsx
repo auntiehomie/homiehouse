@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,6 +8,7 @@ import { formatDistanceToNow } from "date-fns";
 import EmbedRenderer from "@/components/EmbedRenderer";
 import { previousRoute, readCastNavigation, scrollPageTo, visitRoute, writeCastNavigation } from "@/lib/cast-navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+import { buildReplyTree } from "@/lib/cast-thread";
 
 function ActionBtn({
   onClick, icon, label, active = false, disabled = false,
@@ -302,6 +303,9 @@ export default function CastDetailClient() {
     </div>
   );
 
+  const replyCasts = cast?.replies?.casts ?? cast?.direct_replies ?? [];
+  const replyTree = useMemo(() => buildReplyTree(replyCasts, cast?.hash ?? ''), [replyCasts, cast?.hash]);
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -352,6 +356,89 @@ export default function CastDetailClient() {
     } catch {}
   }
 
+  const renderReply = (reply: any, depth = 0): React.ReactNode => {
+    const rAuthor = reply.author;
+    const rName = rAuthor?.display_name || rAuthor?.username || 'Unknown';
+    const rRawUsername = rAuthor?.username || '';
+    const rUsername = /^fid:\d+$/i.test(rRawUsername) ? '' : rRawUsername;
+    const rProfileHref = rUsername ? `/profile?user=${rUsername}` : rAuthor?.fid ? `/profile?fid=${rAuthor.fid}` : '/feed';
+    const rFid = rAuthor?.fid ?? 0;
+    const rPfp = rAuthor?.pfp_url;
+    const rText = reply.text || '';
+    const parentHash = reply.parent_hash || reply.parentHash;
+    const replyParent = parentHash && [cast, ...replies].find((item: any) =>
+      item.hash?.toLowerCase() === parentHash.toLowerCase()
+    );
+    const parentAuthor = replyParent?.author;
+    const parentUsername = parentAuthor?.username;
+    let rTime = '';
+    if (reply.timestamp) {
+      try {
+        const d = new Date(reply.timestamp);
+        if (!isNaN(d.getTime())) rTime = formatDistanceToNow(d, { addSuffix: true });
+      } catch {}
+    }
+
+    return (
+      <article
+        key={reply.hash || `${rFid}-${depth}-${rText.slice(0, 24)}`}
+        style={{
+          marginLeft: Math.min(depth, 4) * 16,
+          padding: `14px 16px 14px ${depth > 0 ? 12 : 16}px`,
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderLeftWidth: Math.min(depth * 2, 6),
+          borderLeftStyle: depth > 0 ? 'solid' : 'none',
+          borderLeftColor: 'var(--accent, #a78bfa)',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
+          {rPfp && (
+            <Link href={rProfileHref}>
+              <Image src={rPfp} alt={rName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+            </Link>
+          )}
+          <div>
+            <Link href={rProfileHref} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 14 }}>
+              {rName}
+            </Link>
+            <div style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>@{rUsername} · {rTime}</div>
+          </div>
+        </div>
+
+        {replyParent && parentUsername && (
+          <div style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)', marginBottom: 6 }}>
+            ↳ Replying to <Link href={`/cast/${encodeURIComponent(replyParent.hash)}`} style={{ color: 'var(--accent)', textDecoration: 'none' }}>@{parentUsername}</Link>
+          </div>
+        )}
+        <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 4 }}>
+          {rText}
+        </div>
+        <Link href={`/cast/${encodeURIComponent(reply.hash)}`} style={{ color: 'var(--accent)', fontSize: 13 }}>
+          View conversation
+        </Link>
+        {renderActionRow(reply.hash, rFid, rText, rUsername)}
+
+        {replyingTo === reply.hash && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <textarea
+              className="compose-textarea"
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              placeholder={`Replying to @${rUsername}…`}
+              autoFocus
+              style={{ minHeight: 72, fontSize: 14, width: '100%' }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); }}>Cancel</button>
+              <button className="btn primary" onClick={() => handleReply(reply.hash, rFid)} disabled={!replyText.trim()}>Post Reply</button>
+            </div>
+          </div>
+        )}
+        {reply.threadChildren?.map((child: any) => renderReply(child, depth + 1))}
+      </article>
+    );
+  };
+
   return (
     <div data-cast-detail-ready={cast.hash === hash ? hash : undefined} style={{ minHeight: '100vh' }}>
       {/* Toast */}
@@ -380,9 +467,10 @@ export default function CastDetailClient() {
           ← Back
         </button>
 
+        <section aria-label="Cast conversation" className="surface" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
         {/* Parent thread context */}
         {parentChain.length > 0 && (
-          <div style={{ marginBottom: 8 }}>
+          <div>
             {parentChain.map((p: any, idx: number) => {
               const pAuthor = p.author;
               const pName = pAuthor?.display_name || pAuthor?.username || 'Unknown';
@@ -395,7 +483,8 @@ export default function CastDetailClient() {
               try { const d = new Date(p.timestamp); if (!isNaN(d.getTime())) pTime = formatDistanceToNow(d, { addSuffix: true }); } catch {}
               return (
                 <div key={p.hash || idx} style={{ position: 'relative' }}>
-                  <div className="surface" style={{ marginBottom: 0, borderBottom: 'none', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, opacity: 0.75 }}>
+                  <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    {idx === 0 && <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--muted-on-dark, #999)', marginBottom: 8 }}>Earlier in this thread</div>}
                     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                         {pPfp ? (
@@ -406,14 +495,14 @@ export default function CastDetailClient() {
                           <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border)' }} />
                         )}
                         {/* Thread line */}
-                        <div style={{ width: 2, flex: 1, minHeight: 16, background: 'rgba(255,255,255,0.15)', marginTop: 4 }} />
+                        <div aria-hidden="true" style={{ width: 2, height: 20, background: 'var(--accent, #a78bfa)', opacity: 0.55, marginTop: 5 }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0, paddingBottom: 12 }}>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', marginBottom: 4 }}>
                           <Link href={pProfileHref} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 13 }}>{pName}</Link>
                           <span style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>· {pTime}</span>
                         </div>
-                        <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-on-dark, #eee)' }}>{pText}</div>
+                        <Link href={`/cast/${encodeURIComponent(p.hash)}`} style={{ display: 'block', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-on-dark, #eee)', textDecoration: 'none' }}>{pText}</Link>
                       </div>
                     </div>
                   </div>
@@ -424,7 +513,7 @@ export default function CastDetailClient() {
         )}
 
         {/* Main Cast */}
-        <div className="surface" style={{ marginBottom: 20, ...(parentChain.length > 0 ? { borderTopLeftRadius: 0, borderTopRightRadius: 0 } : {}) }}>
+        <article style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             {authorPfp && (
               <Link href={`/profile?user=${authorUsername}`}>
@@ -481,9 +570,27 @@ export default function CastDetailClient() {
               </div>
             </div>
           )}
-        </div>
+        </article>
 
-        {/* Learning discovery: a read-only recommendation, never an automatic reward. */}
+        {/* Replies stay in the same conversation surface and indent beneath
+            the cast they answer, like Quorum's parent → focus → reply stack. */}
+        {replyTree.length > 0 && (
+          <div style={{ paddingTop: 12 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 16px 4px' }}>Replies ({cast.replies?.count ?? replies.length})</h2>
+            {replyTree.map((reply: any) => renderReply(reply))}
+          </div>
+        )}
+        {cast?.replies_unavailable && <p role="status" style={{ margin: '12px 16px', color: 'var(--muted-on-dark, #999)', fontSize: 13 }}>Some replies may be unavailable. Please reload to try again.</p>}
+        {cast?.replies_next?.cursor && (
+          <div style={{ padding: '12px 16px' }}>
+            <button className="btn" onClick={loadMoreReplies} disabled={loadingReplies}>
+              {loadingReplies ? 'Loading replies…' : 'Load more replies'}
+            </button>
+          </div>
+        )}
+        </section>
+
+        {/* Learning discovery follows the conversation so its card does not split the thread. */}
         {learningTopic && (
           <section aria-label="Learn about this cast" className="surface" style={{ marginBottom: 20, padding: 16 }}>
             <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>📚 Learn from this conversation</p>
@@ -494,86 +601,7 @@ export default function CastDetailClient() {
             </div>
           </section>
         )}
-
-        {/* Replies */}
-        {replies.length > 0 && (
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Replies ({replies.length})</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {replies.map((reply: any, idx: number) => {
-                const rAuthor = reply.author;
-                const rName = rAuthor?.display_name || rAuthor?.username || 'Unknown';
-                const rRawUsername = rAuthor?.username || '';
-                const rUsername = /^fid:\d+$/i.test(rRawUsername) ? '' : rRawUsername;
-                const rProfileHref = rUsername ? `/profile?user=${rUsername}` : rAuthor?.fid ? `/profile?fid=${rAuthor.fid}` : '/feed';
-                const rFid = rAuthor?.fid ?? 0;
-                const rPfp = rAuthor?.pfp_url;
-                const rText = reply.text || '';
-                let rTime = '';
-                if (reply.timestamp) {
-                  try {
-                    const d = new Date(reply.timestamp);
-                    if (!isNaN(d.getTime())) rTime = formatDistanceToNow(d, { addSuffix: true });
-                  } catch {}
-                }
-
-                return (
-                  <div key={reply.hash || idx} className="surface">
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
-                      {rPfp && (
-                        <Link href={rProfileHref}>
-                          <Image src={rPfp} alt={rName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                        </Link>
-                      )}
-                      <div>
-                        <Link href={rProfileHref} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 14 }}>
-                          {rName}
-                        </Link>
-                        <div style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>@{rUsername} · {rTime}</div>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 4 }}>
-                      {rText}
-                    </div>
-
-                    <Link href={`/cast/${encodeURIComponent(reply.hash)}`} style={{ color: 'var(--accent)', fontSize: 13 }}>
-                      View conversation
-                    </Link>
-
-                    {/* Action buttons on each reply */}
-                    {renderActionRow(reply.hash, rFid, rText, rUsername)}
-
-                    {/* Reply input for this reply */}
-                    {replyingTo === reply.hash && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                        <textarea
-                          className="compose-textarea"
-                          value={replyText}
-                          onChange={e => setReplyText(e.target.value)}
-                          placeholder={`Replying to @${rUsername}…`}
-                          autoFocus
-                          style={{ minHeight: 72, fontSize: 14, width: '100%' }}
-                        />
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
-                          <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); }}>Cancel</button>
-                          <button className="btn primary" onClick={() => handleReply(reply.hash, rFid)} disabled={!replyText.trim()}>Post Reply</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
-
-      {cast?.replies_unavailable && <p role="status">Some replies may be unavailable. Please reload to try again.</p>}
-      {cast?.replies_next?.cursor && (
-        <button className="btn" onClick={loadMoreReplies} disabled={loadingReplies}>
-          {loadingReplies ? 'Loading replies…' : 'Load more replies'}
-        </button>
-      )}
 
       {/* Quote Cast Modal */}
       {showQuoteModal && (
