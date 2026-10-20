@@ -7,6 +7,7 @@ import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
   loadLesson,
@@ -513,6 +514,7 @@ function ModuleLessonContent() {
   const [cards, setCards] = useState<CardDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCorrectionReport, setShowCorrectionReport] = useState(false);
 
   // Card navigation state
   const [cardIndex, setCardIndex] = useState(0);
@@ -960,8 +962,24 @@ function ModuleLessonContent() {
           )}
         </div>
 
-        <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', minWidth: 58, textAlign: 'right', whiteSpace: 'nowrap' }}>
-          {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
+        <div style={{ minWidth: 72, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}>
+            {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
+          </div>
+          {!loading && mod && currentCard && (
+            <button
+              type="button"
+              onClick={() => setShowCorrectionReport(true)}
+              aria-haspopup="dialog"
+              style={{
+                border: 0, background: 'transparent', color: '#a5b4fc',
+                cursor: 'pointer', padding: 0, fontSize: 10, fontWeight: 700,
+                minHeight: 24,
+              }}
+            >
+              ⚑ Report a correction
+            </button>
+          )}
         </div>
       </div>
 
@@ -1163,6 +1181,15 @@ function ModuleLessonContent() {
           <span>{quizToast ? '✅' : '❌'}</span>
           <span>{quizToast ? 'Correct!' : 'Not quite — see why below'}</span>
         </div>
+      )}
+      {showCorrectionReport && mod && currentCard && (
+        <LessonCorrectionReportDialog
+          moduleId={mod.id}
+          moduleTitle={mod.title}
+          stepNumber={cardIndex + 1}
+          cardLabel={currentCard.label}
+          onClose={() => setShowCorrectionReport(false)}
+        />
       )}
     </div>
   );
