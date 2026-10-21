@@ -10,6 +10,7 @@ export interface LessonModuleRequest {
   estimatedMinutes: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
+  sourceCast?: { author?: string; text: string };
 }
 
 export interface LessonQuizQuestion {
@@ -53,6 +54,7 @@ function lessonKey(module: LessonModuleRequest, eli5: boolean): string {
     description: module.description,
     whyItMatters: module.whyItMatters,
     objectives: module.objectives,
+    sourceCast: module.sourceCast,
   }));
   return `${CACHE_PREFIX}${module.id}:${eli5 ? 'eli5' : 'standard'}:${revision}`;
 }

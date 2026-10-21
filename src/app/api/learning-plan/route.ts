@@ -22,6 +22,8 @@ interface LearningModule {
   estimatedMinutes: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
+  /** Public cast context used to generate the cast-specific lesson for this module. */
+  sourceCast?: { author?: string; text: string };
 }
 
 interface LearningPlan {
@@ -1069,6 +1071,34 @@ async function persistRewardPlan(fid: number, plan: LearningPlan, replaceIfUnuse
   return (current.rows[0]?.plan as LearningPlan) ?? plan;
 }
 
+function attachCastLesson(plan: LearningPlan, sourceCast: { author?: string; text: string }): LearningPlan {
+  if (!plan.modules.length) return plan;
+  const [first, ...rest] = plan.modules;
+  const objectives = Array.isArray(first.objectives) ? first.objectives.filter((item): item is string => typeof item === 'string') : [];
+  let hash = 2166136261;
+  for (let i = 0; i < sourceCast.text.length; i += 1) {
+    hash = Math.imul(hash ^ sourceCast.text.charCodeAt(i), 16777619);
+  }
+  const suffix = (hash >>> 0).toString(36);
+  return {
+    ...plan,
+    summary: `A cast-based path that unpacks the ideas in the post and builds toward practical context. ${plan.summary}`,
+    modules: [{
+      ...first,
+      id: `cast-${suffix}-${first.id}`,
+      title: `${first.title} — Cast Breakdown`.slice(0, 160),
+      description: `Start with the main ideas in this Farcaster cast, unpack the concepts behind them, and separate the author's claims from established facts. ${first.description}`.slice(0, 700),
+      whyItMatters: 'Learning to examine the ideas and claims in this cast helps you understand the underlying topic without treating a social post as verified evidence.',
+      objectives: [
+        'Identify the central idea and key terms in the cast',
+        ...objectives.slice(0, 3),
+        'Separate the author’s claims from facts supported by reliable sources',
+      ].slice(0, 5),
+      sourceCast,
+    }, ...rest],
+  };
+}
+
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -1270,17 +1300,29 @@ Requirements:
 - Tailor content specifically to the "${normalizedTrack}" track and "${level}" level
 - If specific goals are provided, weave them into the module selection and summary
 - If a source cast is provided, begin with the ideas needed to understand that cast, then build toward practical context. Do not simply restate the cast or present its claims as verified facts.
+- When a source cast is provided, make the first module a cast breakdown: identify its central idea and terms, explain the concepts needed to understand it, and distinguish the author's claims from supported facts.
 - Mix theory and practical skills
 - Difficulty values must be exactly: beginner, intermediate, or advanced
 - estimatedMinutes should be realistic (15-45 min per module)
 - ids must be lowercase kebab-case slugs`;
 
-    const response = await llmChat({
-      messages: [{ role: 'system', content: 'You are an AI and Web3 education expert. Homiehouse helps people gain the skills and confidence to succeed and create with AI and crypto. Create a personalized learning plan as a JSON object. Turn relevant knowledge-base ideas into achievable skills, practical exercises, and creative projects. Use AI to explain and connect source material; clearly label hypothetical examples and never promise financial success.' }, { role: 'user', content: prompt }],
-      temperature: 0.7,
-      maxTokens: 3000,
-      timeoutMs: 25000,
-    });
+    let response;
+    try {
+      response = await llmChat({
+        messages: [{ role: 'system', content: 'You are an AI and Web3 education expert. Homiehouse helps people gain the skills and confidence to succeed and create with AI and crypto. Create a personalized learning plan as a JSON object. Turn relevant knowledge-base ideas into achievable skills, practical exercises, and creative projects. Use AI to explain and connect source material; clearly label hypothetical examples and never promise financial success.' }, { role: 'user', content: prompt }],
+        temperature: 0.7,
+        maxTokens: 3000,
+        timeoutMs: 25000,
+      });
+    } catch (generationError) {
+      if (!sourceCast) throw generationError;
+      let castFallback = withKBModules(fallbackForTrack(normalizedTrack, level));
+      castFallback = attachCastLesson(castFallback, sourceCast);
+      if (rewardFid) {
+        try { return NextResponse.json(await persistRewardPlan(rewardFid, castFallback, true)); } catch {}
+      }
+      return NextResponse.json(castFallback);
+    }
     const content = response.message.content ?? '';
 
     // Strip any accidental markdown code fences
@@ -1294,7 +1336,8 @@ Requirements:
       plan = JSON.parse(cleaned) as LearningPlan;
     } catch (parseError) {
       console.error('[learning-plan] Failed to parse AI response, using fallback', parseError);
-      const fallback = withKBModules(fallbackForTrack(normalizedTrack, level));
+      let fallback = withKBModules(fallbackForTrack(normalizedTrack, level));
+      if (sourceCast) fallback = attachCastLesson(fallback, sourceCast);
       if (rewardFid) {
         try { return NextResponse.json(await persistRewardPlan(rewardFid, fallback, true)); } catch {}
       }
@@ -1314,6 +1357,7 @@ Requirements:
     plan.track = normalizedTrack as LearningPlan['track'];
     plan.level = level as LearningPlan['level'];
     plan = withKBModules(plan);
+    if (sourceCast) plan = attachCastLesson(plan, sourceCast);
 
     if (rewardFid) {
       try { plan = await persistRewardPlan(rewardFid, plan, true); } catch (err) {
