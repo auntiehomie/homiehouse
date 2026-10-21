@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 26046)
+Total output lines: 2082
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
@@ -690,13 +693,17 @@ function renderMarkdown(text: string): React.ReactNode[] {
   return nodes;
 }
 
-function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
+function HomieReadPanel({ currentPlan, initialQuestion = '' }: { currentPlan: LearningPlan | null; initialQuestion?: string }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialQuestion);
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (initialQuestion.trim()) setInput(initialQuestion);
+  }, [initialQuestion]);
 
   const STARTERS = [
     { label: '📰 Paste an article URL to summarize', value: '' },
@@ -837,7 +844,15 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
 
       {/* Messages */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-        {messages.map((msg, i) => (
+        {messages.map((msg, i) => {
+          const previousQuestion = msg.role === 'assistant'
+            ? messages.slice(0, i).reverse().find((candidate) => candidate.role === 'user')?.content
+            : undefined;
+          const buildLessonHref = previousQuestion && msg.type !== 'url-summary'
+            ? `/learn?build=1&track=all&goal=${encodeURIComponent(previousQuestion.slice(0, 1200))}`
+            : null;
+
+          return (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             {msg.role === 'user' ? (
               <div style={{
@@ -870,411 +885,7 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
                 }}>
                   {renderMarkdown(msg.content)}
                 </div>
-                {msg.type === 'url-summary' && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                    <button
-                      onClick={() => saveToNotes(msg)}
-                      style={{
-                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                        background: 'transparent', border: '1px solid var(--border)',
-                        color: 'var(--muted-on-dark)', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 5,
-                      }}
-                    >
-                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Save to Notes
-                    </button>
-                    <button
-                      onClick={() => {
-                        const shareText = `Read this: ${msg.url}\n\nKey insight: ${msg.content.slice(0, 200)}...`;
-                        router.push(`/compose?text=${encodeURIComponent(shareText)}`);
-                      }}
-                      style={{
-                        padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                        background: 'transparent', border: '1px solid var(--border)',
-                        color: 'var(--muted-on-dark)', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 5,
-                      }}
-                    >
-                      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                      Cast this
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: '4px 14px 14px 14px', background: 'var(--surface)', border: '1px solid var(--border)', width: 'fit-content' }}>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[0, 1, 2].map((i) => (
-                <div key={i} style={{
-                  width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)',
-                  animation: `homieTyping 1.2s ease-in-out ${i * 0.2}s infinite`,
-                }} />
-              ))}
-            </div>
-            <style>{`@keyframes homieTyping{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}`}</style>
-            <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Homie is reading...</span>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div style={{
-        position: 'sticky', bottom: 72, marginTop: 16,
-        background: 'var(--bg-dark)', borderRadius: 14,
-        border: '1px solid var(--border)', overflow: 'hidden',
-      }}>
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Paste a URL or ask a question... (Enter to send)"
-          rows={2}
-          style={{
-            width: '100%', padding: '12px 14px', background: 'transparent',
-            border: 'none', outline: 'none', resize: 'none',
-            color: 'var(--text-on-dark)', fontSize: 14, lineHeight: 1.5,
-            fontFamily: 'inherit', boxSizing: 'border-box',
-          }}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 12px 10px' }}>
-          <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>
-            {URL_RE.test(input) ? '🔗 URL detected — will summarize' : 'Shift+Enter for new line'}
-          </span>
-          <button
-            onClick={() => sendMessage()}
-            disabled={!input.trim() || loading}
-            style={{
-              padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700,
-              background: input.trim() && !loading ? 'var(--accent)' : 'var(--surface)',
-              color: input.trim() && !loading ? '#fff' : 'var(--muted-on-dark)',
-              border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
-              transition: 'all 0.15s',
-            }}
-          >
-            Send
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Page Content ─────────────────────────────────────────────────────────────
-
-function LearnPageContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const { fid: farcasterFid } = useFarcasterAuth();
-
-
-  const [pageState, setPageState] = useState<PageState>('quiz');
-  const [activeTab, setActiveTab] = useState<LearnTab>('plan');
-  const [step, setStep] = useState(1);
-  const [track, setTrack] = useState<Track | null>(null);
-  const [level, setLevel] = useState<Level | null>(null);
-  const [levelIdx, setLevelIdx] = useState<number | null>(null);
-  const [goals, setGoals] = useState('');
-  const [plan, setPlan] = useState<LearningPlan | null>(null);
-  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-  const [learnerCount, setLearnerCount] = useState(0);
-  const [contentVisible, setContentVisible] = useState(false);
-  const [navigating, setNavigating] = useState(false);
-  const [planPersonalizing, setPlanPersonalizing] = useState(false);
-  // hh2Points is derived from completedIds above — no separate state needed.
-  const [streak, setStreak] = useState<{ currentStreak: number; longestStreak: number; freezeAvailable: boolean } | null>(null);
-  const [leaderboardEnabled, setLeaderboardEnabled] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<Array<{ fid: number; username?: string; pfpUrl?: string; weeklyPoints: number }>>([]);
-  const [peerCount, setPeerCount] = useState<number | null>(null);
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const HH2_PER_LESSON = 100;
-  // Derive off-chain points from completedIds so it's always correct,
-  // even on initial load from localStorage before Neon syncs.
-  const hh2Points = completedIds.size * HH2_PER_LESSON;
-
-  // ── On-chain HH2 balance ────────────────────────────────────────────────
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-  const isOnBase = chainId === baseChain.id;
-
-  const HH2_CONTRACT = '0x5C5F3618e82C4b32e26De858ca66331D9A722B07' as const;
-  const HH2_ABI = [
-    { inputs: [{ name: 'account', type: 'address' }], name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
-    { inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], stateMutability: 'view', type: 'function' },
-  ] as const;
-
-  const { data: hh2Raw } = useReadContract({
-    address: HH2_CONTRACT,
-    abi: HH2_ABI,
-    functionName: 'balanceOf',
-    args: [(address ?? '0x0000000000000000000000000000000000000000') as `0x${string}`],
-    chainId: baseChain.id,
-    query: { enabled: !!address },
-  }) as { data: bigint | undefined };
-  const { data: decRaw } = useReadContract({
-    address: HH2_CONTRACT,
-    abi: HH2_ABI,
-    functionName: 'decimals',
-    chainId: baseChain.id,
-  }) as { data: bigint | undefined };
-  const onChainBalance = hh2Raw && decRaw ? Number(formatUnits(hh2Raw, Number(decRaw))) : 0;
-
-  // Cast lesson links open a real track plan, using the beginner path as a
-  // useful default so learners reach lessons without another setup detour.
-  useEffect(() => {
-    const t = searchParams.get('track') as Track | null;
-    const valid: Track[] = ['ai', 'finance', 'creator', 'decentralization', 'all'];
-    const legacyMap: Record<string, string> = { learner: 'decentralization', financial: 'finance', survival: 'decentralization' };
-    const normalized = t ? legacyMap[t] || t : null;
-    if (normalized && valid.includes(normalized as Track)) {
-      setTrack(normalized as Track);
-      if (searchParams.get('related') === '1') {
-        // Keep the learner's existing plan and progress available when they
-        // return from this cast-specific lesson path.
-        try {
-          if (sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) === null) {
-            sessionStorage.setItem(RELATED_BACKUP_PLAN_KEY, JSON.stringify(localStorage.getItem(LS_PLAN_KEY)));
-            sessionStorage.setItem(RELATED_BACKUP_PROGRESS_KEY, JSON.stringify(localStorage.getItem(LS_PROGRESS_KEY)));
-          }
-        } catch { }
-        setLevel('beginner');
-        setGoals('Explore lessons related to a cast');
-        setStep(3);
-        setError(null);
-        setPageState('generating');
-        let cancelled = false;
-        fetch(`/api/learning-plan?track=${encodeURIComponent(normalized)}&level=beginner`)
-          .then(async (response) => {
-            if (!response.ok) throw new Error('Could not load related lessons');
-            const relatedPlan = await response.json() as LearningPlan;
-            if (!relatedPlan.modules?.length) throw new Error('No related lessons are available yet');
-            if (cancelled) return;
-            setPlan(relatedPlan);
-            setCompletedIds(new Set());
-            setPageState('plan');
-          })
-          .catch(() => {
-            if (cancelled) return;
-            setError('Related lessons could not be loaded. You can retry by generating this learning path.');
-            setPageState('quiz');
-          });
-        if (searchParams.get('tab') === 'homie') setActiveTab('homie');
-        return () => { cancelled = true; };
-      }
-    }
-    if (searchParams.get('tab') === 'homie') setActiveTab('homie');
-  }, [searchParams]);
-
-  // Load persisted data. A cast-specific lesson path temporarily uses the
-  // selected track's plan; restore the learner's prior plan on the next normal
-  // visit to the hub.
-  useEffect(() => {
-    try {
-      const isRelatedPath = searchParams.get('related') === '1';
-      if (!isRelatedPath && sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) !== null) {
-        const previousPlan = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) || 'null') as string | null;
-        const previousProgress = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PROGRESS_KEY) || 'null') as string | null;
-        if (previousPlan === null) localStorage.removeItem(LS_PLAN_KEY);
-        else localStorage.setItem(LS_PLAN_KEY, previousPlan);
-        if (previousProgress === null) localStorage.removeItem(LS_PROGRESS_KEY);
-        else localStorage.setItem(LS_PROGRESS_KEY, previousProgress);
-        sessionStorage.removeItem(RELATED_BACKUP_PLAN_KEY);
-        sessionStorage.removeItem(RELATED_BACKUP_PROGRESS_KEY);
-      }
-      if (isRelatedPath) return;
-      const storedPlan = localStorage.getItem(LS_PLAN_KEY);
-      const storedProgress = localStorage.getItem(LS_PROGRESS_KEY);
-      if (storedPlan) { setPlan(JSON.parse(storedPlan) as LearningPlan); setPageState('plan'); }
-      if (storedProgress) setCompletedIds(new Set(JSON.parse(storedProgress) as string[]));
-    } catch { }
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (plan) { try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(plan)); } catch { } }
-  }, [plan]);
-
-  useEffect(() => {
-    if (plan) { try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...completedIds])); } catch { } }
-  }, [completedIds, plan]);
-
-  // Warm the next lesson while the learner is reviewing their plan. The API's
-  // server cache still owns freshness; this removes the navigation-time wait on
-  // repeat visits and turns a cache hit into an instant module open.
-  useEffect(() => {
-    if (!plan || pageState !== 'plan') return;
-    const nextModule = plan.modules.find(module => !completedIds.has(module.id));
-    if (!nextModule) return;
-
-    const warmLesson = () => prefetchLesson(nextModule, getEli5Mode());
-    const idleWindow = window as Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    if (typeof idleWindow.requestIdleCallback === 'function') {
-      const idleId = idleWindow.requestIdleCallback(warmLesson, { timeout: 1200 });
-      return () => idleWindow.cancelIdleCallback?.(idleId);
-    }
-    const timer = globalThis.setTimeout(warmLesson, 300);
-    return () => globalThis.clearTimeout(timer);
-  }, [plan, completedIds, pageState]);
-
-  useEffect(() => {
-    fetch('/api/learner-count').then(r => r.json()).then(d => setLearnerCount(d.count || 0)).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => setContentVisible(true), 30);
-    return () => clearTimeout(t);
-  }, []);
-
-  // ─── Neon cross-device sync ───────────────────────────────────────────────
-
-  const getFid = (): number | null => {
-    // Prefer the live Farcaster FID; fall back to localStorage for non-Farcaster sessions
-    if (farcasterFid) return farcasterFid;
-    try {
-      const p = JSON.parse(localStorage.getItem('hh_profile') || '{}');
-      return p?.fid ? Number(p.fid) : null;
-    } catch { return null; }
-  };
-
-  // Load from Neon whenever the Farcaster FID becomes available (fires after auth resolves,
-  // not just at mount — this is what makes cross-device sync work reliably).
-  useEffect(() => {
-    const fid = getFid();
-    if (!fid) return;
-    fetch(`/api/learning-progress?fid=${fid}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.streak) setStreak(d.streak);
-        if (!d.found || !d.plan) return;
-        setPlan(d.plan);
-        setCompletedIds(new Set(d.completed_ids ?? []));
-        setPageState('plan');
-        try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(d.plan)); } catch {}
-        try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(d.completed_ids ?? [])); } catch {}
-        if (d.completions && Object.keys(d.completions).length > 0) {
-          try { localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(d.completions)); } catch {}
-        }
-
-      })
-      .catch(() => {});
-  // farcasterFid as dep: re-runs once Farcaster auth resolves and the FID becomes non-null
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farcasterFid]);
-
-  // Load the leaderboard opt-in preference once on mount.
-  useEffect(() => {
-    try { setLeaderboardEnabled(localStorage.getItem('hh_leaderboard_enabled') === 'true'); } catch {}
-  }, []);
-
-  function toggleLeaderboard() {
-    const next = !leaderboardEnabled;
-    setLeaderboardEnabled(next);
-    try { localStorage.setItem('hh_leaderboard_enabled', next ? 'true' : 'false'); } catch {}
-  }
-
-  // Opt-in weekly leaderboard: only fetched when the user has explicitly turned it
-  // on. Fetches the follow list, then this-week HH2 points for those fids, and
-  // joins them client-side for display (the leaderboard API returns points only,
-  // not identity — see its comments for why).
-  useEffect(() => {
-    if (!leaderboardEnabled) { setLeaderboard([]); return; }
-    const fid = getFid();
-    if (!fid) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const friendsRes = await fetch(`/api/friends?fid=${fid}`);
-        const friendsData = await friendsRes.json();
-        const follows: Array<{ fid: number; username?: string; pfp_url?: string }> = friendsData?.data ?? [];
-        if (cancelled || follows.length === 0) { setLeaderboard([]); return; }
-
-        const followFids = follows.map((u) => u.fid).filter((f): f is number => typeof f === 'number');
-        const lbRes = await fetch(`/api/learning-progress/leaderboard?fids=${followFids.join(',')}`);
-        const lbData = await lbRes.json();
-        if (cancelled) return;
-
-        const byFid = new Map(follows.map((u) => [u.fid, u]));
-        const joined = (lbData?.leaderboard ?? [])
-          .map((entry: { fid: number; weeklyPoints: number }) => ({
-            fid: entry.fid,
-            weeklyPoints: entry.weeklyPoints,
-            username: byFid.get(entry.fid)?.username,
-            pfpUrl: byFid.get(entry.fid)?.pfp_url,
-          }))
-          .slice(0, 10);
-        setLeaderboard(joined);
-      } catch {
-        // silent — opt-in social feature, not core functionality
-      }
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leaderboardEnabled, farcasterFid]);
-
-  // "N people you follow are also on this track" — fetch the user's following
-  // list, then ask how many of those fids have a learning_progress row on the
-  // same track. Best-effort: silently skip on any failure, this is a nice-to-have
-  // social signal, not core functionality.
-  useEffect(() => {
-    const fid = getFid();
-    if (!fid || !plan?.track) { setPeerCount(null); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const friendsRes = await fetch(`/api/friends?fid=${fid}`);
-        const friendsData = await friendsRes.json();
-        const followFids: number[] = (friendsData?.data ?? [])
-          .map((u: any) => u?.fid)
-          .filter((f: any): f is number => typeof f === 'number');
-        if (cancelled || followFids.length === 0) return;
-
-        const peersRes = await fetch(
-          `/api/learning-progress/peers?fids=${followFids.join(',')}&track=${encodeURIComponent(plan.track)}`
-        );
-        const peersData = await peersRes.json();
-        if (!cancelled && typeof peersData?.count === 'number') setPeerCount(peersData.count);
-      } catch {
-        // silent — social signal only
-      }
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.track, farcasterFid]);
-
-  // Debounced save: whenever plan or completedIds change, sync to Neon after 2s
-  useEffect(() => {
-    if (!plan) return;
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      const fid = farcasterFid ?? getFid();
-      if (!fid) return;
-      const completions = (() => {
-        try { return JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) ?? '{}'); } catch { return {}; }
-      })();
-      const authHeaders = getAuthHeaders();
-      const headers: Record<string, string> = authHeaders
-        ? { 'Content-Type': 'application/json', ...authHeaders }
-        : { 'Content-Type': 'application/json' };
-      fetch('/api/learning-progress', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ plan, completed_ids: [...completedIds], completions, hh2_points: completedIds.size * HH2_PER_LESSON }),
-      })
-        .then(r => r.json())
+…6046 tokens truncated…=> r.json())
         .then(d => { if (d?.streak) setStreak(d.streak); })
         .catch(() => {});
     }, 2000);
@@ -1424,7 +1035,7 @@ function LearnPageContent() {
         </aside>
         <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
           {activeTab === 'homie'
-            ? <HomieReadPanel currentPlan={plan} />
+            ? <HomieReadPanel currentPlan={plan} initialQuestion={searchParams.get('question') ?? ''} />
             : activeTab === 'feed'
             ? <LearningFeed />
             : activeTab === 'completed'
@@ -1497,6 +1108,11 @@ function LearnPageContent() {
             <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #a5b4fc', borderTopColor: 'transparent', animation: 'hhSpin 0.8s linear infinite', flexShrink: 0 }} />
             ✨ Personalizing your plan based on your goals…
           </div>
+        )}
+        {error && (
+          <p role="status" style={{ margin: '0 0 16px', padding: '10px 12px', borderRadius: 9, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', color: '#fcd34d', fontSize: 13, lineHeight: 1.5 }}>
+            {error}
+          </p>
         )}
 
         <div style={{
@@ -1702,9 +1318,45 @@ function LearnPageContent() {
           The Learning Hub
         </h1>
         <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
-          Get a personalized path into Web3 — tailored to your goals and level.
+          Start with a cast, a question, or a topic. Homiehouse helps you make sense of it and learn what to explore next.
         </p>
       </div>
+
+      <section aria-label="Start learning with a question" style={{ marginBottom: 24, padding: 16, borderRadius: 14, background: 'linear-gradient(135deg, rgba(99,102,241,0.13), rgba(52,211,153,0.08))', border: '1px solid rgba(99,102,241,0.3)' }}>
+        <label htmlFor="learning-starter-question" style={{ display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--text-on-dark)', marginBottom: 6 }}>
+          What did you see or hear that you want explained?
+        </label>
+        <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: '0 0 10px', lineHeight: 1.5 }}>
+          Ask Homie for a plain-English answer, then turn the topic into a learning path if you want to go deeper.
+        </p>
+        <textarea
+          id="learning-starter-question"
+          value={starterQuestion}
+          onChange={(event) => setStarterQuestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && starterQuestion.trim()) {
+              event.preventDefault();
+              router.push(`/learn?tab=homie&question=${encodeURIComponent(starterQuestion.trim().slice(0, 1200))}`);
+            }
+          }}
+          placeholder="For example: What does end-to-end encryption protect?"
+          rows={2}
+          maxLength={1200}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', fontSize: 14, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={() => router.push(`/learn?tab=homie${starterQuestion.trim() ? `&question=${encodeURIComponent(starterQuestion.trim().slice(0, 1200))}` : ''}`)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Ask Homie →
+          </button>
+          <Link href="/learn/library" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', color: 'var(--text-on-dark)', textDecoration: 'none', fontSize: 13, fontWeight: 650 }}>
+            Browse short lessons
+          </Link>
+        </div>
+      </section>
 
       {/* Step dots */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
