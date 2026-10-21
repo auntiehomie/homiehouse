@@ -598,7 +598,17 @@ export default function CastDetailClient() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <Link
                 className="btn primary"
-                href={`/learn?track=${learningTopic.track}&related=1&sourceCast=${encodeURIComponent(JSON.stringify({ author: authorUsername, text: text.slice(0, 1800) }))}`}
+                href={`/learn?track=${learningTopic.track}&related=1&sourceCastId=${encodeURIComponent(cast.hash)}&sourceCast=${encodeURIComponent(JSON.stringify({ author: authorUsername, text: text.slice(0, 1800) }))}`}
+                onClick={() => {
+                  // Keep the full bounded cast available to Learn without
+                  // putting a long post into the navigation URL.
+                  try {
+                    sessionStorage.setItem(`hh_learning_source_cast:${cast.hash}`, JSON.stringify({
+                      author: authorUsername,
+                      text: text.slice(0, 10000),
+                    }));
+                  } catch { /* Learn falls back to the short query context. */ }
+                }}
               >
                 Build a learning path from this cast →
               </Link>

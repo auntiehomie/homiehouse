@@ -78,6 +78,19 @@ describe('/api/learning-plan source context', () => {
     expect(plan.modules[0].sourceCast.text).toBe('A long cast about portable identity.');
   });
 
+  it('preserves long cast context up to the API bound', async () => {
+    const longText = 'A detailed Farcaster post. '.repeat(500);
+    const response = await POST(request({
+      track: 'decentralization',
+      level: 'beginner',
+      sourceCast: { author: 'example-user', text: longText },
+    }));
+
+    expect(response.status).toBe(200);
+    const plan = await response.json();
+    expect(plan.modules[0].sourceCast.text).toHaveLength(10000);
+  });
+
   it('rejects malformed source cast context', async () => {
     const response = await POST(request({
       track: 'decentralization',

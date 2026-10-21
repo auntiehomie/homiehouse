@@ -1074,11 +1074,15 @@ function LearnPageContent() {
         setActiveTab('plan');
         let sourceCast: { author?: string; text: string } | undefined;
         try {
-          const rawSourceCast = searchParams.get('sourceCast');
+          const sourceCastId = searchParams.get('sourceCastId');
+          const storedSourceCast = sourceCastId
+            ? sessionStorage.getItem(`hh_learning_source_cast:${sourceCastId}`)
+            : null;
+          const rawSourceCast = storedSourceCast || searchParams.get('sourceCast');
           if (rawSourceCast) {
             const parsed = JSON.parse(rawSourceCast);
             if (typeof parsed?.text === 'string' && parsed.text.trim()) {
-              sourceCast = { author: typeof parsed.author === 'string' ? parsed.author.slice(0, 64) : undefined, text: parsed.text.slice(0, 1800) };
+              sourceCast = { author: typeof parsed.author === 'string' ? parsed.author.slice(0, 64) : undefined, text: parsed.text.slice(0, 10000) };
             }
           }
         } catch { /* Continue with the topic-only path when cast context is malformed. */ }
