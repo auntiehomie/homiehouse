@@ -287,13 +287,44 @@ export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
 }
 
 /**
- * Fetch the full channel list.
+ * Normalize the response wrappers used by supported Hypersnap builds for channel discovery.
+ * Returns null when the payload does not contain a channel list.
+ */
+export function normalizeChannelListResponse(data: any): any[] | null {
+  const channels =
+    data?.channels ??
+    data?.result?.channels ??
+    data?.data?.channels ??
+    (Array.isArray(data?.result) ? data.result : null) ??
+    (Array.isArray(data?.data) ? data.data : null);
+  return Array.isArray(channels) ? channels : null;
+}
+
+/**
+ * Fetch the full channel list from Hypersnap, retrying the fallback node when
+ * the primary node errors or returns an empty list.
  * GET /v2/farcaster/channel/list?limit=:limit
  */
 export async function fetchChannelList(limit = 50): Promise<any> {
-  const data = await hypersnapFetch(`/v2/farcaster/channel/list?limit=${limit}`);
-  const channels = data?.channels ?? data?.result?.channels ?? data?.data?.channels;
-  return { ...data, channels: Array.isArray(channels) ? channels : [] };
+  const endpoint = `/v2/farcaster/channel/list?limit=${limit}`;
+  let primaryResult: any = null;
+  let primaryError: unknown;
+
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    const channels = normalizeChannelListResponse(data);
+    if (channels?.length) return { ...data, channels };
+    if (channels) primaryResult = { ...data, channels };
+  } catch (error) {
+    primaryError = error;
+  }
+
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
+  const fallbackChannels = normalizeChannelListResponse(fallback);
+  if (fallbackChannels?.length) return { ...fallback, channels: fallbackChannels };
+  if (primaryResult) return primaryResult;
+  if (primaryError) throw primaryError;
+  return { channels: [] };
 }
 
 /**
