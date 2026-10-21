@@ -67,6 +67,9 @@ export default function ComposeModal() {
   const [channels, setChannels] = useState<any[]>([]);
   const [channelSearch, setChannelSearch] = useState<string>('');
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelsError, setChannelsError] = useState<string | null>(null);
+  const [channelReload, setChannelReload] = useState(0);
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
@@ -131,14 +134,6 @@ export default function ComposeModal() {
     complete?.(cast);
   }
 
-  const FALLBACK_CHANNELS = [
-    { id: 'base', name: 'Base' },
-    { id: 'farcaster', name: 'Farcaster' },
-    { id: 'dev', name: 'Dev' },
-    { id: 'art', name: 'Art' },
-    { id: 'music', name: 'Music' },
-  ];
-
   // Check for saved draft when modal opens with no pre-filled text
   useEffect(() => {
     if (!open) return;
@@ -169,19 +164,49 @@ export default function ComposeModal() {
     return () => clearTimeout(t);
   }, [open, text, imageUrl, selectedChannel]);
 
-  // Fetch channels when modal first opens — cached in module scope for the session
+  // Channel discovery is public data; do not wait for the signer/FID to load.
+  // Cache successful results for the session, and let the user retry node reads.
   useEffect(() => {
-    if (!open || !userFid) return;
-    if (cachedChannels) { setChannels(cachedChannels); return; }
-    fetch('/api/channels?limit=50')
-      .then(r => r.json())
-      .then(data => {
-        const list = (data?.ok && Array.isArray(data?.channels)) ? data.channels : FALLBACK_CHANNELS;
+    if (!open) return;
+    if (cachedChannels?.length && channelReload === 0) {
+      setChannels(cachedChannels);
+      setChannelsError(null);
+      return;
+    }
+
+    let active = true;
+    setChannelsLoading(true);
+    setChannelsError(null);
+
+    fetch('/api/channels?limit=50', { cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error(`Channel request failed (${response.status}).`);
+        const data = await response.json();
+        if (!data?.ok || !Array.isArray(data?.channels)) {
+          throw new Error(data?.error || 'Hypersnap did not return a channel list.');
+        }
+        const list = data.channels.filter((channel: any) =>
+          typeof channel?.id === 'string' && channel.id.trim().length > 0
+        );
+        if (!list.length) throw new Error('Hypersnap returned no channels. Try again in a moment.');
+        return list;
+      })
+      .then(list => {
+        if (!active) return;
         cachedChannels = list;
         setChannels(list);
       })
-      .catch(() => setChannels(FALLBACK_CHANNELS));
-  }, [open, userFid]);
+      .catch(error => {
+        if (!active) return;
+        setChannels([]);
+        setChannelsError(error?.message || 'Could not load channels from Hypersnap.');
+      })
+      .finally(() => {
+        if (active) setChannelsLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [open, channelReload]);
 
   // Search for users when typing @mentions
   useEffect(() => {
@@ -709,15 +734,40 @@ export default function ComposeModal() {
           <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
             {/* Channel picker (opens upward) */}
             {showChannelSuggestions && (
-              <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+              <div id="compose-channel-picker" role="region" aria-label="Hypersnap channels" style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
                 <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
                   <input type="text" value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…" autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
                 </div>
-                {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
-                  <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                    <span style={{ color: 'var(--muted-on-dark)' }}>/</span>{ch.id}{ch.name && <span style={{ color: 'var(--muted-on-dark)', marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
-                  </button>
-                ))}
+                {channelsLoading ? (
+                  <div role="status" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                    Loading channels from Hypersnap…
+                  </div>
+                ) : channelsError ? (
+                  <div role="alert" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                    <div>{channelsError}</div>
+                    <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>
+                      Retry
+                    </button>
+                  </div>
+                ) : (() => {
+                  const matches = channels.filter(ch =>
+                    !channelSearch ||
+                    ch.id.toLowerCase().includes(channelSearch.toLowerCase()) ||
+                    ch.name?.toLowerCase?.().includes(channelSearch.toLowerCase())
+                  ).slice(0, 8);
+                  if (!matches.length) {
+                    return (
+                      <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                        {channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}
+                      </div>
+                    );
+                  }
+                  return matches.map(ch => (
+                    <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                      <span style={{ color: 'var(--muted-on-dark)' }}>/</span>{ch.id}{ch.name && <span style={{ color: 'var(--muted-on-dark)', marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
+                    </button>
+                  ));
+                })()}
               </div>
             )}
 
@@ -731,7 +781,7 @@ export default function ComposeModal() {
                   }
                 </label>
 
-                <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel" style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+                <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel" style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
                   <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
                   <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
                   {selectedChannel && <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, color: 'var(--muted-on-dark)' }}>×</span>}
