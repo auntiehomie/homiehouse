@@ -1174,7 +1174,7 @@ export async function POST(req: NextRequest) {
       }
       sourceCast = {
         author: typeof sourceCastInput.author === 'string' ? sourceCastInput.author.trim().slice(0, 64) : undefined,
-        text: sourceCastInput.text.trim().slice(0, 1800),
+        text: sourceCastInput.text.trim().slice(0, 10000),
       };
     }
 

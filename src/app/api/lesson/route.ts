@@ -379,7 +379,7 @@ export async function POST(req: NextRequest) {
       }
       sourceCast = {
         author: typeof requestedSourceCast.author === 'string' ? requestedSourceCast.author.trim().slice(0, 64) : undefined,
-        text: requestedSourceCast.text.trim().slice(0, 1800),
+        text: requestedSourceCast.text.trim().slice(0, 10000),
       };
     }
 
@@ -642,7 +642,7 @@ FACTUAL CONTEXT — Venice.ai:
     // KB context appears BEFORE the hardcoded factual snippets so the LLM
     // treats referenced articles as background knowledge to synthesize.
     try {
-      const queryStr = [title, ...(tags ?? []), sourceCast?.text ?? ''].join(' ');
+      const queryStr = [title, ...(tags ?? []), sourceCast?.text.slice(0, 2000) ?? ''].join(' ');
       const kbArticles = await getRelevantKBArticles(queryStr, 5);
       if (kbArticles.length > 0) {
         const kbContext = formatKBContext(kbArticles);
