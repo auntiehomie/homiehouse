@@ -594,9 +594,14 @@ export default function CastDetailClient() {
         {learningTopic && (
           <section aria-label="Learn about this cast" className="surface" style={{ marginBottom: 20, padding: 16 }}>
             <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>📚 Learn from this conversation</p>
-            <p style={{ margin: '0 0 12px', fontSize: 14 }}>Curious about {learningTopic.label.toLowerCase()}? Explore a related learning track or ask @thehomie for context.</p>
+            <p style={{ margin: '0 0 12px', fontSize: 14 }}>Curious about {learningTopic.label.toLowerCase()}? Get a short path built around this cast, or ask @thehomie for a plain-English explanation.</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              <Link className="btn primary" href={`/learn?track=${learningTopic.track}&related=1`}>Explore related lessons →</Link>
+              <Link
+                className="btn primary"
+                href={`/learn?track=${learningTopic.track}&related=1&sourceCast=${encodeURIComponent(JSON.stringify({ author: authorUsername, text: text.slice(0, 1800) }))}`}
+              >
+                Build a learning path from this cast →
+              </Link>
               <Link className="btn" href={`/ask-homie?cast=${encodeURIComponent(JSON.stringify({ author: { username: authorUsername }, text: text.slice(0, 1500), hash: cast.hash }))}`}>Ask @thehomie</Link>
             </div>
           </section>

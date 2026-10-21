@@ -195,7 +195,15 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
 export async function fetchUserByUsername(username: string): Promise<any> {
   const endpoint = `/v2/farcaster/user/by-username?username=${encodeURIComponent(username)}`;
   const normalize = (data: any) => {
-    const user = data?.user ?? data?.result?.user ?? data?.result ?? data?.data?.user ?? data?.data ?? data;
+    const user = data?.user
+      ?? data?.users?.[0]
+      ?? data?.result?.user
+      ?? data?.result?.users?.[0]
+      ?? (Array.isArray(data?.result) ? data.result[0] : data?.result)
+      ?? data?.data?.user
+      ?? data?.data?.users?.[0]
+      ?? (Array.isArray(data?.data) ? data.data[0] : data?.data)
+      ?? data;
     return user?.fid || user?.id ? { ...data, user } : null;
   };
   let primaryError: unknown;
@@ -216,7 +224,14 @@ export async function fetchUserByFid(fid: number): Promise<any> {
   if (!Number.isSafeInteger(fid) || fid <= 0) throw new Error('A valid FID is required');
   const endpoint = `/v2/farcaster/user/bulk?fids=${fid}`;
   const normalize = (data: any) => {
-    const user = data?.users?.[0] ?? data?.result?.users?.[0] ?? data?.user ?? data?.result?.user ?? (data?.result?.fid ? data.result : undefined);
+    const user = data?.users?.[0]
+      ?? data?.result?.users?.[0]
+      ?? data?.user
+      ?? data?.result?.user
+      ?? data?.data?.users?.[0]
+      ?? data?.data?.user
+      ?? (Array.isArray(data?.result) ? data.result[0] : data?.result)
+      ?? (Array.isArray(data?.data) ? data.data[0] : data?.data);
     return user?.fid || user?.id ? { ...data, user } : null;
   };
   let primaryError: unknown;

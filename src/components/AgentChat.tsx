@@ -220,11 +220,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         })
       });
 
-      if (!response.ok) throw new Error(`AI request failed: ${response.status}`);
       const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `Ask Homie request failed (${response.status}). Please try again.`);
       }
 
       setMessages(prev => [...prev, {
@@ -242,7 +240,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       console.error('Error:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.'
+        content: error instanceof Error
+          ? `I couldn't complete that request: ${error.message}`
+          : 'I couldn’t complete that request. Please try again.'
       }]);
     } finally {
       setIsLoading(false);
