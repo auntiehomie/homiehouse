@@ -30,6 +30,7 @@ interface LearningModule {
   estimatedMinutes: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
+  sourceCast?: { author?: string; text: string };
 }
 
 interface LearningPlan {
@@ -1108,7 +1109,7 @@ function LearnPageContent() {
         let personalizationError = 'Could not build a personalized learning path. Please try again.';
         const authHeaders = getAuthHeaders() ?? {};
 
-        if (isRelatedPath) {
+        if (isRelatedPath && !sourceCast) {
           fetch(`/api/learning-plan?track=${encodeURIComponent(normalized)}&level=${levelForPath}`, { headers: { ...authHeaders } })
             .then(async (response) => {
               if (!response.ok) throw new Error('Could not load starter lessons');
@@ -1171,13 +1172,13 @@ function LearnPageContent() {
               setError(sourceCast
                 ? 'Showing starter lessons for this track. The cast-specific path could not be personalized just now.'
                 : personalizationError);
-            } else if (!isRelatedPath || fallbackFailed) {
+            } else if (sourceCast || !isRelatedPath || fallbackFailed) {
               setError(personalizationError);
               setPageState('quiz');
             }
           })
           .finally(() => {
-            if (!cancelled && (generated || fallbackLoaded || !isRelatedPath || fallbackFailed)) setPlanPersonalizing(false);
+            if (!cancelled && (generated || fallbackLoaded || sourceCast || !isRelatedPath || fallbackFailed)) setPlanPersonalizing(false);
           });
         if (searchParams.get('tab') === 'homie') setActiveTab('homie');
         return () => { cancelled = true; };
