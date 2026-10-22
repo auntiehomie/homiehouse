@@ -327,6 +327,28 @@ export async function fetchChannelList(limit = 50): Promise<any> {
   return { channels: [] };
 }
 
+/** Resolve a channel's canonical parent URL from Hypersnap's channel registry. */
+export async function fetchChannelParentUrl(channelId: string): Promise<string> {
+  const endpoint = `/v2/farcaster/channel?id=${encodeURIComponent(channelId)}&type=id`;
+  let primaryError: unknown;
+
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    const channel = data?.channel ?? data?.result?.channel ?? data?.data?.channel;
+    const parentUrl = channel?.parent_url ?? channel?.parentUrl;
+    if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+  } catch (error) {
+    primaryError = error;
+  }
+
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
+  const channel = fallback?.channel ?? fallback?.result?.channel ?? fallback?.data?.channel;
+  const parentUrl = channel?.parent_url ?? channel?.parentUrl;
+  if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+  if (primaryError) throw primaryError;
+  throw new Error(`Hypersnap did not return a parent_url for channel ${channelId}`);
+}
+
 /**
  * Fetch a single cast by hash.
  * GET /v2/farcaster/cast?identifier=:hash&type=hash

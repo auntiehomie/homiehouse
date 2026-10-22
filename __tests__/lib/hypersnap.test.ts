@@ -1,4 +1,4 @@
-import { normalizeCastResponse, normalizeChannelListResponse } from '@/lib/hypersnap';
+import { fetchChannelParentUrl, normalizeCastResponse, normalizeChannelListResponse } from '@/lib/hypersnap';
 
 describe('Hypersnap cast response normalization', () => {
   const cast = { hash: `0x${'b'.repeat(40)}`, text: 'A cast' };
@@ -35,5 +35,18 @@ describe('Hypersnap channel list normalization', () => {
   it('preserves an explicit empty list and rejects an unknown response shape', () => {
     expect(normalizeChannelListResponse({ channels: [] })).toEqual([]);
     expect(normalizeChannelListResponse({ error: 'unavailable' })).toBeNull();
+  });
+});
+
+describe('Hypersnap channel parent URL lookup', () => {
+  it('uses the channel registry parent_url instead of constructing a client URL', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ channel: { id: 'dev-talk', parent_url: 'https://warpcast.com/~/channel/dev-talk' } }),
+    } as Response);
+
+    await expect(fetchChannelParentUrl('dev-talk')).resolves.toBe('https://warpcast.com/~/channel/dev-talk');
+    expect(fetchMock.mock.calls[0][0]).toContain('/v2/farcaster/channel?id=dev-talk&type=id');
+    fetchMock.mockRestore();
   });
 });

@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { castTypeForText } from '@/lib/cast-text';
+import { fetchChannelParentUrl } from '@/lib/hypersnap';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
@@ -17,10 +18,6 @@ import {
   type FarcasterSigner,
   type CastEmbed,
 } from '@/lib/fc-message-builder';
-
-function channelKeyToParentUrl(channelKey: string): string {
-  return `https://warpcast.com/~/channel/${channelKey}`;
-}
 
 async function submitMessage(message: Uint8Array): Promise<unknown> {
   const res = await fetch('/api/submit-cast', {
@@ -129,7 +126,7 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
   const submitCast = useCallback(async (params: SubmitCastParams): Promise<{ castHash: string }> => {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
-    const resolvedParentUrl = params.parentUrl || (params.channelKey ? channelKeyToParentUrl(params.channelKey) : undefined);
+    const resolvedParentUrl = params.parentUrl || (params.channelKey ? await fetchChannelParentUrl(params.channelKey) : undefined);
     // Protocol cast limits are UTF-8 bytes, including emoji and punctuation.
     const castType = castTypeForText(params.text);
     const message = await buildSignedMessage(
