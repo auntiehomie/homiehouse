@@ -616,10 +616,10 @@ export default function FeedList({
         const authorUsername = rawUsername && /^fid:\d+$/i.test(rawUsername) ? null : rawUsername;
         const authorFid = authorObj?.fid ?? null;
         // Navigate by username when available; fall back to FID so profile loads cleanly
-        const profileHref = authorUsername
-          ? `/profile?user=${authorUsername}`
-          : authorFid
-            ? `/profile?fid=${authorFid}`
+        const profileHref = authorFid
+          ? `/profile?fid=${encodeURIComponent(String(authorFid))}`
+          : authorUsername
+            ? `/profile?user=${encodeURIComponent(authorUsername)}`
             : '/feed';
         const authorName = authorObj?.display_name || authorUsername || 'Unknown';
         const text = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : null)) ?? JSON.stringify(it);
