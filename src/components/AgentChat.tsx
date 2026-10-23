@@ -343,7 +343,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400 flex gap-4">
             <span>📝 {userStats.totalCasts} casts tracked</span>
             <span>💬 {userStats.totalFeedback} feedback items</span>
-            {userStats.patterns.length > 0 && (
+            {userStats.patterns?.length > 0 && (
               <span>🎯 {userStats.patterns.length} patterns identified</span>
             )}
           </div>
