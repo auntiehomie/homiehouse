@@ -18,7 +18,8 @@ import { FeedScope } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { forgetRecentInteraction, rememberRecentInteraction } from '@/lib/recent-interactions';
+import { personalizePage, preferenceStorage } from '@/lib/like-curation';
+import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions } from '@/lib/recent-interactions';
 
 // Heavy markdown libs loaded lazily — not needed until a cast with markdown renders
 const LazyMarkdown = dynamic(
@@ -137,6 +138,10 @@ export default function FeedList({
   const PULL_THRESHOLD = 72;
   const [showActions, setShowActions] = useState<string | null>(null);
   const [likedCasts, setLikedCasts] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setLikedCasts(new Set(loadRecentInteractions(preferenceStorage(viewerFid))
+      .filter(item => item.type === 'like').map(item => item.castHash)));
+  }, [viewerFid]);
   const [recastedCasts, setRecastedCasts] = useState<Set<string>>(new Set());
   const [quotedCasts, setQuotedCasts] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -202,10 +207,12 @@ export default function FeedList({
         await unlikeCast({ targetCastHash: castHash, targetCastFid: authorFid });
         setLikedCasts(prev => { const next = new Set(prev); next.delete(castHash); return next; });
         forgetRecentInteraction('like', castHash);
+        forgetRecentInteraction('like', castHash, preferenceStorage(getStoredFid()));
       } else {
         await likeCast({ targetCastHash: castHash, targetCastFid: authorFid });
         setLikedCasts(prev => new Set([...prev, castHash]));
         rememberRecentInteraction({ type: 'like', castHash, authorFid, ...snapshot });
+        rememberRecentInteraction({ type: 'like', castHash, authorFid, ...snapshot }, preferenceStorage(getStoredFid()));
       }
     } catch (error: any) {
       console.error('Like error:', error);
@@ -390,6 +397,7 @@ export default function FeedList({
         if (feedRes.ok) {
           const json = await feedRes.json();
           res = json?.data ?? json;
+          if (Array.isArray(res) && feedType === 'community' && !selectedChannel) res = personalizePage(res, fid);
           nextCursor = json?.cursor || null;
         } else {
           const failure = await feedRes.json().catch(() => ({}));
@@ -447,7 +455,8 @@ export default function FeedList({
       const feedRes = await fetch(url, { cache: 'no-store' });
       if (feedRes.ok) {
         const json = await feedRes.json();
-        const newItems = json?.data ?? json;
+        const rawItems = json?.data ?? json;
+        const newItems = Array.isArray(rawItems) && feedType === 'community' && !selectedChannel ? personalizePage(rawItems, fid) : rawItems;
         const nextCursor = json?.cursor || null;
         if (Array.isArray(newItems)) {
           setItems(prev => {
