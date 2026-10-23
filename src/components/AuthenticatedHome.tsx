@@ -195,7 +195,13 @@ export default function AuthenticatedHome() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, color: 'var(--text-on-dark)' }}>From your feed</h2>
-          <Link href="/feed" style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>See all →</Link>
+          <Link
+            href="/feed?feed_type=following"
+            aria-label="Open the full following feed"
+            style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}
+          >
+            See all →
+          </Link>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {loading && [0, 1, 2].map(i => <div key={i} style={{ height: 96, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', opacity: .55 }} />)}
@@ -205,7 +211,13 @@ export default function AuthenticatedHome() {
             </div>
           )}
           {casts.map(cast => (
-            <Link key={cast.hash} data-feed-cast-hash={cast.hash} href={`/cast/${cast.hash}?returnTo=%2Ffeed%3Ffeed_type%3Dfollowing`} style={{ display: 'block', padding: 15, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
+            <Link
+              key={cast.hash}
+              data-feed-cast-hash={cast.hash}
+              href={`/cast/${encodeURIComponent(cast.hash)}?returnTo=%2Ffeed%3Ffeed_type%3Dfollowing`}
+              aria-label={`Open cast detail by ${cast.author?.display_name || cast.author?.username || 'HomieHouse user'}`}
+              style={{ display: 'block', padding: 15, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}
+            >
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
                 {cast.author?.pfp_url ? <Image src={cast.author.pfp_url} alt="" width={32} height={32} style={{ borderRadius: '50%', objectFit: 'cover' }} /> : <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--border)' }} />}
                 <div style={{ minWidth: 0 }}>
