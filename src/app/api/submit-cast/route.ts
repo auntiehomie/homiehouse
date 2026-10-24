@@ -30,14 +30,14 @@ async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
         signal: AbortSignal.timeout(10_000),
       });
 
-      if (response.ok || response.status < 500 || index === SNAPCHAIN_WRITE_TARGETS.length - 1) {
+      if (response.ok || response.status < 500 || index === HYPERSNAP_WRITE_TARGETS.length - 1) {
         return response;
       }
 
       console.warn(`[submit-cast] primary Hypersnap node returned ${response.status}; trying fallback`);
     } catch (error) {
       lastError = error;
-      if (index === SNAPCHAIN_WRITE_TARGETS.length - 1) throw error;
+      if (index === HYPERSNAP_WRITE_TARGETS.length - 1) throw error;
       console.warn('[submit-cast] primary Hypersnap node unavailable; trying fallback:', error);
     }
   }
