@@ -5,7 +5,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
   test.describe(`${viewport.width}px`, () => {
     test.use({ viewport, serviceWorkers: 'block' });
 
-    test('paid checkout return unlocks premium listing and lesson; Messages keeps conversations in the app', async ({ page }) => {
+    test('paid checkout return unlocks premium listing and lesson; Messages exposes the encrypted-message test', async ({ page }) => {
       await page.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.origin !== 'http://localhost:3000') return route.abort();
@@ -39,10 +39,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
       await expect(page).toHaveURL(`/learn/premium/${module.id}`);
       await expect(page.getByText('Paid lesson content', { exact: true })).toBeVisible();
       await page.goto('/messages', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('heading', { name: 'Private messages', exact: true })).toBeVisible();
-      await page.getByLabel('Recipient FID').fill('3103');
-      await expect(page.getByLabel('Recipient FID')).toHaveValue('3103');
-      await expect(page.getByRole('button', { name: 'Encrypted messaging is not available yet' })).toBeDisabled();
+      await expect(page.getByRole('heading', { name: 'Encrypted message test' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Run E2EE test' })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     });
   });
