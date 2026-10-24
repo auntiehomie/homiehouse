@@ -103,7 +103,7 @@ export default function Hh2StakingClient() {
 
   const syncStake = async (fid: number, walletAddress: `0x${string}`, txHash: Hex, tierId: string, amount: number) => {
     const authHeaders = getAuthHeaders();
-    if (!authHeaders) throw new Error('Reconnect your Farcaster account and try again.');
+    if (!authHeaders) throw new Error('Reconnect your social account and try again.');
     const response = await fetch('/api/hh2-stake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -115,13 +115,13 @@ export default function Hh2StakingClient() {
 
   const handleStake = async (tier: StakingTier, amount: number) => {
     const fid = Number(userFid ?? getStoredFid());
-    if (!fid || !address) { setError('Connect Farcaster and your wallet before staking.'); return; }
+    if (!fid || !address) { setError('Connect your social account and wallet before staking.'); return; }
     if (!HH2_STAKING_ADDRESS) { setError('On-chain staking is not enabled until the verified Base staking contract is configured.'); return; }
     if (chainId !== base.id) { setError('Switch your wallet to Base before staking.'); return; }
     if (!Number.isInteger(amount) || amount < tier.minStake || amount > tier.maxStake) { setError(`Enter a whole HH2 amount between ${tier.minStake} and ${tier.maxStake}.`); return; }
     if (balance === null || parseUnits(String(amount), decimals) > balance) { setError('Your connected wallet does not have enough HH2 for this stake.'); return; }
     const authHeaders = getAuthHeaders();
-    if (!authHeaders) { setError('Reconnect your Farcaster account and try again.'); return; }
+    if (!authHeaders) { setError('Reconnect your social account and try again.'); return; }
 
     setStaking(tier.id); setError(null); setSuccess(null);
     try {
@@ -159,7 +159,7 @@ export default function Hh2StakingClient() {
       const receipt = await publicClient!.waitForTransactionReceipt({ hash });
       if (receipt.status !== 'success') throw new Error('The withdrawal transaction failed on Base.');
       const authHeaders = getAuthHeaders();
-      if (!authHeaders) throw new Error('The withdrawal succeeded. Reconnect Farcaster to sync the learning reward boost.');
+      if (!authHeaders) throw new Error('The withdrawal succeeded. Reconnect your social account to sync the learning reward boost.');
       const response = await fetch('/api/hh2-stake', {
         method: 'DELETE', headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ fid, walletAddress: address, contractStakeId: stake.contract_stake_id, txHash: hash }),

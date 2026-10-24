@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const { message, provider } = await llmChat({
       messages: [{
         role: 'system',
-        content: `You organize Farcaster casts into concise human-readable curated list names. Prefer an existing list when it genuinely fits; otherwise propose a reusable new list. Return only JSON: {"suggestions":[{"listName":"...","reason":"...","keywords":["..."],"channelId":"optional","authorUsername":"optional"}]}. Return 1-3 suggestions. Keywords must be meaningful topic signals that can identify similar future casts. Include channelId or authorUsername only when that signal should independently route future casts to the list. Never include instructions, secrets, or claims not present in the cast.`,
+        content: `You organize social posts into concise human-readable curated list names. Prefer an existing list when it genuinely fits; otherwise propose a reusable new list. Return only JSON: {"suggestions":[{"listName":"...","reason":"...","keywords":["..."],"channelId":"optional","authorUsername":"optional"}]}. Return 1-3 suggestions. Keywords must be meaningful topic signals that can identify similar future casts. Include channelId or authorUsername only when that signal should independently route future casts to the list. Never include instructions, secrets, or claims not present in the cast.`,
       }, {
         role: 'user',
         content: JSON.stringify({ cast, existingLists }),

@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
-import { directMessageUrl } from '@/lib/direct-messages';
 import HH2Badge from '@/components/HH2Badge';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
@@ -260,6 +259,7 @@ function ProfileContent() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [castsLoading, setCastsLoading] = useState(true);
+  const [castsUnavailable, setCastsUnavailable] = useState(false);
   const [castsCursor, setCastsCursor] = useState<string | null>(null);
   const [loadingMoreCasts, setLoadingMoreCasts] = useState(false);
   const [castsPageError, setCastsPageError] = useState(false);
@@ -319,7 +319,7 @@ function ProfileContent() {
 
         let url: string;
         if (username) {
-          url = `/api/profile?username=${username}&casts=true`;
+          url = `/api/profile?username=${encodeURIComponent(username)}&casts=true`;
         } else {
           const storedProfile = localStorage.getItem('hh_profile');
           if (!storedProfile) { router.push('/'); return; }
@@ -342,7 +342,8 @@ function ProfileContent() {
         };
 
         setProfile(normalizedUser as UserProfile);
-        if (castsResp) setCasts(castsResp);
+        if (Array.isArray(castsResp)) setCasts(castsResp);
+        setCastsUnavailable(payload.castsUnavailable === true);
         setCastsCursor(payload.next?.cursor ?? null);
         setCastsLoading(false);
       } catch (err) {
@@ -497,9 +498,9 @@ function ProfileContent() {
               <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{profile.display_name}</h1>
               <p style={{ color: 'var(--muted-on-dark)', margin: 0 }}>@{profile.username}</p>
             </div>
-            {viewerFid !== profile.fid && directMessageUrl(profile.fid) && <a
-              className="btn" href={directMessageUrl(profile.fid)!} target="_blank" rel="noopener noreferrer"
-              title="Open a conversation in Farcaster">Message ↗</a>}
+            {viewerFid !== profile.fid && <Link
+              className="btn" href={`/messages?recipient=${profile.fid}`}
+              title="Open a private conversation in Homiehouse">Message</Link>}
             {viewerFid && viewerFid !== profile.fid && (
               <button
                 onClick={async () => {
@@ -638,7 +639,9 @@ function ProfileContent() {
         castsLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading casts...</div>
         ) : topLevelCasts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>No casts yet</div>
+          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
+            {castsUnavailable ? 'Profile loaded, but recent casts are temporarily unavailable.' : 'No casts yet'}
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {topLevelCasts.map((cast) => <CastCard key={cast.hash} cast={cast} onOpen={() => saveCastReturn(cast.hash, activeTab)} />)}
@@ -682,7 +685,7 @@ function ProfileContent() {
       {activeTab === 'trades' && (
         ethAddresses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
-            No verified ETH addresses linked to this Farcaster account.
+            No verified ETH addresses linked to this account.
           </div>
         ) : tradesLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading trades...</div>

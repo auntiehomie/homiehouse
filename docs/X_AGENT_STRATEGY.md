@@ -118,4 +118,4 @@ X_AI_REPLY_APPROVAL_CONFIRMED= # written approval required for AI mention replie
 
 ## Knowledge-base grounding
 
-Autonomous Farcaster and X posts use educational modes grounded in an article from the synchronized `kb_articles` table. The daily sync merges Rufus-vault's canonical article index with the rich summaries and learning points in the private homie-knowledge repository. If the synced table has no usable article, the posting route skips instead of generating an ungrounded post. X and Farcaster retain separate account credentials and duplicate-history tables.
+Autonomous Farcaster and X posts use educational modes grounded in an article from the synchronized `kb_articles` table. The hourly sync reads both the canonical article index and source-grounded context file from Rufus-vault. If the synced table has no usable article, the posting route skips instead of generating an ungrounded post. X and Farcaster retain separate account credentials and duplicate-history tables.

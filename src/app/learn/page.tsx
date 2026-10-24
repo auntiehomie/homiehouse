@@ -12,7 +12,7 @@ const learnJsonLd = {
   '@type': 'EducationalOrganization',
   name: 'HomieHouse Learning Hub',
   url: `${BASE_URL}/learn`,
-  description: 'Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.',
+  description: 'Turn casts and questions into plain-English answers, short lessons, and personalized paths through AI, privacy, crypto, and decentralized social.',
 };
 
 const learnCollectionJsonLd = {
@@ -29,13 +29,13 @@ const learnCollectionJsonLd = {
 
 export const metadata: Metadata = {
   title: 'Learn | HomieHouse',
-  description: 'Curated crypto safety lessons and personalized Web3 learning plans with daily streaks and interactive quizzes.',
+  description: 'Turn casts and questions into plain-English answers, short lessons, and personalized paths through AI, privacy, crypto, and decentralized social.',
   openGraph: {
     title: 'Learn | HomieHouse',
-    description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
+    description: 'Understand the ideas behind a cast. Get a plain-English answer, a short lesson, and a path to explore further.',
     type: 'website',
     images: [{
-      url: `${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`,
+      url: `${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20from%20casts%20with%20HomieHouse&description=Plain-English%20answers%2C%20short%20lessons%2C%20and%20personalized%20learning%20paths.`,
       width: 1200,
       height: 630,
       alt: 'HomieHouse Learning Hub',
@@ -44,8 +44,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Learn | HomieHouse',
-    description: 'AI-built Web3 learning plans with daily streaks and leaderboards.',
-    images: [`${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20Web3%20with%20HomieHouse&description=AI-built%20learning%20plans%2C%20daily%20streaks%2C%20and%20bite-sized%20lessons.`],
+    description: 'Understand the ideas behind a cast. Get a plain-English answer, a short lesson, and a path to explore further.',
+    images: [`${BASE_URL}/api/og/content?kind=learning%20hub&title=Learn%20from%20casts%20with%20HomieHouse&description=Plain-English%20answers%2C%20short%20lessons%2C%20and%20personalized%20learning%20paths.`],
   },
 };
 

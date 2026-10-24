@@ -1,14 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 
-const HYPERSNAP_BASE =
-  process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
+const DEFAULT_HYPERSNAP_URL = 'https://haatz.quilibrium.com';
+const HYPERSNAP_WRITE_BASE =
+  process.env.HYPERSNAP_NODE_URL?.trim() ||
+  process.env.SNAPCHAIN_NODE_URL?.trim() ||
+  process.env.NEXT_PUBLIC_HYPERSNAP_URL ||
+  DEFAULT_HYPERSNAP_URL;
+const HYPERSNAP_WRITE_FALLBACK =
+  process.env.HYPERSNAP_FALLBACK_URL?.trim() ||
+  process.env.SNAPCHAIN_FALLBACK_URL?.trim() ||
+  DEFAULT_HYPERSNAP_URL;
+const HYPERSNAP_WRITE_TARGETS = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRITE_FALLBACK]
+  .map((url) => url.replace(/\/+$/, ''))
+  .filter(Boolean))];
+
+async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
+  let lastError: unknown;
+
+  for (const [index, baseUrl] of HYPERSNAP_WRITE_TARGETS.entries()) {
+    try {
+      const response = await fetch(`${baseUrl}/v1/submitMessage`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/octet-stream',
+          accept: 'application/json',
+        },
+        body: messageBytes.slice(0),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (response.ok || response.status < 500 || index === HYPERSNAP_WRITE_TARGETS.length - 1) {
+        return response;
+      }
+
+      console.warn(`[submit-cast] primary Hypersnap node returned ${response.status}; trying fallback`);
+    } catch (error) {
+      lastError = error;
+      if (index === HYPERSNAP_WRITE_TARGETS.length - 1) throw error;
+      console.warn('[submit-cast] primary Hypersnap node unavailable; trying fallback:', error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('No Hypersnap write target is configured');
+}
 
 /**
- * Server-side proxy for Farcaster hub submitMessage.
+ * Server-side proxy for signed-message submission to a Hypersnap node.
  * The client builds and signs the protobuf message using the app-managed
  * Ed25519 signer key, then POSTs the raw bytes here.
- * We forward them to Hypersnap server-side to avoid CORS restrictions.
+ * Hypersnap exposes the Snapchain-compatible /v1/submitMessage API. We forward
+ * server-side to the configured personal Hypersnap node, with Haatz as fallback.
+ * Reads keep their separate NEXT_PUBLIC_HYPERSNAP_URL setting.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,14 +69,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Empty message body' }, { status: 400 });
     }
 
-    const hubRes = await fetch(`${HYPERSNAP_BASE}/v1/submitMessage`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/octet-stream',
-        accept: 'application/json',
-      },
-      body: messageBytes,
-    });
+    const hubRes = await submitMessage(messageBytes);
 
     const rawText = await hubRes.text();
     let data: any = {};

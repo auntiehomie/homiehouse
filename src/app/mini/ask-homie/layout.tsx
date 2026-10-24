@@ -17,10 +17,10 @@ const miniAppFrame = {
 
 export const metadata: Metadata = {
   title: 'Ask Homie - AI Assistant',
-  description: 'Your AI assistant for Farcaster - analyze casts, search content, and get insights',
+  description: 'Your AI assistant for social conversations - analyze posts, search content, and get insights',
   openGraph: {
     title: 'Ask Homie - AI Assistant',
-    description: 'Your AI assistant for Farcaster',
+    description: 'Your AI assistant for social conversations',
     images: ['/og-ask-homie.png']
   },
   other: {
