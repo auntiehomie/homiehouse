@@ -33,7 +33,9 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
       await page.goto('/pro?status=success', { waitUntil: 'domcontentloaded' });
       await expect(page.getByText('⚡ Active', { exact: true })).toBeVisible({ timeout: 15000 });
       await page.getByRole('link', { name: '📚 Go to Learning Hub →' }).click();
-      await page.getByRole('button', { name: '⭐ Premium', exact: true }).click();
+      const premiumTab = page.getByRole('button', { name: '⭐ Premium', exact: true });
+      await premiumTab.click();
+      await expect(premiumTab).toHaveAttribute('aria-pressed', 'true');
       await expect(page.getByText('You have full access to all premium content.', { exact: false })).toBeVisible();
       await page.getByText(module.title, { exact: true }).click();
       await expect(page).toHaveURL(`/learn/premium/${module.id}`);
