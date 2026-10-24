@@ -43,7 +43,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
       const reads = homeReads;
       replaceHomeCards = true;
       await anchor.click();
-      await expect(page).toHaveURL(`/cast/${firstHash}`);
+      await expect(page).toHaveURL(`/cast/${firstHash}?returnTo=%2Ffeed%3Ffeed_type%3Dfollowing`);
       await page.getByRole('button', { name: '← Back', exact: true }).click();
       await expect(page).toHaveURL('/feed?feed_type=following');
       await expect(page.getByRole('button', { name: 'Following', exact: true })).toHaveAttribute('aria-pressed', 'true');
