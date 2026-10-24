@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
     // Optionally fetch user's casts
     let casts = null;
     let next = null;
+    let castsUnavailable = false;
     if (includeCasts && userFid) {
       try {
         logger.info('Fetching user casts', { fid: userFid });
@@ -73,7 +74,10 @@ export async function GET(request: NextRequest) {
         logger.info('Casts fetched', { count: casts.length });
       } catch (error) {
         logger.warn('Failed to fetch casts', { error: String(error) });
-        throw error;
+        // Profile identity should remain available when the author's feed is
+        // temporarily unavailable on both Hypersnap nodes.
+        casts = [];
+        castsUnavailable = true;
       }
     }
 
@@ -99,7 +103,7 @@ export async function GET(request: NextRequest) {
       displayName: normalizedUser.display_name
     });
 
-    return NextResponse.json({ ...normalizedUser, casts, next }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
+    return NextResponse.json({ ...normalizedUser, casts, next, castsUnavailable }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');

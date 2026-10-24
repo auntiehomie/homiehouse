@@ -20,16 +20,36 @@ function AskHomieContent() {
   const userId = fid ? `fid_${fid}` : undefined;
 
   useEffect(() => {
+    const castId = searchParams.get('castId');
     const castData = searchParams.get('cast');
-    if (castData) {
+    if (castId) {
       try {
-        setCastContext(JSON.parse(decodeURIComponent(castData)));
-        localStorage.setItem('hh_ask_context', castData);
+        const stored = sessionStorage.getItem(`hh_ask_context:${castId}`) || localStorage.getItem('hh_ask_context');
+        const context = stored ? JSON.parse(stored) : null;
+        if (context?.hash === castId) {
+          setCastContext(context);
+          localStorage.setItem('hh_ask_context', JSON.stringify(context));
+        }
+      } catch {}
+    } else if (castData) {
+      try {
+        // URLSearchParams has already decoded the value once. Keep the second
+        // decode only for older links that still contain encoded JSON.
+        let context: any;
+        try { context = JSON.parse(castData); }
+        catch { context = JSON.parse(decodeURIComponent(castData)); }
+        setCastContext(context);
+        localStorage.setItem('hh_ask_context', JSON.stringify(context));
       } catch {}
     } else {
       const stored = localStorage.getItem('hh_ask_context');
       if (stored) {
-        try { setCastContext(JSON.parse(decodeURIComponent(stored))); } catch {}
+        try {
+          let context: any;
+          try { context = JSON.parse(stored); }
+          catch { context = JSON.parse(decodeURIComponent(stored)); }
+          setCastContext(context);
+        } catch {}
       }
     }
   }, [searchParams]);

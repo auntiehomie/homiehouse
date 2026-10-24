@@ -217,7 +217,7 @@ export default function FriendsPage() {
           <div className="p-6 border-b">
             <h2 className="text-2xl font-bold">Your Friends</h2>
             <p className="text-gray-600 text-sm mt-1">
-              Send tokens directly to your Farcaster friends
+              Send tokens directly to your friends
             </p>
           </div>
 
@@ -229,7 +229,7 @@ export default function FriendsPage() {
             <div className="p-8 text-center text-gray-500">
               <p className="mb-4">No friends found.</p>
               <p className="text-sm">
-                Make sure you're following people on Farcaster. Friends will appear here, whether or not they have verified addresses.
+                Make sure you're following people. Friends will appear here, whether or not they have verified addresses.
               </p>
             </div>
           ) : (

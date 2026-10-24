@@ -43,6 +43,26 @@ CREATE TABLE IF NOT EXISTS learning_progress (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Learner-submitted corrections for generated lesson content.
+CREATE TABLE IF NOT EXISTS lesson_correction_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  module_id TEXT NOT NULL,
+  module_title TEXT NOT NULL,
+  step_number INTEGER NOT NULL CHECK (step_number > 0),
+  card_label TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('factually_incorrect', 'outdated', 'missing_source', 'unclear', 'other')),
+  report TEXT NOT NULL,
+  suggested_correction TEXT,
+  source_url TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ,
+  resolution_note TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_lesson_correction_reports_status_created
+  ON lesson_correction_reports (status, created_at DESC);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_saved_casts_user_id ON saved_casts(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_casts_cast_hash ON saved_casts(cast_hash);

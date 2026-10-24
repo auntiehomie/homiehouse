@@ -124,7 +124,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       throw new Error('Sign in to HomieHouse before signing in to a Mini App');
     }
     if (!isConnected || !address) {
-      throw new Error('Connect the wallet linked to your Farcaster account to continue');
+      throw new Error('Connect the wallet linked to your social account to continue');
     }
 
     const response = await fetch(`/api/auth/linked-accounts?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
@@ -299,7 +299,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
 
       {!isAuthenticated && (
         <div className="border-b border-amber-800 bg-amber-950 px-4 py-2 text-center text-sm text-amber-100">
-          Sign in to HomieHouse to share your Farcaster identity with this Mini App.
+          Sign in to HomieHouse to share your social identity with this Mini App.
         </div>
       )}
 
