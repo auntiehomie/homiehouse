@@ -510,7 +510,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                     className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors flex items-center gap-1"
                     title="Share as cast"
                   >
-                    <span>📤</span>
+                    <span aria-hidden="true">📤</span>
                     <span>Share as Cast</span>
                   </button>
                   <button
