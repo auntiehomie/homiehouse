@@ -184,9 +184,9 @@ const CREATOR_MODULES: PremiumModule[] = [
     id: 'prem-creator-monetization',
     title: 'Creator Monetization: Hypersub, Tips, and Token-Gated Content',
     description:
-      'Turn your Farcaster presence into income. Subscription models, tipping infrastructure, and how to price token-gated content.',
+      'Turn your social media presence into income. Subscription models, tipping infrastructure, and how to price token-gated content.',
     whyItMatters:
-      'Farcaster\'s direct creator-audience relationship eliminates platform rent-seeking. Learning monetization tools lets you capture value you already create.',
+      'A direct creator-audience relationship on social platforms eliminates platform rent-seeking. Learning monetization tools lets you capture value you already create.',
     objectives: [
       'Compare Hypersub, tipping, and token-gating revenue models',
       'Price subscriptions and gated content based on audience size',
@@ -195,14 +195,14 @@ const CREATOR_MODULES: PremiumModule[] = [
     ],
     estimatedMinutes: 18,
     difficulty: 'intermediate',
-    tags: ['creator', 'monetization', 'hypersub', 'farcaster'],
+    tags: ['creator', 'monetization', 'hypersub', 'social network'],
     track: 'creator',
   },
   {
     id: 'prem-creator-community',
     title: 'Community Building: From Followers to Superfans',
     description:
-      'How to grow an engaged community on Farcaster — channel strategy, conversation design, and turning passive followers into active participants.',
+      'How to grow an engaged community on social platforms — channel strategy, conversation design, and turning passive followers into active participants.',
     whyItMatters:
       'A small, engaged community generates more revenue than a large, passive audience. Participation architecture is the foundation.',
     objectives: [
@@ -213,21 +213,21 @@ const CREATOR_MODULES: PremiumModule[] = [
     ],
     estimatedMinutes: 18,
     difficulty: 'intermediate',
-    tags: ['creator', 'community', 'growth', 'farcaster'],
+    tags: ['creator', 'community', 'growth', 'social network'],
     track: 'creator',
   },
   {
     id: 'prem-creator-content',
     title: 'Content Strategy: Casts, Threads, Frames, and Media',
     description:
-      'What works on Farcaster — thread structure, frame design, video timing, and the algorithm-friendly formats that drive discovery.',
+      'What works on social platforms — thread structure, frame design, video timing, and the algorithm-friendly formats that drive discovery.',
     whyItMatters:
-      'Farcaster rewards different content patterns than Twitter or TikTok. Platform-native formats get exponentially more reach.',
+      'Social platforms reward different content patterns than Twitter or TikTok. Platform-native formats get exponentially more reach.',
     objectives: [
       'Structure high-performing threads: hook, body, CTA',
       'Design frames that drive interaction and shares',
       'Optimize posting cadence and timing for your audience',
-      'Repurpose content across Farcaster, newsletters, and social',
+      'Repurpose content across social platforms, newsletters, and other channels',
     ],
     estimatedMinutes: 18,
     difficulty: 'intermediate',
@@ -238,9 +238,9 @@ const CREATOR_MODULES: PremiumModule[] = [
     id: 'prem-creator-brand',
     title: 'Building Your On-Chain Brand',
     description:
-      'How to build a recognizable brand on Farcaster — consistent visual identity, on-chain reputation, collaborations, and sponsorship deals.',
+      'How to build a recognizable brand on social platforms — consistent visual identity, on-chain reputation, collaborations, and sponsorship deals.',
     whyItMatters:
-      'Your Farcaster identity is portable. Building a strong on-chain brand today creates leverage for sponsorships, collaborations, and future opportunities.',
+      'Your social identity is portable. Building a strong on-chain brand today creates leverage for sponsorships, collaborations, and future opportunities.',
     objectives: [
       'Design a consistent visual identity across channels and frames',
       'Build on-chain reputation through contributions and attestations',
@@ -276,7 +276,7 @@ export const PREMIUM_TRACKS: PremiumTrack[] = [
     id: 'creator',
     emoji: '🎨',
     title: 'Creator Economy',
-    description: 'Monetize your Farcaster presence with subscriptions, token-gated content, community building, and sponsorship deals.',
+    description: 'Monetize your social media presence with subscriptions, token-gated content, community building, and sponsorship deals.',
     modules: CREATOR_MODULES,
   },
 ];
@@ -368,7 +368,7 @@ const PREMIUM_LESSONS: Record<string, PremiumLesson> = {
         explanation: 'A trading journal captures what you traded, why you traded it, your emotional state at entry and exit, and the outcome. Over time, patterns emerge: you may find you trade best in the morning, or that you lose money every time you trade after a sleepless night, or that your best trades come from a specific type of setup. The journal transforms trading from gambling into a systematic, improvable skill.',
       },
     ],
-    practicalExample: 'Bob started 2026 with $10,000. In January, he FOMO-bought a memecoin after seeing it pumped on Farcaster — up 200% in a day. He put in $4,000 (40% position size). The coin dumped 60% overnight. Panicking, he sold at a $2,400 loss. After reviewing his journal, Bob set new rules: never enter a trade within 2 hours of seeing an influencer post, max 2% risk per trade, and mandatory 24-hour cooling-off before any position over $500. Over the next 6 months, his win rate went from 30% to 55%.',
+    practicalExample: 'Bob started 2026 with $10,000. In January, he FOMO-bought a memecoin after seeing it pumped on the social network — up 200% in a day. He put in $4,000 (40% position size). The coin dumped 60% overnight. Panicking, he sold at a $2,400 loss. After reviewing his journal, Bob set new rules: never enter a trade within 2 hours of seeing an influencer post, max 2% risk per trade, and mandatory 24-hour cooling-off before any position over $500. Over the next 6 months, his win rate went from 30% to 55%.',
     quickActions: [
       'Start a trading journal today — a simple spreadsheet is enough: date, asset, entry price, thesis, emotion (1-10), exit price, result',
       'Set a maximum position size rule (e.g. 2% of portfolio per trade) and write it down',
@@ -395,8 +395,8 @@ const PREMIUM_LESSONS: Record<string, PremiumLesson> = {
     concepts: [
       {
         title: 'The Creator Monetization Funnel',
-        explanation: 'Successful Farcaster creators build a monetization ladder: free content (casts, threads) builds audience → free subscribers (follows, channel membership) deepen engagement → paid subscribers (Hypersub) provide recurring revenue → high-value patrons (token-gated content, 1:1 consultations) deliver premium income. Each step filters for higher intent and willingness to pay. The key insight: do not rush the monetization. Build credibility with free content first.',
-        analogy: 'A musician does not start by selling $500 backstage passes. They first play free shows, build a local following, release music, sell $20 tickets, and only after years of trust do fans pay for VIP experiences. Farcaster monetization follows the same progression.',
+        explanation: 'Successful social creators build a monetization ladder: free content (casts, threads) builds audience → free subscribers (follows, channel membership) deepen engagement → paid subscribers (Hypersub) provide recurring revenue → high-value patrons (token-gated content, 1:1 consultations) deliver premium income. Each step filters for higher intent and willingness to pay. The key insight: do not rush the monetization. Build credibility with free content first.',
+        analogy: 'A musician does not start by selling $500 backstage passes. They first play free shows, build a local following, release music, sell $20 tickets, and only after years of trust do fans pay for VIP experiences. social media monetization follows the same progression.',
       },
       {
         title: 'Pricing Your Content',
@@ -404,17 +404,17 @@ const PREMIUM_LESSONS: Record<string, PremiumLesson> = {
       },
       {
         title: 'The Value Loop',
-        explanation: 'The most sustainable monetization model on Farcaster is a value loop: you share knowledge freely → followers learn and succeed → they attribute their success to you → they subscribe to get more/deeper access → their continued success becomes social proof → more followers join. This loop creates organic growth that compounds. Creators who gate everything behind paywalls kill their own growth — nobody subscribes to content they have never seen.',
+        explanation: 'The most sustainable monetization model on social platforms is a value loop: you share knowledge freely → followers learn and succeed → they attribute their success to you → they subscribe to get more/deeper access → their continued success becomes social proof → more followers join. This loop creates organic growth that compounds. Creators who gate everything behind paywalls kill their own growth — nobody subscribes to content they have never seen.',
       },
     ],
-    practicalExample: 'Sarah runs a daily Farcaster thread on DeFi market analysis. After 3 months and 2,000 followers, she launches a Hypersub at $15/month offering: (1) early access to her daily analysis 4 hours before the public thread, (2) a weekly deep-dive report with on-chain data, and (3) a subscriber-only group chat. She converts 3% of followers (60 subscribers = $900/month). After 6 months of consistent delivery, her follower count grows to 5,000, subscribers grow to 150 ($2,250/month), and she adds a $500/month "institutional tier" with 1:1 portfolio reviews, attracting 3 clients ($1,500/month). Total: $3,750/month from content that she was already creating for free.',
+    practicalExample: 'Sarah runs a daily social media thread on DeFi market analysis. After 3 months and 2,000 followers, she launches a Hypersub at $15/month offering: (1) early access to her daily analysis 4 hours before the public thread, (2) a weekly deep-dive report with on-chain data, and (3) a subscriber-only group chat. She converts 3% of followers (60 subscribers = $900/month). After 6 months of consistent delivery, her follower count grows to 5,000, subscribers grow to 150 ($2,250/month), and she adds a $500/month "institutional tier" with 1:1 portfolio reviews, attracting 3 clients ($1,500/month). Total: $3,750/month from content that she was already creating for free.',
     quickActions: [
       'Identify your content niche — what do you know better than most people?',
       'Commit to a consistent publishing schedule (daily/weekly) for 30 days before launching any paid tier',
       'Research successful Hypersub creators in your niche — what do subscribers get that free followers do not?',
       'Draft your first paid-subscriber offering: at least 2-3 concrete benefits that justify the monthly price',
     ],
-    summary: 'Farcaster monetization is a long game. Build credibility with free content, price affordably at launch, focus on consistent delivery over viral moments, and let the value loop compound your audience and income over time.',
+    summary: 'social media monetization is a long game. Build credibility with free content, price affordably at launch, focus on consistent delivery over viral moments, and let the value loop compound your audience and income over time.',
     quiz: [
       {
         question: 'What is the recommended approach to pricing your Hypersub?',
@@ -424,7 +424,7 @@ const PREMIUM_LESSONS: Record<string, PremiumLesson> = {
       },
       {
         question: 'Why should creators share substantial free content alongside paid content?',
-        options: ['Farcaster requires it', 'Free content builds the top of the funnel — subscribers come from people who already know your value', 'Paid subscriptions earn more from ads', 'It is required by Hypersub terms of service'],
+        options: ['A platform requires it', 'Free content builds the top of the funnel — subscribers come from people who already know your value', 'Paid subscriptions earn more from ads', 'It is required by Hypersub terms of service'],
         correctIndex: 1,
         explanation: 'Nobody subscribes to content they have never seen. Free content demonstrates your expertise, builds trust, and creates the "I want more of this" feeling that converts followers into subscribers.',
       },

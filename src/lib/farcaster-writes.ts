@@ -25,6 +25,7 @@ import {
 } from '@farcaster/core';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { HDKey } from '@scure/bip32';
+import { fetchChannelParentUrl } from '@/lib/hypersnap';
 // Quilibrium's Snapchain node — synced with on-chain signer registrations and
 // accepts /v1/submitMessage. It's the default primary AND is always kept as a
 // fallback, because some configured hubs are stale: Pinata's sunset hub, for
@@ -187,8 +188,8 @@ export async function publishCast(params: {
       fid: params.parentCastFid ?? 0,
       hash: hashResult.value,
     };
-  } else if (params.parentUrl) {
-    castBody.parentUrl = params.parentUrl;
+  } else if (params.parentUrl || params.channelKey) {
+    castBody.parentUrl = params.parentUrl || await fetchChannelParentUrl(params.channelKey!);
   }
 
   const msg = await makeCastAdd(castBody, { fid: castFid, network: FarcasterNetwork.MAINNET }, signer);

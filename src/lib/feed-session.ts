@@ -10,7 +10,7 @@ export interface FeedSnapshot<T = unknown> {
 export interface FeedReturn {
   snapshotKey: string;
   owner: string;
-  feedType: 'global' | 'following';
+  feedType: 'global' | 'following' | 'community';
   selectedChannel: string | null;
   castHash: string;
   castOffset: number | null;
@@ -70,7 +70,7 @@ export function readFeedReturn(): FeedReturn | null {
   // The TTL only bounds rehydration after a full reload loses module memory.
   const saved = pendingReturn;
   return saved && saved.owner === owner()
-    && (saved.feedType === 'global' || saved.feedType === 'following')
+    && (saved.feedType === 'global' || saved.feedType === 'following' || saved.feedType === 'community')
     && typeof saved.snapshotKey === 'string' && typeof saved.castHash === 'string'
     && (saved.selectedChannel === null || typeof saved.selectedChannel === 'string')
     && Number.isFinite(saved.scrollY) && (saved.castOffset === null || Number.isFinite(saved.castOffset))

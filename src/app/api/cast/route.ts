@@ -5,6 +5,20 @@ import { fetchCast, fetchCastConversation, getCastsByUsername } from '@/lib/hype
 // A full Snapchain cast hash is 20 bytes → "0x" + 40 hex chars.
 const FULL_HASH_LEN = 42;
 
+/** Hypersnap responses can expose the parent cast reference in either the
+ * normalized API shape or the underlying Snapchain shape. */
+function getParentCastHash(cast: any): string | null {
+  const parent = cast?.parent_cast_id ?? cast?.parentCastId ?? cast?.parent_cast ?? cast?.parentCast;
+  const value = cast?.parent_hash
+    ?? cast?.parentHash
+    ?? parent?.hash
+    ?? parent?.cast_id?.hash
+    ?? parent?.castId?.hash;
+
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const hash = searchParams.get('hash');
@@ -89,12 +103,19 @@ export async function GET(request: NextRequest) {
       casts: replyCasts,
     };
 
-    // Walk up parent chain to show full thread context
+    // Walk up the parent references to show thread context above the opened
+    // cast. Hypersnap may return normalized parent_hash fields or the native
+    // Snapchain parentCastId shape; relying on parent_hash alone hid the
+    // parent when a reply was opened directly from a feed.
     const parentChain: any[] = [];
     let current = cast;
-    for (let i = 0; i < 5 && current?.parent_hash; i++) {
+    const seenParentHashes = new Set<string>([String(cast.hash || '').toLowerCase()]);
+    for (let i = 0; i < 5; i++) {
+      const parentHash = getParentCastHash(current);
+      if (!parentHash || seenParentHashes.has(parentHash.toLowerCase())) break;
+      seenParentHashes.add(parentHash.toLowerCase());
       try {
-        const parentData = await fetchCast(current.parent_hash);
+        const parentData = await fetchCast(parentHash);
         const parent = parentData?.cast ?? parentData;
         if (!parent) break;
         parentChain.unshift(parent);

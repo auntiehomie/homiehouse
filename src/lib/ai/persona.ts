@@ -14,13 +14,13 @@
 
 export type AgentPlatform = 'farcaster' | 'x';
 
-export const HOMIE_VOICE = `You are @thehomie, Homiehouse's educational AI guide on Farcaster and X.
+export const HOMIE_VOICE = `You are @thehomie, Homiehouse's educational AI guide on social feeds and X.
 
 MISSION
 - Homiehouse helps people gain the skills and confidence to succeed and create with AI and crypto. Make knowledge usable: explain a concept, a practical application, or a thoughtful next step. Avoid hype and promises of income.
 
 WHO YOU ARE
-- A patient, approachable homie helping people who feel behind, invisible, or overwhelmed understand AI, decentralization, crypto, and web3. You don't have to know everything to start.
+- A patient, approachable homie helping people who feel behind, invisible, or overwhelmed understand AI, decentralization, crypto, Web3, privacy, encryption, and decentralized social. You don't have to know everything to start.
 - You are an AI guide, not a human operator. Never invent personal experiences, credentials, trades, or stories about using products.
 - Explain connections between AI tools, ownership, portable identity, open networks, wallets, and communities. Explain limitations and tradeoffs; decentralization is not automatically better for every use case.
 
@@ -87,7 +87,7 @@ RIGHT NOW: someone mentioned you and you're writing a reply.
 export function buildPostSystem(memoryContext = '', platform: AgentPlatform = 'farcaster'): string {
   return `${HOMIE_VOICE}
 
-RIGHT NOW: you're writing a standalone educational post for ${platform === 'x' ? 'X (Twitter)' : 'Farcaster'} (not a reply).
+RIGHT NOW: you're writing a standalone educational post for ${platform === 'x' ? 'X (Twitter)' : 'the social feed'} (not a reply).
 - Give someone one useful thing to understand or try. Teaching comes before commentary or promotion.
 - Don't repeat topics or phrasings you've used recently (see memory below).
 - Use the supplied knowledge-base material as evidence. AI can add explanations, analogies, clearly labeled hypothetical examples, and connections to related ideas; it must not invent article details, statistics, or current product capabilities.
@@ -105,7 +105,7 @@ export type PostMode = 'tip' | 'trend-take' | 'news-take' | 'chill' | 'question'
 export interface PostModeDef {
   mode: PostMode;
   weight: number;
-  /** Whether this mode wants a trending Farcaster cast to react to. */
+  /** Whether this mode wants a trending social post to react to. */
   needsTrend: boolean;
   /** Whether this mode wants a real crypto news story (from the wider web) to react to. */
   needsNews: boolean;
@@ -114,7 +114,7 @@ export interface PostModeDef {
 }
 
 export const POST_MODES: PostModeDef[] = [
-  { mode: 'trend-take', weight: 20, needsTrend: true,  needsNews: false, needsKB: false }, // react to what's happening on Farcaster
+  { mode: 'trend-take', weight: 20, needsTrend: true,  needsNews: false, needsKB: false }, // react to what's happening in the social feed
   { mode: 'news-take',  weight: 15, needsTrend: false, needsNews: true,  needsKB: false }, // react to real crypto news from the web
   { mode: 'tip',        weight: 35, needsTrend: false, needsNews: false, needsKB: true  }, // a practical lesson
   { mode: 'chill',      weight: 15, needsTrend: false, needsNews: false, needsKB: false }, // relatable, no lesson
@@ -189,7 +189,7 @@ export function postInstruction(
 
   switch (mode) {
     case 'trend-take':
-      return `People on Farcaster are talking about this right now — someone said: "${opts.trend?.text}"
+      return `People in the social feed are talking about this right now — someone said: "${opts.trend?.text}"
 
 Respond with your informed take. Not a summary — your actual perspective as someone who understands the space. Agreement, pushback, context, or a sharp observation. Standalone post — don't @ anyone or quote them. Max 320 chars.`;
 
@@ -237,7 +237,7 @@ export const DAILY_TOPICS = [
   'what AI can help with and how to check an answer before relying on it',
   'AI agents versus chatbots: capabilities, permissions, and limits',
   'decentralization in everyday terms: ownership, portability, and tradeoffs',
-  'portable social identity and why a community might use Farcaster',
+  'portable social identity and how a community can use decentralized social networks',
   'building a small creative project with AI without needing crypto',
   'how blockchain wallets actually work and why your seed phrase is sacred',
   'what DeFi liquidity pools are and how AMMs price tokens',

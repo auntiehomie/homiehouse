@@ -43,7 +43,7 @@ export interface MiniAppEmbedProps {
 export function MiniAppEmbed({
   snapUrl,
   className,
-  title = 'Farcaster Mini App',
+  title = 'Mini App',
   hostConfig,
   onLoad,
   onError,
