@@ -72,19 +72,19 @@ export default function MigrationGuide() {
     {open && <dialog ref={dialog} className={styles.dialog} aria-labelledby="migration-title" aria-describedby="migration-description" onCancel={dismiss}>
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <p className={styles.note} style={{ margin: '0 0 6px' }}>YOUR NEXT HOME ON FARCASTER</p>
+          <p className={styles.note} style={{ margin: '0 0 6px' }}>YOUR NEXT HOME ON THE NETWORK</p>
           <h2 id="migration-title" style={{ margin: 0, fontSize: 26, lineHeight: 1.2 }}>Make Homiehouse your home</h2>
         </div>
         <button className="btn" aria-label="Close getting started" onClick={dismiss}>×</button>
       </header>
-      <p id="migration-description" style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 0 }}>Keep your Farcaster identity and reconnect with your people. Open a step below to get settled in.</p>
+      <p id="migration-description" style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 0 }}>Keep your social identity and reconnect with your people. Open a step below to get settled in.</p>
       <ol className={styles.steps}>
         <li className={styles.step}><span className={styles.number}>1</span><div>
           <details><summary className={styles.summary}><h3>Find your familiar face</h3></summary>
           <p>Preview your existing profile and casts. Looking up a username does not sign you in.</p>
           <form onSubmit={findProfile} className={styles.form}>
-            <label className="sr-only" htmlFor="migration-username">Farcaster username</label>
-            <input id="migration-username" className={styles.input} value={username} onChange={e => { previewRequest.current?.abort(); setBusy(false); setUsername(e.target.value); setPreview(null); setError(''); }} placeholder="Your Farcaster username" autoCapitalize="none" autoCorrect="off" maxLength={64} required />
+            <label className="sr-only" htmlFor="migration-username">Username</label>
+            <input id="migration-username" className={styles.input} value={username} onChange={e => { previewRequest.current?.abort(); setBusy(false); setUsername(e.target.value); setPreview(null); setError(''); }} placeholder="Your username" autoCapitalize="none" autoCorrect="off" maxLength={64} required />
             <button className="btn" disabled={busy}>{busy ? 'Finding…' : 'Preview profile'}</button>
           </form>
           {error && <p role="alert" style={{ marginTop: 8 }}>{error}</p>}
@@ -92,13 +92,13 @@ export default function MigrationGuide() {
         </details></div></li>
         <li className={styles.step}><span className={styles.number}>{isAuthenticated ? '✓' : '2'}</span><div>
           <details><summary className={styles.summary}><h3>Sign in to your existing account</h3></summary>
-          <p>Connect a wallet linked to your Farcaster account, then approve the login message. Your identity and follows stay on the network.</p>
+          <p>Connect a wallet linked to your social account, then approve the login message. Your identity and follows stay on the network.</p>
           {isAuthenticated ? <p role="status">You’re signed in.</p> : <button className="btn primary" onClick={() => { dismiss(); setLogin(true); }}>Sign in with my wallet</button>}
           <p className={styles.note} style={{ marginTop: 8 }}>No new account or fund transfer is needed. You never need to enter a recovery phrase here.</p>
         </details></div></li>
         <li className={styles.step}><span className={styles.number}>{hasActiveSigner ? '✓' : '3'}</span><div>
           <details><summary className={styles.summary}><h3>Enable posting, then say hello</h3></summary>
-          <p>Posting needs a separate approval from the wallet that owns your Farcaster account. A wallet linked only for login may not be able to approve posting.</p>
+          <p>Posting needs a separate approval from the wallet that owns your social account. A wallet linked only for login may not be able to approve posting.</p>
           {hasActiveSigner ? <button className="btn" onClick={() => visit('/compose')}>Write your first Homiehouse cast</button> : <button className="btn" disabled={!isAuthenticated} onClick={() => { dismiss(); void requestSigner(); }}>Enable posting</button>}
           {!isAuthenticated && <p className={styles.note}>Sign in above to continue. You can browse without posting.</p>}
         </details></div></li>

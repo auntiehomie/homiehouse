@@ -25,7 +25,7 @@ type Step = "welcome" | "username" | "signing" | "creating" | "done" | "starter"
 
 // ── Starter Pack ──
 const STARTER_CHANNELS = [
-  { id: "farcaster", label: "Farcaster", emoji: "🟣", description: "Protocol news & the core community" },
+  { id: "farcaster", label: "Decentralized Social", emoji: "🟣", description: "Protocol news & the core community" },
   { id: "defi", label: "DeFi", emoji: "💧", description: "Decentralized finance, yields, protocols" },
   { id: "web3", label: "Web3", emoji: "🌐", description: "Broader web3 builders & discussion" },
   { id: "base", label: "Base", emoji: "🔵", description: "Base chain apps & ecosystem" },
@@ -81,7 +81,7 @@ function UsernameStep({
   return (
     <>
       <p style={{ color: "var(--muted-on-dark)", fontSize: 14, margin: "0 0 20px", lineHeight: 1.5 }}>
-        Pick your Farcaster username. It can only contain letters, numbers, and underscores (max 16 chars).
+        Pick your username. It can only contain letters, numbers, and underscores (max 16 chars).
       </p>
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <input
@@ -396,7 +396,7 @@ export default function FarcasterOnboarding() {
               <div style={{ fontSize: 48, marginBottom: 12 }}>🟣</div>
               <h2 style={{ margin: "0 0 8px", fontSize: 22 }}>Create your HomieHouse identity</h2>
               <p style={{ color: "var(--muted-on-dark)", fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-                Your FID is registered on Optimism and used by Hypersnap. HomieHouse creates a scoped posting key directly on Hypersnap—no Farcaster app approval or recovery phrase.
+                Your account ID is registered on Optimism and used by Hypersnap. HomieHouse creates a scoped posting key directly on Hypersnap—no separate app approval or recovery phrase.
               </p>
             </div>
             <div style={{ background: "var(--bg-dark)", borderRadius: 12, padding: "14px 16px", marginBottom: 24, border: "1px solid var(--border)" }}>
@@ -438,7 +438,7 @@ export default function FarcasterOnboarding() {
                 fontSize: 13, marginTop: 8,
               }}
             >
-              I already have a Farcaster account
+              I already have a social account
             </button>
           </>
         )}

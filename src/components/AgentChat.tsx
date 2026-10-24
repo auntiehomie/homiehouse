@@ -234,10 +234,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `AI request failed: ${response.status}`);
-
-      if (data.error) {
-        throw new Error(data.error);
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `Ask Homie request failed (${response.status}). Please try again.`);
       }
 
       setMessages(prev => [...prev, {
@@ -255,7 +253,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       console.error('Error:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: error instanceof Error ? error.message : 'Could not create an answer. Please try again.'
+        content: error instanceof Error
+          ? `I couldn't complete that request: ${error.message}`
+          : 'I couldn’t complete that request. Please try again.'
       }]);
       setInput(userMessage);
     } finally {
@@ -384,7 +384,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400 flex gap-4">
             <span>📝 {userStats.totalCasts} casts tracked</span>
             <span>💬 {userStats.totalFeedback} feedback items</span>
-            {userStats.patterns.length > 0 && (
+            {userStats.patterns?.length > 0 && (
               <span>🎯 {userStats.patterns.length} patterns identified</span>
             )}
           </div>

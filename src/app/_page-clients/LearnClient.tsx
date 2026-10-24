@@ -30,6 +30,7 @@ interface LearningModule {
   estimatedMinutes: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
+  sourceCast?: { author?: string; text: string };
 }
 
 interface LearningPlan {
@@ -47,6 +48,8 @@ type LearnTab = 'plan' | 'completed' | 'premium' | 'homie' | 'feed';
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
 const LS_COMPLETIONS_KEY = 'hh_learning_completions';
+const RELATED_BACKUP_PLAN_KEY = 'hh_related_backup_plan';
+const RELATED_BACKUP_PROGRESS_KEY = 'hh_related_backup_progress';
 
 // ─── Premium Tracks Panel ────────────────────────────────────────────────────
 
@@ -129,7 +132,7 @@ function PremiumTracksPanel() {
   const diffColor: Record<string, string> = { beginner: '#22c55e', intermediate: '#f97316', advanced: '#a855f7' };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+    <div className="hh-learn-panel" style={{ margin: '0 auto', padding: '24px 16px' }}>
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 6px' }}>
@@ -329,7 +332,7 @@ function CompletedTab() {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px' }}>
+    <div className="hh-learn-panel" style={{ margin: '0 auto', padding: '20px 16px' }}>
       <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 16 }}>
         {entries.length} lesson{entries.length !== 1 ? 's' : ''} completed
       </p>
@@ -688,13 +691,17 @@ function renderMarkdown(text: string): React.ReactNode[] {
   return nodes;
 }
 
-function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
+function HomieReadPanel({ currentPlan, initialQuestion = '' }: { currentPlan: LearningPlan | null; initialQuestion?: string }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialQuestion);
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (initialQuestion.trim()) setInput(initialQuestion);
+  }, [initialQuestion]);
 
   const STARTERS = [
     { label: '📰 Paste an article URL to summarize', value: '' },
@@ -836,7 +843,15 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
 
       {/* Messages */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
-        {messages.map((msg, i) => (
+        {messages.map((msg, i) => {
+          const previousQuestion = msg.role === 'assistant'
+            ? messages.slice(0, i).reverse().find((candidate) => candidate.role === 'user')?.content
+            : undefined;
+          const buildLessonHref = previousQuestion && msg.type !== 'url-summary'
+            ? `/learn?build=1&track=all&goal=${encodeURIComponent(previousQuestion.slice(0, 1200))}`
+            : null;
+
+          return (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
             {msg.role === 'user' ? (
               <div style={{
@@ -904,10 +919,23 @@ function HomieReadPanel({ currentPlan }: { currentPlan: LearningPlan | null }) {
                     </button>
                   </div>
                 )}
+                {buildLessonHref && (
+                  <button
+                    onClick={() => router.push(buildLessonHref)}
+                    style={{
+                      marginTop: 8, padding: '7px 12px', borderRadius: 8,
+                      background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.35)',
+                      color: '#c7d2fe', fontSize: 12, fontWeight: 650, cursor: 'pointer',
+                    }}
+                  >
+                    📚 Build a lesson path from this topic
+                  </button>
+                )}
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
 
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: '4px 14px 14px 14px', background: 'var(--surface)', border: '1px solid var(--border)', width: 'fit-content' }}>
@@ -984,6 +1012,7 @@ function LearnPageContent() {
   const [level, setLevel] = useState<Level | null>(null);
   const [levelIdx, setLevelIdx] = useState<number | null>(null);
   const [goals, setGoals] = useState('');
+  const [starterQuestion, setStarterQuestion] = useState('');
   const [plan, setPlan] = useState<LearningPlan | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -997,6 +1026,7 @@ function LearnPageContent() {
   const [leaderboard, setLeaderboard] = useState<Array<{ fid: number; username?: string; pfpUrl?: string; weeklyPoints: number }>>([]);
   const [peerCount, setPeerCount] = useState<number | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathRequestsRef = useRef(new Map<string, Promise<LearningPlan>>());
 
   const HH2_PER_LESSON = 100;
   // Derive off-chain points from completedIds so it's always correct,
@@ -1030,28 +1060,161 @@ function LearnPageContent() {
   }) as { data: bigint | undefined };
   const onChainBalance = hh2Raw && decRaw ? Number(formatUnits(hh2Raw, Number(decRaw))) : 0;
 
-  // Deep-link pre-selection
+  // Casts and learner questions can open a personalized path directly, without
+  // forcing a new learner through the full plan questionnaire first.
   useEffect(() => {
     const t = searchParams.get('track') as Track | null;
     const valid: Track[] = ['ai', 'finance', 'creator', 'decentralization', 'all'];
-    // Legacy track mapping for URLs still using old track names
-    if (t) {
-      const legacyMap: Record<string, string> = { learner: 'decentralization', financial: 'finance', survival: 'decentralization' };
-      const normalized = legacyMap[t] || t;
-      if (valid.includes(normalized as Track)) setTrack(normalized as Track);
+    const legacyMap: Record<string, string> = { learner: 'decentralization', financial: 'finance', survival: 'decentralization' };
+    const normalized = t ? legacyMap[t] || t : null;
+    if (normalized && valid.includes(normalized as Track)) {
+      setTrack(normalized as Track);
+      const isRelatedPath = searchParams.get('related') === '1';
+      const isQuestionPath = searchParams.get('build') === '1';
+      if (isRelatedPath || isQuestionPath) {
+        setActiveTab('plan');
+        let sourceCast: { author?: string; text: string } | undefined;
+        try {
+          const sourceCastId = searchParams.get('sourceCastId');
+          const storedSourceCast = sourceCastId
+            ? sessionStorage.getItem(`hh_learning_source_cast:${sourceCastId}`)
+            : null;
+          const rawSourceCast = storedSourceCast || searchParams.get('sourceCast');
+          if (rawSourceCast) {
+            const parsed = JSON.parse(rawSourceCast);
+            if (typeof parsed?.text === 'string' && parsed.text.trim()) {
+              sourceCast = { author: typeof parsed.author === 'string' ? parsed.author.slice(0, 64) : undefined, text: parsed.text.slice(0, 10000) };
+            }
+          }
+        } catch { /* Continue with the topic-only path when cast context is malformed. */ }
+
+        // Keep the learner's existing plan and progress available when they
+        // return from this cast-specific lesson path.
+        try {
+          if (sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) === null) {
+            sessionStorage.setItem(RELATED_BACKUP_PLAN_KEY, JSON.stringify(localStorage.getItem(LS_PLAN_KEY)));
+            sessionStorage.setItem(RELATED_BACKUP_PROGRESS_KEY, JSON.stringify(localStorage.getItem(LS_PROGRESS_KEY)));
+          }
+        } catch { }
+        const levelForPath: Level = 'beginner';
+        const specificGoals = (searchParams.get('goal') || (sourceCast
+          ? 'Help me understand the ideas and context behind this cast.'
+          : 'Explore lessons related to this topic.')).slice(0, 1400);
+        setLevel(levelForPath);
+        setGoals(specificGoals);
+        setStep(3);
+        setError(null);
+        setPageState('generating');
+        setPlanPersonalizing(true);
+        let cancelled = false;
+        let fallbackLoaded = false;
+        let fallbackFailed = false;
+        let generated = false;
+        let personalizationFailed = false;
+        let personalizationError = 'Could not build a personalized learning path. Please try again.';
+        const authHeaders = getAuthHeaders() ?? {};
+
+        if (isRelatedPath && !sourceCast) {
+          fetch(`/api/learning-plan?track=${encodeURIComponent(normalized)}&level=${levelForPath}`, { headers: { ...authHeaders } })
+            .then(async (response) => {
+              if (!response.ok) throw new Error('Could not load starter lessons');
+              const fallbackPlan = await response.json() as LearningPlan;
+              if (cancelled || generated || !fallbackPlan.modules?.length) return;
+              fallbackLoaded = true;
+              setPlan(fallbackPlan);
+              setCompletedIds(new Set());
+              setPageState('plan');
+              if (personalizationFailed) {
+                setError(sourceCast
+                  ? 'Showing starter lessons for this track. The cast-specific path could not be personalized just now.'
+                  : personalizationError);
+                setPlanPersonalizing(false);
+              }
+            })
+            .catch(() => {
+              fallbackFailed = true;
+              if (personalizationFailed && !cancelled) {
+                setError(personalizationError);
+                setPageState('quiz');
+                setPlanPersonalizing(false);
+              }
+            });
+        }
+
+        const requestKey = JSON.stringify({ normalized, levelForPath, specificGoals, sourceCast });
+        let planRequest = pathRequestsRef.current.get(requestKey);
+        if (!planRequest) {
+          planRequest = fetch('/api/learning-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({ track: normalized, level: levelForPath, specificGoals, ...(sourceCast ? { sourceCast } : {}) }),
+          }).then(async (response) => {
+            if (!response.ok) throw new Error('Could not build a personalized learning path');
+            const personalizedPlan = await response.json() as LearningPlan;
+            if (!personalizedPlan.modules?.length) throw new Error('No lessons were returned');
+            return personalizedPlan;
+          });
+          pathRequestsRef.current.set(requestKey, planRequest);
+          void planRequest.finally(() => {
+            if (pathRequestsRef.current.get(requestKey) === planRequest) pathRequestsRef.current.delete(requestKey);
+          }).catch(() => { /* The request handler below displays the error. */ });
+        }
+
+        planRequest
+          .then((personalizedPlan) => {
+            if (cancelled) return;
+            generated = true;
+            setPlan(personalizedPlan);
+            setCompletedIds(new Set());
+            setPageState('plan');
+            setError(null);
+          })
+          .catch((cause) => {
+            if (cancelled) return;
+            personalizationFailed = true;
+            personalizationError = cause instanceof Error ? cause.message : 'Could not build this learning path. Please try again.';
+            if (fallbackLoaded) {
+              setError(sourceCast
+                ? 'Showing starter lessons for this track. The cast-specific path could not be personalized just now.'
+                : personalizationError);
+            } else if (sourceCast || !isRelatedPath || fallbackFailed) {
+              setError(personalizationError);
+              setPageState('quiz');
+            }
+          })
+          .finally(() => {
+            if (!cancelled && (generated || fallbackLoaded || sourceCast || !isRelatedPath || fallbackFailed)) setPlanPersonalizing(false);
+          });
+        if (searchParams.get('tab') === 'homie') setActiveTab('homie');
+        return () => { cancelled = true; };
+      }
     }
     if (searchParams.get('tab') === 'homie') setActiveTab('homie');
   }, [searchParams]);
 
-  // Load persisted data
+  // Load persisted data. A cast-specific lesson path temporarily uses the
+  // selected track's plan; restore the learner's prior plan on the next normal
+  // visit to the hub.
   useEffect(() => {
     try {
+      const isGeneratedPath = searchParams.get('related') === '1' || searchParams.get('build') === '1';
+      if (!isGeneratedPath && sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) !== null) {
+        const previousPlan = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) || 'null') as string | null;
+        const previousProgress = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PROGRESS_KEY) || 'null') as string | null;
+        if (previousPlan === null) localStorage.removeItem(LS_PLAN_KEY);
+        else localStorage.setItem(LS_PLAN_KEY, previousPlan);
+        if (previousProgress === null) localStorage.removeItem(LS_PROGRESS_KEY);
+        else localStorage.setItem(LS_PROGRESS_KEY, previousProgress);
+        sessionStorage.removeItem(RELATED_BACKUP_PLAN_KEY);
+        sessionStorage.removeItem(RELATED_BACKUP_PROGRESS_KEY);
+      }
+      if (isGeneratedPath) return;
       const storedPlan = localStorage.getItem(LS_PLAN_KEY);
       const storedProgress = localStorage.getItem(LS_PROGRESS_KEY);
       if (storedPlan) { setPlan(JSON.parse(storedPlan) as LearningPlan); setPageState('plan'); }
       if (storedProgress) setCompletedIds(new Set(JSON.parse(storedProgress) as string[]));
     } catch { }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (plan) { try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(plan)); } catch { } }
@@ -1374,7 +1537,22 @@ function LearnPageContent() {
         <aside className="hidden lg:block shrink-0" style={{ width: 220, borderRight: '1px solid var(--border)', overflowY: 'auto', scrollbarWidth: 'none', padding: '16px 0' }}>
           <ChannelSidebar />
         </aside>
-        <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
+        <main className="hh-learn-main" style={{ flex: 1, minWidth: 0, overflowY: 'auto', paddingBottom: 100 }}>
+          <style>{`
+            .hh-learn-main { container-type: inline-size; }
+            .hh-learn-panel { max-width: 720px; box-sizing: border-box; }
+            .hh-learn-setup { max-width: 600px; }
+            .hh-learn-modules, .hh-learn-choices { display: grid; gap: 10px; }
+            .hh-learn-modules { align-items: start; margin-bottom: 32px; }
+            @container (min-width: 800px) {
+              .hh-learn-panel { max-width: 1200px; padding-inline: 32px !important; }
+              .hh-learn-modules, .hh-learn-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+              .hh-learn-modules > div { min-height: 140px; }
+              .hh-learn-choices > button { min-height: 104px; }
+              .hh-learn-setup > div:first-child h1 { font-size: 32px !important; }
+              .hh-learn-setup > div:first-child p { max-width: 680px; margin-inline: auto !important; }
+            }
+          `}</style>
           {activeTab !== 'homie' && activeTab !== 'feed' && (
             <section className="surface" aria-label="Learn from your curiosity" style={{ margin: '16px auto', maxWidth: 688, padding: 16 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>Saw something you want to understand?</h2>
@@ -1383,7 +1561,7 @@ function LearnPageContent() {
             </section>
           )}
           {activeTab === 'homie'
-            ? <HomieReadPanel currentPlan={plan} />
+            ? <HomieReadPanel currentPlan={plan} initialQuestion={searchParams.get('question') ?? ''} />
             : activeTab === 'feed'
             ? <LearningFeed />
             : activeTab === 'completed'
@@ -1429,8 +1607,8 @@ function LearnPageContent() {
     const levelLabel = plan.level.charAt(0).toUpperCase() + plan.level.slice(1);
 
     return wrap(
-      <div style={{
-        maxWidth: 720, margin: '0 auto', padding: '24px 16px',
+      <div className="hh-learn-panel" style={{
+        margin: '0 auto', padding: '24px 16px',
         opacity: navigating ? 0 : (contentVisible ? 1 : 0),
         transform: navigating ? 'translateY(-8px)' : (contentVisible ? 'translateY(0)' : 'translateY(10px)'),
         transition: 'opacity 0.2s ease, transform 0.2s ease',
@@ -1457,6 +1635,11 @@ function LearnPageContent() {
             ✨ Personalizing your plan based on your goals…
           </div>
         )}
+        {error && (
+          <p role="status" style={{ margin: '0 0 16px', padding: '10px 12px', borderRadius: 9, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', color: '#fcd34d', fontSize: 13, lineHeight: 1.5 }}>
+            {error}
+          </p>
+        )}
 
         <div style={{
           marginBottom: 16, padding: '14px 16px', borderRadius: 14,
@@ -1467,7 +1650,7 @@ function LearnPageContent() {
             Learn it → spot it in your feed → explain it back
           </p>
           <p style={{ margin: 0, color: 'var(--muted-on-dark)', fontSize: 12, lineHeight: 1.6 }}>
-            HomieHouse turns Farcaster conversations into a personal curriculum, gives you a place to ask questions, then helps you share what clicked with the community.
+            HomieHouse turns conversations from your feed into a personal curriculum, gives you a place to ask questions, then helps you share what clicked with the community.
           </p>
           <div style={{ display: 'flex', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
             <button onClick={() => setActiveTab('feed')} style={{ padding: '7px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 12, fontWeight: 650, cursor: 'pointer' }}>
@@ -1606,7 +1789,7 @@ function LearnPageContent() {
         <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 20px', lineHeight: 1.6 }}>{plan.summary}</p>
 
         {/* Modules */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
+        <div className="hh-learn-modules">
           {plan.modules.map((mod, i) => (
             <ModuleCard key={mod.id} module={mod} index={i} completed={completedIds.has(mod.id)} onToggle={toggleModule} onNavigate={navigateToModule} />
           ))}
@@ -1651,7 +1834,7 @@ function LearnPageContent() {
   // ─── Quiz ─────────────────────────────────────────────────────────────────
 
   return wrap(
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: '32px 16px' }}>
+    <div className="hh-learn-panel hh-learn-setup" style={{ margin: '0 auto', padding: '32px 16px' }}>
       {/* Page title */}
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
@@ -1661,9 +1844,45 @@ function LearnPageContent() {
           The Learning Hub
         </h1>
         <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
-          Get a personalized path into Web3 — tailored to your goals and level.
+          Start with a cast, a question, or a topic. Homiehouse helps you make sense of it and learn what to explore next.
         </p>
       </div>
+
+      <section aria-label="Start learning with a question" style={{ marginBottom: 24, padding: 16, borderRadius: 14, background: 'linear-gradient(135deg, rgba(99,102,241,0.13), rgba(52,211,153,0.08))', border: '1px solid rgba(99,102,241,0.3)' }}>
+        <label htmlFor="learning-starter-question" style={{ display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--text-on-dark)', marginBottom: 6 }}>
+          What did you see or hear that you want explained?
+        </label>
+        <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: '0 0 10px', lineHeight: 1.5 }}>
+          Ask Homie for a plain-English answer, then turn the topic into a learning path if you want to go deeper.
+        </p>
+        <textarea
+          id="learning-starter-question"
+          value={starterQuestion}
+          onChange={(event) => setStarterQuestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && starterQuestion.trim()) {
+              event.preventDefault();
+              router.push(`/learn?tab=homie&question=${encodeURIComponent(starterQuestion.trim().slice(0, 1200))}`);
+            }
+          }}
+          placeholder="For example: What does end-to-end encryption protect?"
+          rows={2}
+          maxLength={1200}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', fontSize: 14, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={() => router.push(`/learn?tab=homie${starterQuestion.trim() ? `&question=${encodeURIComponent(starterQuestion.trim().slice(0, 1200))}` : ''}`)}
+            style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Ask Homie →
+          </button>
+          <Link href="/learn/library" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', color: 'var(--text-on-dark)', textDecoration: 'none', fontSize: 13, fontWeight: 650 }}>
+            Browse short lessons
+          </Link>
+        </div>
+      </section>
 
       {/* Step dots */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
@@ -1716,7 +1935,7 @@ function LearnPageContent() {
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-on-dark)' }}>What's your journey?</h2>
           <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 16px' }}>Pick the path that fits where you want to go.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="hh-learn-choices">
             {trackOptions.map((opt) => (
               <button
                 key={opt.id}
@@ -1778,7 +1997,7 @@ function LearnPageContent() {
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-on-dark)' }}>Where are you starting from?</h2>
           <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 16px' }}>Be honest — this shapes everything.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+          <div className="hh-learn-choices" style={{ marginBottom: 24 }}>
             {levelOptions.map((opt, i) => (
               <button
                 key={opt.label}

@@ -18,7 +18,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
       const guide = page.getByRole('dialog', { name: 'Make Homiehouse your home' });
       await expect(guide).toBeVisible();
       await page.getByText('Find your familiar face', { exact: true }).click();
-      await page.getByLabel('Farcaster username', { exact: true }).fill('@amanda');
+      await page.getByLabel('Username', { exact: true }).fill('@amanda');
       await page.getByRole('button', { name: 'Preview profile', exact: true }).click();
       await expect(page.getByRole('button', { name: 'View profile and casts' })).toBeVisible();
       expect(await page.evaluate(() => localStorage.getItem('hh_profile'))).toBeNull();

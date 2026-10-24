@@ -4,6 +4,7 @@ import { buildSignedMessage, hexToBytes, MessageType } from '@/lib/fc-message-bu
 import type { CastEmbed } from '@/lib/fc-message-builder';
 import { ed25519 } from '@noble/curves/ed25519';
 import { decryptSignerKey } from '@/lib/signer-crypto';
+import { fetchChannelParentUrl } from '@/lib/hypersnap';
 
 const HYPERSNAP_BASE =
   process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
@@ -27,7 +28,7 @@ async function publishWithStoredKey(cast: any): Promise<string> {
     : JSON.parse(cast.embeds || '[]');
   const castEmbeds: CastEmbed[] = rawEmbeds.map((e: { url: string }) => ({ url: e.url }));
   const parentUrl = cast.channel_id
-    ? `https://warpcast.com/~/channel/${cast.channel_id}`
+    ? await fetchChannelParentUrl(cast.channel_id)
     : undefined;
 
   const message = await buildSignedMessage(

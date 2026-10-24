@@ -314,7 +314,7 @@ export default function CastComposer({
         }
       } catch {
         setChannels([
-          { id: 'farcaster', name: 'Farcaster' },
+          { id: 'farcaster', name: 'Social' },
           { id: 'base', name: 'Base' },
           { id: 'dev', name: 'Dev' },
           { id: 'art', name: 'Art' },

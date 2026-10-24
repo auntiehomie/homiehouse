@@ -46,7 +46,7 @@ const BASE_STYLES = `
 `;
 
 function baseTemplate(children: string): string {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${BASE_STYLES}</style></head><body><div class="container"><div class="logo">🏠 HomieHouse</div>${children}<div class="footer"><p>HomieHouse — a home on Farcaster</p><p><a href="${PREFERENCES_URL}">Email preferences</a> · <a href="${PREFERENCES_URL}?unsubscribe">Unsubscribe</a></p></div></div></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${BASE_STYLES}</style></head><body><div class="container"><div class="logo">🏠 HomieHouse</div>${children}<div class="footer"><p>HomieHouse — a home for learning and community</p><p><a href="${PREFERENCES_URL}">Email preferences</a> · <a href="${PREFERENCES_URL}?unsubscribe">Unsubscribe</a></p></div></div></body></html>`;
 }
 
 // ── Public email functions ───────────────────────────────────────────────────
@@ -97,7 +97,7 @@ export async function sendWelcomeEmail(
   const html = baseTemplate(`
     <div class="card">
       <h1>Welcome to HomieHouse, ${escapeHtml(name)}!</h1>
-      <p>You're all set up and ready to explore Farcaster from your new home.</p>
+      <p>You're all set up and ready to explore decentralized social from your new home.</p>
       <p><strong>Here's what you can do:</strong></p>
       <ul style="color: rgba(255,255,255,0.75); font-size: 14px; line-height: 1.8; padding-left: 20px;">
         <li>Set up your profile</li>
@@ -129,7 +129,7 @@ export async function sendWelcomeEmail(
 
 const ONBOARDING_STAGE_LABELS: Record<string, string> = {
   pending: 'Your account is created but you haven\'t verified your email yet.',
-  email_verified: 'You\'ve verified your email — next step: set up your Farcaster identity.',
+  email_verified: 'You\'ve verified your email — next step: set up your social profile.',
   identity_ready: 'Your identity is ready — time to build your profile.',
   profile_ready: 'Profile complete! Discover channels and people to follow.',
   discovered: 'You\'ve found your people — ready to compose your first cast?',
