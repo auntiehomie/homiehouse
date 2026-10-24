@@ -206,7 +206,7 @@ function AskHomieContent() {
             onCastSelect={handleCastSelect}
             initialMessage={starterQuestion || searchParams.get('q') || undefined}
             initialLearningMode={isLearningMode(searchParams.get('learning')) ? searchParams.get('learning') as 'explain' | 'lesson' : undefined}
-            contextReady={!searchParams.get('cast') || !!castContext}
+            contextReady={!(searchParams.get('cast') || searchParams.get('castId')) || !!castContext}
           />
         </div>
         </main>
