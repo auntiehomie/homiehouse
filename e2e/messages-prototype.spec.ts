@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-test('Messages shows and runs the two-device relay boundary test', async ({ page }) => {
+test('Messages shows and runs the two-device relay boundary test', async ({ page, baseURL }) => {
+  const origin = new URL(baseURL!).origin;
+  await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/messages');
+  await page.goto('/messages', { waitUntil: 'domcontentloaded' });
 
   await expect(page.getByRole('heading', { name: 'Encrypted message test' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Two-device relay boundary' })).toBeVisible();
