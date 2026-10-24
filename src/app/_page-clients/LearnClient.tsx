@@ -1006,6 +1006,8 @@ function LearnPageContent() {
 
   const [pageState, setPageState] = useState<PageState>('quiz');
   const [activeTab, setActiveTab] = useState<LearnTab>('plan');
+  const [tabsReady, setTabsReady] = useState(false);
+  useEffect(() => { setTabsReady(true); }, []);
   const [step, setStep] = useState(1);
   const [track, setTrack] = useState<Track | null>(null);
   const [level, setLevel] = useState<Level | null>(null);
@@ -1517,6 +1519,8 @@ function LearnPageContent() {
           ]).map((tab) => (
             <button
               key={tab.id}
+              disabled={!tabsReady}
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
                 padding: '10px 18px', fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500,
