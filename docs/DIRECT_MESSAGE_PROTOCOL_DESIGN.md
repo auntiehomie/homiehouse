@@ -6,7 +6,7 @@
 
 Provide interoperable private one-to-one messages over a decentralized transport. A sender's device encrypts before upload; only enrolled recipient devices (and the sender's enrolled devices, if sync is enabled) can decrypt. Relays store and route envelopes without receiving message plaintext or decryption keys.
 
-This is for private messages, not public casts. Publishing ciphertext as a public cast may expose it to every node, leak recipient and timing metadata, and violate network expectations. Hypersnap must document a supported message envelope, key discovery, and inbox read/write interface before Homiehouse can claim native interoperability. The current Homiehouse local UI prototype remains unencrypted and is not connected to any relay.
+This is for private messages, not public casts. Publishing ciphertext as a public cast may expose it to every node, leak recipient and timing metadata, and violate network expectations. Hypersnap must document a supported message envelope, key discovery, and inbox read/write interface before Homiehouse can claim native interoperability. The `/messages` browser demo now performs a narrow encrypted-envelope test locally, but it is not connected to any relay and is not a production messaging implementation.
 
 ## Design decisions
 
