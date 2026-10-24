@@ -80,7 +80,7 @@ function CardBody({ children }: { children: React.ReactNode }) {
       <div className="hh-lesson-card-body" style={{
         padding: '20px 20px 24px',
         display: 'flex', flexDirection: 'column', gap: 18,
-        maxWidth: 560, width: '100%', alignSelf: 'center',
+        width: '100%', alignSelf: 'center',
         boxSizing: 'border-box' as any,
       }}>
         {children}
@@ -993,9 +993,16 @@ function ModuleLessonContent() {
         @keyframes hhSpin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .hh-lesson-shell { height: calc(100dvh - 52px - env(safe-area-inset-top, 0px)); }
-        .hh-lesson-card-body { margin: 0 auto; }
+        .hh-lesson-card-body { margin: 0 auto; max-width: 560px; }
         @media (min-width: 1024px) {
           .hh-lesson-shell { height: 100dvh; }
+          .hh-lesson-card-body { max-width: 960px; padding: 32px 40px 40px !important; gap: 24px !important; }
+          .hh-lesson-card-body p, .hh-lesson-card-body li { font-size: 20px !important; line-height: 1.75 !important; }
+          .hh-lesson-card-body h2 { font-size: 32px !important; }
+          .hh-lesson-card-scroll { margin: 16px 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hh-lesson-shell *, .hh-lesson-shell *::before, .hh-lesson-shell *::after { animation: none !important; transition: none !important; }
         }
         @media (min-width: 768px) and (min-height: 760px) {
           .hh-lesson-card-body { margin: auto; }
