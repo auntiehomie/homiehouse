@@ -1,17 +1,7 @@
-# Local direct message prototype
+# Encrypted message boundary test
 
-The `/messages/prototype` route provides a local UI and transport-boundary demo for the proposed direct-message feature.
+The `/messages` page exposes a browser-side demonstration of the two-device relay boundary test. It creates temporary ECDH P-256 keys, derives an AES-GCM key with HKDF-SHA-256, and stores an encrypted envelope in an in-memory relay fixture. The intended device decrypts the sample; an unrelated device fails; changing the authenticated recipient routing field is rejected.
 
-## Current behavior
+The test does not contact Hypersnap or another relay, persist data, or send messages. Its browser crypto is a demonstration only. It does not implement Signal, a ratchet, authenticated identity/prekey discovery, key transparency, secure key storage, or a production protocol. Do not enter real or sensitive message content. The interface must keep these limits visible whenever the test is shown.
 
-- Two fixed demo identities can send messages to each other in the same browser tab.
-- Message data lives only in the component's in-memory transport instance. Reloading clears it.
-- The prototype does not encrypt, persist, or transmit message contents. Never use real or sensitive message content here.
-- The route is available during local development and on Vercel preview deployments. It is gated off in production.
-- This validates the Homiehouse inbox interaction and a transport interface only. It does not demonstrate Hypersnap or Farcaster direct-message compatibility.
-
-## Future integration boundary
-
-`DirectMessageTransport` in `src/lib/direct-message-prototype.ts` is a UI-facing interface. A production implementation would need a specified interoperable message envelope, audited end-to-end encryption and device/key lifecycle, authenticated read/write APIs, durable storage and delivery semantics, and retention/abuse controls. A Hypersnap adapter must use a documented supported protocol; the local demo is not evidence that Hypersnap accepts direct messages.
-
-See [the protocol design and threat model](./DIRECT_MESSAGE_PROTOCOL_DESIGN.md) for the proposed device lifecycle, relay storage model, metadata exposure, and two-device boundary test. That design is still a draft and the test is not a production crypto implementation.
+`__tests__/lib/dm-relay-boundary.test.ts` is a separate Node test of the same narrow boundary using Node's X25519, HKDF-SHA-256, and AES-256-GCM primitives. Neither implementation is suitable as production messaging crypto. See [the protocol design and threat model](./DIRECT_MESSAGE_PROTOCOL_DESIGN.md) for the production requirements and risks.
