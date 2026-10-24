@@ -2,9 +2,18 @@
 
 ## Decision
 
-Build messaging as a Hypersnap-native encrypted mailbox. Homiehouse owns the client and UI; Hypersnap nodes store, replicate, and return signed ciphertext envelopes. Do not use Farcaster Direct Casts or Quorum as the message transport: both would move messages off the user's Hypersnap node.
+Build messaging as a Hypersnap-native encrypted mailbox. Homiehouse owns the client and UI; mailbox providers store and return signed ciphertext envelopes. Do not use Farcaster Direct Casts or Quorum as the message transport: both would move messages off the user's chosen Hypersnap-compatible mailbox.
 
-This needs a Hypersnap protocol and node change before Homiehouse can send real private messages. The Homiehouse repository currently has only an in-memory prototype and outbound links to the Farcaster inbox.
+Start with one shared Homiehouse mailbox provider so users can message without configuring infrastructure. Keep the protocol and client able to use a personal Hypersnap node later. The shared provider is a delivery and availability dependency, even though end-to-end encryption prevents it from reading message contents. A Hypersnap protocol and node change is still required before real private messages can be sent.
+
+## Deployment topology: shared first, personal nodes supported
+
+- **Initial rollout:** Homiehouse users use one default mailbox provider. It stores encrypted envelopes for all participating users and exposes recipient-authenticated inbox reads.
+- **Privacy boundary:** the provider can see ciphertext and delivery metadata (such as sender/recipient routing IDs, timing, and envelope size), but it receives no private message keys. Encryption/decryption happens on user devices.
+- **Decentralization limit:** one provider remains a centralized point for availability, retention, and policy. E2EE protects content; it does not make storage or delivery decentralized.
+- **Personal-node path:** keep endpoint selection in the client transport, so users can configure their own compatible node. Add verifiable FID-to-endpoint discovery and node-to-node delivery/replication before claiming a decentralized network.
+- **Key integrity:** mailbox operators must not be able to silently replace recipient encryption keys or endpoint records. Bind device keys and endpoint changes to an account-authorized signature, expose changes to clients, and plan for key transparency.
+- **No server-side recovery:** neither the shared provider nor a personal node gets decryption keys. A user who loses every authorized device may lose access to their message history.
 
 ## What the existing systems do
 
@@ -47,7 +56,8 @@ Extend Hypersnap, without changing canonical Snapchain message semantics, to:
 
 - accept signed encrypted envelopes through a versioned DM submit endpoint;
 - validate sender FID/key binding, size limits, recipient routing fields, replay protection, and rate limits;
-- persist and replicate envelopes through the Hyper-capable node path;
+- persist envelopes on the selected mailbox provider; the initial Homiehouse deployment uses one shared provider for all Homiehouse users;
+- keep storage and transport abstractions compatible with later node-to-node delivery and replication, which must be implemented before the system is described as decentralized;
 - index envelopes by recipient mailbox and expose authenticated, paginated reads with opaque cursors;
 - expose delivery/read acknowledgements as signed mailbox events, not as public casts;
 - provide a WebSocket event or long-poll cursor wakeup, with cursor reads as the source of truth after reconnect;
@@ -111,9 +121,10 @@ The public interface should be transport-agnostic in Homiehouse: `registerDevice
 
 ## Delivery plan and acceptance criteria
 
-1. **Hypersnap protocol RFC:** settle schema, validation, routing/indexing, pagination, replication, and key-binding rules. Keep these changes behind a Hyper capability/version.
-2. **Node implementation:** implement signed envelope submit/read, key directory, retention, cursor sync, and node-to-node replication. Add protocol fixtures and migration behavior for nodes that do not support the feature.
-3. **Homiehouse client:** add device setup, inbox/thread UI, E2EE adapter, Hypersnap transport, optimistic send, reconnect sync, and profile-to-conversation navigation.
-4. **Two-device test:** two accounts on separate browsers exchange messages through two Hypersnap nodes. Confirm that both devices decrypt; neither node nor Homiehouse server can decrypt; altered signatures, unknown keys, duplicate submissions, revoked devices, offline catch-up, and cursor gaps are handled correctly.
+1. **Hypersnap protocol RFC:** settle schema, validation, routing/indexing, pagination, key binding, endpoint selection, and the shared-provider trust boundary. Keep these changes behind a Hyper capability/version.
+2. **Shared-provider implementation:** implement signed envelope submit/read, device key directory, retention, cursor sync, quotas, and authenticated reads on one provider. Do not claim node-to-node decentralization yet.
+3. **Homiehouse client:** add device setup, inbox/thread UI, E2EE adapter, configurable mailbox transport (default provider plus user-selected endpoint), optimistic send, reconnect sync, and profile-to-conversation navigation.
+4. **Shared-provider security test:** two accounts on separate browsers exchange messages through the shared provider. Confirm the provider and Homiehouse server cannot decrypt; test key substitution detection, altered signatures, duplicate submissions, revoked devices, offline catch-up, and cursor gaps.
+5. **Personal-node interoperability:** route to user-selected mailbox nodes and test delivery across at least two independently operated nodes, including endpoint verification and replication. Only then describe the system as decentralized.
 
 Do not enable the production Message action until the node API is deployed and the two-device test passes. Until then, clearly label the existing prototype as local-only and keep the current external inbox link available as a separate action.
