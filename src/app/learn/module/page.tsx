@@ -7,6 +7,7 @@ import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
@@ -89,7 +90,7 @@ function CardBody({ children }: { children: React.ReactNode }) {
   );
 }
 
-function IntroCard({ content }: { content: string }) {
+function IntroCard({ content, lesson }: { content: string; lesson: LessonContent | null }) {
   return (
     <CardBody>
       <div style={{
@@ -99,6 +100,7 @@ function IntroCard({ content }: { content: string }) {
       }}>
         <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      {lesson && <LessonWalkthrough lesson={lessonContent} />}
     </CardBody>
   );
 }
@@ -511,6 +513,7 @@ function ModuleLessonContent() {
   const moduleId = searchParams.get('id');
 
   const [mod, setMod] = useState<LearningModule | null>(null);
+  const [lessonContent, setLessonContent] = useState<LessonContent | null>(null);
   const [cards, setCards] = useState<CardDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -579,6 +582,7 @@ function ModuleLessonContent() {
       const eli5 = getEli5Mode();
       const cached = getAuthHeaders() ? null : getCachedLesson(found, eli5);
       if (cached) {
+        setLessonContent(cached);
         setCards(buildCards(cached, found));
         setLoading(false);
         return;
@@ -586,6 +590,7 @@ function ModuleLessonContent() {
 
       loadLesson(found, eli5)
         .then(data => {
+          setLessonContent(data);
           setCards(buildCards(data, found));
           setLoading(false);
         })
@@ -722,6 +727,7 @@ function ModuleLessonContent() {
       // Re-open the lesson through the authenticated API so the server records
       // an attempt for this FID. The server still enforces its 45-second window.
       const lesson = await loadLesson(mod, getEli5Mode());
+      setLessonContent(lesson);
       const refreshedCards = buildCards(lesson, mod);
       const currentQuiz = cards
         .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
@@ -1025,7 +1031,7 @@ function ModuleLessonContent() {
             <Skeleton />
           ) : currentCard ? (
             <>
-              {currentCard.type === 'intro' && <IntroCard content={currentCard.content} />}
+              {currentCard.type === 'intro' && <IntroCard content={currentCard.content} lesson={lessonContent} />}
               {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
               {currentCard.type === 'concept' && (
                 <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} />
