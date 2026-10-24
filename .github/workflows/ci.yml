@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       - run: npm ci
       - name: Lint
@@ -47,7 +47,7 @@ jobs:
           elif node -e "process.exit(require('./package.json').scripts?.check ? 0 : 1)"; then
             npm run check
           else
-            echo "No typecheck or check script, skipping"
+            npx tsc --noEmit
           fi
       - name: Test
         run: |
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
       - run: npm ci
       - name: Install Playwright browsers

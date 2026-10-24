@@ -39,7 +39,7 @@ const TRACK_TAGS: Record<string, string[]> = {
   ai: ['ai', 'llm', 'machine-learning', 'agents', 'prompt-injection', 'venice', 'openai', 'claude', 'gpt'],
   finance: ['defi', 'tokens', 'trading', 'crypto', 'finance', 'tokenomics', 'hyperliquid', 'portfolio'],
   creator: ['creator', 'nft', 'gaming', 'content', 'music', 'solidity', 'smart-contract', 'erc'],
-  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'farcaster', 'wallet', 'security'],
+  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security'],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

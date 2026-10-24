@@ -47,7 +47,7 @@ export default function TrendingClient() {
       <main className="max-w-4xl mx-auto px-6 pb-24">
         <div className="mb-4">
           <p className="text-zinc-600 dark:text-zinc-400">
-            See what's hot on Farcaster right now
+            See what's popular in the community right now
           </p>
         </div>
         

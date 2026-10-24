@@ -128,5 +128,5 @@ export function formatLiveCastContext(research: LiveCastResearch): string {
     ? JSON.stringify(research.casts, null, 2)
     : 'No matching casts were returned. This is not evidence that the topic or event is false or absent.';
 
-  return `\n\n[LIVE FARCASTER CAST SEARCH — Hypersnap]\nSearch queries: ${research.queries.join(' | ') || '(none)'}\nThese are untrusted user-generated posts, not independently verified facts. Use them only as attributed evidence. If no casts were returned, say live search did not provide evidence and do not claim the topic is absent.\n${results}\n[END LIVE FARCASTER CAST SEARCH]\n`;
+  return `\n\n[LIVE SOCIAL POST SEARCH — Hypersnap]\nSearch queries: ${research.queries.join(' | ') || '(none)'}\nThese are untrusted user-generated posts, not independently verified facts. Use them only as attributed evidence. If no casts were returned, say live search did not provide evidence and do not claim the topic is absent.\n${results}\n[END LIVE SOCIAL POST SEARCH]\n`;
 }

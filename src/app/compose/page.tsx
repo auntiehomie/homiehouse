@@ -97,7 +97,7 @@ function ComposePageInner() {
         // Fallback to popular channels
         setChannels([
           { id: 'base', name: 'Base' },
-          { id: 'farcaster', name: 'Farcaster' },
+          { id: 'farcaster', name: 'Social' },
           { id: 'dev', name: 'Dev' },
           { id: 'art', name: 'Art' },
           { id: 'music', name: 'Music' },
@@ -108,7 +108,7 @@ function ComposePageInner() {
       // Fallback to popular channels
       setChannels([
         { id: 'base', name: 'Base' },
-        { id: 'farcaster', name: 'Farcaster' },
+        { id: 'farcaster', name: 'Social' },
         { id: 'dev', name: 'Dev' },
         { id: 'art', name: 'Art' },
         { id: 'music', name: 'Music' },
@@ -464,7 +464,7 @@ function ComposePageInner() {
             <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: 'var(--text-on-dark)' }}>Enable Posting</h2>
             <p style={{ ...muted, marginBottom: 28, maxWidth: 340, margin: '0 auto 28px', lineHeight: 1.5 }}>
-              Authorize a scoped HomieHouse signer with the wallet that controls this FID. No recovery phrase or Farcaster app approval is needed.
+              Authorize a scoped HomieHouse signer with the wallet that controls this account ID. No recovery phrase or separate app approval is needed.
             </p>
             <button
               onClick={handleEnablePosting}

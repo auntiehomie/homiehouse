@@ -67,7 +67,7 @@ export async function buildRagContext(question: string): Promise<RagContext> {
 
     if (casts.length > 0) {
       liveCasts =
-        `## What the Farcaster community is saying about "${searchTerm}"\n` +
+        `## What the social community is saying about "${searchTerm}"\n` +
         casts.map(c => `- @${c.username}: "${c.text}"`).join('\n');
     }
   }

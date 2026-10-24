@@ -37,7 +37,7 @@ const EARN_METHODS = [
     icon: '🏠',
     title: 'Join the Community',
     points: 'Ongoing rewards',
-    description: 'Participate in the HomieHouse Farcaster community. Cast, engage, and build reputation with fellow homies.',
+    description: 'Participate in the HomieHouse community. Cast, engage, and build reputation with fellow homies.',
     cta: 'Open Feed',
     href: '/feed',
     soon: false,
@@ -131,7 +131,7 @@ export default function Hh2Client() {
 
     const authHeaders = getAuthHeaders();
     if (!authHeaders) {
-      setClaimResult({ ok: false, error: 'Not authenticated — connect your Farcaster account first.' });
+      setClaimResult({ ok: false, error: 'Not authenticated — connect your social account first.' });
       return;
     }
 

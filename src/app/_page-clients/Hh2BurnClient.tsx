@@ -37,10 +37,10 @@ export default function Hh2BurnClient() {
 
   const burn = async () => {
     const userFid = Number(fid ?? getStoredFid());
-    if (!address || !userFid || !publicClient) { setMessage({ ok: false, text: 'Connect your wallet and Farcaster account first.' }); return; }
+    if (!address || !userFid || !publicClient) { setMessage({ ok: false, text: 'Connect your wallet and social account first.' }); return; }
     if (!onBase) { setMessage({ ok: false, text: 'Switch your wallet to Base before burning HH2.' }); return; }
     const authHeaders = getAuthHeaders();
-    if (!authHeaders) { setMessage({ ok: false, text: 'Reconnect your Farcaster account before burning HH2.' }); return; }
+    if (!authHeaders) { setMessage({ ok: false, text: 'Reconnect your social account before burning HH2.' }); return; }
     let value: bigint;
     try { value = parseUnits(amount, decimals); } catch { setMessage({ ok: false, text: 'Enter a valid HH2 amount.' }); return; }
     if (value <= 0n || rawBalance === undefined || value > rawBalance) { setMessage({ ok: false, text: 'Enter an amount greater than zero and no higher than your wallet balance.' }); return; }
