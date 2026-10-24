@@ -149,7 +149,7 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requ
         Sign in with your wallet
       </h2>
       <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, margin: '0 0 20px', lineHeight: 1.5 }}>
-        Hypersnap will find Farcaster accounts linked to your wallet. Sign a short-lived login message to prove control—no Farcaster app approval or recovery phrase. On a computer, connect a browser wallet or pair a phone wallet by QR code.
+        Hypersnap will find social accounts linked to your wallet. Sign a short-lived login message to prove control—no separate app approval or recovery phrase. On a computer, connect a browser wallet or pair a phone wallet by QR code.
       </p>
 
       {!isConnected ? (

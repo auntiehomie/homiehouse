@@ -17,6 +17,16 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+test('restores Community selection, ordered cards and cursor independently of Following', () => {
+  const key = feed.feedSnapshotKey('community', null);
+  feed.saveFeedReturn({ snapshotKey: key, feedType: 'community', selectedChannel: null, castHash: 'target', castOffset: 20, scrollY: 500 }, snapshot());
+  jest.resetModules();
+  const restored: typeof FeedSession = require('@/lib/feed-session');
+  expect(restored.readFeedReturn()?.feedType).toBe('community');
+  expect(restored.readFeedSnapshot(key)).toMatchObject(snapshot());
+  expect(restored.readFeedSnapshot(restored.feedSnapshotKey('following', null))).toBeNull();
+});
+
 test('keeps the list, cursor and exact offset when quota errors block every write', () => {
   jest.spyOn(sessionStorage, 'setItem').mockImplementation(() => { throw new Error('QuotaExceededError'); });
   capture();

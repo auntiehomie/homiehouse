@@ -7,7 +7,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { castTypeForText } from '@/lib/cast-text';
+import { fetchChannelParentUrl } from '@/lib/hypersnap';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { publishOptimisticCast } from '@/lib/optimistic-casts';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
@@ -17,10 +19,6 @@ import {
   type FarcasterSigner,
   type CastEmbed,
 } from '@/lib/fc-message-builder';
-
-function channelKeyToParentUrl(channelKey: string): string {
-  return `https://warpcast.com/~/channel/${channelKey}`;
-}
 
 async function submitMessage(message: Uint8Array): Promise<unknown> {
   const res = await fetch('/api/submit-cast', {
@@ -73,7 +71,7 @@ export interface UseFarcasterWritesReturn {
 }
 
 export function useFarcasterWrites(): UseFarcasterWritesReturn {
-  const { fid: rawFid, isAuthenticated } = useFarcasterAuth()
+  const { fid: rawFid, username, displayName, pfpUrl } = useFarcasterAuth()
   const fid = rawFid ?? 0
   const [hasActiveSigner, setHasActiveSigner] = useState(false)
 
@@ -129,7 +127,7 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
   const submitCast = useCallback(async (params: SubmitCastParams): Promise<{ castHash: string }> => {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
-    const resolvedParentUrl = params.parentUrl || (params.channelKey ? channelKeyToParentUrl(params.channelKey) : undefined);
+    const resolvedParentUrl = params.parentUrl || (params.channelKey ? await fetchChannelParentUrl(params.channelKey) : undefined);
     // Protocol cast limits are UTF-8 bytes, including emoji and punctuation.
     const castType = castTypeForText(params.text);
     const message = await buildSignedMessage(
@@ -142,8 +140,25 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
       signer,
     );
     const result: any = await submitMessage(message);
-    return { castHash: result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '' };
-  }, [getSigner, fid]);
+    const castHash = result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '';
+    if (typeof castHash === 'string' && castHash) {
+      publishOptimisticCast({
+        hash: castHash,
+        text: params.text,
+        timestamp: Date.now(),
+        author: {
+          fid,
+          username: username || undefined,
+          display_name: displayName || undefined,
+          pfp_url: pfpUrl || undefined,
+        },
+        embeds: params.embeds?.map((embed) => ({ url: embed.url })),
+        channel: params.channelKey ? { id: params.channelKey } : undefined,
+        optimistic: true,
+      });
+    }
+    return { castHash };
+  }, [getSigner, fid, username, displayName, pfpUrl]);
 
   const likeCast = useCallback(async (params: ReactionParams): Promise<void> => {
     const signer = await getSigner();
@@ -206,8 +221,26 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
       signer,
     );
     const result: any = await submitMessage(message);
-    return { castHash: result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '' };
-  }, [getSigner, fid]);
+    const castHash = result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '';
+    if (typeof castHash === 'string' && castHash) {
+      publishOptimisticCast({
+        hash: castHash,
+        text: params.text,
+        timestamp: Date.now(),
+        author: {
+          fid,
+          username: username || undefined,
+          display_name: displayName || undefined,
+          pfp_url: pfpUrl || undefined,
+        },
+        embeds: params.embeds?.map((embed) => ({ url: embed.url })),
+        parent_hash: params.parentCastHash,
+        parent_author: { fid: params.parentCastFid },
+        optimistic: true,
+      });
+    }
+    return { castHash };
+  }, [getSigner, fid, username, displayName, pfpUrl]);
 
   const follow = useCallback(async (targetFid: number): Promise<void> => {
     const signer = await getSigner();

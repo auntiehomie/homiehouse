@@ -374,7 +374,7 @@ export async function DELETE(req: NextRequest) {
           return NextResponse.json({ ok: true, duplicate: true, withdrawnAmountWei: withdrawnAmountWei.toString(), bonusEarned: 0 });
         }
         await client.query('ROLLBACK');
-        return NextResponse.json({ ok: false, error: 'Stake not found in this Farcaster account.' }, { status: 404 });
+        return NextResponse.json({ ok: false, error: 'Stake not found for this account.' }, { status: 404 });
       }
       const stake = result.rows[0];
       if (stake.bonus_earned > 0) {
