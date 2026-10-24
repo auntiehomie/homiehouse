@@ -14,7 +14,7 @@ const sections = [
     title: 'Current projects',
     items: [
       'Making HomieHouse a warmer home for learning in public.',
-      'Improving the Farcaster feed, curated lists, and saved casts experience.',
+      'Improving the social feed, curated lists, and saved posts experience.',
       'Building small AI helpers that turn curiosity into useful next steps.',
     ],
   },

@@ -501,7 +501,7 @@ function ProfileContent() {
             </div>
             {viewerFid !== profile.fid && directMessageUrl(profile.fid) && <a
               className="btn" href={directMessageUrl(profile.fid)!} target="_blank" rel="noopener noreferrer"
-              title="Open a conversation in Farcaster">Message ↗</a>}
+              title="Open a conversation in the social app">Message ↗</a>}
             {viewerFid && viewerFid !== profile.fid && (
               <button
                 onClick={async () => {
@@ -686,7 +686,7 @@ function ProfileContent() {
       {activeTab === 'trades' && (
         ethAddresses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
-            No verified ETH addresses linked to this Farcaster account.
+            No verified ETH addresses linked to this account.
           </div>
         ) : tradesLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading trades...</div>

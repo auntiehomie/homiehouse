@@ -19,7 +19,7 @@ function castUrl(cast: any): string {
 }
 
 function castTitle(cast: any): string {
-  const author = cast?.author?.username || cast?.author?.display_name || 'Farcaster user';
+  const author = cast?.author?.username || cast?.author?.display_name || 'Community member';
   return `@${author}: ${(cast?.text || 'New cast').slice(0, 100)}`;
 }
 

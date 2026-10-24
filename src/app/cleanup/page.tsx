@@ -153,7 +153,7 @@ export default function CleanupPage() {
 
           {!fid && (
             <div style={{ padding: '16px', borderRadius: 12, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: 14 }}>
-              Not signed in — open the app from your Farcaster account first.
+              Not signed in — open the app from your social account first.
             </div>
           )}
 

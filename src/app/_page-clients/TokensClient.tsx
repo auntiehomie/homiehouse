@@ -130,7 +130,7 @@ export default function TokensClient() {
         ) : searched && !loading ? (
           <p style={{ textAlign: 'center', color: 'var(--muted-on-dark)', marginTop: 48, fontSize: 15 }}>No tokens found for "{query}"</p>
         ) : !query ? (
-          <p style={{ textAlign: 'center', color: 'var(--muted-on-dark)', marginTop: 48, fontSize: 14 }}>Search for any token — Farcaster-native or on-chain</p>
+          <p style={{ textAlign: 'center', color: 'var(--muted-on-dark)', marginTop: 48, fontSize: 14 }}>Search for any token — social or on-chain</p>
         ) : null}
       </main>
     </div>

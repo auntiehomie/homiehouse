@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       chainId: base.id,
     });
   } catch {
-    return NextResponse.json({ error: 'Sign in with Farcaster to use PFP Studio.' }, { status: 401 });
+    return NextResponse.json({ error: 'Sign in to use PFP Studio.' }, { status: 401 });
   }
 }
 
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
   try {
     fid = await verifyFarcasterSignerAuth(request);
   } catch {
-    return NextResponse.json({ error: 'Sign in with Farcaster to use PFP Studio.' }, { status: 401 });
+    return NextResponse.json({ error: 'Sign in to use PFP Studio.' }, { status: 401 });
   }
 
   let body: { image?: unknown; name?: unknown; style?: unknown; paymentTxHash?: unknown };

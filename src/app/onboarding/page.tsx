@@ -4,9 +4,7 @@
  * Server component that checks the hh_session cookie for a valid JWT.
  * Redirects to / if not authenticated.
  *
- * Shows a welcome screen with "Are you new to Farcaster?" choice:
- *  - "I'm new" → profile setup
- *  - "I have Farcaster" → connect existing account
+ * Shows a welcome screen with new and existing account setup choices.
  */
 
 import { cookies, headers } from 'next/headers';

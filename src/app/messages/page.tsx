@@ -12,10 +12,10 @@ export default function MessagesPage() {
       <p style={{ color: 'var(--muted-on-dark)', lineHeight: 1.6 }}>
         Public casts are stored on decentralized networks such as Hypersnap. Private
         messages use a separate service that HomieHouse cannot currently read through
-        Hypersnap, so open your Farcaster inbox to continue existing conversations.
+        Hypersnap, so open your social inbox to continue existing conversations.
       </p>
       <a className="btn primary" href={FARCASTER_INBOX_URL} target="_blank" rel="noopener noreferrer">
-        Open Farcaster inbox ↗
+        Open social inbox ↗
       </a>
       <MessageComposer />
       {previewAvailable && <section className="surface" style={{ padding: 20, marginTop: 24 }}>

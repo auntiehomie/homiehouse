@@ -53,7 +53,7 @@ function ShareContent() {
           <div className="flex items-center gap-3 mb-6">
             <HHLogo size={40} />
             <div>
-              <p className="text-sm text-text-secondary">Share to Farcaster</p>
+              <p className="text-sm text-text-secondary">Share to social feed</p>
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import KbClient from '@/app/_page-clients/KbClient';
 
 export const metadata: Metadata = {
   title: 'Knowledge Base | HomieHouse',
-  description: 'Your personal knowledge base — saved Farcaster casts, notes, tags, and curated research on HomieHouse.',
+  description: 'Your personal knowledge base — saved posts, notes, tags, and curated research on HomieHouse.',
   openGraph: {
     title: 'Knowledge Base | HomieHouse',
     description: 'Your personal knowledge base — saved casts, notes, tags, and curated research.',
