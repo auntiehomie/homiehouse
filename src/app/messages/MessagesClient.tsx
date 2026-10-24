@@ -3,27 +3,38 @@
 import { useEffect, useState } from 'react';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import {
+  getMailboxNodeUrl,
   probeHypersnapMailbox,
+  saveMailboxNodeUrl,
   type MailboxAvailability,
 } from '@/lib/hypersnap-mailbox';
 
 export default function MessagesClient() {
   const { fid } = useFarcasterAuth();
   const [recipientFid, setRecipientFid] = useState('');
+  const [nodeUrl, setNodeUrl] = useState('');
+  const [nodeUrlMessage, setNodeUrlMessage] = useState<string | null>(null);
   const [availability, setAvailability] = useState<MailboxAvailability | null>(null);
 
   useEffect(() => {
+    setNodeUrl(getMailboxNodeUrl());
     const recipient = new URLSearchParams(window.location.search).get('recipient');
     if (recipient && /^\d+$/.test(recipient)) setRecipientFid(recipient);
+    void probeHypersnapMailbox().then(setAvailability);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    void probeHypersnapMailbox().then((result) => {
-      if (active) setAvailability(result);
-    });
-    return () => { active = false; };
-  }, []);
+  async function saveNodeAndCheck() {
+    if (!saveMailboxNodeUrl(nodeUrl)) {
+      setNodeUrlMessage('Enter an HTTPS node URL. HTTP is allowed only for localhost.');
+      return;
+    }
+    setNodeUrl(getMailboxNodeUrl());
+    setNodeUrlMessage('Node URL saved in this browser. Checking mailbox support…');
+    setAvailability(null);
+    const result = await probeHypersnapMailbox();
+    setAvailability(result);
+    setNodeUrlMessage('');
+  }
 
   const validRecipient = /^\d+$/.test(recipientFid) && Number(recipientFid) > 0;
   const selfMessage = validRecipient && Number(recipientFid) === fid;
@@ -38,6 +49,26 @@ export default function MessagesClient() {
 
     <div className="surface" style={{ padding: 20 }}>
       <h2 style={{ marginTop: 0 }}>Start a conversation</h2>
+      <label htmlFor="mailbox-node-url">Hypersnap node URL</label>
+      <input
+        id="mailbox-node-url"
+        type="url"
+        inputMode="url"
+        autoComplete="url"
+        value={nodeUrl}
+        onChange={(event) => setNodeUrl(event.target.value)}
+        placeholder="https://your-node.example"
+        style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 12, margin: '8px 0', background: 'var(--surface)', color: 'inherit', border: '1px solid var(--border)', borderRadius: 8 }}
+      />
+      <button className="btn" type="button" onClick={() => void saveNodeAndCheck()}>
+        Save node and check support
+      </button>
+      <p style={{ color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.5 }}>
+        This URL is saved in this browser only. Mailbox requests will go directly to this node;
+        Homiehouse will not send messages through its server or switch to another node.
+      </p>
+      {nodeUrlMessage && <p role="status">{nodeUrlMessage}</p>}
+
       <label htmlFor="message-recipient">Recipient FID</label>
       <input
         id="message-recipient"
