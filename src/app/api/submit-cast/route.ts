@@ -2,20 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 
 const DEFAULT_HYPERSNAP_URL = 'https://haatz.quilibrium.com';
-const SNAPCHAIN_WRITE_BASE =
+const HYPERSNAP_WRITE_BASE =
+  process.env.HYPERSNAP_NODE_URL?.trim() ||
   process.env.SNAPCHAIN_NODE_URL?.trim() ||
   process.env.NEXT_PUBLIC_HYPERSNAP_URL ||
   DEFAULT_HYPERSNAP_URL;
-const SNAPCHAIN_WRITE_FALLBACK =
-  process.env.SNAPCHAIN_FALLBACK_URL?.trim() || DEFAULT_HYPERSNAP_URL;
-const SNAPCHAIN_WRITE_TARGETS = [...new Set([SNAPCHAIN_WRITE_BASE, SNAPCHAIN_WRITE_FALLBACK]
+const HYPERSNAP_WRITE_FALLBACK =
+  process.env.HYPERSNAP_FALLBACK_URL?.trim() ||
+  process.env.SNAPCHAIN_FALLBACK_URL?.trim() ||
+  DEFAULT_HYPERSNAP_URL;
+const HYPERSNAP_WRITE_TARGETS = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRITE_FALLBACK]
   .map((url) => url.replace(/\/+$/, ''))
   .filter(Boolean))];
 
 async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
   let lastError: unknown;
 
-  for (const [index, baseUrl] of SNAPCHAIN_WRITE_TARGETS.entries()) {
+  for (const [index, baseUrl] of HYPERSNAP_WRITE_TARGETS.entries()) {
     try {
       const response = await fetch(`${baseUrl}/v1/submitMessage`, {
         method: 'POST',
@@ -31,23 +34,24 @@ async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
         return response;
       }
 
-      console.warn(`[submit-cast] primary node returned ${response.status}; trying fallback`);
+      console.warn(`[submit-cast] primary Hypersnap node returned ${response.status}; trying fallback`);
     } catch (error) {
       lastError = error;
       if (index === SNAPCHAIN_WRITE_TARGETS.length - 1) throw error;
-      console.warn('[submit-cast] primary node unavailable; trying fallback:', error);
+      console.warn('[submit-cast] primary Hypersnap node unavailable; trying fallback:', error);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('No Snapchain write target is configured');
+  throw lastError instanceof Error ? lastError : new Error('No Hypersnap write target is configured');
 }
 
 /**
- * Server-side proxy for Farcaster hub submitMessage.
+ * Server-side proxy for signed-message submission to a Hypersnap node.
  * The client builds and signs the protobuf message using the app-managed
  * Ed25519 signer key, then POSTs the raw bytes here.
- * We forward them server-side to the configured Snapchain node (with a Hypersnap fallback)
- * to avoid CORS restrictions. Reads keep their separate NEXT_PUBLIC_HYPERSNAP_URL setting.
+ * Hypersnap exposes the Snapchain-compatible /v1/submitMessage API. We forward
+ * server-side to the configured personal Hypersnap node, with Haatz as fallback.
+ * Reads keep their separate NEXT_PUBLIC_HYPERSNAP_URL setting.
  */
 export async function POST(request: NextRequest) {
   try {
