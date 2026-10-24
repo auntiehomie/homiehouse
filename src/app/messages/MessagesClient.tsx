@@ -8,7 +8,7 @@ import {
 } from '@/lib/hypersnap-mailbox';
 
 export default function MessagesClient() {
-  const { fid, isAuthenticated } = useFarcasterAuth();
+  const { fid } = useFarcasterAuth();
   const [recipientFid, setRecipientFid] = useState('');
   const [availability, setAvailability] = useState<MailboxAvailability | null>(null);
 
