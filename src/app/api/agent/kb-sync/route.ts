@@ -1,8 +1,8 @@
 /**
  * Cron: /api/agent/kb-sync
  *
- * Syncs Knowledge Base articles from GitHub (rufus-vault entries table +
- * homie-knowledge summaries) into the Neon `kb_articles` table.
+ * Syncs Knowledge Base article links and processed article context from the
+ * Rufus-vault Knowledge Base files into the Neon `kb_articles` table.
  *
  * Runs hourly at minute 30 UTC so the bot always has fresh KB context.
  * Also callable manually with ?dry=1 to preview without writing.

@@ -5,10 +5,10 @@ import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'Trending | HomieHouse',
-  description: 'See what\'s trending across the Farcaster community on HomieHouse.',
+  description: 'See what\'s trending across the HomieHouse community.',
   openGraph: {
     title: 'Trending | HomieHouse',
-    description: 'See what\'s trending across the Farcaster community.',
+    description: 'See what\'s trending across the community.',
   },
 };
 

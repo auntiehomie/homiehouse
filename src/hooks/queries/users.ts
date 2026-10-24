@@ -42,6 +42,7 @@ export interface ChannelInfo {
   name?: string;
   description?: string;
   image_url?: string;
+  parent_url?: string;
   follower_count?: number;
   [key: string]: unknown;
 }

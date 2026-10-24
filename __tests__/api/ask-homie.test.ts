@@ -98,6 +98,21 @@ describe('/api/ask-homie', () => {
     );
   });
 
+  it('passes the complete long cast context to Ask Homie for explanation', async () => {
+    const longText = Array.from({ length: 180 }, (_, index) => `Section ${index + 1}: a detailed claim that needs plain-English context.`).join('\n\n');
+    const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Can you explain this cast in plain English?' }],
+        castContext: { author: { username: 'writer' }, text: longText, hash: `0x${'a'.repeat(40)}` },
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining(longText), 'auto');
+  });
+
   it('replaces model-emitted pseudo tool-call markup with a safe fallback', async () => {
     processRequest.mockResolvedValueOnce({
       content: '<function_calls><invoke name="get_user_casts">',

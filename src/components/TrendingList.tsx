@@ -108,7 +108,7 @@ function SponsoredCastCard({ sponsored }: { sponsored: SponsoredCast }) {
           wordBreak: 'break-word', lineHeight: 1.5, fontSize: 13,
           color: 'var(--muted-on-dark)',
         }}>
-          Tap to view this promoted cast on Farcaster.
+          Tap to view this promoted post in the social app.
         </div>
       </div>
     </Link>

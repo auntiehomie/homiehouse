@@ -33,91 +33,58 @@ An open protocol, its clients, and its infrastructure operators are distinct. Op
   },
   {
     id: 'farcaster_protocol',
-    title: 'Farcaster Protocol',
+    title: 'Decentralized Social Protocols',
     keywords: [
-      'farcaster', 'cast', 'warpcast', 'fid', 'hub', 'channel', 'frame',
+      'decentralized social', 'cast', 'warpcast', 'fid', 'hub', 'channel', 'frame',
       'mini app', 'miniapp', 'signer', 'snapchain', 'hubs', 'merkle',
-      'farcaster id', 'custody address', 'key registry', 'reaction', 'recast',
+      'account id', 'custody address', 'key registry', 'reaction', 'recast',
       'follow', 'direct cast', 'dc', 'notification', 'embed', 'parent cast',
     ],
     content: `
-Farcaster is a sufficiently decentralized social network protocol built by Dan Romero and Varun Srinivasan.
+Decentralized social protocols let multiple apps use shared identity, social graphs, and public posts. Their designs vary; check where data is stored, who operates infrastructure, and what users can move between apps.
 
-## Identity
-- **FID (Farcaster ID)**: A unique integer registered on-chain (Optimism). Your permanent identity — it never changes even if your username does.
-- **Username**: A human-readable handle (e.g. @dwr.eth). Stored off-chain by Warpcast; can be changed.
-- **Custody Address**: An Ethereum wallet that owns your FID. Changing it is possible but deliberate.
-- **Signers**: Ed25519 keypairs authorized by your custody address to sign casts and actions on your behalf. Apps like Warpcast or HomieHouse create a signer when you connect.
-- **Key Registry**: An Optimism smart contract that tracks which signers are valid for each FID.
+## Identity and keys
+- An account identifier can be separate from a changeable username.
+- A custody wallet may authorize signing keys for routine actions without exposing its recovery phrase.
+- A registry can record which keys are authorized for an account.
 
-## Content
-- **Casts**: Posts up to 320 characters (standard) or up to 10,000 characters (long-form, using CastType.LONG_CAST). Can include text, images, links, and embeds. Stored on Farcaster Hubs.
-- **Reactions**: Likes and recasts. Stored on hubs, not on-chain.
-- **Threads**: Casts replying to other casts form conversation threads via parent_hash references.
-- **Embeds**: URLs or cast hashes embedded in a cast. Clients render previews for images, links, and frames.
-- **Direct Casts (DCs)**: Encrypted 1:1 or group messages. Server is currently operated by Warpcast/Merkle.
+## Posts and conversations
+- Posts may include text, images, links, replies, and interactive embeds.
+- Likes, reposts, and replies are commonly distributed as signed messages.
+- Public posts should be treated as public. Network replication can make deletion incomplete.
+- Private messaging requires separate end-to-end encryption; public-feed storage does not make messages private.
 
-## Infrastructure
-- **Hubs**: Nodes that replicate and store all Farcaster messages. Anyone can run one. Examples: Hypersnap (haatz.quilibrium.com), Pinata's hubs, Merkle's hubs.
-- **Snapchain**: The current hub protocol — a DAG-based consensus replacing the original Merkle-tree approach. Faster sync, better conflict resolution.
-- **Consensus**: Hubs gossip messages peer-to-peer. There is no global ordering of casts (unlike a blockchain) — hubs converge on the same state eventually.
-
-## Channels
-- Topic-scoped feeds like /ethereum, /ai, /privacy, /base.
-- Membership stored on-chain (Base). Anyone can join; channel hosts can moderate.
-- Casts can be posted "into" a channel by including the channel URL as a parent.
-- Popular channels: /farcaster, /ethereum, /base, /degen, /higher, /nouns, /art, /devs.
-
-## Frames & Mini Apps
-- **Frames**: Interactive buttons/images embedded in casts. A cast can become a mini-app: voting, minting, games.
-- **Mini Apps**: Full web apps launched inside the Farcaster client using the Mini Apps SDK. Can request wallet connections, send transactions, read user data.
-- **Frame validator**: Warpcast and others validate frame metadata (fc:frame tags) before rendering.
-
-## Key Players
-- **Warpcast**: Main client by Merkle Manufactory (the Farcaster core team). iOS, Android, web.
-- **Supercast, Herocast, Yup, Jam**: Alternative Farcaster clients with different UX focuses.
-- **Hypersnap**: Open-source Farcaster hub implementation. Runs a full hub node, exposes search API.
-
-## Economics
-- **Warps**: Tipping currency inside Warpcast. Not a token — stored off-chain by Warpcast. Used to tip and boost casts.
-- **Storage Units**: You must purchase storage (rent) to write to Farcaster. 1 storage unit = ~5,000 casts + 2,500 reactions. Priced in ETH, paid on Optimism.
-- **FID registration**: Costs a small ETH amount on Optimism. One-time fee.
+## Infrastructure and portability
+- Independent nodes can replicate and index messages. Running multiple operators can reduce reliance on one provider, though it does not guarantee decentralization by itself.
+- Open protocols let different apps read or publish compatible activity, subject to protocol support and infrastructure access.
+- Portability depends on the protocol, the user's keys, and whether other apps support the same data formats.
 `,
   },
   {
     id: 'getting_started_farcaster',
-    title: 'Getting Started on Farcaster',
+    title: 'Getting Started with Decentralized Social',
     keywords: [
-      'how to join', 'how to get started', 'new to farcaster', 'sign up', 'register',
+      'how to join', 'how to get started', 'new to decentralized social', 'sign up', 'register',
       'get a fid', 'create account', 'onboard', 'first cast', 'find people',
       'who to follow', 'invite', 'invite code', 'invites',
     ],
     content: `
-## How to join Farcaster
+## Getting started
+1. Choose an app that supports the social protocol you want to use.
+2. Review how account recovery and signing permissions work before connecting a wallet.
+3. Set up a profile, follow people or topics, and explore public conversations.
+4. Remember that public posts can be copied or retained by other network participants.
 
-1. **Download Warpcast** (iOS or Android) or go to warpcast.com
-2. **Create an account** — you'll need a phone number for spam prevention
-3. **Pay the storage fee** — a small ETH amount (~$5-10 at typical prices) on Optimism or Base. Warpcast abstracts this.
-4. **Your FID is minted** on Optimism automatically
-5. **Start casting** — your first cast, follows, and reactions are free once storage is bought
+## Finding people and topics
+- Search for subjects you care about and follow relevant accounts.
+- Explore topic feeds or communities when the app offers them.
+- Check which services host, index, and moderate the content you see.
 
-## Finding people to follow
-- Check popular channels: /farcaster, /ethereum, /base, /ai, /privacy
-- Look at who the people you follow interact with
-- Search for topics you care about
-- Pinata's social graph API surfaces mutual follows and power users
-
-## Key things to know as a new user
-- Your username is NOT your identity — your FID is. You can change your username anytime.
-- Your social graph (follows, followers) is portable. If Warpcast shuts down, you can take it to another client.
-- Casts are public by default and permanent (stored on hubs).
-- You can delete a cast but hubs may retain it; treat it as permanent.
-- "Channels" are like subreddits/hashtags. Cast into them to reach that community.
-
-## HomieHouse as an onboarding client
-- HomieHouse lets you browse the Farcaster feed, view profiles, and compose casts
-- Connect your Farcaster account via the AuthKit flow (sign in with Farcaster)
-- Ask Homie (this chat) can help you understand anything you see in your feed
+## Key things to know
+- A username may change while an account identifier stays the same.
+- Portability varies by protocol and by the apps that support it.
+- Public posts are not private messages. Use end-to-end encryption for confidential conversations.
+- HomieHouse can help explain concepts you encounter in your feed.
 `,
   },
   {
@@ -150,8 +117,8 @@ L2s are networks that inherit Ethereum's security but batch transactions off-cha
 4. Ethereum validators verify the batch (either via fraud proofs or ZK proofs)
 
 ### Major L2s
-- **Optimism (OP)**: Optimistic rollup. Used by Farcaster's ID Registry and Key Registry. Has its own governance token (OP) and the "Superchain" vision.
-- **Base**: L2 by Coinbase, built on the OP Stack. No native token. Home to much of Farcaster/crypto culture. Very low fees. Where Degen, Moxie, and many Farcaster tokens live.
+- **Optimism (OP)**: Optimistic rollup. Some protocols use identity and key registries. Has its own governance token (OP) and the "Superchain" vision.
+- **Base**: L2 by Coinbase, built on the OP Stack. No native token. Home to much of crypto social culture. Very low fees. Degen and Moxie are examples of social tokens.
 - **Arbitrum**: Optimistic rollup, dominant in DeFi (GMX, Camelot, etc). Has its own ARB governance token.
 - **zkSync**: Zero-knowledge rollup from Matter Labs. Uses ZK proofs for near-instant finality.
 - **Starknet**: ZK rollup from StarkWare. Uses Cairo (custom language), powerful for gaming/high-throughput apps.
@@ -167,11 +134,11 @@ Introduced "blobs" — cheap temporary data storage for L2s. Cut L2 fees by 10-1
 - **Lido**: Liquid staking — stake ETH, receive stETH that accrues rewards while remaining liquid.
 - **Pendle**: Yield trading — split yield-bearing tokens into principal and yield components.
 
-## Farcaster on Ethereum
+## Decentralized Social on Ethereum
 - FID registration: Optimism (ID Registry contract)
 - Signer authorization: Optimism (Key Registry contract)
 - Storage rental: Optimism (Storage Registry contract)
-- Farcaster tokens (Degen, Moxie, etc.): mostly on Base
+- Social tokens (such as Degen and Moxie): mostly on Base
 `,
   },
   {
@@ -187,19 +154,19 @@ Introduced "blobs" — cheap temporary data storage for L2s. Cut L2 fees by 10-1
 Decentralization means distributing control so no single party can censor, shut down, or extract rent from a system.
 
 ## Core principles
-- **Permissionless**: Anyone can participate without approval — run an Ethereum node, build on Farcaster, deploy a contract. No gatekeepers.
+- **Permissionless**: Anyone can participate without approval — run an Ethereum node, build on open social protocols, deploy a contract. No gatekeepers.
 - **Trustless**: Rules are enforced by math and code, not promises. You don't need to trust a company to honor their terms.
 - **Censorship Resistance**: No government or company can block your transactions or delete your data from a truly decentralized system.
 - **Self-Sovereignty**: Own your private keys → own your assets and identity. "Not your keys, not your coins."
-- **Portability**: Your Farcaster social graph lives on-chain. If your client disappears, you can take your followers/follows to another client.
-- **Interoperability**: Open protocols allow any developer to build clients, tools, or extensions. Farcaster has 10+ clients, 100s of apps.
+- **Portability**: A portable social graph can let you bring follows to another compatible app if one client disappears.
+- **Interoperability**: Open protocols allow any developer to build clients, tools, or extensions. Open protocols can support many compatible apps and tools.
 
-## "Sufficiently Decentralized" (Farcaster's thesis)
-Farcaster doesn't claim to be maximally decentralized. It claims to be decentralized *enough* that:
+## The "Sufficiently Decentralized" Design Goal
+A protocol may aim to be decentralized *enough* that:
 - No single entity can shut it down
 - Users can always switch clients without losing their social graph
 - Core protocol rules can't be changed unilaterally
-Warpcast (the client) is centralized; Farcaster (the protocol) is not. The distinction matters.
+A client can be centralized even when the protocol it uses is open. The distinction matters.
 
 ## DAOs (Decentralized Autonomous Organizations)
 Organizations governed by token holders via on-chain voting.
@@ -227,7 +194,7 @@ Challenges: voter apathy, plutocracy (whale voters dominate), slow decision-maki
 - **Web2** (2000s–2020s): Read-write. Social media, UGC. Platforms own your data and monetize it.
 - **Web3** (2020s–): Read-write-own. Users own their data, identity, assets. Platforms compete for users they can't lock in.
 
-Farcaster is Web3 social: your account, follows, and content belong to you — not to Warpcast.
+Open social systems can make accounts, follows, and content portable across compatible apps.
 `,
   },
   {
@@ -247,7 +214,7 @@ A ZKP lets you prove you know something (or that a statement is true) without re
 
 Classic example: Prove you're over 18 without revealing your birthdate or name.
 
-Farcaster example: Prove you're a Farcaster user without revealing which account — used in anonymous voting or private attestations.
+An anonymous membership proof can show that a person belongs to a group without revealing which member they are.
 
 ### Types of ZKPs
 - **zk-SNARKs**: Succinct, non-interactive. Small proof size, fast to verify. Used by Zcash, Aztec, many L2s. Requires a "trusted setup" ceremony.
@@ -255,8 +222,8 @@ Farcaster example: Prove you're a Farcaster user without revealing which account
 - **PLONK**: Universal trusted setup (one ceremony for all circuits). Used by many modern ZK projects.
 - **Groth16**: Very fast verify, small proofs. Used by Zcash, Tornado Cash.
 
-### ZK applications on Farcaster
-- **Semaphore**: ZK group membership — prove you're in a set (e.g. Farcaster users) without revealing which member. Used in anonymous polls and attestations.
+### Zero-knowledge applications in social systems
+- **Semaphore**: ZK group membership — prove you're in a set (e.g. members of a community) without revealing which member. Used in anonymous polls and attestations.
 - **Zupass**: ZK identity system used at Zuzalu/FarCon. Prove you attended an event without revealing your name.
 - **ZK frames**: Frames that verify credentials (e.g. "prove you hold X NFT") without exposing wallet address.
 
@@ -276,10 +243,10 @@ Rule: "Not your keys, not your coins." If an exchange holds your assets, they ca
 - **Monero (XMR)**: Privacy coin using ring signatures + stealth addresses. All transactions are private by default.
 - **Signal Protocol**: Gold standard for E2E encrypted messaging. Used by Signal, WhatsApp, and optionally in others.
 
-## Farcaster & Privacy
+## Decentralized Social & Privacy
 - **Casts are public** by default. Stored on open hubs, readable by anyone.
 - **Direct Casts (DCs)**: Encrypted between sender and receiver, but Warpcast/Merkle operates the relay server. Private from the public, but not from Warpcast.
-- **Pseudonymity**: You can use Farcaster pseudonymously (no real name required) but your on-chain custody address is public and may link to other activity.
+- **Pseudonymity**: You can use decentralized social networks pseudonymously (no real name required) but your on-chain custody address is public and may link to other activity.
 - **Future**: Community exploring ZK-based private channels and anonymous attestations via Semaphore.
 `,
   },
@@ -322,16 +289,16 @@ AI and Web3 are converging — open-source models, decentralized compute network
 - **Grass**: Decentralized web scraping network. Users earn tokens by sharing bandwidth for AI training data collection.
 
 ## RAG (Retrieval-Augmented Generation)
-How Ask Homie works: instead of just asking the LLM a question cold, we first retrieve relevant context (from the knowledge base + live Farcaster casts via Hypersnap), then include that context in the prompt. The LLM reasons over real, current information rather than just its training data.
+How Ask Homie works: instead of just asking the LLM a question cold, we first retrieve relevant context (from the knowledge base + live public posts via Hypersnap), then include that context in the prompt. The LLM reasons over real, current information rather than just its training data.
 
-## AI Agents on Farcaster
-- Bots are active citizens on Farcaster: analytics bots, AI reply guys, cast schedulers.
+## AI Agents in Decentralized Social
+- Bots can participate in social networks as analytics bots, AI reply guys, cast schedulers.
 - Frames can integrate AI: a frame calls an LLM when a user taps a button.
 - AI-curated feeds: models rank or filter your feed based on your interests.
 - On-chain agents: autonomous agents that hold wallets, execute transactions, respond to events.
 
 ## Key tension
-Centralized AI (OpenAI, Anthropic) vs. open-source ecosystem (Meta Llama, Mistral). The Web3/Farcaster community strongly favors open-source for sovereignty and censorship-resistance reasons.
+Centralized AI (OpenAI, Anthropic) vs. open-source ecosystem (Meta Llama, Mistral). Web3 communities often favor open-source for sovereignty and censorship-resistance reasons.
 `,
   },
   {
@@ -340,10 +307,10 @@ Centralized AI (OpenAI, Anthropic) vs. open-source ecosystem (Meta Llama, Mistra
     keywords: [
       'nft', 'defi', 'degen', 'based', 'onchain', 'meme', 'airdrop', 'token', 'dao',
       'gm', 'wagmi', 'ngmi', 'lfg', 'alpha', 'degen score', 'higher', 'moxie', 'farcon',
-      'yaps', 'kaito', 'nouns', 'purple', 'farcaster ecosystem', 'farcaster tokens',
+      'yaps', 'kaito', 'nouns', 'purple', 'social network ecosystem', 'social network tokens',
     ],
     content: `
-Crypto culture has developed its own vocabulary, norms, and community rituals. Fluency helps you navigate Farcaster.
+Crypto culture has developed its own vocabulary, norms, and community rituals. Fluency helps you navigate online communities.
 
 ## Common slang
 - **gm / gn**: Good morning / good night. A daily community greeting ritual. Earnest and ironic at the same time.
@@ -358,15 +325,15 @@ Crypto culture has developed its own vocabulary, norms, and community rituals. F
 - **ser**: "Sir" — ironic/formal address. "Ser, this is a Wendy's."
 - **fren**: "Friend" — warm, ironic community term.
 - **CT**: Crypto Twitter (now Crypto X). The broader crypto conversation on Twitter/X.
-- **FC**: Farcaster.
 
-## Farcaster-specific tokens & culture
-- **Moxie**: Social token protocol on Farcaster and Base. Creators earn Moxie tokens based on engagement. Fans can buy "Fan Tokens" of their favorite casters.
-- **Degen (DEGEN)**: A memecoin on Base that became deeply woven into Farcaster culture. Users tip each other "degens" in casts. High speculation, strong community identity.
-- **Higher**: Community/movement on Farcaster about optimism, positive vibes, and "going higher." Associated with the Higher token and the /higher channel.
-- **FarCon**: Annual Farcaster in-person conference. Highly attended by the core community.
-- **Yaps (Kaito)**: Attention scoring system for Farcaster activity. Tracks mindshare and influence. Used by projects to reward engaged community members.
-- **Purple**: Nouns-style DAO on Farcaster. Members hold Purple NFTs and fund Farcaster ecosystem projects.
+
+## Social Tokens & Culture
+- **Moxie**: Social token protocol used on Base and in online communities. Creators earn Moxie tokens based on engagement. Fans can buy "Fan Tokens" of their favorite casters.
+- **Degen (DEGEN)**: A memecoin on Base that became deeply woven into decentralized social culture. Users tip each other "degens" in casts. High speculation, strong community identity.
+- **Higher**: Community/movement on the social network about optimism, positive vibes, and "going higher." Associated with the Higher token and the /higher channel.
+- **FarCon**: Annual in-person community conference. Highly attended by the core community.
+- **Yaps (Kaito)**: Attention scoring system for online social activity. Tracks mindshare and influence. Used by projects to reward engaged community members.
+- **Purple**: Nouns-style DAO with community members holding Purple NFTs and funding related projects.
 - **Warps**: Tipping currency inside Warpcast. Not a token. Used to tip casters and boost visibility.
 
 ## NFTs
@@ -374,7 +341,7 @@ Crypto culture has developed its own vocabulary, norms, and community rituals. F
 - **ERC-721**: Standard NFT contract — each token is unique.
 - **ERC-1155**: Multi-token standard — can have fungible + non-fungible in one contract. Used for gaming items.
 - Key historic projects: **CryptoPunks** (first NFT culture), **Bored Apes (BAYC)** (community + IP), **Nouns** (daily auction, DAO treasury), **Art Blocks** (generative art on-chain).
-- On Farcaster: Nouns has a very strong community presence. Many casters collect and discuss NFTs daily.
+- In decentralized social communities, Nouns has a strong presence. Many casters collect and discuss NFTs daily.
 
 ## Airdrops
 Free token distributions to early users or holders of a related asset. Used to bootstrap communities and reward early believers.
@@ -384,7 +351,7 @@ Free token distributions to early users or holders of a related asset. Used to b
 
 ## Memecoins
 Tokens with no fundamental utility — value is purely social/cultural consensus. High risk, high community energy.
-- Degen, Higher, Moxie (Farcaster-native)
+- Degen, Higher, Moxie (community-driven)
 - PEPE, WIF, BONK, BRETT (broader crypto)
 - Can 100x or go to zero. Community and narrative matter more than fundamentals.
 `,

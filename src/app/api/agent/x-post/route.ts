@@ -19,7 +19,7 @@ export const maxDuration = 60;
  * Scheduled autonomous posting for @thehomie on X.
  *
  * X and Farcaster posts share the same voice and choose educational
- * modes grounded in articles synced from Rufus-vault and homie-knowledge.
+ * modes grounded in articles and processed context synced from Rufus-vault.
  * X credentials are user-context OAuth 1.0a tokens for the account that should
  * publish. Missing credentials or synced KB content safely skip publication.
  */

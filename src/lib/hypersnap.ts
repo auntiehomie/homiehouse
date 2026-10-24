@@ -195,7 +195,15 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
 export async function fetchUserByUsername(username: string): Promise<any> {
   const endpoint = `/v2/farcaster/user/by-username?username=${encodeURIComponent(username)}`;
   const normalize = (data: any) => {
-    const user = data?.user ?? data?.result?.user ?? data?.result ?? data?.data?.user ?? data?.data ?? data;
+    const user = data?.user
+      ?? data?.users?.[0]
+      ?? data?.result?.user
+      ?? data?.result?.users?.[0]
+      ?? (Array.isArray(data?.result) ? data.result[0] : data?.result)
+      ?? data?.data?.user
+      ?? data?.data?.users?.[0]
+      ?? (Array.isArray(data?.data) ? data.data[0] : data?.data)
+      ?? data;
     return user?.fid || user?.id ? { ...data, user } : null;
   };
   let primaryError: unknown;
@@ -216,7 +224,14 @@ export async function fetchUserByFid(fid: number): Promise<any> {
   if (!Number.isSafeInteger(fid) || fid <= 0) throw new Error('A valid FID is required');
   const endpoint = `/v2/farcaster/user/bulk?fids=${fid}`;
   const normalize = (data: any) => {
-    const user = data?.users?.[0] ?? data?.result?.users?.[0] ?? data?.user ?? data?.result?.user ?? (data?.result?.fid ? data.result : undefined);
+    const user = data?.users?.[0]
+      ?? data?.result?.users?.[0]
+      ?? data?.user
+      ?? data?.result?.user
+      ?? data?.data?.users?.[0]
+      ?? data?.data?.user
+      ?? (Array.isArray(data?.result) ? data.result[0] : data?.result)
+      ?? (Array.isArray(data?.data) ? data.data[0] : data?.data);
     return user?.fid || user?.id ? { ...data, user } : null;
   };
   let primaryError: unknown;
@@ -272,13 +287,66 @@ export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
 }
 
 /**
- * Fetch the full channel list.
+ * Normalize the response wrappers used by supported Hypersnap builds for channel discovery.
+ * Returns null when the payload does not contain a channel list.
+ */
+export function normalizeChannelListResponse(data: any): any[] | null {
+  const channels =
+    data?.channels ??
+    data?.result?.channels ??
+    data?.data?.channels ??
+    (Array.isArray(data?.result) ? data.result : null) ??
+    (Array.isArray(data?.data) ? data.data : null);
+  return Array.isArray(channels) ? channels : null;
+}
+
+/**
+ * Fetch the full channel list from Hypersnap, retrying the fallback node when
+ * the primary node errors or returns an empty list.
  * GET /v2/farcaster/channel/list?limit=:limit
  */
 export async function fetchChannelList(limit = 50): Promise<any> {
-  const data = await hypersnapFetch(`/v2/farcaster/channel/list?limit=${limit}`);
-  const channels = data?.channels ?? data?.result?.channels ?? data?.data?.channels;
-  return { ...data, channels: Array.isArray(channels) ? channels : [] };
+  const endpoint = `/v2/farcaster/channel/list?limit=${limit}`;
+  let primaryResult: any = null;
+  let primaryError: unknown;
+
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    const channels = normalizeChannelListResponse(data);
+    if (channels?.length) return { ...data, channels };
+    if (channels) primaryResult = { ...data, channels };
+  } catch (error) {
+    primaryError = error;
+  }
+
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
+  const fallbackChannels = normalizeChannelListResponse(fallback);
+  if (fallbackChannels?.length) return { ...fallback, channels: fallbackChannels };
+  if (primaryResult) return primaryResult;
+  if (primaryError) throw primaryError;
+  return { channels: [] };
+}
+
+/** Resolve a channel's canonical parent URL from Hypersnap's channel registry. */
+export async function fetchChannelParentUrl(channelId: string): Promise<string> {
+  const endpoint = `/v2/farcaster/channel?id=${encodeURIComponent(channelId)}&type=id`;
+  let primaryError: unknown;
+
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    const channel = data?.channel ?? data?.result?.channel ?? data?.data?.channel;
+    const parentUrl = channel?.parent_url ?? channel?.parentUrl;
+    if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+  } catch (error) {
+    primaryError = error;
+  }
+
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
+  const channel = fallback?.channel ?? fallback?.result?.channel ?? fallback?.data?.channel;
+  const parentUrl = channel?.parent_url ?? channel?.parentUrl;
+  if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+  if (primaryError) throw primaryError;
+  throw new Error(`Hypersnap did not return a parent_url for channel ${channelId}`);
 }
 
 /**
