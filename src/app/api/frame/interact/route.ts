@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
+import { verifyFarcasterSignerAuth, verifyFarcasterSignerKey } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 import {
   makeFrameAction,
   NobleEd25519Signer,
@@ -30,7 +33,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ isFrame: false, error: 'url and postUrl required' }, { status: 400 });
   }
 
-  const { postUrl, buttonIndex = 1, inputText = '', castHash = '', privateKeyHex, fid } = body;
+  const { postUrl, buttonIndex = 1, inputText = '', castHash = '' } = body;
+  let fid = 0;
+  const privateKeyHex = request.headers.get('x-signer-key');
+
+  if (privateKeyHex) {
+    try {
+      fid = await verifyFarcasterSignerAuth(request, 'write:casts');
+      await verifyFarcasterSignerKey(fid, privateKeyHex);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      return NextResponse.json({ error: 'Frame signer verification failed' }, { status: 401 });
+    }
+  }
+
+  if (typeof body.url !== 'string' || body.url.length > 2048 || typeof postUrl !== 'string' || postUrl.length > 2048
+    || !Number.isInteger(buttonIndex) || buttonIndex < 1 || buttonIndex > 4
+    || typeof inputText !== 'string' || inputText.length > 1000
+    || (castHash && (typeof castHash !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(castHash)))) {
+    return NextResponse.json({ isFrame: false, error: 'A valid frame URL is required' }, { status: 400 });
+  }
+  try {
+    const frameUrl = new URL(body.url);
+    if (!['http:', 'https:'].includes(frameUrl.protocol)) throw new Error('Invalid frame URL protocol');
+  } catch {
+    return NextResponse.json({ isFrame: false, error: 'A valid frame URL is required' }, { status: 400 });
+  }
 
   const frameBody: any = {
     untrustedData: {
@@ -79,7 +109,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(postUrl, {
+    const res = await safeFetchPublicUrl(postUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -87,7 +117,9 @@ export async function POST(request: NextRequest) {
         Accept: 'text/html,application/json',
       },
       body: JSON.stringify(frameBody),
-      signal: AbortSignal.timeout(8000),
+      maxBytes: 1024 * 1024,
+      maxRedirects: 3,
+      timeoutMs: 8000,
     });
 
     if (!res.ok) {
@@ -97,7 +129,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contentType = res.headers.get('content-type') || '';
     const html = await res.text();
 
     const version = extractMeta(html, 'fc:frame');
@@ -120,7 +151,7 @@ export async function POST(request: NextRequest) {
       isFrame: true,
       frame: { version, image, postUrl: nextPostUrl, inputText: nextInputText, buttons },
     });
-  } catch (e: any) {
-    return NextResponse.json({ isFrame: false, error: e.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ isFrame: false, error: 'Unable to fetch that frame destination' }, { status: 422 });
   }
 }

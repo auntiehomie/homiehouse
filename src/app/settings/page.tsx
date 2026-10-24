@@ -241,7 +241,7 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
 
   return (
     <div>
-      {!hideTitle && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Farcaster Account</div>}
+      {!hideTitle && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, color: "var(--text-on-dark)" }}>Social Account</div>}
 
       {/* ── Wallet-authenticated Hypersnap session ── */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
@@ -300,7 +300,7 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
         </div>
       ) : (
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, fontSize: 13, color: "var(--muted-on-dark)" }}>
-          No Farcaster account linked yet.
+          No social account linked yet.
         </div>
       )}
 
@@ -310,7 +310,7 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
           {profile?.fid ? "Switch to a different FID" : "Import by FID"}
         </div>
         <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginBottom: 12, lineHeight: 1.5 }}>
-          Enter a Farcaster ID to browse read-only. Your feed, profile, and notifications will use this identity.
+          Enter an account ID to browse read-only. Your feed, profile, and notifications will use this identity.
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <input
@@ -340,7 +340,7 @@ function AccountPanel({ profile, onProfileUpdate, hideTitle }: { profile: Farcas
         {error && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{error}</div>}
         {success && <div style={{ fontSize: 12, color: "#22c55e", marginTop: 8 }}>Profile imported successfully.</div>}
         <div style={{ fontSize: 11, color: "var(--muted-on-dark)", marginTop: 10, lineHeight: 1.5 }}>
-          Your FID is the number in your Farcaster profile URL, or visible in any Farcaster client under account settings.
+          Your account ID is the number in your profile URL, or visible in the social app's account settings.
         </div>
       </div>
 
@@ -369,7 +369,7 @@ function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: numbe
     try {
       const result = await provisionSignerWithMnemonic(fid, phrase.trim());
 
-      setStatusMsg("Registering on Farcaster network…");
+      setStatusMsg("Registering your social account…");
       // Store the approved signer — shape that useFarcasterWrites expects
       localStorage.setItem(`signer_${fid}`, JSON.stringify({ status: "approved", private_key: result.privateKeyHex }));
       window.dispatchEvent(new CustomEvent("hh:signer:approved"));
@@ -390,7 +390,7 @@ function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: numbe
       setPhrase("");
       setStep("error");
       if (err instanceof CustodyMismatchError) {
-        setStatusMsg("WARPCAST_MANAGED");
+        setStatusMsg("CUSTODY_MISMATCH");
       } else {
         setStatusMsg(err?.message || "Import failed. Check your FID and recovery phrase.");
       }
@@ -457,7 +457,7 @@ function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: numbe
               {step === "confirm" && (
                 <div>
                   <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginBottom: 10, lineHeight: 1.5 }}>
-                    This will register a new signer key for FID <strong style={{ color: "var(--text-on-dark)" }}>{fidInput}</strong> on the Farcaster network. The server wallet will pay the gas fee. Ready to proceed?
+                    This will register a new signer key for FID <strong style={{ color: "var(--text-on-dark)" }}>{fidInput}</strong> on the network. The server wallet will pay the gas fee. Ready to proceed?
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => setStep("idle")} style={{ flex: 1, padding: "9px", borderRadius: 8, background: "var(--bg-dark)", border: "1px solid var(--border)", color: "var(--text-on-dark)", fontSize: 13, cursor: "pointer" }}>Back</button>
@@ -472,15 +472,15 @@ function MnemonicImportSection({ existingFid, onSuccess }: { existingFid?: numbe
 
               {step === "error" && (
                 <div>
-                  {statusMsg === "WARPCAST_MANAGED" ? (
+                  {statusMsg === "CUSTODY_MISMATCH" ? (
                     <>
                       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-on-dark)", marginBottom: 8 }}>
-                        This account is managed by Warpcast
+                        This FID uses a different custody wallet
                       </div>
                       <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginBottom: 12, lineHeight: 1.5 }}>
-                        Your FID is custodied by a Warpcast-managed wallet, so the recovery phrase you entered is for your recovery address — not the custody wallet that owns the FID on-chain.
+                        Your FID is controlled by a managed custody wallet, so the recovery phrase you entered is for a recovery address — not the wallet that owns the FID on-chain.
                         <br /><br />
-                        You can still cast from HomieHouse — just use <strong style={{ color: "var(--text-on-dark)" }}>Enable Posting</strong> on the Compose page instead. That flow goes through Warpcast signer approval and works with Warpcast-managed accounts.
+                        HomieHouse posting currently requires signing a Hypersnap authorization with the FID&apos;s custody wallet. Connect that wallet to enable posting; this recovery phrase cannot authorize the signer.
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
                         <button onClick={() => { router.push("/compose"); }} style={{ padding: "9px 16px", borderRadius: 8, background: "var(--accent)", color: "#fff", border: "none", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
@@ -641,7 +641,7 @@ export default function SettingsPage() {
   );
 
   const panelTitles: Record<NonNullable<ActivePanel>, string> = {
-    account: "Farcaster Account",
+    account: "Social Account",
     themes: "Choose Theme",
     notifications: "Push Notifications",
     wallet: "Wallet",
@@ -691,7 +691,7 @@ export default function SettingsPage() {
                     {profile?.displayName || profile?.username || "Not connected"}
                   </div>
                   <div style={{ fontSize: 11, color: "var(--muted-on-dark)" }}>
-                    {profile?.fid ? `FID ${profile.fid}` : "Import a Farcaster ID"}
+                    {profile?.fid ? `FID ${profile.fid}` : "Import an account ID"}
                   </div>
                 </div>
                 <ChevronRight />
@@ -875,7 +875,7 @@ export default function SettingsPage() {
                   danger
                   icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>}
                   label="Sign Out"
-                  sublabel={isAuthenticated ? "Sign out & clear Farcaster session" : "Clear Farcaster session"}
+                  sublabel={isAuthenticated ? "Sign out & clear social session" : "Clear social session"}
                 />
             </Card>
           </div>

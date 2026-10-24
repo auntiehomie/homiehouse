@@ -5,6 +5,7 @@ import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import type { FrameData } from '@/app/api/frame/route';
 import { openMiniApp } from '@/lib/farcaster';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 interface Props {
   url: string;
@@ -49,17 +50,23 @@ export default function FrameEmbed({ url, castHash }: Props) {
       setInteractError(null);
       try {
         const privateKeyHex = getPrivateKeyHex();
+        const signerHeaders = privateKeyHex ? getAuthHeaders('write:casts') : null;
         const res = await fetch('/api/frame/interact', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(signerHeaders ?? {}),
+            ...(privateKeyHex && userFid ? {
+              'x-farcaster-fid': String(userFid),
+              'x-signer-key': privateKeyHex,
+            } : {}),
+          },
           body: JSON.stringify({
             url,
             postUrl,
             buttonIndex: btn.index,
             inputText: inputValue,
             castHash,
-            privateKeyHex: privateKeyHex || undefined,
-            fid: userFid || undefined,
           }),
         });
         const data = await res.json();

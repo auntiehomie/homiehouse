@@ -3,6 +3,7 @@ import { createPublicClient, http, parseEther } from 'viem';
 import { base } from 'viem/chains';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -27,37 +28,15 @@ function normalizePortraitName(value: unknown): string {
     .trim()
     .slice(0, 60);
 }
-function normalizePublicHttpsImage(value: unknown): string | null {
-  if (typeof value !== 'string' || value.length > 5_500_000) return null;
-  try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
-    if (
-      url.protocol !== 'https:'
-      || url.username
-      || url.password
-      || url.port !== ''
-      || host === 'localhost'
-      || host.endsWith('.localhost')
-      || host.endsWith('.local')
-      || host.endsWith('.internal')
-      || /^\d{1,3}(\.\d{1,3}){3}$/.test(host)
-      || host.includes(':')
-    ) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 function isAllowedImageRef(value: unknown): boolean {
   if (typeof value !== 'string' || value.length > 5_500_000) return false;
   if (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true;
-  // Users may bring a public profile image from any CDN. Validate the URL
-  // scheme and reject local, credentialed, IP-literal, and nonstandard-port
-  // destinations; do not require a brittle host allowlist or a second profile
-  // lookup that can disagree with the profile returned at sign-in.
-  return normalizePublicHttpsImage(value) !== null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password;
+  } catch {
+    return false;
+  }
 }
 
 async function ensureTables() {
@@ -93,7 +72,7 @@ export async function GET(request: NextRequest) {
       chainId: base.id,
     });
   } catch {
-    return NextResponse.json({ error: 'Sign in with Farcaster to use PFP Studio.' }, { status: 401 });
+    return NextResponse.json({ error: 'Sign in to use PFP Studio.' }, { status: 401 });
   }
 }
 
@@ -102,7 +81,7 @@ export async function POST(request: NextRequest) {
   try {
     fid = await verifyFarcasterSignerAuth(request);
   } catch {
-    return NextResponse.json({ error: 'Sign in with Farcaster to use PFP Studio.' }, { status: 401 });
+    return NextResponse.json({ error: 'Sign in to use PFP Studio.' }, { status: 401 });
   }
 
   let body: { image?: unknown; name?: unknown; style?: unknown; paymentTxHash?: unknown };
@@ -138,6 +117,27 @@ export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'Image generation is not configured yet.' }, { status: 503 });
   const model = process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-2.5-flash-image';
+
+  let providerImage = sourceImage;
+  if (!sourceImage.startsWith('data:')) {
+    try {
+      const imageResponse = await safeFetchPublicUrl(sourceImage, {
+        method: 'GET',
+        headers: { Accept: 'image/png,image/jpeg,image/webp' },
+        maxBytes: 5 * 1024 * 1024,
+        maxRedirects: 3,
+        timeoutMs: 8000,
+      });
+      const contentType = imageResponse.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+      if (!imageResponse.ok || !['image/png', 'image/jpeg', 'image/webp'].includes(contentType || '')) {
+        return NextResponse.json({ error: 'The profile image must be a PNG, JPEG, or WebP file.' }, { status: 400 });
+      }
+      const bytes = Buffer.from(await imageResponse.arrayBuffer());
+      providerImage = `data:${contentType};base64,${bytes.toString('base64')}`;
+    } catch {
+      return NextResponse.json({ error: 'Could not safely fetch the profile image.' }, { status: 400 });
+    }
+  }
 
   await ensureTables();
   const db = getDb();
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
         aspect_ratio: '1:1',
         resolution: '1K',
         output_format: 'png',
-        input_references: [{ type: 'image_url', image_url: { url: sourceImage } } satisfies Ref],
+        input_references: [{ type: 'image_url', image_url: { url: providerImage } } satisfies Ref],
         user: `fid:${fid}`,
       }),
       signal: AbortSignal.timeout(110_000),

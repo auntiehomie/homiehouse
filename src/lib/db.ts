@@ -55,7 +55,7 @@ export function getDb(): Pool {
   if (!pool) {
     pool = new Pool({
       connectionString: getDatabaseUrl(),
-      ssl: { rejectUnauthorized: false },
+      ssl: { rejectUnauthorized: true },
       max: 10,
     });
   }

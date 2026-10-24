@@ -5,28 +5,18 @@ import type {
   MiniAppHost,
   MiniAppHostCapability,
 } from '@farcaster/miniapp-core';
-import { useAccount } from 'wagmi';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAccount, useSignMessage } from 'wagmi';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { getMiniAppIdentity } from '@/lib/miniapp-auth';
+import { signInToMiniApp } from '@/lib/miniapp-auth';
 import { requestMiniAppComposeCast } from '@/lib/compose-modal-events';
 import { MiniAppEmbed } from './MiniAppEmbed';
 
 interface OpenMiniAppDetail {
   url: string;
   title?: string;
-}
-
-interface ApprovalRequest {
-  url: string;
-  domain: string;
-  launched: boolean;
-}
-
-interface ApprovalWaiter {
-  resolve: () => void;
-  reject: (error: Error) => void;
 }
 
 const BASE_CAPABILITIES: MiniAppHostCapability[] = [
@@ -64,27 +54,18 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
   const router = useRouter();
   const { fid, username, displayName, pfpUrl, isAuthenticated } =
     useFarcasterAuth();
-  const { connector, isConnected } = useAccount();
+  const { connector, isConnected, address } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [app, setApp] = useState<OpenMiniAppDetail | null>(null);
   const [ethProvider, setEthProvider] = useState<unknown>(null);
-  const [approval, setApproval] = useState<ApprovalRequest | null>(null);
-  const approvalWaiter = useRef<ApprovalWaiter | null>(null);
 
   const close = useCallback(() => {
-    approvalWaiter.current?.reject(new Error('Mini App sign-in was cancelled'));
-    approvalWaiter.current = null;
-    setApproval(null);
     setApp(null);
   }, []);
 
   const navigateToMiniApp = useCallback((url: string, title?: string) => {
     const safeUrl = safeMiniAppUrl(url);
     if (!safeUrl) return;
-    approvalWaiter.current?.reject(
-      new Error('Mini App sign-in was cancelled by navigation'),
-    );
-    approvalWaiter.current = null;
-    setApproval(null);
     setApp({ url: safeUrl, title });
   }, []);
 
@@ -130,27 +111,53 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     };
   }, [connector, isConnected]);
 
-  const requestSignInApproval = useCallback(
-    (url: string, domain: string) =>
-      new Promise<void>((resolve, reject) => {
-        approvalWaiter.current?.reject(
-          new Error('A newer Mini App sign-in request replaced this one'),
-        );
-        approvalWaiter.current = { resolve, reject };
-        setApproval({ url, domain, launched: false });
-      }),
-    [],
-  );
+  const authorizeSignIn = useCallback(async ({
+    miniAppUrl,
+    expectedFid,
+    options,
+  }: {
+    miniAppUrl: string;
+    expectedFid: number;
+    options: Parameters<MiniAppHost['signIn']>[0];
+  }) => {
+    if (!isAuthenticated || !fid || expectedFid !== fid) {
+      throw new Error('Sign in to HomieHouse before signing in to a Mini App');
+    }
+    if (!isConnected || !address) {
+      throw new Error('Connect the wallet linked to your social account to continue');
+    }
 
-  const launchApproval = useCallback(() => {
-    if (!approval) return;
-    window.open(approval.url, '_blank', 'noopener,noreferrer');
-    approvalWaiter.current?.resolve();
-    approvalWaiter.current = null;
-    setApproval(current =>
-      current ? { ...current, launched: true } : current,
+    const response = await fetch(`/api/auth/linked-accounts?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
+    const data = await response.json().catch(() => ({})) as {
+      error?: string;
+      accounts?: Array<{
+        fid: number;
+        link?: { linked: boolean; method: string };
+      }>;
+    };
+    if (!response.ok) {
+      throw new Error(data.error || 'Hypersnap could not verify the connected wallet');
+    }
+    const linkedAccount = data.accounts?.find(
+      account => account.fid === expectedFid && account.link?.linked,
     );
-  }, [approval]);
+    const linkedMethod = linkedAccount?.link?.method;
+    const authMethod = linkedMethod === 'custody' || linkedMethod === 'authAddress'
+      ? linkedMethod
+      : undefined;
+    if (authMethod !== 'custody' && authMethod !== 'authAddress') {
+      throw new Error('The connected wallet must be the FID custody wallet or an approved Auth Address');
+    }
+
+    return signInToMiniApp({
+      miniAppUrl,
+      expectedFid,
+      options,
+      address,
+      authMethod,
+      signMessage: message => signMessageAsync({ message }),
+    });
+  }, [address, fid, isAuthenticated, isConnected, signMessageAsync]);
 
   const hostConfig = useMemo(() => {
     if (!app) return undefined;
@@ -187,8 +194,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       ethProvider: ethProvider as Parameters<
         typeof import('@farcaster/miniapp-host').exposeToIframe
       >[0]['ethProvider'],
-      requestSignInApproval,
-      onSignInComplete: () => setApproval(null),
+      authorizeSignIn,
       overrides: {
         close,
         ready: () => undefined,
@@ -244,7 +250,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     isAuthenticated,
     navigateToMiniApp,
     pfpUrl,
-    requestSignInApproval,
+    authorizeSignIn,
     router,
     username,
   ]);
@@ -293,24 +299,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
 
       {!isAuthenticated && (
         <div className="border-b border-amber-800 bg-amber-950 px-4 py-2 text-center text-sm text-amber-100">
-          Sign in to HomieHouse to share your Farcaster identity with this Mini App.
-        </div>
-      )}
-
-      {approval && (
-        <div className="border-b border-purple-800 bg-purple-950 px-4 py-3 text-center text-sm text-purple-100">
-          <div>
-            {approval.launched
-              ? `Waiting for approval from ${approval.domain}…`
-              : `${approval.domain} is requesting Farcaster sign-in.`}
-          </div>
-          <button
-            type="button"
-            onClick={launchApproval}
-            className="mt-2 rounded-lg bg-purple-600 px-4 py-2 font-semibold text-white"
-          >
-            {approval.launched ? 'Open Farcaster again' : 'Approve in Farcaster'}
-          </button>
+          Sign in to HomieHouse to share your social identity with this Mini App.
         </div>
       )}
 

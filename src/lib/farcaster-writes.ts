@@ -8,7 +8,8 @@
  *
  * Server-side writes require HOMIEHOUSELOL_SIGNER_KEY — an Ed25519 private key
  * (hex, no 0x prefix) that has been registered as an authorized signer for the
- * bot's FID via /api/signer and approved in Warpcast.
+ * bot's FID as a Farcaster protocol signer. This key is provisioned out of
+ * band and messages are submitted to the configured Snapchain/Hypersnap hub.
  */
 
 import {
@@ -24,6 +25,7 @@ import {
 } from '@farcaster/core';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { HDKey } from '@scure/bip32';
+import { fetchChannelParentUrl } from '@/lib/hypersnap';
 // Quilibrium's Snapchain node — synced with on-chain signer registrations and
 // accepts /v1/submitMessage. It's the default primary AND is always kept as a
 // fallback, because some configured hubs are stale: Pinata's sunset hub, for
@@ -186,8 +188,8 @@ export async function publishCast(params: {
       fid: params.parentCastFid ?? 0,
       hash: hashResult.value,
     };
-  } else if (params.parentUrl) {
-    castBody.parentUrl = params.parentUrl;
+  } else if (params.parentUrl || params.channelKey) {
+    castBody.parentUrl = params.parentUrl || await fetchChannelParentUrl(params.channelKey!);
   }
 
   const msg = await makeCastAdd(castBody, { fid: castFid, network: FarcasterNetwork.MAINNET }, signer);

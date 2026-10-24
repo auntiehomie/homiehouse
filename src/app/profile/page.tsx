@@ -16,7 +16,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     const displayName = user.display_name || user.username || username;
     const bio = user.profile?.bio?.text || '';
     const title = `${displayName} (@${user.username}) | HomieHouse`;
-    const description = bio || `View @${user.username}'s Farcaster profile on HomieHouse`;
+    const description = bio || `View @${user.username}'s profile on HomieHouse`;
     const canonical = `${BASE_URL}/profile?user=${encodeURIComponent(user.username)}`;
 
     const jsonLd = {

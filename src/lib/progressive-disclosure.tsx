@@ -35,8 +35,8 @@ interface ProgressiveDisclosureState {
 // Crypto terms dictionary for tooltips
 export const CRYPTO_TERMS: Record<string, { short: string; long: string; category: string }> = {
   fid: {
-    short: "Your unique Farcaster ID number (like a username but permanent)",
-    long: "FID = Farcaster ID. It's a unique number minted on Optimism that permanently identifies your account on the Farcaster protocol. Unlike a username, it can never be changed or taken away.",
+    short: "A unique account ID (like a username but permanent)",
+    long: "An account ID is a unique number recorded on Optimism. It identifies your account on the social protocol and does not change with your username.",
     category: "identity",
   },
   signer: {
@@ -56,12 +56,12 @@ export const CRYPTO_TERMS: Record<string, { short: string; long: string; categor
   },
   "recovery-phrase": {
     short: "12-24 word backup for your wallet",
-    long: "Your recovery phrase (seed phrase) generates all your wallet's private keys. Anyone with this phrase has full control of your funds and Farcaster account. Never share it. HomieHouse only uses it locally to derive a signer key — it never leaves your browser.",
+    long: "Your recovery phrase (seed phrase) generates all your wallet's private keys. Anyone with this phrase has full control of your funds and social account. Never share it. HomieHouse only uses it locally to derive a signer key — it never leaves your browser.",
     category: "security",
   },
   optimism: {
     short: "Low-cost Ethereum L2 where FIDs live",
-    long: "Optimism is an Ethereum Layer 2 rollup. Farcaster stores FIDs, signers, and usernames on Optimism because it's fast, cheap (~$0.01/tx), and inherits Ethereum's security. Your FID is an NFT on Optimism.",
+    long: "Optimism is an Ethereum Layer 2 rollup. Some social protocols store account IDs, signing permissions, and usernames on Optimism because it's fast, cheap (~$0.01/tx), and inherits Ethereum's security. Your FID is an NFT on Optimism.",
     category: "protocol",
   },
   "erc-20": {
@@ -70,13 +70,13 @@ export const CRYPTO_TERMS: Record<string, { short: string; long: string; categor
     category: "tokens",
   },
   frame: {
-    short: "Interactive mini-app inside a Farcaster cast",
-    long: "Frames (now called 'Mini Apps') turn a cast into an interactive experience — buttons, inputs, images that update in real-time. They run in an iframe and communicate with the parent via the Farcaster Frame protocol.",
+    short: "Interactive mini-app inside a social post",
+    long: "Frames (now called 'Mini Apps') turn a cast into an interactive experience — buttons, inputs, images that update in real-time. They run in an iframe and communicate with the parent via the protocol’s frame standard.",
     category: "protocol",
   },
   cast: {
-    short: "A post on Farcaster (like a tweet)",
-    long: "A cast is the core unit of content on Farcaster. It has text, optional embeds (images, links, frames), and metadata. Casts are signed by a signer key and distributed via the Farcaster peer-to-peer network.",
+    short: "A short social post (like a tweet)",
+    long: "A cast is the core unit of content in the network. It has text, optional embeds (images, links, frames), and metadata. Casts are signed by a signer key and distributed across a peer-to-peer network.",
     category: "protocol",
   },
   recast: {
@@ -90,8 +90,8 @@ export const CRYPTO_TERMS: Record<string, { short: string; long: string; categor
     category: "protocol",
   },
   warpcast: {
-    short: "The flagship Farcaster client (mobile/web app)",
-    long: "Warpcast is the main app built by the Farcaster team. It's a full-featured client for reading/writing casts, managing your account, and discovering content. HomieHouse is an alternative client with AI learning features.",
+    short: "A popular social app (mobile/web app)",
+    long: "Warpcast is the main app built by the protocol team. It's a full-featured client for reading/writing casts, managing your account, and discovering content. HomieHouse is an alternative client with AI learning features.",
     category: "ecosystem",
   },
   "hh2": {
@@ -110,8 +110,8 @@ export const CRYPTO_TERMS: Record<string, { short: string; long: string; categor
     category: "app",
   },
   hypersnap: {
-    short: "Farcaster data indexer API",
-    long: "Hypersnap is the backend API HomieHouse uses to query Farcaster data (casts, profiles, channels, follows). It indexes the Farcaster network and provides GraphQL/REST endpoints — faster and more reliable than running your own node.",
+    short: "Social data indexer API",
+    long: "Hypersnap is the backend API HomieHouse uses to query social data (casts, profiles, channels, follows). It indexes network activity and provides GraphQL/REST endpoints — faster and more reliable than running your own node.",
     category: "infrastructure",
   },
   "gas-fee": {
@@ -126,12 +126,12 @@ export const CRYPTO_TERMS: Record<string, { short: string; long: string; categor
   },
   "depin": {
     short: "Decentralized Physical Infrastructure Networks",
-    long: "DePIN projects use token incentives to coordinate real-world infrastructure (WiFi, sensors, compute, maps). Examples: Helium (wireless), Hivemapper (maps), Render (GPU). Not a Farcaster concept — general Web3.",
+    long: "DePIN projects use token incentives to coordinate real-world infrastructure (WiFi, sensors, compute, maps). Examples: Helium (wireless), Hivemapper (maps), Render (GPU). Not specific to social networks — general Web3.",
     category: "web3",
   },
   "dao": {
     short: "Decentralized Autonomous Organization",
-    long: "A DAO is an org governed by token holders voting on-chain. No central leadership — rules encoded in smart contracts. Farcaster has DAO-adjacent features (channels with moderation, token-gated access).",
+    long: "A DAO is an org governed by token holders voting on-chain. No central leadership — rules encoded in smart contracts. Some social platforms have DAO-adjacent features (channels with moderation, token-gated access).",
     category: "web3",
   },
   "defi": {
@@ -151,7 +151,7 @@ export const TOOLTIP_CATEGORIES = [
   { id: "identity", label: "Identity & Accounts", emoji: "🪪" },
   { id: "auth", label: "Authentication & Keys", emoji: "🔐" },
   { id: "security", label: "Security", emoji: "🛡️" },
-  { id: "protocol", label: "Farcaster Protocol", emoji: "🟣" },
+  { id: "protocol", label: "Decentralized Social Protocol", emoji: "🟣" },
   { id: "tokens", label: "Tokens & Economics", emoji: "🪙" },
   { id: "app", label: "HomieHouse Features", emoji: "🏠" },
   { id: "infrastructure", label: "Infrastructure", emoji: "⚙️" },

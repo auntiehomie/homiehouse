@@ -97,7 +97,7 @@ function ComposePageInner() {
         // Fallback to popular channels
         setChannels([
           { id: 'base', name: 'Base' },
-          { id: 'farcaster', name: 'Farcaster' },
+          { id: 'farcaster', name: 'Social' },
           { id: 'dev', name: 'Dev' },
           { id: 'art', name: 'Art' },
           { id: 'music', name: 'Music' },
@@ -108,7 +108,7 @@ function ComposePageInner() {
       // Fallback to popular channels
       setChannels([
         { id: 'base', name: 'Base' },
-        { id: 'farcaster', name: 'Farcaster' },
+        { id: 'farcaster', name: 'Social' },
         { id: 'dev', name: 'Dev' },
         { id: 'art', name: 'Art' },
         { id: 'music', name: 'Music' },
@@ -277,20 +277,7 @@ function ComposePageInner() {
   async function handleEnablePosting() {
     setLoading(true);
     try {
-      // Read any existing approval URL from localStorage
-      let approvalUrl: string | null = null;
-      try {
-        const raw = localStorage.getItem(`signer_${userFid}`);
-        if (raw) approvalUrl = JSON.parse(raw)?.signer_approval_url ?? null;
-      } catch {}
-
-      // Show the modal immediately — no waiting on async API
-      window.dispatchEvent(new CustomEvent('showWelcomeModal', {
-        detail: { approvalUrl },
-      }));
-
-      // Also kick off signer creation so SignerInit can update the modal with a real URL
-      window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid: userFid } }));
+      await requestSigner();
     } finally {
       setLoading(false);
     }
@@ -352,7 +339,7 @@ function ComposePageInner() {
         // Pass the user's signer private key so the server can sign the cast at publish time
         const signerPrivateKey = getPrivateKeyHex();
         if (!signerPrivateKey) {
-          setStatus("Posting permissions required to schedule. Tap 'Enable Posting', approve in Warpcast, then try again.");
+          setStatus("Posting permissions required to schedule. Tap 'Enable Posting', authorize the Hypersnap signer, then try again.");
           setLoading(false);
           return;
         }
@@ -477,7 +464,7 @@ function ComposePageInner() {
             <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
             <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: 'var(--text-on-dark)' }}>Enable Posting</h2>
             <p style={{ ...muted, marginBottom: 28, maxWidth: 340, margin: '0 auto 28px', lineHeight: 1.5 }}>
-              Authorize a scoped HomieHouse signer with the wallet that controls this FID. No recovery phrase or Farcaster app approval is needed.
+              Authorize a scoped HomieHouse signer with the wallet that controls this account ID. No recovery phrase or separate app approval is needed.
             </p>
             <button
               onClick={handleEnablePosting}

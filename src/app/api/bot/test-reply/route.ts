@@ -95,7 +95,7 @@ export async function GET(_req: NextRequest) {
           model: 'llama-3.3-70b-versatile',
           max_tokens: 150,
           messages: [
-            { role: 'system', content: 'You are @thehomie, a helpful crypto/web3 friend on Farcaster. Reply in under 280 chars. Be warm and direct.' },
+            { role: 'system', content: 'You are @thehomie, a helpful crypto/web3 friend in a social community. Reply in under 280 chars. Be warm and direct.' },
             { role: 'user', content: `@${candidate.cast.author?.username} said: "${(candidate.cast.text || '').slice(0, 300)}"` },
           ],
         });

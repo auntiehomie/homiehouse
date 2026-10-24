@@ -9,7 +9,9 @@ export function feedScrollHost(node: HTMLElement): HTMLElement {
 }
 
 /** Follow the cast anchor through late embed layout, until input or timeout. */
-export function restoreFeedScroll(container: HTMLElement, saved: FeedReturn, onRestored: () => void): () => void {
+export type FeedPosition = Pick<FeedReturn, 'castHash' | 'castOffset' | 'scrollY'>;
+
+export function restoreFeedScroll(container: HTMLElement, saved: FeedPosition, onRestored: () => void): () => void {
   let stopped = false;
   let frame = 0;
   let restored = false;
@@ -48,7 +50,8 @@ export function restoreFeedScroll(container: HTMLElement, saved: FeedReturn, onR
   window.addEventListener('touchstart', onInput, { capture: true, passive: true });
   window.addEventListener('wheel', onInput, { capture: true, passive: true });
   window.addEventListener('keydown', onInput, true);
-  // Initial layout, then follow only actual size changes rather than fighting scrolling.
-  schedule();
+  // Align in the layout effect before paint, then follow actual size changes
+  // rather than exposing a frame at the top of the feed or fighting scrolling.
+  align();
   return stop;
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 const posts = [
-  { title: 'Welcome to HomieHouse', description: 'A cozy home for learning Web3, connecting on Farcaster, and making sense of the decentralized web.', path: '/now', date: '2026-09-09' },
+  { title: 'Welcome to HomieHouse', description: 'A cozy home for learning Web3, sharing ideas, and making sense of the decentralized web.', path: '/now', date: '2026-09-09' },
 ];
 const escapeXml = (value: string) => value.replace(/[<>&'\"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '\"': '&quot;' })[char] || char);
 

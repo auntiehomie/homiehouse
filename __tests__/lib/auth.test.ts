@@ -51,21 +51,13 @@ describe('Farcaster signer authentication', () => {
     expect(mockSql).toHaveBeenCalled();
   });
 
-  it('recovers an approved signer when the local cache is empty', async () => {
+  it('recovers an approved signer from the onchain key registry without contacting Warpcast', async () => {
     mockSql
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: true,
-      json: async () => ({
-        result: {
-          signedKeyRequest: {
-            state: 'completed',
-            userFid: 123,
-            key: `0x${'02'.repeat(32)}`,
-          },
-        },
-      }),
+      json: async () => ({ result: `0x${'0'.repeat(63)}1${'0'.repeat(63)}1` }),
     });
 
     const request = new NextRequest('http://localhost/api/compose/suggestions', {
@@ -78,10 +70,7 @@ describe('Farcaster signer authentication', () => {
     });
 
     await expect(verifyFarcasterSignerAuth(request)).resolves.toBe(123);
-    expect(global.fetch).toHaveBeenCalledWith(
-      'https://api.warpcast.com/v2/signed-key-request?token=approved-request-token',
-      expect.objectContaining({ headers: { Accept: 'application/json' } }),
-    );
+    expect(global.fetch).toHaveBeenCalledWith(expect.not.stringContaining('warpcast.com'), expect.any(Object));
     expect(mockSql).toHaveBeenCalledTimes(2);
   });
 

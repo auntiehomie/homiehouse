@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { hypersnapFetch } from '@/lib/hypersnap';
-import { handleApiError } from '@/lib/errors';
+import { handleApiError, AuthError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -71,8 +72,13 @@ export async function GET(request: NextRequest) {
   logger.start();
 
   try {
+    const authenticatedFid = await verifyFarcasterSignerAuth(request, 'read:all');
     const { searchParams } = new URL(request.url);
-    const fid = Number(searchParams.get('fid'));
+    const fidParam = searchParams.get('fid');
+    if (fidParam && (!/^\d+$/.test(fidParam) || Number(fidParam) !== authenticatedFid)) {
+      return NextResponse.json({ error: 'You can only view your own followed-list feed' }, { status: 403 });
+    }
+    const fid = authenticatedFid;
     const requestedLimit = Number(searchParams.get('limit') || DEFAULT_LIMIT);
     const cursorValue = searchParams.get('cursor');
     const cursor = decodeCursor(cursorValue);
@@ -186,6 +192,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ items, nextCursor });
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     logger.error('Failed to fetch unified followed-list feed', error);
     return handleApiError(error, 'GET /curated-lists/feed');
   }

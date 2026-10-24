@@ -192,7 +192,7 @@ export default function AskHomieMiniApp() {
                 🏡 Ask Homie
               </h1>
               <p className="text-sm text-gray-300 mt-1">
-                Your AI assistant for Farcaster
+                Your AI assistant for social conversations
               </p>
             </div>
             {userStats && (
@@ -616,7 +616,7 @@ export default function AskHomieMiniApp() {
 
         {/* Footer */}
         <div className="text-center mt-6 text-xs text-gray-400">
-          <p>Built on Farcaster Mini Apps</p>
+          <p>Built with Mini Apps</p>
           <p className="mt-1">
             <a 
               href="https://homiehouse.xyz" 

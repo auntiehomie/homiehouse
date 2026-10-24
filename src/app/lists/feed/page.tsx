@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFarcasterUser } from "@/hooks/useFarcasterUser";
+import { getAuthHeaders } from "@/lib/client-auth";
 
 interface Curator {
   fid: number;
@@ -55,7 +56,10 @@ export default function UnifiedListFeedPage() {
       });
       if (cursor) params.set("cursor", cursor);
 
-      const response = await fetch(`/api/curated-lists/feed?${params.toString()}`);
+      const response = await fetch(`/api/curated-lists/feed?${params.toString()}`, {
+        headers: { ...(getAuthHeaders() ?? {}) },
+        cache: 'no-store',
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to load followed-list feed");
 
@@ -185,7 +189,7 @@ export default function UnifiedListFeedPage() {
 
                   <div className="mt-4 flex items-center justify-between gap-4 text-xs">
                     <span className="text-zinc-500">
-                      {item.cast_author_fid ? `Cast author FID ${item.cast_author_fid}` : "Saved Farcaster cast"}
+                      {item.cast_author_fid ? `Post author ID ${item.cast_author_fid}` : "Saved post"}
                     </span>
                     <Link
                       href={`https://warpcast.com/~/conversations/${item.cast_hash}`}

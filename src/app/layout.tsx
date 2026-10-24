@@ -20,7 +20,7 @@ const jsonLd = {
   '@type': 'WebSite',
   name: 'HomieHouse',
   url: BASE_URL,
-  description: 'A learning hub for decentralized social networks, with personalized lessons, community feeds, and plain-English AI guidance.',
+  description: 'A social learning app — browse your feed, compose posts, and explore the decentralized web.',
   potentialAction: {
     '@type': 'SearchAction',
     target: {
@@ -56,10 +56,10 @@ export const metadata: Metadata = {
     title: 'HomieHouse',
     statusBarStyle: 'black-translucent',
   },
-  description: 'HomieHouse — Learn how decentralized social networks work through personalized lessons, community feeds, AI guidance, and your own notes.',
+  description: 'HomieHouse — Your social learning hub. Browse feeds, compose posts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.',
   keywords: [
-    'Farcaster', 'social client', 'decentralized social', 'casts', 'web3 social',
-    'Ask Homie', 'AI assistant', 'knowledge base', 'crypto social', 'Farcaster client',
+    'social network', 'social client', 'decentralized social', 'posts', 'web3 social',
+    'Ask Homie', 'AI assistant', 'knowledge base', 'crypto social',
     'decentralized web', 'blockchain social', 'HomieHouse'
   ],
   metadataBase: new URL(BASE_URL),
@@ -70,8 +70,8 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse — Learn decentralized social',
-    description: 'Learn how decentralized social networks work through personalized lessons, plain-English AI answers, and community feeds.',
+    title: 'HomieHouse — Learn from your social feed',
+    description: 'Personalized Web3 learning plans, social feeds, and AI insights — all in one place.',
     url: BASE_URL,
     images: [
       {
@@ -84,8 +84,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse — Learn decentralized social',
-    description: 'Learn how decentralized social networks work through personalized lessons, plain-English AI answers, and community feeds.',
+    title: 'HomieHouse — Learn from your social feed',
+    description: 'Personalized Web3 learning plans, social feeds, and AI insights — all in one place.',
     images: ['/api/og'],
   },
   robots: {

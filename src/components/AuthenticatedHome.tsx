@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import HHLogo from '@/components/HHLogo';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
+import { consumeHomePosition, readHomeSession, saveHomePosition, saveHomeSession } from '@/lib/home-session';
+import { feedScrollHost, restoreFeedScroll } from '@/lib/feed-scroll';
 
 interface LearningPlan {
   summary?: string;
@@ -20,26 +22,52 @@ interface Progress {
   streak?: { currentStreak?: number; current?: number };
 }
 
+interface HomeCast {
+  hash: string;
+  text?: string;
+  author?: { pfp_url?: string; display_name?: string; username?: string };
+}
+
 export default function AuthenticatedHome() {
   const { fid, displayName, username } = useFarcasterAuth();
   const [progress, setProgress] = useState<Progress | null>(null);
-  const [casts, setCasts] = useState<any[]>([]);
+  const [casts, setCasts] = useState<HomeCast[]>([]);
   const [loading, setLoading] = useState(true);
+  const feedRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!fid) return;
+    const saved = readHomeSession<Progress, HomeCast>(fid);
+    if (saved?.position) {
+      setProgress(saved.progress);
+      setCasts(saved.casts);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setProgress(null);
+    setCasts([]);
     let active = true;
     Promise.allSettled([
       fetch(`/api/learning-progress?fid=${fid}`).then(r => r.json()),
       fetch(`/api/feed?feed_type=following&fid=${fid}&limit=4`).then(r => r.json()),
     ]).then(([progressResult, feedResult]) => {
       if (!active) return;
-      if (progressResult.status === 'fulfilled') setProgress(progressResult.value);
-      if (feedResult.status === 'fulfilled') setCasts((feedResult.value.data ?? []).slice(0, 3));
+      const nextProgress = progressResult.status === 'fulfilled' ? progressResult.value : null;
+      const nextCasts = feedResult.status === 'fulfilled' ? (feedResult.value.data ?? []).slice(0, 3) : [];
+      setProgress(nextProgress);
+      setCasts(nextCasts);
+      saveHomeSession({ fid, progress: nextProgress, casts: nextCasts, position: null, ts: Date.now() });
       setLoading(false);
     });
     return () => { active = false; };
   }, [fid]);
+
+  useEffect(() => {
+    if (!fid || loading || !feedRef.current) return;
+    const position = readHomeSession(fid)?.position;
+    if (position) return restoreFeedScroll(feedRef.current, position, () => consumeHomePosition(fid, position));
+  }, [fid, loading]);
 
   const plan = progress?.plan;
   const completed = useMemo(() => progress?.completed_ids ?? [], [progress?.completed_ids]);
@@ -66,7 +94,7 @@ export default function AuthenticatedHome() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <p style={{ margin: '0 0 6px', color: '#6ee7b7', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>Your learning layer for Farcaster</p>
+            <p style={{ margin: '0 0 6px', color: '#6ee7b7', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>Your learning layer for social conversations</p>
             <h2 style={{ margin: '0 0 7px', fontSize: 20, color: 'var(--text-on-dark)' }}>
               {nextModule?.title ?? (modules.length ? 'Learning plan complete!' : 'Build your first learning plan')}
             </h2>
@@ -121,7 +149,7 @@ export default function AuthenticatedHome() {
                 <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text-on-dark)' }}>Ask Homie</h2>
               </div>
               <p style={{ margin: '0 0 14px', color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.55 }}>
-                Confused by something in your feed? Ask about Farcaster, crypto, DeFi, or anything Web3 — get a plain-English answer.
+                Confused by something in your feed? Ask about decentralized social, crypto, DeFi, or anything Web3 — get a plain-English answer.
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {SUGGESTED_QUESTIONS.slice(0, 4).map(q => (
@@ -155,7 +183,16 @@ export default function AuthenticatedHome() {
         </div>
       </section>
 
-      <section>
+      <section ref={feedRef} onClickCapture={event => {
+        if (!fid || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const card = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-feed-cast-hash]') : null;
+        if (!card?.dataset.feedCastHash || !feedRef.current) return;
+        saveHomePosition(fid, {
+          castHash: card.dataset.feedCastHash,
+          castOffset: card.getBoundingClientRect().top,
+          scrollY: feedScrollHost(feedRef.current).scrollTop,
+        });
+      }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, color: 'var(--text-on-dark)' }}>From your feed</h2>
           <Link href="/feed" style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>See all →</Link>
@@ -168,11 +205,11 @@ export default function AuthenticatedHome() {
             </div>
           )}
           {casts.map(cast => (
-            <Link key={cast.hash} href={`/cast/${cast.hash}`} style={{ display: 'block', padding: 15, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
+            <Link key={cast.hash} data-feed-cast-hash={cast.hash} href={`/cast/${cast.hash}?returnTo=%2Ffeed%3Ffeed_type%3Dfollowing`} style={{ display: 'block', padding: 15, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
                 {cast.author?.pfp_url ? <Image src={cast.author.pfp_url} alt="" width={32} height={32} style={{ borderRadius: '50%', objectFit: 'cover' }} /> : <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--border)' }} />}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ color: 'var(--text-on-dark)', fontSize: 13, fontWeight: 700 }}>{cast.author?.display_name || cast.author?.username || 'Farcaster user'}</div>
+                  <div style={{ color: 'var(--text-on-dark)', fontSize: 13, fontWeight: 700 }}>{cast.author?.display_name || cast.author?.username || 'Community member'}</div>
                   <div style={{ color: 'var(--muted-on-dark)', fontSize: 11 }}>@{cast.author?.username || 'unknown'}</div>
                 </div>
               </div>

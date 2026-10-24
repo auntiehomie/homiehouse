@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import SidebarNav from '@/components/SidebarNav';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ function NoteCard({ note, onEdit, onDelete, onShare }: NoteCardProps) {
         {/* Share */}
         <button
           onClick={() => onShare(note)}
-          title="Share to Farcaster"
+          title="Share to social feed"
           style={{
             width: 28,
             height: 28,
@@ -441,7 +442,10 @@ export default function NotesPage() {
     }
 
     let cancelled = false;
-    fetch(`/api/saved-casts?fid=${encodeURIComponent(String(fid))}`, { cache: 'no-store' })
+    fetch(`/api/saved-casts?fid=${encodeURIComponent(String(fid))}`, {
+      cache: 'no-store',
+      headers: { ...(getAuthHeaders() ?? {}) },
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error('Could not load saved casts');
         return response.json();
@@ -452,7 +456,7 @@ export default function NotesPage() {
           .filter((cast: any) => cast.cast_hash)
           .map((cast: any) => ({
             id: String(cast.id),
-            title: cast.cast_author_username ? `Cast by @${cast.cast_author_username}` : 'Saved Farcaster cast',
+            title: cast.cast_author_username ? `Post by @${cast.cast_author_username}` : 'Saved post',
             content: String(cast.cast_text || ''),
             tags: ['saved-cast'],
             createdAt: cast.saved_at || new Date().toISOString(),
@@ -505,7 +509,7 @@ export default function NotesPage() {
       try {
         const response = await fetch('/api/saved-casts', {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(getAuthHeaders('write:casts') ?? {}) },
           body: JSON.stringify({ fid, cast_hash: savedCast.source }),
         });
         if (!response.ok) return;

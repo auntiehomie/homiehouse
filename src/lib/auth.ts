@@ -4,7 +4,7 @@
  * Auth model: the client sends `x-farcaster-fid` and `x-signer-key` headers.
  * The server derives the Ed25519 public key from the private key and verifies
  * it against the local `user_signers` table, which is populated when signers
- * are approved through the Warpcast flow.
+ * are verified as active with Hypersnap or recovered from the onchain key registry.
  *
  * This provides real Farcaster-native signer-key auth with server-side
  * verification — not just trusting client-supplied headers.
@@ -19,7 +19,6 @@ import { verifySession, SessionError } from './session';
 import type { SessionScope } from './session';
 import { isActiveHypersnapSigner } from './hypersnap-signer-auth';
 
-const WARPCAST_API = 'https://api.warpcast.com';
 const KEY_REGISTRY = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
 const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
 const keyRegistryAbi = parseAbi([
@@ -64,7 +63,7 @@ async function ensureSignersTable(): Promise<void> {
 
 /**
  * Store an approved signer in the user_signers cache table.
- * Called by /api/signer and /api/register-user-key when a signer is approved.
+ * Used to cache verified legacy onchain signers for request authentication.
  */
 export async function cacheApprovedSigner(
   fid: number,
@@ -120,53 +119,15 @@ async function derivePublicKey(privateKeyHex: string): Promise<string> {
 }
 
 /**
- * Rehydrate the local signer cache from Farcaster's signed-key request.
- *
- * The cache can be empty after a database reset or migration even though the
- * browser still holds a valid approved signer. The signed-key request token is
- * safe to use as a lookup identifier; approval is accepted only when Farcaster
- * reports the same FID and public key derived from the supplied private key.
+ * Rehydrate the local cache from the Farcaster Key Registry. Hypersnap signers
+ * are checked directly with Hypersnap before this legacy onchain fallback.
  */
 async function recoverApprovedSigner(
   fid: number,
   publicKeyHex: string,
-  signerToken: string | null,
 ): Promise<boolean> {
-  if (signerToken && signerToken.length <= 512) {
-    try {
-      const response = await fetch(
-        `${WARPCAST_API}/v2/signed-key-request?token=${encodeURIComponent(signerToken)}`,
-        {
-          headers: { Accept: 'application/json' },
-          signal: AbortSignal.timeout(5000),
-        },
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const request = data.result?.signedKeyRequest || data;
-        const recoveredFid = Number(request.userFid);
-        const recoveredKey = typeof request.key === 'string'
-          ? request.key.toLowerCase()
-          : '';
-
-        if (
-          request.state === 'completed'
-          && recoveredFid === fid
-          && recoveredKey === publicKeyHex.toLowerCase()
-        ) {
-          await cacheApprovedSigner(fid, publicKeyHex, signerToken);
-          return true;
-        }
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn('[auth] signed-key request recovery failed:', message);
-    }
-  }
-
-  // Older HomieHouse signer records may not retain a usable request token.
-  // The Farcaster Key Registry remains the protocol source of truth, so check
-  // the derived public key directly against the FID's active onchain keys.
+  // Older HomieHouse signer records may not be in the local cache. Check the
+  // derived public key against the FID's active onchain keys.
   try {
     const callData = encodeFunctionData({
       abi: keyRegistryAbi,
@@ -195,7 +156,7 @@ async function recoverApprovedSigner(
     });
     if (keyData.state !== 1 || keyData.keyType !== 1) return false;
 
-    await cacheApprovedSigner(fid, publicKeyHex, signerToken ?? undefined);
+    await cacheApprovedSigner(fid, publicKeyHex);
     return true;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -260,7 +221,6 @@ export async function verifyFarcasterSignerAuth(
   // TODO(HH-02): Remove once all clients have migrated to session tokens
   const fidHeader = request.headers.get('x-farcaster-fid');
   const signerKey = request.headers.get('x-signer-key');
-  const signerToken = request.headers.get('x-signer-uuid');
 
   if (!fidHeader || !signerKey) {
     // Check for old Bearer token format (backward compat)
@@ -305,9 +265,9 @@ export async function verifyFarcasterSignerAuth(
       // Warpcast cache or Optimism Key Registry, even when posting works.
       if (await isActiveHypersnapSigner(fid, publicKeyHex)) return fid;
 
-      // A valid signer can outlive the database cache. Recover it from the
-      // Farcaster approval record, while still requiring an exact FID/key match.
-      const recovered = await recoverApprovedSigner(fid, publicKeyHex, signerToken);
+      // A valid legacy signer can outlive the database cache. Recover it from
+      // the onchain key registry, while still requiring an exact FID/key match.
+      const recovered = await recoverApprovedSigner(fid, publicKeyHex);
       if (recovered) return fid;
 
       throw new AuthError(
@@ -399,6 +359,31 @@ export async function verifyFarcasterSigner(
   }
 
   return fid;
+}
+
+/** Verify that a provided Ed25519 private key belongs to an active signer for a FID. */
+export async function verifyFarcasterSignerKey(fid: number, signerKey: string): Promise<number> {
+  if (!fid || !Number.isSafeInteger(fid) || fid <= 0) {
+    throw new AuthError('Valid FID required', 401, 'INVALID_FID');
+  }
+  const publicKeyHex = await derivePublicKey(signerKey);
+  try {
+    await ensureSignersTable();
+    const rows = await sql`
+      SELECT id FROM user_signers
+      WHERE user_fid = ${fid}
+        AND signer_public_key = ${publicKeyHex}
+        AND status = 'approved'
+      LIMIT 1
+    `;
+    if (rows.length > 0) return fid;
+    if (await isActiveHypersnapSigner(fid, publicKeyHex)) return fid;
+    if (await recoverApprovedSigner(fid, publicKeyHex)) return fid;
+    throw new AuthError('Invalid or unapproved signer key for this FID', 401, 'INVALID_SIGNER_KEY');
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+    throw new AuthError('Unable to verify signer key', 500, 'SIGNER_VERIFICATION_FAILED');
+  }
 }
 
 // ── Bearer token auth ────────────────────────────────────────────────────────

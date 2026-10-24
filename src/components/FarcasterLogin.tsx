@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { createPortal } from 'react-dom';
-import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
+import { useAccount, useConnect, useConnectors, useDisconnect, useSignMessage } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { createMessage, encodeToken } from '@farcasterorg/quick-auth/token';
 import { useSessionAuth } from '@/hooks/useSessionAuth';
+import { subscribePairingUri } from '@/lib/wallet-pairing';
 
 interface LinkedAccount {
   fid: number;
@@ -24,6 +26,8 @@ interface FarcasterLoginProps {
 
 export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requestPostingOnLogin = true }: FarcasterLoginProps) {
   const { address, isConnected } = useAccount();
+  const { connectAsync, isPending: isConnecting } = useConnect();
+  const connectors = useConnectors();
   const { signMessageAsync } = useSignMessage();
   const { openConnectModal } = useConnectModal();
   const { disconnectAsync } = useDisconnect();
@@ -32,6 +36,41 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requ
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [signingFid, setSigningFid] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pairingUri, setPairingUri] = useState<string | null>(null);
+  const [pairingPending, setPairingPending] = useState(false);
+  const pairingBusy = useRef(false);
+  const pairingCleanup = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => pairingCleanup.current?.(), []);
+  const walletConnectConnector = connectors.find((connector) => connector.id === 'walletConnect');
+
+  async function connectWithWalletConnectQr() {
+    if (pairingBusy.current) return;
+    if (!walletConnectConnector) {
+      setError('WalletConnect QR is unavailable. Please use a browser wallet or try again later.');
+      return;
+    }
+    setError(null);
+    setPairingUri(null);
+    pairingBusy.current = true;
+    setPairingPending(true);
+    let removeUriListener: (() => void) | undefined;
+    try {
+      // This connector deliberately has showQrModal:false. Subscribe before
+      // connecting and render the pairing URI here rather than loading AppKit.
+      const provider = await walletConnectConnector.getProvider();
+      removeUriListener = subscribePairingUri(provider, setPairingUri);
+      pairingCleanup.current = removeUriListener;
+      await connectAsync({ connector: walletConnectConnector });
+    } catch (err: any) {
+      setError(err?.shortMessage || err?.message || 'Could not start WalletConnect. Please try again.');
+    } finally {
+      removeUriListener?.();
+      pairingBusy.current = false;
+      pairingCleanup.current = undefined;
+      setPairingPending(false);
+      setPairingUri(null);
+    }
+  }
 
   const loadAccounts = useCallback(async () => {
     if (!address) {
@@ -110,13 +149,29 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requ
         Sign in with your wallet
       </h2>
       <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, margin: '0 0 20px', lineHeight: 1.5 }}>
-        Hypersnap will find Farcaster accounts linked to your wallet. Sign a short-lived login message to prove control—no Farcaster app approval or recovery phrase.
+        Hypersnap will find social accounts linked to your wallet. Sign a short-lived login message to prove control—no separate app approval or recovery phrase. On a computer, connect a browser wallet or pair a phone wallet by QR code.
       </p>
 
       {!isConnected ? (
-        <button className="btn primary" onClick={() => openConnectModal?.()} style={{ width: '100%', padding: 13 }}>
-          Connect wallet
-        </button>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <button className="btn primary" disabled={isConnecting || pairingPending} onClick={() => openConnectModal?.()} style={{ width: '100%', padding: 13 }}>
+            Connect browser wallet
+          </button>
+          {walletConnectConnector && <button className="btn" onClick={() => void connectWithWalletConnectQr()} disabled={isConnecting || pairingPending} style={{ width: '100%', padding: 13 }}>
+            {isConnecting || pairingPending ? 'Waiting for wallet…' : 'Connect phone wallet with QR'}
+          </button>}
+          {pairingUri && (
+            <div role="status" aria-label="WalletConnect pairing QR code">
+              <div style={{ background: '#fff', padding: 16, borderRadius: 12, width: 'fit-content', margin: '0 auto' }}>
+                <QRCodeSVG value={pairingUri} size={220} marginSize={2} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
+              </div>
+              <p style={{ color: 'var(--muted-on-dark)', fontSize: 13 }}>Open your phone wallet’s scanner, scan this code, then approve the connection.</p>
+            </div>
+          )}
+          <small style={{ color: 'var(--muted-on-dark)', lineHeight: 1.5 }}>
+            Scan the QR code with Rainbow or another wallet that supports WalletConnect.
+          </small>
+        </div>
       ) : (
         <>
           <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, margin: '0 0 14px', wordBreak: 'break-all' }}>

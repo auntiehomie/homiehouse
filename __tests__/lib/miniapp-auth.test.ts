@@ -32,93 +32,86 @@ describe('getMiniAppIdentity', () => {
 });
 
 describe('signInToMiniApp', () => {
-  const mockFetch = jest.fn();
+  const signMessage = jest.fn();
+  const identity = {
+    address: '0x1234567890123456789012345678901234567890' as const,
+    authMethod: 'custody' as const,
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = mockFetch;
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => ({
-        channelToken: 'channel-token',
-        url: 'https://farcaster.xyz/auth/example',
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          state: 'completed',
-          fid: 123,
-          message: 'example.com wants you to sign in',
-          signature: '0xabc',
-          authMethod: 'custody',
-        }),
-      });
+    signMessage.mockResolvedValue('0xsignature');
   });
 
-  it('returns a SIWF signature only for the HomieHouse user', async () => {
-    const requestApproval = jest.fn().mockResolvedValue(undefined);
-
-    await expect(
-      signInToMiniApp({
-        miniAppUrl: 'https://example.com/play',
-        expectedFid: 123,
-        options: { nonce: 'valid-nonce' },
-        requestApproval,
-      }),
-    ).resolves.toEqual({
-      message: 'example.com wants you to sign in',
-      signature: '0xabc',
-      authMethod: 'custody',
+  it('wallet-signs a domain-bound SIWF message for the authenticated FID', async () => {
+    const result = await signInToMiniApp({
+      miniAppUrl: 'https://example.com/play',
+      expectedFid: 123,
+      options: { nonce: 'validnonce123' },
+      ...identity,
+      signMessage,
     });
 
-    expect(mockFetch).toHaveBeenNthCalledWith(
-      1,
-      'https://relay.farcaster.xyz/v1/channel',
-      expect.objectContaining({
-        method: 'POST',
-        body: expect.stringContaining('"domain":"example.com"'),
-      }),
-    );
-    expect(requestApproval).toHaveBeenCalledWith(
-      'https://farcaster.xyz/auth/example',
-      'example.com',
-    );
+    expect(result).toEqual({
+      message: expect.stringContaining('Farcaster Auth'),
+      signature: '0xsignature',
+      authMethod: 'custody',
+    });
+    expect(result.message).toContain('example.com wants you to sign in with your Ethereum account:');
+    expect(result.message).toContain(identity.address);
+    expect(result.message).toContain('URI: https://example.com');
+    expect(result.message).toContain('Chain ID: 10');
+    expect(result.message).toContain('Nonce: validnonce123');
+    expect(result.message).toContain('- farcaster://fids/123');
+    expect(signMessage).toHaveBeenCalledWith(result.message);
   });
 
-  it('rejects approval from a different Farcaster account', async () => {
-    mockFetch.mockReset();
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 201,
-        json: async () => ({
-          channelToken: 'channel-token',
-          url: 'https://farcaster.xyz/auth/example',
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-        state: 'completed',
-        fid: 999,
-        message: 'message',
-        signature: '0xabc',
-        authMethod: 'authAddress',
-        }),
-      });
+  it('includes the Mini App requested validity window', async () => {
+    const result = await signInToMiniApp({
+      miniAppUrl: 'https://example.com',
+      expectedFid: 123,
+      options: {
+        nonce: 'miniapptime123',
+        notBefore: '2026-10-18T12:00:00.000Z',
+        expirationTime: '2026-10-18T12:15:00.000Z',
+      },
+      ...identity,
+      signMessage,
+    });
 
-    await expect(
-      signInToMiniApp({
-        miniAppUrl: 'https://example.com',
-        expectedFid: 123,
-        options: { nonce: 'valid-nonce' },
-        requestApproval: async () => undefined,
-      }),
-    ).rejects.toThrow('same Farcaster account used in HomieHouse');
+    expect(result.message).toContain('Expiration Time: 2026-10-18T12:15:00.000Z');
+    expect(result.message).toContain('Not Before: 2026-10-18T12:00:00.000Z');
+    expect(result.message.indexOf('Expiration Time')).toBeLessThan(result.message.indexOf('Not Before'));
+  });
+
+  it('rejects Auth Address signatures when the Mini App disallows them', async () => {
+    await expect(signInToMiniApp({
+      miniAppUrl: 'https://example.com',
+      expectedFid: 123,
+      options: { nonce: 'validnonce123', acceptAuthAddress: false },
+      ...identity,
+      authMethod: 'authAddress',
+      signMessage,
+    })).rejects.toThrow('does not accept an Auth Address signature');
+    expect(signMessage).not.toHaveBeenCalled();
+  });
+
+  it('requires a valid Mini App nonce and signed-in FID', async () => {
+    await expect(signInToMiniApp({
+      miniAppUrl: 'https://example.com',
+      expectedFid: 0,
+      options: { nonce: 'validnonce123' },
+      ...identity,
+      signMessage,
+    })).rejects.toThrow('Sign in to HomieHouse');
+
+    await expect(signInToMiniApp({
+      miniAppUrl: 'https://example.com',
+      expectedFid: 123,
+      options: { nonce: 'short' },
+      ...identity,
+      signMessage,
+    })).rejects.toThrow('nonce of at least 8');
+    expect(signMessage).not.toHaveBeenCalled();
   });
 });

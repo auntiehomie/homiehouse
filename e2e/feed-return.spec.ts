@@ -47,7 +47,8 @@ async function returnAndCheck(page: Page, state: Awaited<ReturnType<typeof fixtu
   await expect(page).toHaveURL('/feed');
   await expect(state.anchor).toBeAttached();
   expect(state.requests(), 'returning must not fetch a new first page').toBe(1);
-  await expect.poll(() => state.anchor.evaluate((node, offset) => Math.abs(node.getBoundingClientRect().top - offset), state.offset)).toBeLessThan(5);
+  const restoredOffset = await state.anchor.evaluate((node) => node.getBoundingClientRect().top);
+  expect(Math.abs(restoredOffset - state.offset), 'the return position should be correct immediately, without a visible jump').toBeLessThan(5);
 }
 
 test('returns to the same long-cast paragraph with session storage writes blocked, without refetching', async ({ page }) => {

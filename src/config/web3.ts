@@ -5,6 +5,8 @@
  */
 
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { injectedWallet, metaMaskWallet, rainbowWallet, safeWallet } from '@rainbow-me/rainbowkit/wallets';
+import { phoneWallet } from './phoneWallet';
 import { http } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
 
@@ -13,6 +15,10 @@ import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
 // Transports are per-chain; fall back to the public RPC when API keys are absent.
 export const wagmiConfig = getDefaultConfig({
   appName: 'HomieHouse',
+  appDescription: 'Learn and connect on decentralized social networks',
+  appUrl: 'https://homiehouse.app',
+  appIcon: 'https://homiehouse.app/logo.png',
+  wallets: [{ groupName: 'Connect a wallet', wallets: [injectedWallet, rainbowWallet, metaMaskWallet, phoneWallet, safeWallet] }],
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
   ssr: true,
   chains: [mainnet, polygon, optimism, arbitrum, base],
@@ -54,8 +60,8 @@ export const walletConnectConfig = {
   metadata: {
     name: 'HomieHouse',
     description: 'Your Social Hub for Web3',
-    url: 'https://1481393129444737075.vercel.app',
-    icons: ['https://1481393129444737075.vercel.app/logo.png'],
+    url: 'https://homiehouse.app',
+    icons: ['https://homiehouse.app/logo.png'],
   },
 };
 
@@ -63,12 +69,6 @@ export const walletConnectConfig = {
 export const pinataConfig = {
   jwt: process.env.PINATA_JWT || '',
   gateway: process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'https://gateway.pinata.cloud',
-};
-
-// Farcaster Configuration
-export const farcasterConfig = {
-  hubUrl: process.env.NEXT_PUBLIC_FARCASTER_HUB_URL || 'https://hub.pinata.cloud',
-  network: process.env.NEXT_PUBLIC_FARCASTER_NETWORK || 'mainnet',
 };
 
 // Multi-chain token configuration
