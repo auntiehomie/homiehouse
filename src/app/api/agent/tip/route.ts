@@ -26,7 +26,7 @@ const HOMIEHOUSELOL_FID = parseInt(
   10
 );
 
-const RELEVANCE_SYSTEM = `You filter trending Farcaster posts for ones relevant to crypto, DeFi, NFTs, tokens, wallets, security, blockchain, AI/agents, or web3/decentralization. Given a numbered list of cast texts, return ONLY a JSON array of the 0-based indices that are relevant, e.g. [0,2,5]. Return [] if none. No other text.`;
+const RELEVANCE_SYSTEM = `You filter trending social posts for ones relevant to crypto, DeFi, NFTs, tokens, wallets, security, blockchain, AI/agents, or web3/decentralization. Given a numbered list of cast texts, return ONLY a JSON array of the 0-based indices that are relevant, e.g. [0,2,5]. Return [] if none. No other text.`;
 
 /** Ask the LLM which trending casts are on-topic, then return the most-engaged one. */
 async function pickRelevantTrend(casts: any[]): Promise<any | null> {

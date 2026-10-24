@@ -5,7 +5,7 @@
  * magic links. Calls POST /api/auth/magic-link with the email and shows
  * loading, success, and error states.
  *
- * Includes "Continue with Farcaster" secondary option.
+ * Includes a secondary option to connect an existing social account.
  * Styled to match the existing dark theme.
  */
 
@@ -289,7 +289,7 @@ export default function EmailSignUp({
               onClick={onFarcasterConnect}
               style={secondaryButtonStyle}
             >
-              🔵 Continue with Farcaster
+              🔵 Continue with social account
             </button>
           </>
         )}

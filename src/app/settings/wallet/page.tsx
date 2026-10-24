@@ -79,17 +79,17 @@ export default function WalletSettingsPage() {
           )}
         </div>
 
-        {/* Farcaster-linked wallets */}
+        {/* Social-account-linked wallets */}
         <div>
           <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--muted-on-dark)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Farcaster-Linked Wallets
+            Verified Social Wallets
           </h2>
           <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--muted-on-dark)" }}>
-            Addresses verified to your Farcaster account. Connect a wallet above to interact with them.
+            Addresses verified to your social account. Connect a wallet above to interact with them.
           </p>
           {wallets.length === 0 ? (
             <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--muted-on-dark)", fontSize: 14, background: "var(--surface)", borderRadius: 12, border: "1px solid var(--border)" }}>
-              No verified wallets found for your Farcaster account.
+              No verified wallets found for your account.
             </div>
           ) : (
             <div style={{ background: "var(--surface)", borderRadius: 14, border: "1px solid var(--border)", overflow: "hidden" }}>
@@ -113,7 +113,7 @@ export default function WalletSettingsPage() {
                       {truncateAddress(w.address)}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--muted-on-dark)", marginTop: 2 }}>
-                      Verified on Farcaster
+                      Social account verified
                     </div>
                   </div>
                 </div>
