@@ -119,7 +119,9 @@ export default function SearchClient() {
                   {people.map((u: any) => (
                     <Link
                       key={u.fid || u.username}
-                      href={`/profile?user=${u.username || ''}`}
+                      href={u.fid != null
+                        ? `/profile?fid=${encodeURIComponent(String(u.fid))}`
+                        : `/profile?user=${encodeURIComponent(u.username || '')}`}
                       className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 transition-colors"
                     >
                       <img
