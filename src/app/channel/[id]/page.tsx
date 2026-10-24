@@ -12,7 +12,7 @@ export async function generateMetadata({
   const { id } = await params;
   return {
     title: `Channel: ${id} | HomieHouse`,
-    description: `Browse casts in the ${id} channel on HomieHouse — powered by Farcaster.`,
+    description: `Browse posts in the ${id} channel on HomieHouse.`,
     alternates: { canonical: `${BASE_URL}/channel/${encodeURIComponent(id)}` },
     openGraph: {
       title: `Channel: ${id} | HomieHouse`,

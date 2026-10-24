@@ -219,7 +219,7 @@ function SummaryCard({ content, onShare }: { content: string; onShare: () => voi
           color: '#c7d2fe', fontSize: 14, fontWeight: 700, cursor: 'pointer',
         }}
       >
-        Share what clicked on Farcaster →
+        Share what clicked to your feed →
       </button>
       <div style={{
         padding: '12px 14px', borderRadius: 12,
@@ -227,7 +227,7 @@ function SummaryCard({ content, onShare }: { content: string; onShare: () => voi
       }}>
         <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
           🤖 AI-generated content by Claude (Anthropic). Cross-reference with ethereum.org,
-          uniswap docs, or the /defi and /web3 channels on Farcaster. Not financial advice.
+          Uniswap docs, or the /defi and /web3 communities. Not financial advice.
         </p>
       </div>
     </CardBody>
@@ -424,7 +424,7 @@ function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDo
               color: '#a5b4fc', fontSize: 15, fontWeight: 700, cursor: 'pointer',
             }}
           >
-            Share Progress on Farcaster
+            Share Progress to your feed
           </button>
           <button
             onClick={onBack}
@@ -667,7 +667,7 @@ function ModuleLessonContent() {
       }
     } else {
       setRewardAttemptMissing(false);
-      setRewardError('Sign in with Farcaster to verify this reward. Your learning progress is saved.');
+      setRewardError('Sign in to verify this reward. Your learning progress is saved.');
     }
     setRewardEarned(verified);
     setRewardVerificationDone(true);
@@ -714,7 +714,7 @@ function ModuleLessonContent() {
     }
 
     if (!mod || !getAuthHeaders()) {
-      setRewardError('Your Farcaster session is not available to this lesson yet. Refresh the page while signed in, then retry.');
+      setRewardError('Your social session is not available to this lesson yet. Refresh the page while signed in, then retry.');
       return;
     }
 
@@ -783,7 +783,7 @@ function ModuleLessonContent() {
     const authHeaders = getAuthHeaders();
     if (!authHeaders) {
       setClaimStatus('failed');
-      setClaimError('Not authenticated — connect your Farcaster account.');
+      setClaimError('Not authenticated — connect your social account.');
       return;
     }
     setClaimStatus('sending');

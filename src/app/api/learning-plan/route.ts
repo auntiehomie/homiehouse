@@ -83,18 +83,18 @@ const EXTRA_MODULES: Record<string, LearningModule> = {
   },
   'farcaster-history': {
     id: 'farcaster-history',
-    title: 'Farcaster: History & Protocol',
+    title: 'Decentralized Social: History & Protocol',
     description: 'Learn how Dan Romero and Varun Srinivasan built a "sufficiently decentralized" social protocol from scratch — and how it evolved from invite-only to Frames and beyond.',
-    whyItMatters: 'Farcaster is the infrastructure for crypto-native social. Understanding its design decisions explains why it works differently from every other platform you\'ve used.',
+    whyItMatters: 'Decentralized social networks provide infrastructure for crypto-native communities. Understanding its design decisions explains why it works differently from every other platform you\'ve used.',
     objectives: [
-      'Describe how Farcaster stores identity on-chain (FIDs on Optimism) while keeping content off-chain (Hubs)',
-      'Explain what a Farcaster Hub is and why the network requires multiple hubs for decentralization',
+      'Describe how decentralized social networks can store identity on-chain while keeping content off-chain',
+      'Explain how independent nodes support decentralization in social networks',
       'Understand the timeline: 2022 beta → channels → Frames → open protocol',
       'Identify the key clients (Warpcast, HomieHouse, Supercast) and why multiple clients matter',
     ],
     estimatedMinutes: 25,
     difficulty: 'beginner',
-    tags: ['farcaster', 'history', 'social', 'protocol'],
+    tags: ['decentralized-social', 'history', 'social', 'protocol'],
   },
   'security-decentralization': {
     id: 'security-decentralization',
@@ -144,7 +144,7 @@ const EXTRA_MODULES: Record<string, LearningModule> = {
   'ai-agents-onchain': {
     id: 'ai-agents-onchain',
     title: 'AI Agents That Own Wallets and Trade On-Chain',
-    description: 'Meet the wave of autonomous AI agents that hold their own crypto wallets, post on Farcaster, trade tokens, and coordinate with other agents — including the one built into this app.',
+    description: 'Meet the wave of autonomous AI agents that hold their own crypto wallets, post in social feeds, trade tokens, and coordinate with other agents — including the one built into this app.',
     whyItMatters: 'AI agents with on-chain wallets are one of the fastest-growing intersections of AI and crypto — understanding how they work helps you evaluate which ones are legitimate and which are hype.',
     objectives: [
       'Explain what it means for an AI agent to "own" a wallet and sign transactions autonomously',
@@ -314,17 +314,17 @@ const ADVANCED_MODULES: Record<string, LearningModule> = {
   'identity-systems': {
     id: 'identity-systems',
     title: 'Web3 Identity Systems Compared',
-    description: 'Compare ENS, Lens, Farcaster FIDs, DIDs, and soulbound tokens — different approaches to on-chain identity, reputation, and social graphs.',
+    description: 'Compare ENS, Lens, portable social IDs, DIDs, and soulbound tokens — different approaches to on-chain identity, reputation, and social graphs.',
     whyItMatters: 'Your on-chain identity is becoming as important as your offline one. Understanding how different identity systems work helps you navigate the social layer of Web3.',
     objectives: [
-      'Compare ENS (.eth names), Lens profiles, and Farcaster FIDs as identity primitives',
+      'Compare ENS (.eth names), Lens profiles, and portable social IDs as identity primitives',
       'Understand soulbound tokens (SBTs) and verifiable credentials for reputation',
       'Explain what Decentralized Identifiers (DIDs) are and how they differ from ENS',
       'Evaluate which identity system fits different use cases: social, financial, professional',
     ],
     estimatedMinutes: 25,
     difficulty: 'intermediate',
-    tags: ['identity', 'ENS', 'farcaster', 'lens', 'DID'],
+    tags: ['identity', 'ENS', 'social', 'lens', 'DID'],
   },
 };
 
@@ -398,18 +398,18 @@ const DECENTRALIZATION_BEGINNER: LearningPlan = {
     },
     {
       id: 'intro-to-farcaster',
-      title: 'Welcome to Farcaster',
-      description: 'Discover Farcaster — a decentralized social protocol built on Ethereum — and how HomieHouse gives you a home in this ecosystem.',
-      whyItMatters: 'Farcaster is where crypto-native conversation happens; understanding it opens doors to community, information, and opportunity.',
+      title: 'Welcome to Decentralized Social',
+      description: 'Explore decentralized social networks built on open protocols and see how HomieHouse helps you learn from the conversations happening there.',
+      whyItMatters: 'Decentralized social is where many crypto-native conversations happen; understanding it opens doors to community, information, and opportunity.',
       objectives: [
-        'Explain what a Farcaster FID and signer are',
+        'Explain what an account ID and signing key are',
         'Post your first cast and follow relevant channels',
         'Understand how casts are stored on-chain vs off-chain',
-        'Connect your wallet to your Farcaster identity',
+        'Connect your wallet to your social identity',
       ],
       estimatedMinutes: 20,
       difficulty: 'beginner',
-      tags: ['farcaster', 'social', 'community'],
+      tags: ['decentralized-social', 'social', 'community'],
     },
     EXTRA_MODULES['ethereum-history'],
     EXTRA_MODULES['security-decentralization'],
@@ -1087,7 +1087,7 @@ function attachCastLesson(plan: LearningPlan, sourceCast: { author?: string; tex
       ...first,
       id: `cast-${suffix}-${first.id}`,
       title: `${first.title} — Cast Breakdown`.slice(0, 160),
-      description: `Start with the main ideas in this Farcaster cast, unpack the concepts behind them, and separate the author's claims from established facts. ${first.description}`.slice(0, 700),
+      description: `Start with the main ideas in this post, unpack the concepts behind them, and separate the author's claims from established facts. ${first.description}`.slice(0, 700),
       whyItMatters: 'Learning to examine the ideas and claims in this cast helps you understand the underlying topic without treating a social post as verified evidence.',
       objectives: [
         'Identify the central idea and key terms in the cast',
@@ -1261,7 +1261,7 @@ Available topic areas to draw from (pick the most relevant for this user's track
 - DAO history: The DAO hack (2016), MolochDAO, Nouns, ConstitutionDAO, governance evolution
 - DeFi security & hacks: major hacks timeline (DAO hack, Ronin bridge, Wormhole), attack vectors, opsec
 - Security in decentralization: smart contract audits, rug pulls, phishing, how to stay safe
-- Farcaster history: Dan Romero + Varun Srinivasan, protocol evolution, FIDs, Hubs, Frames
+- Decentralized social history: protocol evolution, portable identities, network nodes, and interactive apps
 - On-chain data & storage: IPFS, Arweave, Filecoin, The Graph, calldata, EIP-4844
 - AI & machine learning (framed for a crypto-curious audience, not a data-science course):
   - How LLMs actually work: tokens, training, why models hallucinate, comparing Claude/GPT/open models

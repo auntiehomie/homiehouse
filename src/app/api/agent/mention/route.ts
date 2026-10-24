@@ -55,7 +55,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'search_farcaster_casts',
       description:
-        'Search recent Farcaster posts about a topic. Use this to find what the community is saying about something before responding.',
+        'Search recent social posts about a topic. Use this to find what the community is saying about something before responding.',
       parameters: {
         type: 'object',
         properties: {
@@ -380,7 +380,7 @@ export async function GET(request: NextRequest) {
 
         if (isSaveCastCommand(castText)) {
           if (!authorFid) {
-            reply = "I couldn't identify your Farcaster account. Sign in to HomieHouse and try again.";
+            reply = "I couldn't identify your account. Sign in to HomieHouse and try again.";
           } else if (!parentTargetHash) {
             reply = 'Reply directly to the cast you want to save with “@thehomie save”.';
           } else {
@@ -427,9 +427,9 @@ export async function GET(request: NextRequest) {
         const contextBlocks = [
           formatKBContext(kbArticles),
           formatRetrievedContext(semanticDocs),
-          priorCasts.length ? `Similar prior Farcaster discussions:\n${formatRetrievedContext(priorCasts)}` : '',
+          priorCasts.length ? `Similar prior social discussions:\n${formatRetrievedContext(priorCasts)}` : '',
           liveCasts.length
-            ? `Recent Farcaster casts on this topic:\n${liveCasts.slice(0, 4).map((related: any) =>
+            ? `Recent posts on this topic:\n${liveCasts.slice(0, 4).map((related: any) =>
                 `@${related.author?.username || 'unknown'}: ${extractCastText(related).slice(0, 280)}`
               ).join('\n')}`
             : '',

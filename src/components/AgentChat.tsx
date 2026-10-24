@@ -432,13 +432,13 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         {messages.length === 0 && (
           <div className="text-center text-zinc-500 dark:text-zinc-400 mt-8">
             <div className="text-4xl mb-4">🏠</div>
-            <p className="text-lg font-medium mb-2">Hey! I'm your Farcaster AI assistant</p>
+            <p className="text-lg font-medium mb-2">Hey! I'm your social learning assistant</p>
             <p className="text-sm">I can help you:</p>
             <ul className="text-sm mt-2 space-y-1">
               <li>✍️ Write better casts</li>
               <li>🔍 Analyze your content</li>
               <li>💡 Learn from your patterns</li>
-              <li>📚 Research Farcaster topics</li>
+              <li>📚 Explore ideas from your feed</li>
             </ul>
           </div>
         )}

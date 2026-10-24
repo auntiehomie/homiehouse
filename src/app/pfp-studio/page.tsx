@@ -37,7 +37,7 @@ export default function PfpStudioPage() {
   }, []);
   const refresh = useCallback(async () => {
     const auth = headers();
-    if (!auth) { setMessage('Sign in with Farcaster to start your studio session.'); return; }
+    if (!auth) { setMessage('Sign in to start your studio session.'); return; }
     try {
       const response = await fetch('/api/pfp-studio', { headers: auth });
       const data = await response.json();
@@ -77,11 +77,11 @@ export default function PfpStudioPage() {
     try {
       const response = await fetch(`/api/profile?username=${encodeURIComponent(username)}`);
       const data = await response.json();
-      if (!response.ok || !data.pfp_url) throw new Error(data.error || 'No Farcaster profile photo found. Try an X photo URL or upload an image.');
+      if (!response.ok || !data.pfp_url) throw new Error(data.error || 'No profile photo found. Try an X photo URL or upload an image.');
       setImage(data.pfp_url);
       const resolvedName = data.display_name || data.username || username;
       setPortraitName(resolvedName);
-      setSourceName(`Farcaster @${data.username || username}`);
+      setSourceName(`@${data.username || username}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not find that profile.');
     }
@@ -107,7 +107,7 @@ export default function PfpStudioPage() {
 
   async function generate() {
     const auth = headers();
-    if (!auth) { setMessage('Sign in with Farcaster to generate a PFP.'); return; }
+    if (!auth) { setMessage('Sign in to generate a PFP.'); return; }
     if (!portraitName.trim()) { setMessage('Enter the name to personalize your portrait.'); return; }
     if (!image || !consent) { setMessage('Choose a source photo and confirm consent first.'); return; }
     if (status && !status.freeAvailable && !paymentTxHash.trim()) {
@@ -158,10 +158,10 @@ export default function PfpStudioPage() {
           <input id="portrait-name" value={portraitName} onChange={e => setPortraitName(e.target.value)} maxLength={60} autoComplete="name" placeholder="Your name" className="mb-4 min-h-11 w-full rounded-lg border border-white/20 bg-black/30 px-3" />
           <label htmlFor="profile-source" className="mb-2 block font-semibold">Your profile in Homiehouse</label>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <input id="profile-source" value={profileQuery} onChange={e => setProfileQuery(e.target.value)} placeholder="Find another Farcaster photo or paste a public PFP image URL" className="min-h-11 flex-1 rounded-lg border border-white/20 bg-black/30 px-3" />
+            <input id="profile-source" value={profileQuery} onChange={e => setProfileQuery(e.target.value)} placeholder="Find another profile photo or paste a public image URL" className="min-h-11 flex-1 rounded-lg border border-white/20 bg-black/30 px-3" />
             <button type="button" onClick={() => void lookupProfile()} className="min-h-11 rounded-lg bg-white/10 px-4 font-semibold">Find another photo</button>
           </div>
-          <p className="mt-2 text-xs opacity-70">We load the profile photo and name from your Homiehouse login. Find another Farcaster photo, paste a public image URL, or upload a photo to use a different one.</p>
+          <p className="mt-2 text-xs opacity-70">We load the profile photo and name from your Homiehouse login. Find another profile photo, paste a public image URL, or upload a photo to use a different one.</p>
           <label className="mt-3 inline-flex cursor-pointer items-center rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold">
             Upload photo
             <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={e => void uploadImage(e.target.files?.[0])} />
@@ -225,7 +225,7 @@ export default function PfpStudioPage() {
           <a href={result} download="homiehouse-pfp.png" className="rounded-lg bg-white/10 px-4 py-2 font-semibold">Download PNG</a>
           <button type="button" onClick={() => void generate()} disabled={busy} className="rounded-lg bg-white/10 px-4 py-2 font-semibold">Make another</button>
         </div>
-        <p className="mt-3 text-xs opacity-70">Choose where to use it yourself. Homiehouse doesn’t update Farcaster or X profile photos for you.</p>
+        <p className="mt-3 text-xs opacity-70">Choose where to use it yourself. Homiehouse doesn’t update social or X profile photos for you.</p>
       </section>}
     </main>
   );

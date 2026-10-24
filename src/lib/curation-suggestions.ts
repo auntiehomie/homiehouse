@@ -53,7 +53,7 @@ export function fallbackCurationSuggestions(
     const lower = name.toLowerCase();
     return (channel && lower.includes(channel.toLowerCase())) || keywords.some((word) => lower.includes(word));
   });
-  const topic = channel || keywords[0] || 'Farcaster';
+  const topic = channel || keywords[0] || 'Social';
   const primaryName = matchingExisting || `${topic.charAt(0).toUpperCase()}${topic.slice(1)} Finds`;
 
   return [{

@@ -94,7 +94,7 @@ export default function AuthenticatedHome() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 300px' }}>
-            <p style={{ margin: '0 0 6px', color: '#6ee7b7', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>Your learning layer for Farcaster</p>
+            <p style={{ margin: '0 0 6px', color: '#6ee7b7', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>Your learning layer for social conversations</p>
             <h2 style={{ margin: '0 0 7px', fontSize: 20, color: 'var(--text-on-dark)' }}>
               {nextModule?.title ?? (modules.length ? 'Learning plan complete!' : 'Build your first learning plan')}
             </h2>
@@ -149,7 +149,7 @@ export default function AuthenticatedHome() {
                 <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text-on-dark)' }}>Ask Homie</h2>
               </div>
               <p style={{ margin: '0 0 14px', color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.55 }}>
-                Confused by something in your feed? Ask about Farcaster, crypto, DeFi, or anything Web3 — get a plain-English answer.
+                Confused by something in your feed? Ask about decentralized social, crypto, DeFi, or anything Web3 — get a plain-English answer.
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {SUGGESTED_QUESTIONS.slice(0, 4).map(q => (
@@ -195,13 +195,7 @@ export default function AuthenticatedHome() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <h2 style={{ margin: 0, fontSize: 17, color: 'var(--text-on-dark)' }}>From your feed</h2>
-          <Link
-            href="/feed?feed_type=following"
-            aria-label="Open the full following feed"
-            style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}
-          >
-            See all →
-          </Link>
+          <Link href="/feed" style={{ color: 'var(--accent)', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>See all →</Link>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {loading && [0, 1, 2].map(i => <div key={i} style={{ height: 96, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', opacity: .55 }} />)}
@@ -211,17 +205,11 @@ export default function AuthenticatedHome() {
             </div>
           )}
           {casts.map(cast => (
-            <Link
-              key={cast.hash}
-              data-feed-cast-hash={cast.hash}
-              href={`/cast/${encodeURIComponent(cast.hash)}?returnTo=%2Ffeed%3Ffeed_type%3Dfollowing`}
-              aria-label={`Open cast detail by ${cast.author?.display_name || cast.author?.username || 'HomieHouse user'}`}
-              style={{ display: 'block', padding: 15, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}
-            >
+            <Link key={cast.hash} data-feed-cast-hash={cast.hash} href={`/cast/${cast.hash}?returnTo=%2Ffeed%3Ffeed_type%3Dfollowing`} style={{ display: 'block', padding: 15, borderRadius: 14, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
                 {cast.author?.pfp_url ? <Image src={cast.author.pfp_url} alt="" width={32} height={32} style={{ borderRadius: '50%', objectFit: 'cover' }} /> : <span style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--border)' }} />}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ color: 'var(--text-on-dark)', fontSize: 13, fontWeight: 700 }}>{cast.author?.display_name || cast.author?.username || 'Farcaster user'}</div>
+                  <div style={{ color: 'var(--text-on-dark)', fontSize: 13, fontWeight: 700 }}>{cast.author?.display_name || cast.author?.username || 'Community member'}</div>
                   <div style={{ color: 'var(--muted-on-dark)', fontSize: 11 }}>@{cast.author?.username || 'unknown'}</div>
                 </div>
               </div>

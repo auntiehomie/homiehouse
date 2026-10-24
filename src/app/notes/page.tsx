@@ -228,7 +228,7 @@ function NoteCard({ note, onEdit, onDelete, onShare }: NoteCardProps) {
         {/* Share */}
         <button
           onClick={() => onShare(note)}
-          title="Share to Farcaster"
+          title="Share to social feed"
           style={{
             width: 28,
             height: 28,
@@ -456,7 +456,7 @@ export default function NotesPage() {
           .filter((cast: any) => cast.cast_hash)
           .map((cast: any) => ({
             id: String(cast.id),
-            title: cast.cast_author_username ? `Cast by @${cast.cast_author_username}` : 'Saved Farcaster cast',
+            title: cast.cast_author_username ? `Post by @${cast.cast_author_username}` : 'Saved post',
             content: String(cast.cast_text || ''),
             tags: ['saved-cast'],
             createdAt: cast.saved_at || new Date().toISOString(),

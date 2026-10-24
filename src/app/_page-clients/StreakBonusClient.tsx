@@ -74,7 +74,7 @@ export default function StreakBonusClient() {
     if (!fid || claiming) return;
     const authHeaders = getAuthHeaders();
     if (!authHeaders) {
-      setError('Connect your Farcaster account to claim streak bonuses.');
+      setError('Connect your social account to claim streak bonuses.');
       return;
     }
 
@@ -108,7 +108,7 @@ export default function StreakBonusClient() {
         <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 14px' }}>🔥 Streak Bonuses</h2>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 18px' }}>
           <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>
-            Connect your Farcaster account and build a daily learning streak to earn milestone bonuses.
+            Connect your social account and build a daily learning streak to earn milestone bonuses.
           </p>
         </div>
       </div>
