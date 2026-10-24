@@ -20,6 +20,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { personalizePage, preferenceStorage } from '@/lib/like-curation';
 import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions } from '@/lib/recent-interactions';
+import {
+  getPendingOptimisticCasts,
+  listenForOptimisticCasts,
+  reconcileOptimisticCasts,
+  type OptimisticCast,
+} from '@/lib/optimistic-casts';
 
 // Heavy markdown libs loaded lazily — not needed until a cast with markdown renders
 const LazyMarkdown = dynamic(
@@ -126,6 +132,7 @@ export default function FeedList({
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const feedContainerRef = useRef<HTMLDivElement | null>(null);
   const [feedError, setFeedError] = useState<string | null>(null);
+  const [pendingCasts, setPendingCasts] = useState<OptimisticCast[]>([]);
   const feedParams = new URLSearchParams({ feed_type: feedType });
   const viewerFid = getStoredFid();
   if (viewerFid) feedParams.set('fid', String(viewerFid));
@@ -165,6 +172,17 @@ export default function FeedList({
 
   const router = useRouter();
   const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
+
+  useEffect(() => {
+    if (!viewerFid) {
+      setPendingCasts([]);
+      return;
+    }
+    setPendingCasts(getPendingOptimisticCasts(viewerFid));
+    return listenForOptimisticCasts(viewerFid, (cast) => {
+      setPendingCasts(current => [cast, ...current.filter(item => item.hash !== cast.hash)].slice(0, 30));
+    });
+  }, [viewerFid]);
 
   // Get profile from localStorage
   const getProfile = () => {
@@ -433,6 +451,17 @@ export default function FeedList({
     return restoreFeedScroll(feedContainerRef.current, saved, () => consumeFeedReturn(saved));
   }, [items, feedType, selectedChannel]);
 
+  useEffect(() => {
+    if (!viewerFid || !Array.isArray(items)) return;
+    const remaining = reconcileOptimisticCasts(viewerFid, items);
+    setPendingCasts(current => {
+      if (current.length === remaining.length && current.every((cast, index) => cast.hash === remaining[index]?.hash)) {
+        return current;
+      }
+      return remaining;
+    });
+  }, [viewerFid, items]);
+
   // loadMore: fetch next page and append
   const loadMore = async () => {
     if (loadingMore || !hasMore || !cursor) return;
@@ -506,7 +535,18 @@ export default function FeedList({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, mutedUsers, hiddenCasts]);
 
-  if (items === null)
+  const displayItems = useMemo(() => {
+    const visiblePending = pendingCasts.filter(cast =>
+      !selectedChannel || cast.channel?.id?.toLowerCase() === selectedChannel.toLowerCase()
+    );
+    const knownHashes = new Set(filteredItems.map(cast => cast.hash || cast.id));
+    return [
+      ...visiblePending.filter(cast => !knownHashes.has(cast.hash)),
+      ...filteredItems,
+    ];
+  }, [filteredItems, pendingCasts, selectedChannel]);
+
+  if (items === null && displayItems.length === 0)
     return (
       <div aria-busy="true" aria-live="polite">
         <FeedSkeleton count={3} />
@@ -516,7 +556,7 @@ export default function FeedList({
     manualRefreshRef.current = true;
     setRefreshKey(key => key + 1);
   };
-  if (!items.length) return (
+  if (!displayItems.length && items !== null) return (
     <div className="surface" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--muted-on-dark)' }}>
       {feedError || (selectedChannel
         ? `No casts found in #${selectedChannel}.`
@@ -617,7 +657,7 @@ export default function FeedList({
       ref={feedContainerRef}
       className="space-y-4 hh-feed-cards"
     >
-      {filteredItems.map((it) => {
+      {displayItems.map((it) => {
         const rawTs = it.timestamp ?? it.ts ?? it.time ?? null;
         const authorObj = it.author && typeof it.author === 'object' ? it.author : null;
         const rawUsername = authorObj?.username || (typeof it.author === 'string' ? it.author : null) || it.handle || null;
@@ -664,6 +704,11 @@ export default function FeedList({
 
         return (
           <article key={key} data-feed-cast-hash={String(key)} className="surface" style={{ position: 'relative' }}>
+            {it.optimistic && (
+              <div role="status" style={{ color: 'var(--muted-on-dark)', fontSize: 12, marginBottom: 8 }}>
+                Sent to Hypersnap · waiting for feed confirmation
+              </div>
+            )}
             {feedType === 'community' && Array.isArray(it.community_ranking?.reasons) && (
               <details style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 8 }}>
                 <summary>Why this cast?</summary>
@@ -798,12 +843,12 @@ export default function FeedList({
             )}
             {!textIsOnlyFcCastUrls && (
             <div
-              onClick={() => openCastDetail(key)}
+              onClick={() => { if (!it.optimistic) openCastDetail(key); }}
               style={{
                 marginTop: 2,
                 wordBreak: 'break-word',
                 overflowWrap: 'break-word',
-                cursor: 'pointer',
+                cursor: it.optimistic ? 'default' : 'pointer',
               }}
             >
               <LazyMarkdown

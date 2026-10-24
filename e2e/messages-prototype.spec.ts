@@ -10,7 +10,7 @@ test('Messages shows and runs the two-device relay boundary test', async ({ page
   await expect(page.getByText(/does not contact Hypersnap/i)).toBeVisible();
 
   await page.getByRole('button', { name: 'Run E2EE test' }).click();
-  await expect(page.getByRole('status')).toHaveText('All checks passed');
+  await expect(page.getByRole('status').filter({ hasText: 'All checks passed' })).toHaveText('All checks passed');
   await expect(page.getByText('Relay fixture stores ciphertext only')).toBeVisible();
   await expect(page.getByText('Intended device decrypts the message')).toBeVisible();
   await expect(page.getByText('Unrelated device cannot decrypt')).toBeVisible();

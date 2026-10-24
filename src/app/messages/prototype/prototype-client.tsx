@@ -146,7 +146,7 @@ export default function DirectMessagesE2EETest() {
 
   const allPassed = result?.checks.every(check => check.passed) ?? false;
 
-  return <main style={{ maxWidth: 900, margin: '0 auto', padding: '24px 0' }}>
+  return <section style={{ maxWidth: 900, margin: '0 auto', padding: '24px 0' }}>
     <p style={{ margin: '0 0 6px', color: 'var(--accent)', fontWeight: 700, fontSize: 13, letterSpacing: '.04em', textTransform: 'uppercase' }}>Homiehouse · private messaging test</p>
     <h1 style={{ margin: 0 }}>Encrypted message test</h1>
     <p style={{ maxWidth: 720, color: 'var(--muted-on-dark)', lineHeight: 1.6 }}>
@@ -194,5 +194,5 @@ export default function DirectMessagesE2EETest() {
     <p style={{ color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.5, marginTop: 18 }}>
       This demonstrates a narrow encryption boundary in one browser session. Production messaging still needs a reviewed protocol, authenticated key discovery, device enrollment and recovery, and a real relay API.
     </p>
-  </main>;
+  </section>;
 }
