@@ -6,6 +6,7 @@ for (const width of [390, 820, 1280]) {
     await context.addInitScript(() => {
       Reflect.deleteProperty(Navigator.prototype, 'serviceWorker');
       localStorage.setItem('hh_profile', JSON.stringify({ fid: 321, username: 'fixture' }));
+      sessionStorage.setItem('hh_session_v1', JSON.stringify({ fid: 321, expiresAt: Date.now() + 3600000 }));
     });
     const page = await context.newPage();
     const origin = new URL(baseURL || 'http://localhost:3000').origin;
