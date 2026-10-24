@@ -371,7 +371,7 @@ export default function ComposeModal() {
       }
 
       if (!hasActiveSigner) {
-        setStatus("Sign in with Farcaster to post.");
+        setStatus("Connect your social account to post.");
         setLoading(false);
         return;
       }

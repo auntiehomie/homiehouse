@@ -42,7 +42,7 @@ export default function FarcasterCastEmbed({ hash, username, originalUrl }: Prop
   }
 
   // Couldn't hydrate the cast (e.g. short farcaster.xyz hash the node can't resolve).
-  // Show a clean, tappable "cast on Farcaster" card instead of a raw URL string.
+  // Show a clean, tappable social post card instead of a raw URL string.
   if (!cast) {
     return (
       <button
@@ -53,7 +53,7 @@ export default function FarcasterCastEmbed({ hash, username, originalUrl }: Prop
         <div className="flex items-center gap-2 min-w-0">
           <span className="shrink-0 grid place-items-center w-6 h-6 rounded-full bg-[#7c65c1] text-white text-[11px] font-bold">✦</span>
           <span className="text-sm font-medium text-zinc-300 truncate">
-            {username ? `@${username}'s cast` : 'Cast'} on Farcaster
+            {username ? `@${username}'s post` : 'Post'} on the social network
           </span>
           <span className="text-xs text-zinc-500 ml-auto shrink-0">Open ↗</span>
         </div>

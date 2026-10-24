@@ -20,10 +20,14 @@ export default function UpdateBanner() {
     };
 
     navigator.serviceWorker.register('/sw.js').then((reg) => {
+      if (!reg) return; // registration blocked (e.g. Playwright)
       if (reg.waiting && navigator.serviceWorker.controller) {
         setWaitingSW(reg.waiting);
       }
       reg.addEventListener("updatefound", () => handleFound(reg));
+    }).catch(() => {
+      // Service worker registration failed (e.g. blocked by Playwright in tests)
+      // Silently ignore - no update banner needed in test environment
     });
 
     // Re-check for updates when user comes back to the tab

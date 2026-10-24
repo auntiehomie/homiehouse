@@ -7,6 +7,7 @@ import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
@@ -80,7 +81,7 @@ function CardBody({ children }: { children: React.ReactNode }) {
       <div className="hh-lesson-card-body" style={{
         padding: '20px 20px 24px',
         display: 'flex', flexDirection: 'column', gap: 18,
-        maxWidth: 560, width: '100%', alignSelf: 'center',
+        width: '100%', alignSelf: 'center',
         boxSizing: 'border-box' as any,
       }}>
         {children}
@@ -89,7 +90,7 @@ function CardBody({ children }: { children: React.ReactNode }) {
   );
 }
 
-function IntroCard({ content }: { content: string }) {
+function IntroCard({ content, lesson }: { content: string; lesson: LessonContent | null }) {
   return (
     <CardBody>
       <div style={{
@@ -99,6 +100,7 @@ function IntroCard({ content }: { content: string }) {
       }}>
         <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      {lesson && <LessonWalkthrough lesson={lessonContent} />}
     </CardBody>
   );
 }
@@ -219,7 +221,7 @@ function SummaryCard({ content, onShare }: { content: string; onShare: () => voi
           color: '#c7d2fe', fontSize: 14, fontWeight: 700, cursor: 'pointer',
         }}
       >
-        Share what clicked on Farcaster →
+        Share what clicked to your feed →
       </button>
       <div style={{
         padding: '12px 14px', borderRadius: 12,
@@ -227,7 +229,7 @@ function SummaryCard({ content, onShare }: { content: string; onShare: () => voi
       }}>
         <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
           🤖 AI-generated content by Claude (Anthropic). Cross-reference with ethereum.org,
-          uniswap docs, or the /defi and /web3 channels on Farcaster. Not financial advice.
+          Uniswap docs, or the /defi and /web3 communities. Not financial advice.
         </p>
       </div>
     </CardBody>
@@ -424,7 +426,7 @@ function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDo
               color: '#a5b4fc', fontSize: 15, fontWeight: 700, cursor: 'pointer',
             }}
           >
-            Share Progress on Farcaster
+            Share Progress to your feed
           </button>
           <button
             onClick={onBack}
@@ -511,6 +513,7 @@ function ModuleLessonContent() {
   const moduleId = searchParams.get('id');
 
   const [mod, setMod] = useState<LearningModule | null>(null);
+  const [lessonContent, setLessonContent] = useState<LessonContent | null>(null);
   const [cards, setCards] = useState<CardDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -579,6 +582,7 @@ function ModuleLessonContent() {
       const eli5 = getEli5Mode();
       const cached = getAuthHeaders() ? null : getCachedLesson(found, eli5);
       if (cached) {
+        setLessonContent(cached);
         setCards(buildCards(cached, found));
         setLoading(false);
         return;
@@ -586,6 +590,7 @@ function ModuleLessonContent() {
 
       loadLesson(found, eli5)
         .then(data => {
+          setLessonContent(data);
           setCards(buildCards(data, found));
           setLoading(false);
         })
@@ -667,7 +672,7 @@ function ModuleLessonContent() {
       }
     } else {
       setRewardAttemptMissing(false);
-      setRewardError('Sign in with Farcaster to verify this reward. Your learning progress is saved.');
+      setRewardError('Sign in to verify this reward. Your learning progress is saved.');
     }
     setRewardEarned(verified);
     setRewardVerificationDone(true);
@@ -714,7 +719,7 @@ function ModuleLessonContent() {
     }
 
     if (!mod || !getAuthHeaders()) {
-      setRewardError('Your Farcaster session is not available to this lesson yet. Refresh the page while signed in, then retry.');
+      setRewardError('Your social session is not available to this lesson yet. Refresh the page while signed in, then retry.');
       return;
     }
 
@@ -722,6 +727,7 @@ function ModuleLessonContent() {
       // Re-open the lesson through the authenticated API so the server records
       // an attempt for this FID. The server still enforces its 45-second window.
       const lesson = await loadLesson(mod, getEli5Mode());
+      setLessonContent(lesson);
       const refreshedCards = buildCards(lesson, mod);
       const currentQuiz = cards
         .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
@@ -783,7 +789,7 @@ function ModuleLessonContent() {
     const authHeaders = getAuthHeaders();
     if (!authHeaders) {
       setClaimStatus('failed');
-      setClaimError('Not authenticated — connect your Farcaster account.');
+      setClaimError('Not authenticated — connect your social account.');
       return;
     }
     setClaimStatus('sending');
@@ -993,9 +999,16 @@ function ModuleLessonContent() {
         @keyframes hhSpin { to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .hh-lesson-shell { height: calc(100dvh - 52px - env(safe-area-inset-top, 0px)); }
-        .hh-lesson-card-body { margin: 0 auto; }
+        .hh-lesson-card-body { margin: 0 auto; max-width: 560px; }
         @media (min-width: 1024px) {
           .hh-lesson-shell { height: 100dvh; }
+          .hh-lesson-card-body { max-width: 960px; padding: 32px 40px 40px !important; gap: 24px !important; }
+          .hh-lesson-card-body p, .hh-lesson-card-body li { font-size: 20px !important; line-height: 1.75 !important; }
+          .hh-lesson-card-body h2 { font-size: 32px !important; }
+          .hh-lesson-card-scroll { margin: 16px 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hh-lesson-shell *, .hh-lesson-shell *::before, .hh-lesson-shell *::after { animation: none !important; transition: none !important; }
         }
         @media (min-width: 768px) and (min-height: 760px) {
           .hh-lesson-card-body { margin: auto; }
@@ -1018,7 +1031,7 @@ function ModuleLessonContent() {
             <Skeleton />
           ) : currentCard ? (
             <>
-              {currentCard.type === 'intro' && <IntroCard content={currentCard.content} />}
+              {currentCard.type === 'intro' && <IntroCard content={currentCard.content} lesson={lessonContent} />}
               {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
               {currentCard.type === 'concept' && (
                 <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} />

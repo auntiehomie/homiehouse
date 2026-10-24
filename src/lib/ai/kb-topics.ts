@@ -49,10 +49,10 @@ export const KB_TOPICS: KBTopic[] = [
     tags: ['productivity', 'tools'],
   },
   {
-    title: 'FIP: Proof of Quality on Farcaster',
-    summary: 'A Farcaster Improvement Proposal for a reputation system based on quality signals instead of follower count or engagement farming',
+    title: 'Protocol Proposal: Proof of Quality in Decentralized Social',
+    summary: 'A protocol improvement proposal for a reputation system based on quality signals instead of follower count or engagement farming',
     source: 'github.com',
-    tags: ['farcaster', 'web3'],
+    tags: ['social network', 'web3'],
   },
   {
     title: 'Palantir employees wondering if they\'re the bad guys',
@@ -128,9 +128,9 @@ export const KB_TOPICS: KBTopic[] = [
   },
   {
     title: 'Hypersnap: Snapchain made hyperdimensional',
-    summary: 'The latest Farcaster hub implementation — a DAG-based consensus that speeds up sync, handles conflicts better, and scales the protocol',
+    summary: 'A newer social protocol node implementation — a DAG-based consensus that speeds up sync, handles conflicts better, and scales the protocol',
     source: 'github.com',
-    tags: ['farcaster', 'infrastructure'],
+    tags: ['social network', 'infrastructure'],
   },
   {
     title: 'Billionaires terrified of Google AI genius behind 25-year-old game',

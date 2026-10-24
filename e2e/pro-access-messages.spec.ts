@@ -39,9 +39,10 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
       await expect(page).toHaveURL(`/learn/premium/${module.id}`);
       await expect(page.getByText('Paid lesson content', { exact: true })).toBeVisible();
       await page.goto('/messages', { waitUntil: 'domcontentloaded' });
-      await expect(page.getByRole('link', { name: 'Open Farcaster inbox ↗' })).toHaveAttribute('href', 'https://farcaster.xyz/~/inbox');
+      await expect(page.getByRole('heading', { name: 'Private messages', exact: true })).toBeVisible();
       await page.getByLabel('Recipient FID').fill('3103');
-      await expect(page.getByRole('link', { name: 'Open Farcaster composer ↗' })).toHaveAttribute('href', 'https://farcaster.xyz/~/inbox/create/3103');
+      await expect(page.getByLabel('Recipient FID')).toHaveValue('3103');
+      await expect(page.getByRole('button', { name: 'Encrypted messaging is not available yet' })).toBeDisabled();
       expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     });
   });

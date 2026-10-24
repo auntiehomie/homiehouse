@@ -111,7 +111,7 @@ export default function SearchClient() {
           {!loading && tab === 'people' && (
             <>
               {people === null && (
-                <p className="text-zinc-500 text-sm text-center pt-12">Search for Farcaster users</p>
+                <p className="text-zinc-500 text-sm text-center pt-12">Search for people</p>
               )}
               {people?.length === 0 && <p className="text-zinc-500 text-sm">No people found</p>}
               {people && people.length > 0 && (

@@ -215,7 +215,7 @@ ${contextualMessage}`;
       const liveCastResearch = await searchRelevantCasts(searchQuestion);
       if (liveCastResearch.casts.length === 0 && requiresLiveCastEvidence(userMessage)) {
         return NextResponse.json({
-          response: "I couldn't verify this from matching live Farcaster casts. Hypersnap returned no matching posts for this search, which could mean the posts aren't indexed or the search wasn't available; it doesn't establish whether the claim is true or false. Try a shorter phrase or a specific account.",
+          response: "I couldn't verify this from matching live posts. Hypersnap returned no matching posts for this search, which could mean the posts aren't indexed or the search wasn't available; it doesn't establish whether the claim is true or false. Try a shorter phrase or a specific account.",
           suggestions: [],
           agentRole: 'researcher',
           metadata: {

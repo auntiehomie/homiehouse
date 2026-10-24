@@ -143,7 +143,7 @@ export default function MagicLinkSentPage() {
             marginTop: '1.5rem',
           }}
         >
-          Links expire after 15 minutes. Need help? Reach out on Farcaster.
+          Links expire after 15 minutes. Need help? Contact support.
         </p>
       </div>
     </main>

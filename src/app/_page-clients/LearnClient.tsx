@@ -132,7 +132,7 @@ function PremiumTracksPanel() {
   const diffColor: Record<string, string> = { beginner: '#22c55e', intermediate: '#f97316', advanced: '#a855f7' };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+    <div className="hh-learn-panel" style={{ margin: '0 auto', padding: '24px 16px' }}>
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 6px' }}>
@@ -332,7 +332,7 @@ function CompletedTab() {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px' }}>
+    <div className="hh-learn-panel" style={{ margin: '0 auto', padding: '20px 16px' }}>
       <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 16 }}>
         {entries.length} lesson{entries.length !== 1 ? 's' : ''} completed
       </p>
@@ -1536,7 +1536,22 @@ function LearnPageContent() {
         <aside className="hidden lg:block shrink-0" style={{ width: 220, borderRight: '1px solid var(--border)', overflowY: 'auto', scrollbarWidth: 'none', padding: '16px 0' }}>
           <ChannelSidebar />
         </aside>
-        <main style={{ flex: 1, overflowY: 'auto', paddingBottom: 100 }}>
+        <main className="hh-learn-main" style={{ flex: 1, minWidth: 0, overflowY: 'auto', paddingBottom: 100 }}>
+          <style>{`
+            .hh-learn-main { container-type: inline-size; }
+            .hh-learn-panel { max-width: 720px; box-sizing: border-box; }
+            .hh-learn-setup { max-width: 600px; }
+            .hh-learn-modules, .hh-learn-choices { display: grid; gap: 10px; }
+            .hh-learn-modules { align-items: start; margin-bottom: 32px; }
+            @container (min-width: 800px) {
+              .hh-learn-panel { max-width: 1200px; padding-inline: 32px !important; }
+              .hh-learn-modules, .hh-learn-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+              .hh-learn-modules > div { min-height: 140px; }
+              .hh-learn-choices > button { min-height: 104px; }
+              .hh-learn-setup > div:first-child h1 { font-size: 32px !important; }
+              .hh-learn-setup > div:first-child p { max-width: 680px; margin-inline: auto !important; }
+            }
+          `}</style>
           {activeTab === 'homie'
             ? <HomieReadPanel currentPlan={plan} initialQuestion={searchParams.get('question') ?? ''} />
             : activeTab === 'feed'
@@ -1584,8 +1599,8 @@ function LearnPageContent() {
     const levelLabel = plan.level.charAt(0).toUpperCase() + plan.level.slice(1);
 
     return wrap(
-      <div style={{
-        maxWidth: 720, margin: '0 auto', padding: '24px 16px',
+      <div className="hh-learn-panel" style={{
+        margin: '0 auto', padding: '24px 16px',
         opacity: navigating ? 0 : (contentVisible ? 1 : 0),
         transform: navigating ? 'translateY(-8px)' : (contentVisible ? 'translateY(0)' : 'translateY(10px)'),
         transition: 'opacity 0.2s ease, transform 0.2s ease',
@@ -1627,7 +1642,7 @@ function LearnPageContent() {
             Learn it → spot it in your feed → explain it back
           </p>
           <p style={{ margin: 0, color: 'var(--muted-on-dark)', fontSize: 12, lineHeight: 1.6 }}>
-            HomieHouse turns Farcaster conversations into a personal curriculum, gives you a place to ask questions, then helps you share what clicked with the community.
+            HomieHouse turns conversations from your feed into a personal curriculum, gives you a place to ask questions, then helps you share what clicked with the community.
           </p>
           <div style={{ display: 'flex', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
             <button onClick={() => setActiveTab('feed')} style={{ padding: '7px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 12, fontWeight: 650, cursor: 'pointer' }}>
@@ -1766,7 +1781,7 @@ function LearnPageContent() {
         <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 20px', lineHeight: 1.6 }}>{plan.summary}</p>
 
         {/* Modules */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
+        <div className="hh-learn-modules">
           {plan.modules.map((mod, i) => (
             <ModuleCard key={mod.id} module={mod} index={i} completed={completedIds.has(mod.id)} onToggle={toggleModule} onNavigate={navigateToModule} />
           ))}
@@ -1811,7 +1826,7 @@ function LearnPageContent() {
   // ─── Quiz ─────────────────────────────────────────────────────────────────
 
   return wrap(
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: '32px 16px' }}>
+    <div className="hh-learn-panel hh-learn-setup" style={{ margin: '0 auto', padding: '32px 16px' }}>
       {/* Page title */}
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
@@ -1912,7 +1927,7 @@ function LearnPageContent() {
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-on-dark)' }}>What's your journey?</h2>
           <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 16px' }}>Pick the path that fits where you want to go.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="hh-learn-choices">
             {trackOptions.map((opt) => (
               <button
                 key={opt.id}
@@ -1974,7 +1989,7 @@ function LearnPageContent() {
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-on-dark)' }}>Where are you starting from?</h2>
           <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 16px' }}>Be honest — this shapes everything.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+          <div className="hh-learn-choices" style={{ marginBottom: 24 }}>
             {levelOptions.map((opt, i) => (
               <button
                 key={opt.label}

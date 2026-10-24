@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
-import { directMessageUrl } from '@/lib/direct-messages';
 import HH2Badge from '@/components/HH2Badge';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 
@@ -505,9 +504,9 @@ function ProfileContent() {
               <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{profile.display_name}</h1>
               <p style={{ color: 'var(--muted-on-dark)', margin: 0 }}>@{profile.username}</p>
             </div>
-            {viewerFid !== profile.fid && directMessageUrl(profile.fid) && <a
-              className="btn" href={directMessageUrl(profile.fid)!} target="_blank" rel="noopener noreferrer"
-              title="Open a conversation in Farcaster">Message ↗</a>}
+            {viewerFid !== profile.fid && <Link
+              className="btn" href={`/messages?recipient=${profile.fid}`}
+              title="Open a private conversation in Homiehouse">Message</Link>}
             {viewerFid && viewerFid !== profile.fid && (
               <button
                 onClick={async () => {
@@ -692,7 +691,7 @@ function ProfileContent() {
       {activeTab === 'trades' && (
         ethAddresses.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
-            No verified ETH addresses linked to this Farcaster account.
+            No verified ETH addresses linked to this account.
           </div>
         ) : tradesLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading trades...</div>
