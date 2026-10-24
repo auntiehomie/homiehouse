@@ -19,7 +19,7 @@ export default function DevPage() {
           {JSON.stringify(info, null, 2)}
         </pre>
         <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
-          Use this view inside a Farcaster host (or the preview tool) to see what runtime actions and
+          Use this view inside a supported social host (or the preview tool) to see what runtime actions and
           surfaces are available.
         </p>
       </main>

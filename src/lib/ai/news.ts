@@ -4,7 +4,7 @@
  * Uses Perplexity's `sonar` model, which does its own web search, to surface
  * one specific, recent, real crypto news item the agent can react to —
  * distinct from `fetchTrendingFeed` in hypersnap.ts, which only sees what's
- * trending *on Farcaster*, not the wider web.
+ * trending in the social feed, not the wider web.
  *
  * Fully optional: if PERPLEXITY_API_KEY isn't set, callers should treat a
  * null return the same way they treat "no trend found" and fall back to
@@ -107,7 +107,7 @@ export async function searchTopicWeb(query: string): Promise<TopicWebContext | n
           },
           {
             role: 'user',
-            content: `Find useful web context for this Farcaster topic. Focus on the entities and question in the text; return at most 3 short factual sentences.\n\n${cleanQuery}`,
+            content: `Find useful web context for this topic. Focus on the entities and question in the text; return at most 3 short factual sentences.\n\n${cleanQuery}`,
           },
         ],
         temperature: 0.1,

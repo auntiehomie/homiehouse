@@ -143,7 +143,7 @@ export default function WelcomeModal() {
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
           <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Enable Hypersnap posting</h3>
           <p style={{ color: 'var(--muted-on-dark)', marginBottom: 16, fontSize: 14, lineHeight: 1.5 }}>
-            Your wallet will authorize a HomieHouse signing key directly with Hypersnap. No recovery phrase, Farcaster app approval, or gas transaction is used.
+            Your wallet will authorize a HomieHouse signing key directly with Hypersnap. No recovery phrase, separate app approval, or gas transaction is used.
           </p>
           <div style={{ textAlign: 'left', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
             <strong>Permissions:</strong> casts, cast removal, likes/recasts, and follows.

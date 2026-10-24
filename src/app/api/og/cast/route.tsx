@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const hash = searchParams.get('hash') || '';
   const logoUrl = new URL('/homiehouse-pixel.svg', requestUrl).toString();
 
-  let authorName = 'Farcaster';
+  let authorName = 'Social account';
   let authorUsername = '';
   let pfpUrl = '';
   let castText = '';

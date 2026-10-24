@@ -1,8 +1,7 @@
 'use client';
 
 /**
- * Onboarding Client — Renders the "Are you new to Farcaster?" choice screen.
- * Two paths: "I'm new" → profile setup, "I have Farcaster" → connect existing.
+ * Onboarding Client — Renders new and existing account setup choices.
  */
 
 import { useState } from 'react';
@@ -103,7 +102,7 @@ export default function OnboardingClient({ userId, email }: OnboardingClientProp
               margin: 0,
             }}
           >
-            Your home on Farcaster. Let&apos;s get you set up.
+            Your home for decentralized social. Let&apos;s get you set up.
           </p>
         </div>
 
@@ -145,7 +144,7 @@ export default function OnboardingClient({ userId, email }: OnboardingClientProp
             </div>
             <div style={{ flex: 1 }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', margin: '0 0 0.25rem' }}>
-                I&apos;m new to Farcaster
+                I&apos;m new here
               </h3>
               <p
                 style={{
@@ -155,8 +154,7 @@ export default function OnboardingClient({ userId, email }: OnboardingClientProp
                   margin: 0,
                 }}
               >
-                Create a new Farcaster account, set up your profile, and
-                discover what Farcaster is all about.
+                Set up your profile and discover conversations across the network.
               </p>
             </div>
             {choosing === 'new' && (
@@ -175,7 +173,7 @@ export default function OnboardingClient({ userId, email }: OnboardingClientProp
             )}
           </button>
 
-          {/* "I have Farcaster" card */}
+          {/* Existing account card */}
           <button
             type="button"
             onClick={() => handleChoice('existing_connected')}
@@ -211,7 +209,7 @@ export default function OnboardingClient({ userId, email }: OnboardingClientProp
             </div>
             <div style={{ flex: 1 }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', margin: '0 0 0.25rem' }}>
-                I already have Farcaster
+                I already have an account
               </h3>
               <p
                 style={{
@@ -221,7 +219,7 @@ export default function OnboardingClient({ userId, email }: OnboardingClientProp
                   margin: 0,
                 }}
               >
-                Connect your existing Farcaster account and bring your
+                Connect your existing social account and bring your
                 follows, casts, and identity with you.
               </p>
             </div>

@@ -6,22 +6,22 @@ import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
 export const metadata: Metadata = {
-  title: 'HomieHouse — Understand Farcaster, not just scroll it',
+  title: 'HomieHouse — Understand the ideas in your feed',
   description:
-    'Turn Farcaster conversations into personalized lessons, plain-English answers, and ideas you can share back with your community.',
+    'Turn conversations into personalized lessons, plain-English answers, and ideas you can share with your community.',
   alternates: { canonical: BASE_URL },
   openGraph: {
     type: 'website',
-    title: 'HomieHouse — Understand Farcaster, not just scroll it',
+    title: 'HomieHouse — Understand the ideas in your feed',
     description:
-      'Turn Farcaster conversations into personalized lessons, plain-English answers, and ideas you can share back with your community.',
+      'Turn conversations into personalized lessons, plain-English answers, and ideas you can share with your community.',
     url: BASE_URL,
     siteName: 'HomieHouse',
     images: [{ url: `${BASE_URL}/api/og`, width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse — Understand Farcaster, not just scroll it',
+    title: 'HomieHouse — Understand the ideas in your feed',
     description:
       'Learn what matters, connect it to your feed, and contribute with confidence.',
     images: [`${BASE_URL}/api/og`],

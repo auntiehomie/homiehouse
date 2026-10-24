@@ -79,7 +79,7 @@ export default function DailyChallengeClient() {
     if (!fid || submitting || data?.completedToday) return;
     const authHeaders = getAuthHeaders();
     if (!authHeaders) {
-      setError('Connect your Farcaster account to play the daily challenge.');
+      setError('Connect your social account to play the daily challenge.');
       return;
     }
 
@@ -116,7 +116,7 @@ export default function DailyChallengeClient() {
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)' }}>🎯 Daily Challenge</span>
         </div>
         <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>
-          Connect your Farcaster account to answer today&apos;s question and earn bonus HH2.
+          Connect your social account to answer today&apos;s question and earn bonus HH2.
         </p>
       </div>
     );
