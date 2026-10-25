@@ -2,15 +2,21 @@
   "id": "/",
   "name": "HomieHouse",
   "short_name": "HomieHouse",
-  "description": "Learn how decentralized social networks work with personalized lessons, community feeds, and plain-English AI guidance.",
+  "description": "Turn conversations into personalized lessons, plain English answers, and ideas you can build with.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "background_color": "#0a0a0a",
   "theme_color": "#1c1c1e",
   "orientation": "any",
-  "categories": ["social", "news"],
+  "categories": [
+    "social",
+    "news"
+  ],
   "lang": "en",
   "icons": [
     {
@@ -69,17 +75,32 @@
     {
       "name": "Feed",
       "url": "/",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Notifications",
       "url": "/notifications",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Compose",
       "url": "/compose",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
