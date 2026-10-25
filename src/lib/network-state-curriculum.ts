@@ -7,6 +7,8 @@ const review = { label: 'Vitalik Buterin: What do I think about network states? 
 const commons = { label: 'De Filippi / The Blockchain Socialist: written episode introduction (audio not reviewed)', url: 'https://theblockchainsocialist.com/overthrowing-the-network-state-an-initial-critique-and-alternatives/' };
 const modular = { label: 'Schneider et al.: Modular Politics (abstract; predates the book)', url: 'https://arxiv.org/abs/2005.13701' };
 
+const grayCritique = { label: 'The Nerd Reich: critical commentary on San Francisco proposals (interview not independently reviewed)', url: 'https://www.thenerdreich.com/balaji-srinivasans-gray-vision-for-san-francisco/' };
+
 /** Authored lessons: proposals and objections stay together, including without an LLM. */
 export const NETWORK_STATE_CURRICULUM: CuratedLesson[] = [
   {
@@ -47,16 +49,17 @@ export const NETWORK_STATE_CURRICULUM: CuratedLesson[] = [
       { title: 'The coordination argument', explanation: 'A clear leader and shared mission can reduce early disagreement about what a project is trying to do. Balaji’s model gives a recognized founder a central role. The case for coordination deserves a fair hearing before evaluating its limits. [Reading: Balaji’s roadmap.] Original design question: which decisions need speed, and which need broad consent?' },
       { title: 'Exit and voice', explanation: 'Exit means leaving; voice means trying to change a decision while remaining. They solve different problems. Consider a fictional member whose job, housing, and friendships all depend on one community. Permission to leave does not tell us the cost of leaving. Evaluate money, mobility, safety, and access to alternatives separately from the written membership terms.' },
       { title: 'Authority that can change', explanation: 'Vitalik argues for a transition toward community participation rather than permanent founder dominance. Modular Politics proposes composable governance tools, including mechanisms missing from many online platforms. Its abstract is a design proposal, not proof of superior outcomes. [Readings: Vitalik; Modular Politics.] Original exercise: specify who can appeal a decision, who hears it, and who can remove an official.' },
+      { title: 'Public power and private membership', explanation: 'The Nerd Reich offers a critical reading of Srinivasan’s San Francisco proposals, arguing that political affiliation, police patronage, and membership-controlled spaces could concentrate power. This is the publication’s interpretation of a linked interview, not an independently established finding or evidence that the proposals became policy. The full interview has not been independently reviewed for this lesson. [Reading: The Nerd Reich commentary.] Original exercise: compare the strongest case for voluntary association with safeguards for impartial public services and people outside the group.' },
     ],
     practicalExample: 'Fictional scenario: a founder doubles the workshop fee after members relocate. Compare three designs: leave immediately, vote on the budget, or challenge the change before an independent panel. Identify what each option can and cannot remedy.',
-    quickActions: ['Read Vitalik’s founder-control discussion', 'Read the Modular Politics abstract and identify one governance mechanism', 'Draft a rule for removing a leader, including an appeal process'],
+    quickActions: ['Read Vitalik’s founder-control discussion', 'Read the Modular Politics abstract and identify one governance mechanism', 'Draft a rule for removing a leader, including an appeal process', 'Compare The Nerd Reich commentary with Balaji’s primary writing; identify a claim that needs the full interview'],
     summary: 'Exit, participation, and review are distinct safeguards. A useful charter explains how power can be challenged and transferred.',
     quiz: [
       { question: 'Which action is an example of voice rather than exit?', options: ['Moving out', 'Cancelling membership', 'Joining a different group', 'Proposing a budget amendment while remaining a member'], correctIndex: 3, explanation: 'Voice seeks change inside the organization; the other options leave it.' },
       { question: 'What must be examined beyond a formal right to leave?', options: ['Only the logo', 'Practical costs and available alternatives', 'Only the founder’s popularity', 'Nothing else'], correctIndex: 1, explanation: 'A written option can be difficult to use when housing, income, or mobility depend on staying.' },
       { question: 'What does the reviewed Modular Politics abstract offer?', options: ['Guaranteed outcomes', 'A direct review of Balaji’s later book', 'A framework for composable governance mechanisms', 'Evidence that voting never fails'], correctIndex: 2, explanation: 'The paper proposes a governance framework and predates the book; it does not prove universal results.' },
     ],
-    sources: [proposal, review, modular],
+    sources: [proposal, review, modular, grayCritique],
   },
   {
     module: {
@@ -80,7 +83,7 @@ export const NETWORK_STATE_CURRICULUM: CuratedLesson[] = [
       { question: 'Which evidence best tests practical access?', options: ['A welcoming slogan alone', 'The number of promotional posts', 'The founder’s stated intention alone', 'Participation costs and barriers for different groups'], correctIndex: 3, explanation: 'Practical access requires examining barriers, not just whether a project describes itself as open.' },
       { question: 'What portion of the critical podcast resource supports this lesson?', options: ['A verified full audio transcript', 'Its accessible written introduction', 'An unpublished interview', 'Every episode in the series'], correctIndex: 1, explanation: 'Only the written introduction was reviewed; specific claims from the audio require further verification.' },
     ],
-    sources: [essay, review, commons],
+    sources: [essay, review, commons, grayCritique],
   },
   {
     module: {

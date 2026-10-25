@@ -33,3 +33,9 @@ Source links remain available from the interactive player's header. The player s
 - All three Playwright scenarios passed locally against a production build using separately packaged Chromium 153: 390px and 1280px real catalog-to-quiz flows, plus failure/retry with progress retention. The migration guide preference and quiz locator were corrected in the tests. Playwright's matching Chromium 156 download remains unavailable here; CI should still verify its bundled browser. Installation and limitations: docs/local-chromium-testing.md.
 
 Deployment requires PR review and merge. Knowledge-base ingestion remains separate from these fixed courses.
+
+## October 25 source refresh
+
+The governance and inclusion modules now link The Nerd Reich’s critical San Francisco commentary alongside Balaji’s primary readings and other critiques. The governance concept distinguishes the publication’s interpretation from verified findings and implemented policy; the linked interview has not been independently reviewed. Learners compare voluntary association with impartial public services and nonmember protections.
+
+The source summary and three takeaways are already committed to Rufus-vault’s Knowledge Base index and Article Context (entry 97). Homiehouse’s existing hourly KB sync reads those remote files for AI context; this PR updates the authored lessons, which do not change merely because a KB link is saved. AI and cast-derived lesson generation remain available. Verify production ingestion separately after deployment. The broader readings update is tracked in PR #301.
