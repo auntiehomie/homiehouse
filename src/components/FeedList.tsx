@@ -356,6 +356,9 @@ export default function FeedList({
 
   // Signer approval handled natively via Ed25519 — no polling needed
 
+  const initialFeedRequestRef = useRef<{ url: string; promise: Promise<any> } | null>(null);
+  const resumedSnapshotRef = useRef<string | null>(null);
+
   // Resolve an in-tab return from the cached snapshot before the browser paints.
   // A passive effect briefly shows the feed at its default position before restoring it.
   useLayoutEffect(() => {
@@ -370,18 +373,23 @@ export default function FeedList({
     setHasMore(true);
 
     if (isManualRefresh) {
+      resumedSnapshotRef.current = null;
       const pending = readFeedReturn();
       if (pending) consumeFeedReturn(pending);
     } else {
       const pending = readFeedReturn();
-      const isReturn = pending?.snapshotKey === cacheKey;
+      // Strict Mode replays layout effects after scroll restoration consumes the marker.
+      const isReturn = pending?.snapshotKey === cacheKey || resumedSnapshotRef.current === cacheKey;
       const snapshot = readFeedSnapshot<any>(cacheKey, isReturn ? FEED_RETURN_TTL : 5 * 60 * 1000);
       if (snapshot) {
         setItems(snapshot.items);
         setCursor(snapshot.cursor);
         setHasMore(snapshot.hasMore);
         // A return is a resume of the loaded pages, never a first-page refresh.
-        if (isReturn) return () => { mounted = false; };
+        if (isReturn) {
+          resumedSnapshotRef.current = cacheKey;
+          return () => { mounted = false; };
+        }
       } else {
         setItems(null);
       }
@@ -410,18 +418,26 @@ export default function FeedList({
         if (fid) url += `&fid=${encodeURIComponent(String(fid))}`;
         if (selectedChannel) url += `&channel=${encodeURIComponent(selectedChannel)}`;
 
-        const feedRes = await fetch(url, { cache: 'no-store' });
-
-        if (feedRes.ok) {
-          const json = await feedRes.json();
-          res = json?.data ?? json;
-          if (Array.isArray(res) && feedType === 'community' && !selectedChannel) res = personalizePage(res, fid);
-          nextCursor = json?.cursor || null;
-        } else {
-          const failure = await feedRes.json().catch(() => ({}));
-          throw new Error(failure.error || `Feed unavailable (${feedRes.status})`);
+        // Share the initial read across Strict Mode's setup/cleanup/setup replay.
+        // Each effect still owns its state updates through its mounted guard.
+        let request = initialFeedRequestRef.current;
+        if (!request || request.url !== url || isManualRefresh) {
+          const promise = fetch(url, { cache: 'no-store' }).then(async response => {
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(json.error || `Feed unavailable (${response.status})`);
+            return json;
+          });
+          request = { url, promise };
+          initialFeedRequestRef.current = request;
         }
+        const json = await request.promise;
+        if (initialFeedRequestRef.current === request) initialFeedRequestRef.current = null;
+
+        res = json?.data ?? json;
+        if (Array.isArray(res) && feedType === 'community' && !selectedChannel) res = personalizePage(res, fid);
+        nextCursor = json?.cursor || null;
       } catch (e) {
+        initialFeedRequestRef.current = null;
         console.error('[FeedList] Error fetching feed:', e);
         if (mounted) {
           setFeedError(e instanceof Error ? e.message : 'Feed unavailable. Try again.');
@@ -665,10 +681,10 @@ export default function FeedList({
         const authorUsername = rawUsername && /^fid:\d+$/i.test(rawUsername) ? null : rawUsername;
         const authorFid = authorObj?.fid ?? null;
         // Navigate by username when available; fall back to FID so profile loads cleanly
-        const profileHref = authorUsername
-          ? `/profile?user=${authorUsername}`
-          : authorFid
-            ? `/profile?fid=${authorFid}`
+        const profileHref = authorFid
+          ? `/profile?fid=${encodeURIComponent(String(authorFid))}`
+          : authorUsername
+            ? `/profile?user=${encodeURIComponent(authorUsername)}`
             : '/feed';
         const authorName = authorObj?.display_name || authorUsername || 'Unknown';
         const text = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : null)) ?? JSON.stringify(it);

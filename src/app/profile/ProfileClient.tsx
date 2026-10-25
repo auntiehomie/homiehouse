@@ -315,16 +315,22 @@ function ProfileContent() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
+        const requestedFid = searchParams.get('fid');
         const username = searchParams.get('user');
 
         let url: string;
-        if (username) {
+        if (requestedFid) {
+          // Profile links from feeds and the signed-in summary may identify
+          // accounts by FID. Honor that route parameter instead of silently
+          // replacing it with the viewer's local profile.
+          url = `/api/profile?fid=${encodeURIComponent(requestedFid)}&casts=true`;
+        } else if (username) {
           url = `/api/profile?username=${encodeURIComponent(username)}&casts=true`;
         } else {
           const storedProfile = localStorage.getItem('hh_profile');
           if (!storedProfile) { router.push('/'); return; }
           const { fid } = JSON.parse(storedProfile);
-          url = `/api/profile?fid=${fid}&casts=true`;
+          url = `/api/profile?fid=${encodeURIComponent(String(fid))}&casts=true`;
         }
 
         const response = await fetch(url);

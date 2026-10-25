@@ -45,4 +45,20 @@ describe('/api/profile', () => {
     expect(fetchUserByUsername).toHaveBeenCalledWith('balajis.eth');
     expect(fetchUserCastsPage).toHaveBeenCalledWith(123, 25, undefined);
   });
+
+  it('loads a requested profile by FID instead of requiring a username lookup', async () => {
+    fetchUserByFid.mockResolvedValue({
+      user: { fid: 456, username: 'target-user', display_name: 'Target User' },
+    });
+
+    const response = await GET(new NextRequest('http://localhost/api/profile?fid=456&casts=true'));
+
+    expect(response.status).toBe(200);
+    expect(fetchUserByFid).toHaveBeenCalledWith(456);
+    expect(fetchUserByUsername).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      fid: 456,
+      username: 'target-user',
+    });
+  });
 });
