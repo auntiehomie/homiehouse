@@ -1,4 +1,5 @@
 "use client";
+import { castEmbedUrls } from '@/lib/cast-embed-urls';
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -345,7 +346,7 @@ export default function CastDetailClient() {
           : /(?:creator|community|social|farcaster|channel)/i.test(text)
             ? { label: 'Web3 creator communities', track: 'creator' }
             : null;
-  const embeds = cast.embeds || [];
+  const embeds = castEmbedUrls(cast.text || '', cast.embeds);
   const replies = cast.replies?.casts || cast.direct_replies || [];
   const parentChain: any[] = cast.parent_chain || [];
 
@@ -413,6 +414,9 @@ export default function CastDetailClient() {
         )}
         <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 4 }}>
           {rText}
+        </div>
+        <div style={{ display: 'grid', gap: 12, margin: '12px 0', minWidth: 0 }}>
+          {castEmbedUrls(rText, reply.embeds).map((url, index) => <EmbedRenderer key={url} embed={url} index={index} />)}
         </div>
         <Link href={`/cast/${encodeURIComponent(reply.hash)}`} style={{ color: 'var(--accent)', fontSize: 13 }}>
           View conversation
@@ -504,6 +508,9 @@ export default function CastDetailClient() {
                           <span style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>· {pTime}</span>
                         </div>
                         <Link href={`/cast/${encodeURIComponent(p.hash)}`} style={{ display: 'block', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-on-dark, #eee)', textDecoration: 'none' }}>{pText}</Link>
+                        <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+                          {castEmbedUrls(pText, p.embeds).map((url, index) => <EmbedRenderer key={url} embed={url} index={index} />)}
+                        </div>
                       </div>
                     </div>
                   </div>
