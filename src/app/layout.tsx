@@ -20,7 +20,7 @@ const jsonLd = {
   '@type': 'WebSite',
   name: 'HomieHouse',
   url: BASE_URL,
-  description: 'A social learning app — browse your feed, compose posts, and explore the decentralized web.',
+  description: 'Turn conversations into personalized lessons, plain English answers, and ideas you can build with.',
   potentialAction: {
     '@type': 'SearchAction',
     target: {
@@ -33,7 +33,7 @@ const jsonLd = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'HomieHouse',
+    default: 'HomieHouse — Learn, cast, and connect',
     template: '%s | HomieHouse',
   },
   icons: {
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     title: 'HomieHouse',
     statusBarStyle: 'black-translucent',
   },
-  description: 'HomieHouse — Your social learning hub. Browse feeds, compose posts, get AI-powered insights with Ask Homie, and curate your personal knowledge base on the decentralized web.',
+  description: 'Turn conversations into personalized lessons, plain English answers, and ideas you can build with.',
   keywords: [
     'social network', 'social client', 'decentralized social', 'posts', 'web3 social',
     'Ask Homie', 'AI assistant', 'knowledge base', 'crypto social',
@@ -70,22 +70,22 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'HomieHouse',
-    title: 'HomieHouse — Learn from your social feed',
-    description: 'Personalized Web3 learning plans, social feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn, cast, and connect',
+    description: 'Turn conversations into personalized lessons, plain English answers, and ideas you can build with.',
     url: BASE_URL,
     images: [
       {
         url: '/api/og',
         width: 1200,
         height: 630,
-        alt: 'HomieHouse — Learn, cast, and grow.',
+        alt: 'HomieHouse — Learn, cast, and connect',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'HomieHouse — Learn from your social feed',
-    description: 'Personalized Web3 learning plans, social feeds, and AI insights — all in one place.',
+    title: 'HomieHouse — Learn, cast, and connect',
+    description: 'Turn conversations into personalized lessons, plain English answers, and ideas you can build with.',
     images: ['/api/og'],
   },
   robots: {

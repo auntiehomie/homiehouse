@@ -76,12 +76,11 @@ export async function GET() {
               </span>
             </div>
             <div style={{ fontSize: 56, fontWeight: 800, color: '#fff', lineHeight: 1.1, letterSpacing: '-0.03em', display: 'flex', flexDirection: 'column' }}>
-              Learn Web3.
-              Turn casts into
-              personalized lessons.
+              Learn, cast,
+              and connect.
             </div>
             <div style={{ fontSize: 22, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, maxWidth: 640 }}>
-              Personalized learning plans, social feeds, mini-apps, and AI insights — all in one place.
+              Turn conversations into personalized lessons, plain English answers, and ideas you can build with.
             </div>
           </div>
 
