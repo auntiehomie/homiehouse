@@ -8,7 +8,7 @@ jest.mock('@upstash/redis', () => ({ Redis: jest.fn() }));
 jest.mock('@/lib/ratelimit', () => ({ rateLimit: jest.fn(() => ({ success: true })) }));
 jest.mock('@/lib/llm', () => ({ llmChat: jest.fn(), getLLMProviders: jest.fn(() => ['mock']) }));
 jest.mock('@/lib/kb-sync', () => ({ getRelevantKBArticles: jest.fn(async () => []), formatKBContext: jest.fn(() => '') }));
-jest.mock('@/lib/safety-curriculum', () => ({ getSafetyLesson: jest.fn(() => undefined) }));
+jest.mock('@/lib/curated-curriculum', () => ({ getCuratedLesson: jest.fn(() => undefined) }));
 jest.mock('@/lib/logger', () => ({ createApiLogger: jest.fn(() => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() })) }));
 jest.mock('@/lib/lesson-source-corrections', () => ({ correctLessonRepositoryReferences: jest.fn(value => value) }));
 
