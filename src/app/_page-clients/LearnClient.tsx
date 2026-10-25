@@ -1506,6 +1506,9 @@ function LearnPageContent() {
           <Link href="/feed" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Feed</Link>
         </div>
 
+        <div style={{ padding: '0 16px 12px' }}>
+          <Link href="/learn/network-states" style={{ color: 'var(--accent)', fontSize: 14 }}>Network States: proposal, counterpoints, and alternatives →</Link>
+        </div>
         {/* Tab nav — always visible */}
         <div style={{ display: 'flex', gap: 0, padding: '0 16px', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {([
