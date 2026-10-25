@@ -365,6 +365,7 @@ export default function MobileNav() {
                       key={item.href}
                   data-feed-navigation={item.href === '/feed' ? 'true' : undefined}
                       href={href}
+                      onClick={() => setDrawerOpen(false)}
                       scroll={item.href === '/feed' && pathname.startsWith('/cast/') ? false : undefined}
                       style={{
                         display: 'flex',
