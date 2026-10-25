@@ -38,7 +38,7 @@ export interface LearningModule {
 const TRACK_TAGS: Record<string, string[]> = {
   ai: ['ai', 'llm', 'machine-learning', 'agents', 'prompt-injection', 'venice', 'openai', 'claude', 'gpt'],
   finance: ['defi', 'tokens', 'trading', 'crypto', 'finance', 'tokenomics', 'hyperliquid', 'portfolio'],
-  creator: ['creator', 'nft', 'gaming', 'content', 'music', 'solidity', 'smart-contract', 'erc'],
+  creator: ['creator', 'nft', 'gaming', 'content', 'music', 'creator-economy', 'creator-coins', 'content-coins', 'zora', 'base-app'],
   decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security'],
 };
 
