@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test';
 
+// The migration guide has its own tests; keep it from covering course controls.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('hh_migration_guide_v1', 'dismissed');
+  });
+});
+
 for (const width of [390, 1280]) {
   test(`balanced course opens from the catalog and reaches its quiz at ${width}px`, async ({ page }) => {
     test.setTimeout(120_000);
@@ -20,12 +27,12 @@ for (const width of [390, 1280]) {
 
     // Follow real cards, without seeding cached content or mocking the lesson API.
     for (let step = 0; step < 30; step++) {
-      if (await page.getByText('Question 1 of 3', { exact: true }).isVisible()) break;
+      if (await page.getByText('In Balaji’s roadmap, what comes first?', { exact: true }).isVisible()) break;
       const next = page.getByRole('button', { name: 'Continue →', exact: true });
       await expect(next).toBeEnabled();
       await next.click();
     }
-    await expect(page.getByText('Question 1 of 3', { exact: true })).toBeVisible();
+    await expect(page.getByText('In Balaji’s roadmap, what comes first?', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: /An online startup society/ }).click();
     await page.getByRole('button', { name: /Check/ }).click();
     await expect(page.getByText(/The roadmap begins with an online startup society/)).toBeVisible();

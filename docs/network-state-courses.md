@@ -30,6 +30,6 @@ Source links remain available from the interactive player's header. The player s
 - All 60 Jest suites / 318 tests pass, including guest plan/lesson APIs with no AI provider, authenticated assignment behavior, and database failure handling.
 - TypeScript passes; changed-source ESLint has zero errors (existing warnings).
 - Production build passes.
-- Three Playwright scenarios are discoverable: 390px and 1280px real catalog-to-quiz flows, plus failure/retry with progress retention. Local browser execution is blocked: the Chromium download returned an invalid/truncated archive. CI's existing Playwright job will run them; browser results remain pending.
+- All three Playwright scenarios passed locally against a production build using separately packaged Chromium 153: 390px and 1280px real catalog-to-quiz flows, plus failure/retry with progress retention. The migration guide preference and quiz locator were corrected in the tests. Playwright's matching Chromium 156 download remains unavailable here; CI should still verify its bundled browser. Installation and limitations: docs/local-chromium-testing.md.
 
 Deployment requires PR review and merge. Knowledge-base ingestion remains separate from these fixed courses.
