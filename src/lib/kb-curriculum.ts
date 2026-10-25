@@ -37,9 +37,9 @@ export interface LearningModule {
 
 const TRACK_TAGS: Record<string, string[]> = {
   ai: ['ai', 'llm', 'machine-learning', 'agents', 'prompt-injection', 'venice', 'openai', 'claude', 'gpt'],
-  finance: ['defi', 'tokens', 'trading', 'crypto', 'finance', 'tokenomics', 'hyperliquid', 'portfolio'],
-  creator: ['creator', 'nft', 'gaming', 'content', 'music', 'solidity', 'smart-contract', 'erc'],
-  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security'],
+  finance: ['defi', 'tokens', 'trading', 'crypto', 'finance', 'tokenomics', 'hyperliquid', 'portfolio', 'bitcoin', 'bankless'],
+  creator: ['creator', 'nft', 'gaming', 'content', 'music', 'solidity', 'smart-contract', 'erc', 'creator-economy', 'creator-coins'],
+  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security', 'decentralization', 'privacy', 'encryption', 'monero', 'zcash'],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

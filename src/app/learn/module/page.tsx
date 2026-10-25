@@ -60,7 +60,7 @@ function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
     });
     if (c.analogy) cards.push({ type: 'concept', label: `${base} · ${total}/${total}`, title: c.title, explanation: '', analogy: c.analogy, part: total, isAnalogy: true });
   });
-  cards.push({ type: 'example', label: mod.tags.includes('network-states') ? 'Fictional Exercise' : 'Real-World Example', content: lesson.practicalExample });
+  cards.push({ type: 'example', label: (mod.tags.includes('network-states') || mod.tags.includes('knowledge-library')) ? 'Fictional Exercise' : 'Real-World Example', content: lesson.practicalExample });
   cards.push({ type: 'actions', label: 'Try It Now', items: lesson.quickActions });
   cards.push({ type: 'summary', label: 'Key Takeaway', content: lesson.summary });
   lesson.quiz.forEach((q, i) =>
@@ -972,7 +972,7 @@ function ModuleLessonContent() {
         <div style={{ minWidth: 72, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
           <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}>
             {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
-            {mod?.tags.includes('network-states') && <a href={`/learn/library/${encodeURIComponent(mod.id)}#sources`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Course sources ↗</a>}
+            {(mod?.tags.includes('network-states') || mod?.tags.includes('knowledge-library')) && <a href={`/learn/library/${encodeURIComponent(mod.id)}#sources`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Course sources ↗</a>}
           </div>
           {!loading && mod && currentCard && (
             <button

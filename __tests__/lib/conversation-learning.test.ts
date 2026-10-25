@@ -59,3 +59,17 @@ test('carries percent signs, Unicode and question marks through a learning link 
   expect(JSON.parse(url.searchParams.get('cast')!)).toEqual(cast);
   expect(url.searchParams.get('learning')).toBe('explain');
 });
+
+test('cast learning blends reviewed readings with AI when the synced KB is unavailable', async () => {
+  jest.mocked(getRelevantKBArticles).mockRejectedValue(new Error('database offline'));
+  const result = await generateConversationLearning({ mode: 'lesson', topic: 'Creator coins',
+    castContext: { text: 'Can a Zora creator coin fund my work?' },
+    messages: [{ role: 'user', content: 'Compare creator coins with selling tutorials.' }] });
+  expect(llmChat).toHaveBeenCalled();
+  const prompt = JSON.parse(jest.mocked(llmChat).mock.calls[0][0].messages[1].content as string);
+  expect(prompt.thread.selected.text).toContain('Zora');
+  expect(prompt.reviewedReadings).toContain('Creator Coins');
+  expect(prompt.reviewedReadings).toContain('Bankless');
+  expect(result.metadata.sources.some(source => source.url === 'https://docs.zora.co/coins')).toBe(true);
+  expect(result.metadata.liveWebVerified).toBe(false);
+});

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getAuthHeaders } from '@/lib/client-auth';
 import type { LessonModuleRequest } from '@/lib/lesson-client-cache';
 
-export default function StartNetworkStateCourse({ moduleId }: { moduleId: string }) {
+export default function StartNetworkStateCourse({ moduleId, track = 'network-states' }: { moduleId: string; track?: 'network-states' | 'knowledge-library' }) {
   const router = useRouter();
   const pending = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -20,7 +20,7 @@ export default function StartNetworkStateCourse({ moduleId }: { moduleId: string
       const response = await fetch('/api/learning-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(getAuthHeaders() ?? {}) },
-        body: JSON.stringify({ track: 'network-states', level: 'beginner' }),
+        body: JSON.stringify({ track, level: 'beginner' }),
         signal: AbortSignal.timeout(20000),
       });
       const plan = await response.json();

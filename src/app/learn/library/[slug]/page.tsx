@@ -112,8 +112,8 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
             ? <p className="mt-3 text-sm leading-6 text-[var(--muted-on-dark)]">Proposals and critiques are attributed perspectives. Examples are fictional exercises; evaluate the reasoning without having to agree with an author.</p>
             : <p className="mt-3 text-sm leading-6 text-[var(--muted-on-dark)]">Educational content only, not individualized financial advice. Verify current information and never risk essential funds.</p>}
           <div className="mt-6 flex flex-wrap gap-3">
-            {lesson.module.tags.includes('network-states')
-              ? <StartNetworkStateCourse moduleId={lesson.module.id} />
+            {lesson.module.tags.includes('network-states') || lesson.module.tags.includes('knowledge-library')
+              ? <StartNetworkStateCourse moduleId={lesson.module.id} track={lesson.module.tags.includes('knowledge-library') ? 'knowledge-library' : 'network-states'} />
               : <Link href="/learn?track=survival" className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-white no-underline">Take the interactive track</Link>}
             <Link href={`/compose?text=${encodeURIComponent(shareText)}`} className="rounded-xl border border-[var(--border)] px-5 py-3 font-semibold text-[var(--text-on-dark)] no-underline">Share what you learned</Link>
           </div>
