@@ -108,7 +108,7 @@ export class BaseAgent {
       
       try {
         const response = await llmChat({
-          messages: openAIMessages,
+          messages: [{ role: 'system', content: 'Give a succinct but complete answer. Keep reasoning internal. Lead with the conclusion, include necessary evidence and uncertainty, and finish with a complete sentence. Avoid lengthy introductions and unnecessary sections.' }, ...openAIMessages],
           temperature: 0.7,
           maxTokens: 2000,
         });
