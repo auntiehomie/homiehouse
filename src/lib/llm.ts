@@ -156,11 +156,10 @@ export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
       const message = response.choices[0]?.message;
       if (!message) throw new Error('empty response');
 
-      // Reasoning models (Gemini 2.5 Flash, GLM 5.2) sometimes put text in
-      // `reasoning` with `content` as null. Extract it so callers always get
-      // a usable string in `message.content`.
-      if (!message.content && (message as any)?.reasoning) {
-        message.content = (message as any).reasoning;
+      // Internal reasoning is not a finished user-facing answer. A length stop
+      // is incomplete even if some visible text exists; try the next provider.
+      if (response.choices[0]?.finish_reason === 'length') {
+        throw new Error('incomplete response (output token limit)');
       }
 
       const hasContent = message.content ||
