@@ -780,6 +780,7 @@ function HomieReadPanel({ currentPlan, initialQuestion = '' }: { currentPlan: Le
                 : m
             ),
             mode: 'agent',
+            learningMode: 'explain',
             eli5: getEli5Mode(),
           }),
         });
@@ -1508,6 +1509,9 @@ function LearnPageContent() {
           <Link href="/feed" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Feed</Link>
         </div>
 
+        <div style={{ padding: '0 16px 12px' }}>
+          <Link href="/learn/network-states" style={{ color: 'var(--accent)', fontSize: 14 }}>Network States: proposal, counterpoints, and alternatives →</Link>
+        </div>
         {/* Tab nav — always visible */}
         <div style={{ display: 'flex', gap: 0, padding: '0 16px', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {([
@@ -1556,6 +1560,13 @@ function LearnPageContent() {
               .hh-learn-setup > div:first-child p { max-width: 680px; margin-inline: auto !important; }
             }
           `}</style>
+          {activeTab !== 'homie' && activeTab !== 'feed' && (
+            <section className="surface" aria-label="Learn from your curiosity" style={{ margin: '16px auto', maxWidth: 688, padding: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>Saw something you want to understand?</h2>
+              <p style={{ fontSize: 14, margin: '0 0 12px', color: 'var(--muted-on-dark)' }}>Use Ask Homie to explain an idea in plain English or build a focused lesson around your question. You can also start directly from a cast.</p>
+              <Link className="btn primary" href="/ask-homie?learning=lesson">Build a lesson with Ask Homie</Link>
+            </section>
+          )}
           {activeTab === 'homie'
             ? <HomieReadPanel currentPlan={plan} initialQuestion={searchParams.get('question') ?? ''} />
             : activeTab === 'feed'

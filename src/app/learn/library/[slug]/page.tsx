@@ -1,20 +1,22 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { SAFETY_CURRICULUM, getSafetyLesson } from '@/lib/safety-curriculum';
+import { CURATED_CURRICULUM, getCuratedLesson } from '@/lib/curated-curriculum';
+
+import StartNetworkStateCourse from '@/components/learning/StartNetworkStateCourse';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
 export function generateStaticParams() {
-  return SAFETY_CURRICULUM.map(({ module }) => ({ slug: module.id }));
+  return CURATED_CURRICULUM.map(({ module }) => ({ slug: module.id }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const lesson = getSafetyLesson(slug);
+  const lesson = getCuratedLesson(slug);
   if (!lesson) return {};
   const url = `${BASE_URL}/learn/library/${slug}`;
-  const imageUrl = `${BASE_URL}/api/og/content?kind=crypto%20safety%20lesson&title=${encodeURIComponent(lesson.module.title)}&description=${encodeURIComponent(lesson.module.description)}`;
+  const imageUrl = `${BASE_URL}/api/og/content?kind=learning%20course&title=${encodeURIComponent(lesson.module.title)}&description=${encodeURIComponent(lesson.module.description)}`;
   return {
     title: lesson.module.title,
     description: lesson.module.description,
@@ -38,7 +40,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PublicLessonPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const lesson = getSafetyLesson(slug);
+  const lesson = getCuratedLesson(slug);
   if (!lesson) notFound();
 
   const jsonLd = {
@@ -54,13 +56,13 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
     provider: { '@type': 'Organization', name: 'HomieHouse', url: BASE_URL },
   };
 
-  const shareText = `I’m learning how to stay safer in crypto: ${lesson.module.title}\n\n${BASE_URL}/learn/library/${slug}\n\n#HomieHouseLearning #StayInTheGame`;
+  const shareText = `I’m learning on HomieHouse: ${lesson.module.title}\n\n${BASE_URL}/learn/library/${slug}\n\n#HomieHouseLearning #StayInTheGame`;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <nav aria-label="Breadcrumb" className="mb-8 text-sm text-[var(--muted-on-dark)]">
-        <Link href="/learn/library" className="text-[var(--accent)]">Safety Library</Link> <span aria-hidden="true">/</span> {lesson.module.title}
+        <Link href="/learn/library" className="text-[var(--accent)]">Learning Library</Link> <span aria-hidden="true">/</span> {lesson.module.title}
       </nav>
 
       <article>
@@ -97,7 +99,7 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
           </ol>
         </section>
 
-        <section className="mt-10">
+        <section id="sources" className="mt-10">
           <h2 className="text-xl font-bold">Sources and further reading</h2>
           <ul className="mt-4 space-y-2">
             {lesson.sources.map((source) => <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] underline underline-offset-4">{source.label} ↗</a></li>)}
@@ -106,9 +108,13 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
 
         <footer className="mt-12 border-t border-[var(--border)] pt-8">
           <p className="font-semibold">{lesson.summary}</p>
-          <p className="mt-3 text-sm leading-6 text-[var(--muted-on-dark)]">Educational content only, not individualized financial advice. Verify current information and never risk essential funds.</p>
+          {lesson.module.tags.includes('network-states')
+            ? <p className="mt-3 text-sm leading-6 text-[var(--muted-on-dark)]">Proposals and critiques are attributed perspectives. Examples are fictional exercises; evaluate the reasoning without having to agree with an author.</p>
+            : <p className="mt-3 text-sm leading-6 text-[var(--muted-on-dark)]">Educational content only, not individualized financial advice. Verify current information and never risk essential funds.</p>}
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/learn?track=survival" className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-white no-underline">Take the interactive track</Link>
+            {lesson.module.tags.includes('network-states')
+              ? <StartNetworkStateCourse moduleId={lesson.module.id} />
+              : <Link href="/learn?track=survival" className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-white no-underline">Take the interactive track</Link>}
             <Link href={`/compose?text=${encodeURIComponent(shareText)}`} className="rounded-xl border border-[var(--border)] px-5 py-3 font-semibold text-[var(--text-on-dark)] no-underline">Share what you learned</Link>
           </div>
         </footer>

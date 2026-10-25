@@ -4,6 +4,7 @@ import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { rateLimit } from '@/lib/ratelimit';
 import { llmChat } from '@/lib/llm';
 import { SAFETY_MODULES } from '@/lib/safety-curriculum';
+import { NETWORK_STATE_PLAN } from '@/lib/network-state-curriculum';
 import { getKBModulesForTrack, deduplicateModules } from '@/lib/kb-curriculum';
 import type { LearningModule as KBLearningModule } from '@/lib/kb-curriculum';
 
@@ -1071,6 +1072,27 @@ async function persistRewardPlan(fid: number, plan: LearningPlan, replaceIfUnuse
   return (current.rows[0]?.plan as LearningPlan) ?? plan;
 }
 
+// Extend the server assignment without replacing earned or in-progress modules.
+async function networkStatePlanResponse(fid: number | null) {
+  if (fid !== null) {
+    try {
+      await persistRewardPlan(fid, NETWORK_STATE_PLAN);
+      await getDb().query(
+        `UPDATE learning_reward_plans
+         SET plan = jsonb_set(plan, '{modules}', COALESCE(plan->'modules', '[]'::jsonb) ||
+           COALESCE((SELECT jsonb_agg(candidate) FROM jsonb_array_elements($2::jsonb) AS candidate
+             WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(plan->'modules', '[]'::jsonb)) AS existing
+               WHERE existing->>'id' = candidate->>'id')), '[]'::jsonb)), updated_at = NOW()
+         WHERE fid = $1`,
+        [fid, JSON.stringify(NETWORK_STATE_PLAN.modules)]
+      );
+    } catch {
+      return NextResponse.json({ error: 'Could not prepare your course progress. Please try again.' }, { status: 503 });
+    }
+  }
+  return NextResponse.json(NETWORK_STATE_PLAN);
+}
+
 function attachCastLesson(plan: LearningPlan, sourceCast: { author?: string; text: string }): LearningPlan {
   if (!plan.modules.length) return plan;
   const [first, ...rest] = plan.modules;
@@ -1108,6 +1130,8 @@ export async function GET(req: NextRequest) {
 
   // Map legacy tracks for backward compat
   const normalizedTrack = LEGACY_TRACK_MAP[track] || track;
+
+  if (track === 'network-states') return networkStatePlanResponse(await optionalRewardFid(req));
 
   // If user explicitly requests the "survival" safety track
   if (track === 'survival') {
@@ -1180,6 +1204,8 @@ export async function POST(req: NextRequest) {
 
     // Map legacy tracks for backward compat
     const normalizedTrack = LEGACY_TRACK_MAP[track] || track;
+
+    if (track === 'network-states') return networkStatePlanResponse(rewardFid);
 
     // The safety curriculum is intentionally curated rather than generated:
     // safety guidance should be consistent, source-backed, and fast.

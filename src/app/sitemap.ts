@@ -1,17 +1,18 @@
 import type { MetadataRoute } from 'next';
-import { SAFETY_MODULES } from '@/lib/safety-curriculum';
+import { CURATED_MODULES } from '@/lib/curated-curriculum';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const lessonPages: MetadataRoute.Sitemap = SAFETY_MODULES.map((module) => ({
+  const lessonPages: MetadataRoute.Sitemap = CURATED_MODULES.map((module) => ({
     url: `${BASE_URL}/learn/library/${module.id}`,
-    lastModified: new Date('2026-09-19'),
+    lastModified: new Date('2026-10-25'),
     changeFrequency: 'monthly',
     priority: 0.72,
   }));
 
   return [
+    { url: `${BASE_URL}/learn/network-states`, lastModified: new Date('2026-10-25'), changeFrequency: 'monthly', priority: 0.8 },
     {
       url: BASE_URL,
       lastModified: new Date(),

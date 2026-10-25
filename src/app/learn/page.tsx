@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import LearnClient from '@/app/_page-clients/LearnClient';
 import SentryErrorBoundary from '@/components/SentryErrorBoundary';
-import { SAFETY_MODULES } from '@/lib/safety-curriculum';
+import { CURATED_MODULES } from '@/lib/curated-curriculum';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -20,7 +20,7 @@ const learnCollectionJsonLd = {
   '@type': 'CollectionPage',
   name: 'Learning Hub | HomieHouse',
   url: `${BASE_URL}/learn`,
-  hasPart: SAFETY_MODULES.map((module) => ({
+  hasPart: CURATED_MODULES.map((module) => ({
     '@type': 'LearningResource',
     headline: module.title,
     url: `${BASE_URL}/learn/library/${module.id}`,

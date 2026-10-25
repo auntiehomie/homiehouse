@@ -54,13 +54,13 @@ function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
       textChunks.push(sentences.slice(s, s + chunkSize).join(' '));
     }
 
-    const total = textChunks.length + 1; // +1 for analogy card
+    const total = textChunks.length + (c.analogy ? 1 : 0);
     textChunks.forEach((text, idx) => {
       cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false });
     });
-    cards.push({ type: 'concept', label: `${base} · ${total}/${total}`, title: c.title, explanation: '', analogy: c.analogy, part: total, isAnalogy: true });
+    if (c.analogy) cards.push({ type: 'concept', label: `${base} · ${total}/${total}`, title: c.title, explanation: '', analogy: c.analogy, part: total, isAnalogy: true });
   });
-  cards.push({ type: 'example', label: 'Real-World Example', content: lesson.practicalExample });
+  cards.push({ type: 'example', label: mod.tags.includes('network-states') ? 'Fictional Exercise' : 'Real-World Example', content: lesson.practicalExample });
   cards.push({ type: 'actions', label: 'Try It Now', items: lesson.quickActions });
   cards.push({ type: 'summary', label: 'Key Takeaway', content: lesson.summary });
   lesson.quiz.forEach((q, i) =>
@@ -202,7 +202,7 @@ function ActionsCard({ items }: { items: string[] }) {
   );
 }
 
-function SummaryCard({ content, onShare }: { content: string; onShare: () => void }) {
+function SummaryCard({ content, onShare, isNetworkState = false }: { content: string; onShare: () => void; isNetworkState?: boolean }) {
   return (
     <CardBody>
       <div style={{
@@ -228,8 +228,9 @@ function SummaryCard({ content, onShare }: { content: string; onShare: () => voi
         background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)',
       }}>
         <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
-          🤖 AI-generated content by Claude (Anthropic). Cross-reference with ethereum.org,
-          Uniswap docs, or the /defi and /web3 communities. Not financial advice.
+          {isNetworkState
+            ? 'Source-linked course content. Compare the proposal with its counterpoints using Course sources above. Classroom examples are fictional; agreement with an author is not required.'
+            : '🤖 AI-generated content by Claude (Anthropic). Cross-reference with ethereum.org, Uniswap docs, or the /defi and /web3 communities. Not financial advice.'}
         </p>
       </div>
     </CardBody>
@@ -971,6 +972,7 @@ function ModuleLessonContent() {
         <div style={{ minWidth: 72, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
           <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}>
             {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
+            {mod?.tags.includes('network-states') && <a href={`/learn/library/${encodeURIComponent(mod.id)}#sources`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Course sources ↗</a>}
           </div>
           {!loading && mod && currentCard && (
             <button
@@ -1038,7 +1040,7 @@ function ModuleLessonContent() {
               )}
               {currentCard.type === 'example' && <ExampleCard content={currentCard.content} />}
               {currentCard.type === 'actions' && <ActionsCard items={currentCard.items} />}
-              {currentCard.type === 'summary' && <SummaryCard content={currentCard.content} onShare={handleShareTakeaway} />}
+              {currentCard.type === 'summary' && <SummaryCard content={currentCard.content} onShare={handleShareTakeaway} isNetworkState={mod?.tags.includes('network-states')} />}
               {currentCard.type === 'quiz' && (
                 <QuizCard
                   question={currentCard.question}

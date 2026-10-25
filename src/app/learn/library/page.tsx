@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SAFETY_CURRICULUM } from '@/lib/safety-curriculum';
+import { CURATED_CURRICULUM } from '@/lib/curated-curriculum';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
 export const metadata: Metadata = {
-  title: 'Crypto Safety Library',
-  description: 'Free, practical lessons on wallet safety, scam defense, transaction approvals, risk budgets, and DeFi due diligence.',
+  title: 'Learning Library',
+  description: 'Free lessons on crypto safety and balanced courses on network states, governance, and alternatives.',
   alternates: { canonical: '/learn/library' },
   openGraph: {
     title: 'Crypto Safety Library | HomieHouse',
@@ -32,10 +33,10 @@ export default function LearningLibraryPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'HomieHouse Crypto Safety Library',
+    name: 'HomieHouse Learning Library',
     url: `${BASE_URL}/learn/library`,
     description: metadata.description,
-    hasPart: SAFETY_CURRICULUM.map(({ module }) => ({
+    hasPart: CURATED_CURRICULUM.map(({ module }) => ({
       '@type': 'LearningResource',
       name: module.title,
       url: `${BASE_URL}/learn/library/${module.id}`,
@@ -58,6 +59,12 @@ export default function LearningLibraryPage() {
           <Link href="/community" className="rounded-xl border border-[var(--border)] px-5 py-3 font-semibold text-[var(--text-on-dark)] no-underline">Meet the community idea</Link>
         </div>
       </header>
+
+      <section className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6" aria-labelledby="network-state-heading">
+        <h2 id="network-state-heading" className="text-2xl font-bold">Network States: proposal and counterpoints</h2>
+        <p className="my-4 leading-7 text-[var(--muted-on-dark)]">Four courses on the proposal, founder power, inclusion, and alternatives. Read sources from supporters and critics, then test your understanding.</p>
+        <Link href="/learn/network-states" className="text-[var(--accent)] underline">Explore the four courses →</Link>
+      </section>
 
       <section className="mt-12 grid gap-4 md:grid-cols-2" aria-label="Safety lessons">
         {SAFETY_CURRICULUM.map(({ module }, index) => (

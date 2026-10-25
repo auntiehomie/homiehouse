@@ -7,7 +7,7 @@ import { getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { rateLimit } from '@/lib/ratelimit';
 import { createApiLogger } from '@/lib/logger';
-import { getSafetyLesson } from '@/lib/safety-curriculum';
+import { getCuratedLesson } from '@/lib/curated-curriculum';
 import { correctLessonRepositoryReferences } from '@/lib/lesson-source-corrections';
 
 const logger = createApiLogger('/lesson');
@@ -418,7 +418,7 @@ export async function POST(req: NextRequest) {
     // Curated foundation lessons are reviewed, stable, and available without
     // waiting on a model or search provider. AI remains available for the long
     // tail of personalized modules.
-    const curated = typeof moduleId === 'string' ? getSafetyLesson(moduleId) : undefined;
+    const curated = typeof moduleId === 'string' ? getCuratedLesson(moduleId) : undefined;
     if (curated) {
       const lesson: LessonContent = {
         intro: curated.intro,

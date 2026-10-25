@@ -70,7 +70,8 @@ Autonomous behavior silently no-ops if these aren't set:
 | One of `GROQ_API_KEY` / `GEMINI_API_KEY` / `OPENROUTER_API_KEY` | Free LLM for replies (and posts when no Anthropic key) |
 | `ANTHROPIC_API_KEY` *(optional)* | Upgrades post voice to Claude |
 | `DATABASE_URL` or `POSTGRES_URL` (Neon) *(optional for replies)* | Agent memory and semantic context store; semantic recall is disabled if the database is unavailable |
-| `PERPLEXITY_API_KEY` *(optional)* | Topic-specific web research for substantive questions and current-information requests |
+| `BRAVE_API_KEY` *(optional)* | Live topic research for Ask Homie and @thehomie replies; results are passed to the model with source URLs |
+| `PERPLEXITY_API_KEY` *(optional)* | Recent crypto-news lookup for the autonomous poster |
 | `GEMINI_API_KEY` *(optional when another LLM provider is configured)* | Gemini fallback and semantic embedding generation; without it, live cast search and keyword KB retrieval remain available |
 
 > The autonomous poster stopped working previously because it hard-depended on

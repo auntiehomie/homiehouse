@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
+import ConversationLearningLinks from '@/components/ConversationLearningLinks';
 import EmbedRenderer from "@/components/EmbedRenderer";
 import { previousRoute, readCastNavigation, scrollPageTo, visitRoute, writeCastNavigation } from "@/lib/cast-navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
@@ -588,6 +589,12 @@ export default function CastDetailClient() {
             </button>
           </div>
         )}
+        </section>
+
+        <section aria-label="Learn about this cast" className="surface" style={{ marginBottom: 20, padding: 16 }}>
+          <h2 style={{ margin: '0 0 6px', fontSize: 16 }}>Learn from this conversation</h2>
+          <p style={{ margin: 0, fontSize: 14 }}>Understand an unfamiliar idea or explore a topic with Ask Homie.</p>
+          <ConversationLearningLinks cast={{ hash: cast.hash, text, author: { username: authorUsername } }} />
         </section>
 
         {/* Learning discovery follows the conversation so its card does not split the thread. */}

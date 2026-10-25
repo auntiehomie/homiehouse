@@ -1,3 +1,4 @@
+import { isLearningMode } from '@/lib/conversation-learning';
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentOrchestrator } from '@/lib/ai/agents';
 import { UserProfileStorage } from '@/lib/ai/storage';
@@ -9,12 +10,14 @@ import { isProUser } from '@/lib/pro';
 import { fetchCast } from '@/lib/hypersnap';
 import { formatLiveCastContext, requiresLiveCastEvidence, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
+import { formatLiveWebContext, searchTopicWeb } from '@/lib/ai/news';
+import { shouldSearchWeb } from '@/lib/agent-context';
 
 // Module-level logger for helper functions
 const logger = createApiLogger('/ask-homie');
 
-// Long casts may need extra time when the provider chain falls back.
-export const maxDuration = 60;
+// Increase timeout for agent tool calls and processing
+export const maxDuration = 120; // Thread retrieval and full lessons need the same headroom as /api/lesson.
 
 // Provider selection: Free-tier chain (Cerebras → Groq → Gemini → OpenRouter) via AgentOrchestrator
 // Per docs/AI_PROVIDER_STRATEGY.md: no paid fallback unless explicitly justified
@@ -76,7 +79,16 @@ export async function POST(req: NextRequest) {
       intent,
       feedback,
       eli5 = false,
+      learningMode,
+      learningTopic,
     } = await req.json();
+
+    if (!Array.isArray(messages) || (!messages.length && !feedback) || (isLearningMode(learningMode) && !messages.some((message: any) => message?.role === 'user')) || messages.length > 100 ||
+      messages.some((message: any) => !['user', 'assistant'].includes(message?.role) || typeof message?.content !== 'string' || message.content.length > 20000) ||
+      (learningMode !== undefined && !isLearningMode(learningMode)) ||
+      (learningTopic !== undefined && (typeof learningTopic !== 'string' || learningTopic.length > 200))) {
+      return NextResponse.json({ error: 'Invalid conversation or learning request' }, { status: 400 });
+    }
 
     // Check Pro status if userFid provided
     const userFidForPro = userContext?.fid ? Number(userContext.fid) : 0;
@@ -89,6 +101,14 @@ export async function POST(req: NextRequest) {
           ? 'Rate limited. Try again later.'
           : 'Rate limit reached (10/hour for free users). Upgrade to Pro for 60/hour.',
       }, { status: 429 });
+    }
+
+    if (isLearningMode(learningMode)) {
+      const { generateConversationLearning } = await import('@/lib/ai/conversation-learning');
+      const result = await generateConversationLearning({ mode: learningMode, messages, castContext, topic: learningTopic });
+      return NextResponse.json({ ...result, response: sanitizeAssistantResponse(result.response) }, {
+        headers: { 'Cache-Control': 'private, no-store' },
+      });
     }
 
     logger.info('Processing AI request', { 
@@ -208,6 +228,16 @@ ${contextualMessage}`;
     // to emit pseudo tool calls that it cannot actually run.
     const researchIntent = intent || 'auto';
     const liveCastSearchRequested = shouldSearchLiveCasts(userMessage, researchIntent);
+    const liveWebSearchRequested = researchIntent === 'research' ||
+      (researchIntent === 'auto' && shouldSearchWeb(userMessage));
+    let liveWebResearch: Awaited<ReturnType<typeof searchTopicWeb>> = null;
+
+    if (liveWebSearchRequested) {
+      const castText = activeCastContext?.text ? `\n\nCast to explain:\n${activeCastContext.text}` : '';
+      liveWebResearch = await searchTopicWeb(`${userMessage}${castText}`);
+      if (liveWebResearch) contextualMessage = `${formatLiveWebContext(liveWebResearch)}\n${contextualMessage}`;
+    }
+
     if (liveCastSearchRequested) {
       const searchQuestion = activeCastContext && /\b(similar|other casts|examples)\b/i.test(userMessage)
         ? `${userMessage}\n${activeCastContext.text || ''}`
@@ -250,7 +280,16 @@ ${contextualMessage}`;
       response: sanitizeAssistantResponse(result.content),
       suggestions: result.suggestions,
       agentRole: result.role,
-      metadata: result.metadata,
+      metadata: {
+        ...result.metadata,
+        ...(liveWebSearchRequested ? {
+          liveWebSearch: {
+            provider: 'Brave Search',
+            status: liveWebResearch ? 'searched' : 'unavailable',
+            citations: liveWebResearch?.citations ?? [],
+          },
+        } : {}),
+      },
       mode: 'agent',
       userStats: UserProfileStorage.getStats(userIdentifier)
     });
