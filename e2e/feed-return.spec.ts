@@ -34,7 +34,9 @@ async function fixture(page: Page) {
   await expect(anchor).toContainText('Target long cast.');
   await anchor.scrollIntoViewIfNeeded();
   await page.mouse.move(150, 250);
+  const beforeWheel = await anchor.evaluate(node => node.getBoundingClientRect().top);
   await page.mouse.wheel(0, 650);
+  await expect.poll(() => anchor.evaluate(node => node.getBoundingClientRect().top)).toBeLessThanOrEqual(beforeWheel - 640);
   await expect.poll(() => anchor.evaluate(node => node.getBoundingClientRect().top)).toBeLessThan(-200);
   const offset = await anchor.evaluate(node => node.getBoundingClientRect().top);
   await page.mouse.click(150, 250);
