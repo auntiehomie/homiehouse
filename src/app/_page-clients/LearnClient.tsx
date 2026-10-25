@@ -1510,6 +1510,7 @@ function LearnPageContent() {
         </div>
 
         <div style={{ padding: '0 16px 12px' }}>
+          <Link href="/learn/library" style={{ color: 'var(--accent)', fontSize: 14 }}>Explore Bitcoin, Ethereum, AI, creators, DAOs, and privacy courses →</Link>
           <Link href="/learn/network-states" style={{ color: 'var(--accent)', fontSize: 14 }}>Network States: proposal, counterpoints, and alternatives →</Link>
         </div>
         {/* Tab nav — always visible */}

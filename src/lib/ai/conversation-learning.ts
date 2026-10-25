@@ -1,3 +1,4 @@
+import { getReadingGrounding } from '@/lib/reading-grounding';
 import { llmChat } from '@/lib/llm';
 import { getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
 import { fetchCast } from '@/lib/hypersnap';
@@ -44,22 +45,25 @@ export async function generateConversationLearning({ mode, messages, castContext
   } : undefined;
   const history = messages.slice(-10).map(message => ({ role: message.role, content: message.content.slice(0, 6000) }));
   const query = [topic, history.slice(-3).map(message => message.content).join(' '), cast?.text].filter(Boolean).join(' ').slice(0, 6000);
-  const articles = await getRelevantKBArticles(query, 4);
-  const sources = articles.flatMap(article => {
+  const readingGrounding = getReadingGrounding(query);
+  const articles = await getRelevantKBArticles(query, 4).catch(() => []);
+  const databaseSources = articles.flatMap(article => {
     if (!article.url || (!article.summary && !article.learning_points?.length)) return [];
     try {
       const url = new URL(article.url);
       return url.protocol === 'https:' ? [{ title: article.title, url: url.href }] : [];
     } catch { return []; }
   });
+  const sources = [...new Map([...databaseSources, ...readingGrounding.sources].map(source => [source.url, source])).values()];
   const { message } = await llmChat({
     messages: [
-      { role: 'system', content: `${CONVERSATION_LEARNING_SYSTEM}\n${learningFormat(mode)}\nThe supplied background is not live web verification.` },
+      { role: 'system', content: `${CONVERSATION_LEARNING_SYSTEM}\n${learningFormat(mode)}\nUse the reviewed readings and synced knowledge notes together to explain the chosen cast, not to substitute an unrelated fixed course. Cite their supplied URLs; retain dates, disagreements, and limited-review caveats. The supplied background is not live web verification.` },
       { role: 'user', content: JSON.stringify({
         chosenTopic: topic?.slice(0, 200) || null,
         source: contextSource,
         thread,
         background: formatKBContext(articles),
+        reviewedReadings: readingGrounding.content,
         supportingSources: sources,
         previousExchangeAndCurrentQuestion: history,
       }) },
