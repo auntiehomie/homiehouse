@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type TestResult = {
   envelope: Record<string, string | number>;
@@ -130,6 +130,8 @@ export default function DirectMessagesE2EETest() {
   const [result, setResult] = useState<TestResult | null>(null);
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(true); }, []);
 
   async function runTest() {
     setRunning(true);
@@ -163,7 +165,7 @@ export default function DirectMessagesE2EETest() {
         Alice’s device encrypts a fixed sample for Bob’s device. The checks confirm that the relay cannot read it, Bob can decrypt it, a different device cannot, and altered routing data is rejected.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, margin: '18px 0' }}>
-        <button className="btn primary" type="button" onClick={runTest} disabled={running}>
+        <button className="btn primary" type="button" onClick={runTest} disabled={!ready || running}>
           {running ? 'Running encryption test…' : 'Run E2EE test'}
         </button>
         <span role="status" aria-live="polite" style={{ color: allPassed ? 'var(--accent)' : 'var(--muted-on-dark)', fontWeight: 700 }}>
