@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, useRef, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { learningQuestion, isLearningMode, type LearningMode } from '@/lib/conversation-learning';
 import MentionInput from './MentionInput';
 import { chatHistoryKey, loadChatSnapshot, saveChatSnapshot } from '@/lib/ask-homie-history';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
@@ -36,6 +37,8 @@ interface AgentChatProps {
   };
   onCastSelect?: (cast: string) => void;
   initialMessage?: string;
+  initialLearningMode?: LearningMode;
+  contextReady?: boolean;
 }
 
 // Helper function to parse text and make @mentions and FIDs clickable
@@ -108,11 +111,15 @@ function getSignerUuid(): string | null {
   }
 }
 
-export default function AgentChat({ userId, userContext, castContext, onCastSelect, initialMessage }: AgentChatProps) {
+export default function AgentChat({ userId, userContext, castContext, onCastSelect, initialMessage, initialLearningMode, contextReady = true }: AgentChatProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
+  const [learningMode, setLearningMode] = useState<LearningMode | undefined>(initialLearningMode);
+  const [topic, setTopic] = useState('');
+  const autoStarted = useRef<string | null>(null);
+  const sending = useRef(false);
   const [mode, setMode] = useState<AgentMode>('auto');
   const [userStats, setUserStats] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -136,6 +143,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       setInput(initialMessage || '');
       setMode('auto');
     }
+    const lastLearning = saved?.messages.slice().reverse().find(message => message.role === 'user') as Message | undefined;
+    setLearningMode(lastLearning ? (isLearningMode(lastLearning.metadata?.learningMode) ? lastLearning.metadata.learningMode : undefined) : initialLearningMode);
+    setTopic(lastLearning?.metadata?.learningTopic || '');
     setLoadedHistoryKey(historyKey);
     // historyKey identifies both the account and cast context. Repeated context
     // object creation must not reset the restored conversation.
@@ -198,12 +208,13 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
     }
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-
-    const userMessage = input.trim();
+  const handleSend = async (question = input, requestedLearningMode = learningMode) => {
+    if (!question.trim() || sending.current || !contextReady || loadedHistoryKey !== historyKey) return;
+    sending.current = true;
+    setLearningMode(requestedLearningMode);
+    const userMessage = question.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setMessages(prev => [...prev, { role: 'user', content: userMessage, metadata: { learningMode: requestedLearningMode, learningTopic: topic } }]);
     setIsLoading(true);
 
     try {
@@ -216,6 +227,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           mode: 'agent',
           userId: userId || `temp_${Date.now()}`,
           userContext,
+          learningMode: requestedLearningMode,
+          learningTopic: requestedLearningMode ? topic : undefined,
           intent: mode === 'auto' ? undefined : mode
         })
       });
@@ -244,10 +257,25 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           ? `I couldn't complete that request: ${error.message}`
           : 'I couldn’t complete that request. Please try again.'
       }]);
+      setInput(userMessage);
     } finally {
+      sending.current = false;
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!contextReady || loadedHistoryKey !== historyKey || initialLearningMode !== 'explain') return;
+    if (autoStarted.current === historyKey) return;
+    autoStarted.current = historyKey;
+    // Returning from Share or refreshing a saved conversation must not spend
+    // another request or replace the learner's draft.
+    if (!messages.some(message => message.role === 'user')) {
+      void handleSend(learningQuestion('explain'), 'explain');
+    }
+    // Run once after this account/context's history has been restored.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextReady, loadedHistoryKey, historyKey, initialLearningMode]);
 
   const handleFeedback = async (cast: string, wasHelpful: boolean) => {
     try {
@@ -294,6 +322,19 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
   return (
     <div className="flex flex-col h-full">
+      <section aria-label="Learn with Ask Homie" className="border-b border-zinc-700 p-4">
+        <h2 className="font-semibold">What would you like to understand?</h2>
+        <p className="text-sm text-zinc-400 mt-1">Pick an idea from the conversation, or ask about any topic.</p>
+        <label className="block text-sm mt-3" htmlFor="learning-topic">Topic or question (optional)</label>
+        <input id="learning-topic" value={topic} maxLength={200} onChange={event => setTopic(event.target.value)}
+          placeholder="For example: how end-to-end encryption works"
+          className="w-full min-w-0 mt-1 p-2 rounded-lg border border-zinc-700 bg-zinc-900 text-white" />
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button className="btn" disabled={isLoading || !contextReady} onClick={() => void handleSend(learningQuestion('explain', topic), 'explain')}>Explain in plain English</button>
+          <button className="btn primary" disabled={isLoading || !contextReady} onClick={() => void handleSend(learningQuestion('lesson', topic), 'lesson')}>Build me a lesson</button>
+        </div>
+        {learningMode && <p className="text-xs text-zinc-400 mt-2">{learningMode === 'lesson' ? 'Lesson' : 'Plain-English'} mode · Ask follow-up questions below.</p>}
+      </section>
       {/* Header with mode selector */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 p-4">
         <div className="flex items-center justify-between mb-3">
@@ -325,7 +366,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           {(Object.keys(modeDescriptions) as AgentMode[]).map((m) => (
             <button
               key={m}
-              onClick={() => setMode(m)}
+              onClick={() => { setMode(m); setLearningMode(undefined); }}
               className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
                 mode === m
                   ? 'bg-zinc-600 text-white'
@@ -432,13 +473,13 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         {messages.length === 0 && (
           <div className="text-center text-zinc-500 dark:text-zinc-400 mt-8">
             <div className="text-4xl mb-4">🏠</div>
-            <p className="text-lg font-medium mb-2">Hey! I'm your social learning assistant</p>
+            <p className="text-lg font-medium mb-2">Hey! What are you curious about?</p>
             <p className="text-sm">I can help you:</p>
             <ul className="text-sm mt-2 space-y-1">
               <li>✍️ Write better casts</li>
               <li>🔍 Analyze your content</li>
-              <li>💡 Learn from your patterns</li>
-              <li>📚 Explore ideas from your feed</li>
+              <li>💡 Turn conversations into lessons</li>
+              <li>📚 Understand AI, privacy, crypto, and more</li>
             </ul>
           </div>
         )}
@@ -569,6 +610,14 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                 </div>
               )}
 
+              {msg.role === 'assistant' && msg.metadata?.learningMode && (
+                <div className="mt-3 text-xs text-zinc-400 space-y-1">
+                  <p>Background sources · not a live web check</p>
+                  {msg.metadata.sources?.length ? msg.metadata.sources.map((source: { title: string; url: string }) => (
+                    /^https:\/\//i.test(source.url) ? <a key={source.url} className="block underline break-words" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> : null
+                  )) : <p>No supporting sources retrieved. Ask Homie may make mistakes.</p>}
+                </div>
+              )}
               {/* Show tips */}
               {msg.metadata?.tips && msg.metadata.tips.length > 0 && (
                 <div className="mt-2 text-xs opacity-75 space-y-1">
@@ -609,8 +658,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             />
           </div>
           <button
-            onClick={handleSend}
-            disabled={isLoading || !input.trim()}
+            onClick={() => void handleSend()}
+            disabled={isLoading || !input.trim() || !contextReady}
             className="px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: 'linear-gradient(180deg, #334155 0%, #1e293b 100%)', color: '#e2e8f0', border: '1px solid #475569' }}
           >
