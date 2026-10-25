@@ -94,7 +94,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^10",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.4.2",
     "husky": "^9.1.7",
     "ignore-loader": "^0.1.2",
     "jest": "^30.5.2",
