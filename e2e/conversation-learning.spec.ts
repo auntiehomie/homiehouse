@@ -3,7 +3,10 @@ import { test, expect } from '@playwright/test';
 for (const width of [390, 820, 1280]) {
   test(`conversation explanation and focused lesson at ${width}px`, async ({ page, baseURL }) => {
     await page.setViewportSize({ width, height: 1000 });
-    await page.addInitScript(() => Reflect.deleteProperty(Navigator.prototype, 'serviceWorker'));
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(Navigator.prototype, 'serviceWorker');
+      localStorage.setItem('hh_migration_guide_v1', 'dismissed');
+    });
     const origin = new URL(baseURL || 'http://localhost:3000').origin;
     const requests: any[] = [];
     await page.route('**/*', route => {
