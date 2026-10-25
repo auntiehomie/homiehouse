@@ -14,7 +14,7 @@ for (const width of [390, 820, 1280]) {
       if (url.origin !== origin) return route.abort();
       if (url.pathname === '/api/ask-homie' && route.request().method() === 'POST') {
         requests.push(route.request().postDataJSON());
-        return route.fulfill({ json: { response: requests.at(-1).learningMode === 'lesson' ? '# Your encryption lesson\nAn exercise and understanding check.' : 'Encryption keeps readable messages private.', agentRole: 'researcher', metadata: { learningMode: requests.at(-1).learningMode, sources: [] } } });
+        return route.fulfill({ json: { response: requests.at(-1).learningMode === 'lesson' ? '# Your encryption lesson\nAn exercise and understanding check.' : 'Encryption keeps readable messages private.', agentRole: 'researcher', metadata: { learningMode: requests.at(-1).learningMode, sources: [], liveCastSearch: { resultCount: 1, status: 'searched', citations: [{ url: '/cast/0x' + 'b'.repeat(40), username: 'source-author', text: 'A related public discussion about key recovery.' }] } } } });
       }
       if (url.pathname.startsWith('/api/')) return route.fulfill({ json: { data: [], profile: null, stats: {}, channels: [], notifications: [] } });
       return route.continue();
@@ -22,6 +22,8 @@ for (const width of [390, 820, 1280]) {
     const cast = { hash: '0x' + 'a'.repeat(40), text: '100% private? 🔑', author: { username: 'alice' } };
     await page.goto(`/ask-homie?${new URLSearchParams({ cast: JSON.stringify(cast), learning: 'explain' })}`);
     await expect(page.getByText('Encryption keeps readable messages private.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '@source-author: A related public discussion about key recovery.' })).toHaveAttribute('href', '/cast/0x' + 'b'.repeat(40));
+    await expect(page.getByText('Related casts · 1 retrieved from Hypersnap')).toBeVisible();
     expect(requests).toHaveLength(1);
     expect(requests[0].castContext.text).toBe(cast.text);
     await page.getByLabel('Topic or question (optional)').fill('Key recovery');

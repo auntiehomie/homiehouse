@@ -8,7 +8,7 @@ import { rateLimit } from '@/lib/ratelimit';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
 import { isProUser } from '@/lib/pro';
 import { fetchCast } from '@/lib/hypersnap';
-import { formatLiveCastContext, requiresLiveCastEvidence, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
+import { formatLiveCastContext, liveCastSearchMetadata, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
 import { formatLiveWebContext, searchTopicWeb } from '@/lib/ai/news';
 import { shouldSearchWeb } from '@/lib/agent-context';
@@ -230,6 +230,7 @@ ${contextualMessage}`;
     const liveCastSearchRequested = shouldSearchLiveCasts(userMessage, researchIntent);
     const liveWebSearchRequested = researchIntent === 'research' ||
       (researchIntent === 'auto' && shouldSearchWeb(userMessage));
+    let liveCastResearch: Awaited<ReturnType<typeof searchRelevantCasts>> | null = null;
     let liveWebResearch: Awaited<ReturnType<typeof searchTopicWeb>> = null;
 
     if (liveWebSearchRequested) {
@@ -242,24 +243,7 @@ ${contextualMessage}`;
       const searchQuestion = activeCastContext && /\b(similar|other casts|examples)\b/i.test(userMessage)
         ? `${userMessage}\n${activeCastContext.text || ''}`
         : userMessage;
-      const liveCastResearch = await searchRelevantCasts(searchQuestion);
-      if (liveCastResearch.casts.length === 0 && requiresLiveCastEvidence(userMessage)) {
-        return NextResponse.json({
-          response: "I couldn't verify this from matching live posts. Hypersnap returned no matching posts for this search, which could mean the posts aren't indexed or the search wasn't available; it doesn't establish whether the claim is true or false. Try a shorter phrase or a specific account.",
-          suggestions: [],
-          agentRole: 'researcher',
-          metadata: {
-            liveCastSearch: {
-              provider: 'Hypersnap',
-              queries: liveCastResearch.queries,
-              resultCount: 0,
-              status: 'no-matches-or-unavailable',
-            },
-          },
-          mode: 'agent',
-          userStats: UserProfileStorage.getStats(userIdentifier),
-        });
-      }
+      liveCastResearch = await searchRelevantCasts(searchQuestion);
       contextualMessage = `${formatLiveCastContext(liveCastResearch)}\n${contextualMessage}`;
     }
 
@@ -282,6 +266,7 @@ ${contextualMessage}`;
       agentRole: result.role,
       metadata: {
         ...result.metadata,
+        ...(liveCastResearch ? { liveCastSearch: liveCastSearchMetadata(liveCastResearch) } : {}),
         ...(liveWebSearchRequested ? {
           liveWebSearch: {
             provider: 'Brave Search',

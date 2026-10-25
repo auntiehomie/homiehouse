@@ -539,6 +539,20 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                 </div>
               )}
 
+              {msg.role === 'assistant' && msg.metadata?.liveCastSearch && (
+                <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
+                  <p>{msg.metadata.liveCastSearch.resultCount > 0
+                    ? `Related casts · ${msg.metadata.liveCastSearch.resultCount} retrieved from Hypersnap`
+                    : 'Hypersnap search found no matches or was unavailable. This does not disprove the topic.'}</p>
+                  <p>Posts reflect their authors’ claims and may need corroboration.</p>
+                  {msg.metadata.liveCastSearch.citations?.map((cast: { url: string; username: string; text: string; timestamp?: string | number }) => (
+                    <Link key={cast.url} href={cast.url} className="mt-2 block text-indigo-300 hover:underline">
+                      @{cast.username}: {cast.text}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
               {msg.role === 'assistant' && msg.metadata?.liveWebSearch && (
                 <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
                   <div>

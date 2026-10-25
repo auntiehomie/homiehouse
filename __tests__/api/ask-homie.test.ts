@@ -14,9 +14,8 @@ var searchTopicWeb = jest.fn();
 
 jest.mock('@/lib/ai/cast-research', () => ({
   searchRelevantCasts: (...args: unknown[]) => searchRelevantCasts(...args),
-  shouldSearchLiveCasts: (question: string, intent?: string) =>
-    intent === 'research' || (intent === 'auto' && /farcaster|hypersnap/i.test(question) && /cast|recent|latest|news|discussion|trending|sale|acquisition|verify|read/i.test(question)),
-  requiresLiveCastEvidence: (question: string) => /recent|latest|news|sale|acquisition|verify/i.test(question),
+  shouldSearchLiveCasts: jest.requireActual('@/lib/ai/cast-research').shouldSearchLiveCasts,
+  liveCastSearchMetadata: jest.requireActual('@/lib/ai/cast-research').liveCastSearchMetadata,
   formatLiveCastContext: (research: { queries: string[]; casts: unknown[] }) =>
     `LIVE SEARCH ${research.queries.join(',')}: ${JSON.stringify(research.casts)}`,
 }));
@@ -126,7 +125,7 @@ describe('/api/ask-homie', () => {
     }));
 
     expect(searchTopicWeb).toHaveBeenCalledWith(expect.stringContaining('A cast about decentralized identity.'));
-    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining('LIVE WEB A current, sourced explanation.'), 'auto');
+    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining('LIVE WEB A current, sourced explanation.'), 'research');
     await expect(response.json()).resolves.toMatchObject({
       metadata: { liveWebSearch: { provider: 'Brave Search', status: 'searched', citations: ['https://example.org/article'] } },
     });
@@ -144,7 +143,7 @@ describe('/api/ask-homie', () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining(longText), 'auto');
+    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining(longText), 'research');
   });
 
   it('replaces model-emitted pseudo tool-call markup with a safe fallback', async () => {
@@ -161,7 +160,7 @@ describe('/api/ask-homie', () => {
     await expect(response.json()).resolves.toMatchObject({ response: 'Safe fallback' });
   });
 
-  it('does not generate unsupported claims when a live-event search returns no casts', async () => {
+  it('reports empty cast search while still using other resources for an answer', async () => {
     const response = await POST(new NextRequest('http://localhost/api/ask-homie', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -171,7 +170,7 @@ describe('/api/ask-homie', () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(processRequest).not.toHaveBeenCalled();
+    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining('LIVE SEARCH'), 'research');
     await expect(response.json()).resolves.toMatchObject({
       metadata: { liveCastSearch: { status: 'no-matches-or-unavailable', resultCount: 0 } },
     });
