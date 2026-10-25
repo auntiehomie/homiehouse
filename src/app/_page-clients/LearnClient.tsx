@@ -1482,7 +1482,7 @@ function LearnPageContent() {
   const trackOptions: { id: Track; emoji: string; title: string; subtitle: string }[] = [
     { id: 'ai',              emoji: '🤖', title: 'AI',              subtitle: 'Understand AI agents, LLMs, and the AI–crypto frontier' },
     { id: 'finance',         emoji: '💰', title: 'Finance',         subtitle: 'Master tokens, DeFi, and on-chain portfolio management' },
-    { id: 'creator',         emoji: '🛠️', title: 'Creator',         subtitle: 'Build and create things on-chain' },
+    { id: 'creator',         emoji: '🛠️', title: 'Creator Economy', subtitle: 'Zora, Base App, creator coins and sustainable income' },
     { id: 'decentralization', emoji: '🌐', title: 'Decentralization', subtitle: 'Understand how Web3, wallets, and blockchains work' },
     { id: 'all',             emoji: '✨', title: 'All of the above', subtitle: 'I want the full picture' },
   ];

@@ -1,3 +1,4 @@
+import { creatorEconomyModules, CREATOR_ECONOMY_CONTEXT, isCreatorEconomyTopic } from '@/lib/creator-economy';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
@@ -981,6 +982,12 @@ function fallbackForTrack(track: string, level: string): LearningPlan {
   // Map legacy tracks to new ones
   const normalizedTrack = LEGACY_TRACK_MAP[track] || track;
 
+  if (normalizedTrack === 'creator') {
+    return { track: 'creator', level: level as LearningPlan['level'],
+      summary: 'Explore Zora, Base App, and the rise and setbacks of creator coins, then compare sustainable ways creators earn.',
+      modules: creatorEconomyModules(level) };
+  }
+
   // "All" is a real choice in the UI, not an alias for the default track.
   // Build a balanced cross-track plan from the selected level so the fallback
   // remains useful even when AI personalization is unavailable.
@@ -1203,7 +1210,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Map legacy tracks for backward compat
-    const normalizedTrack = LEGACY_TRACK_MAP[track] || track;
+    const normalizedTrack = isCreatorEconomyTopic(safeSpecificGoals || sourceCast?.text || '')
+      ? 'creator' : LEGACY_TRACK_MAP[track] || track;
 
     if (track === 'network-states') return networkStatePlanResponse(rewardFid);
 
@@ -1248,7 +1256,7 @@ export async function POST(req: NextRequest) {
       decentralization: 'understand decentralization, privacy, encryption, decentralized social, Web3 concepts, wallets, blockchains, and DAOs',
       finance: 'manage assets, understand DeFi tokens, tokenomics, portfolio management, and on-chain financial literacy',
       ai: 'understand AI agents, LLMs, how AI intersects with crypto, AI security, and the AI-crypto frontier',
-      creator: 'build things on-chain, write smart contracts, create NFTs, and understand Web3 developer tooling',
+      creator: 'understand creator livelihoods, Zora NFTs and creator/content coins, the Base App experiment, the rise and setbacks of creator coins, and sustainable monetization',
       all: 'full picture — a broad curriculum spanning decentralization, privacy, encryption, decentralized social, finance, AI, and building on Web3',
     };
 
@@ -1277,6 +1285,7 @@ User profile:
 - Specific goals or topic: ${JSON.stringify(safeSpecificGoals || 'not provided')}
 ${sourceCastContext}
 ${financeTrackGuidance}
+${normalizedTrack === 'creator' ? CREATOR_ECONOMY_CONTEXT + '\nKeep every module focused on creator economics. Ethereum architecture, EVM, storage, DeFi and Solidity are supporting context only, unless the learner explicitly requests them.' : ''}
 ${kbContext}
 ${kbModules.length ? '\nKnowledge-grounding rules:\n- Use the Knowledge Base articles above as the primary factual source for project-specific, historical, and current claims. Use AI to explain, organize, and personalize those facts.\n- Prefer modules tied to these articles when they fit the learner\'s track. Do not invent dates, statistics, rankings, protocol features, or sources absent from the notes.\n- If the notes do not support a specific claim, leave it out or frame it as a question for further research.' : ''}
 Available topic areas to draw from (pick the most relevant for this user's track and goals):
@@ -1341,9 +1350,9 @@ Requirements:
         timeoutMs: 25000,
       });
     } catch (generationError) {
-      if (!sourceCast) throw generationError;
+      if (!sourceCast && normalizedTrack !== 'creator') throw generationError;
       let castFallback = withKBModules(fallbackForTrack(normalizedTrack, level));
-      castFallback = attachCastLesson(castFallback, sourceCast);
+      if (sourceCast) castFallback = attachCastLesson(castFallback, sourceCast);
       if (rewardFid) {
         try { return NextResponse.json(await persistRewardPlan(rewardFid, castFallback, true)); } catch {}
       }

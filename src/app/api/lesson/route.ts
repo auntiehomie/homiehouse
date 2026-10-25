@@ -1,3 +1,4 @@
+import { CREATOR_ECONOMY_CONTEXT, isCreatorEconomyTopic } from '@/lib/creator-economy';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
@@ -653,6 +654,10 @@ FACTUAL CONTEXT — Venice.ai:
     } catch {
       // KB enrichment is best-effort; never block lesson generation
       topicContext = topicParts;
+    }
+
+    if (isCreatorEconomyTopic([title, ...(tags ?? []), sourceCast?.text ?? ''].join(' '))) {
+      topicContext += '\n' + CREATOR_ECONOMY_CONTEXT;
     }
 
     const prompt = `You are a knowledgeable, direct Web3 and decentralization educator writing for curious people who want real understanding — not hype. Generate a thorough, in-depth lesson for this learning module.
