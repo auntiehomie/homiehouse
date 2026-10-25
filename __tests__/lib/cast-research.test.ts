@@ -1,4 +1,4 @@
-import { buildCastSearchQueries, formatLiveCastContext, requiresLiveCastEvidence, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
+import { buildCastSearchQueries, formatLiveCastContext, liveCastSearchMetadata, requiresLiveCastEvidence, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
 
 var mockSearchCasts = jest.fn();
 var mockGetCastsByUsername = jest.fn();
@@ -55,4 +55,26 @@ describe('Ask Homie live cast research', () => {
     expect(context).toContain('No matching casts were returned');
     expect(context).toContain('not evidence that the topic or event is false or absent');
   });
+});
+
+it('searches ordinary topic questions in learn, analyze and auto modes', () => {
+  for (const intent of ['auto', 'learn', 'analyze']) {
+    expect(shouldSearchLiveCasts('Explain creator coins on Zora', intent)).toBe(true);
+  }
+  expect(shouldSearchLiveCasts('Hi', 'auto')).toBe(false);
+});
+
+it('removes explanation boilerplate and retries a shorter Network School query', () => {
+  const queries = buildCastSearchQueries('Explain What is the point of the Network School Takeover of Farcaster? Can you find related casts? in plain English.');
+  expect(queries).toContain('Network School');
+  expect(queries.join(' ')).not.toMatch(/english|explain|related/);
+});
+
+it('links only valid cast hashes and normalizes hashes without a prefix', () => {
+  const meta = liveCastSearchMetadata({ queries: ['zora'], casts: [
+    { hash: 'a'.repeat(40), text: 'A post', username: 'alice' },
+    { hash: 'javascript:bad', text: 'Another post', username: 'bob' },
+  ] });
+  expect(meta.citations).toHaveLength(1);
+  expect(meta.citations[0].url).toBe('/cast/0x' + 'a'.repeat(40));
 });
