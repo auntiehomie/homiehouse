@@ -6,7 +6,7 @@ updated: 2026-10-11
 
 ## Next
 
-- [ ] Prototype an embedded EVM wallet on Base Sepolia with existing HomieHouse auth, passkey recovery, and a Wagmi-compatible provider; keep Hypersnap posting authorization separate [added::2026-10-26] [doc::docs/EMBEDDED_EVM_WALLET.md]
+- [ ] Prototype Coinbase CDP Embedded Wallets on Base Sepolia with HomieHouse custom-JWT auth and Wagmi connector; verify account recovery before production and keep Hypersnap posting authorization separate [added::2026-10-26] [doc::docs/EMBEDDED_EVM_WALLET.md]
 
 ## In Progress
 
