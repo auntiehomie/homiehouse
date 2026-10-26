@@ -19,7 +19,8 @@ import { FeedScope } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { personalizePage, preferenceStorage } from '@/lib/like-curation';
+import FeedTuningControls from './FeedTuningControls';
+import { personalizePage, preferenceStorage, recordFeedFeedback } from '@/lib/like-curation';
 import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions } from '@/lib/recent-interactions';
 import {
   getPendingOptimisticCasts,
@@ -642,6 +643,7 @@ export default function FeedList({
       </div>
     )}
     <style>{`@keyframes ptr-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    {feedType === 'community' && !selectedChannel && <FeedTuningControls key={getStoredFid()} fid={getStoredFid()} />}
     {/* Pull-to-refresh indicator */}
     <div style={{
       overflow: 'hidden',
@@ -724,6 +726,14 @@ export default function FeedList({
             {it.optimistic && (
               <div role="status" style={{ color: 'var(--muted-on-dark)', fontSize: 12, marginBottom: 8 }}>
                 Sent to Hypersnap · waiting for feed confirmation
+              </div>
+            )}
+            {feedType === 'community' && !selectedChannel && getStoredFid() && (
+              <div className="flex flex-wrap gap-2 px-3 py-2" onClick={event => event.stopPropagation()}>
+                {([1, -1] as const).map(direction => <button key={direction} type="button" className="btn text-xs" onClick={() => {
+                  const saved = recordFeedFeedback(getStoredFid(), { hash: it.hash, text, author: { fid: authorFid || 0 } }, direction);
+                  showToast(saved ? 'Preference saved for future Community pages' : 'Unable to save preference on this device', saved);
+                }}>{direction === 1 ? 'More like this' : 'Less like this'}</button>)}
               </div>
             )}
             {feedType === 'community' && Array.isArray(it.community_ranking?.reasons) && (
