@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "smoke-test": "npx tsx scripts/smoke-test.ts",
+    "check:hypersnap-coverage": "npx tsx scripts/check-hypersnap-coverage.ts",
     "setup-agent-signer": "npx tsx scripts/setup-agent-signer.ts",
     "migrate-db": "npx tsx scripts/migrate-db.ts",
     "test": "jest --passWithNoTests",

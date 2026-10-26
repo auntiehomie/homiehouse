@@ -10,9 +10,34 @@
  * Fallback node: HYPERSNAP_FALLBACK_URL     (default: self-hosted proxy on droplet)
  */
 
-const HYPERSNAP_BASE =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_HYPERSNAP_URL) ||
-  'https://haatz.quilibrium.com';
+/**
+ * Server reads prefer the operator's Hypersnap node. `SNAPCHAIN_NODE_URL` is
+ * retained as a compatibility name for Homiehouse's configured personal node;
+ * it does not mean this client should switch to the public Snapchain service.
+ * Private URLs are never selected in a browser bundle.
+ */
+function getHypersnapBase(): string {
+  if (typeof process === 'undefined') return 'https://haatz.quilibrium.com';
+  if (typeof window === 'undefined') {
+    const personalNode = process.env.MY_HYPERSNAP_NODE_URL
+      || process.env.HYPERSNAP_NODE_URL
+      || process.env.SNAPCHAIN_NODE_URL;
+    if (personalNode?.trim()) return personalNode.trim().replace(/\/$/, '');
+  }
+  return process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
+}
+
+const HYPERSNAP_BASE = getHypersnapBase();
+
+/** Safe diagnostic label; intentionally never returns the configured URL. */
+export function getHypersnapReadNodeSource(): 'personal' | 'public' {
+  if (typeof process !== 'undefined' && typeof window === 'undefined' && (
+    process.env.MY_HYPERSNAP_NODE_URL?.trim()
+    || process.env.HYPERSNAP_NODE_URL?.trim()
+    || process.env.SNAPCHAIN_NODE_URL?.trim()
+  )) return 'personal';
+  return 'public';
+}
 
 /** Ardea/Arca — second Hypersnap node, same API surface. Used when primary is slow/unavailable. */
 const HYPERSNAP_FALLBACK =
