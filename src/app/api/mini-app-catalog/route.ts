@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/ratelimit';
 
 const logger = createApiLogger('/mini-app-catalog');
 const CATALOG_URL = 'https://api.neynar.com/v2/farcaster/frame/catalog/';
+const SEARCH_URL = 'https://api.neynar.com/v2/farcaster/frame/search/';
 
 type RecordValue = Record<string, unknown>;
 
@@ -53,6 +54,11 @@ function mapCatalogApp(value: unknown) {
 }
 
 export async function GET(req: Request) {
+  const query = new URL(req.url).searchParams.get('q')?.trim() ?? '';
+  if (query.length > 32) {
+    return NextResponse.json({ error: 'Search terms must be 32 characters or fewer.' }, { status: 400 });
+  }
+
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   const { success } = rateLimit(`mini-app-catalog:${ip}`, 30, 60);
   if (!success) return NextResponse.json({ error: 'Too many catalog requests. Try again shortly.' }, { status: 429 });
@@ -66,7 +72,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    const response = await fetch(`${CATALOG_URL}?limit=100&time_window=7d`, {
+    const providerUrl = query
+      ? `${SEARCH_URL}?${new URLSearchParams({ q: query, limit: '50' })}`
+      : `${CATALOG_URL}?limit=100&time_window=7d`;
+    const response = await fetch(providerUrl, {
       headers: { accept: 'application/json', 'x-api-key': apiKey },
       next: { revalidate: 300 },
     });
@@ -78,7 +87,8 @@ export async function GET(req: Request) {
     const payload: unknown = await response.json();
     const frames = isRecord(payload) && Array.isArray(payload.frames) ? payload.frames : [];
     const apps = frames.map(mapCatalogApp).filter((app): app is NonNullable<typeof app> => app !== null);
-    return NextResponse.json({ apps }, { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' } });
+    const cacheSeconds = query ? 60 : 300;
+    return NextResponse.json({ apps }, { headers: { 'Cache-Control': `public, s-maxage=${cacheSeconds}, stale-while-revalidate=900` } });
   } catch (error) {
     logger.error('GET', error);
     return NextResponse.json({ error: 'The Mini App directory could not be loaded.' }, { status: 502 });

@@ -4,7 +4,7 @@ import { GET } from '@/app/api/mini-app-catalog/route';
 jest.mock('@/lib/ratelimit', () => ({ rateLimit: jest.fn(() => ({ success: true })) }));
 jest.mock('@/lib/logger', () => ({ createApiLogger: () => ({ error: jest.fn() }) }));
 
-const request = () => new NextRequest('http://localhost/api/mini-app-catalog');
+const request = (query = '') => new NextRequest(`http://localhost/api/mini-app-catalog${query}`);
 
 describe('/api/mini-app-catalog', () => {
   const originalApiKey = process.env.NEYNAR_API_KEY;
@@ -61,5 +61,31 @@ describe('/api/mini-app-catalog', () => {
       'https://api.neynar.com/v2/farcaster/frame/catalog/?limit=100&time_window=7d',
       expect.objectContaining({ headers: expect.objectContaining({ 'x-api-key': 'test-api-key' }) }),
     );
+  });
+
+  it('searches the wider Mini App index when a query is supplied', async () => {
+    process.env.NEYNAR_API_KEY = 'test-api-key';
+    global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({
+      frames: [{
+        frames_url: 'https://search.example/',
+        manifest: { miniapp: { home_url: 'https://search.example/', name: 'Search result' } },
+      }],
+    }), { status: 200, headers: { 'content-type': 'application/json' } })) as jest.Mock;
+
+    const response = await GET(request('?q=music%20app'));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ apps: [expect.objectContaining({ name: 'Search result' })] });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.neynar.com/v2/farcaster/frame/search/?q=music+app&limit=50',
+      expect.objectContaining({ headers: expect.objectContaining({ 'x-api-key': 'test-api-key' }) }),
+    );
+  });
+
+  it('rejects search terms longer than the provider limit', async () => {
+    process.env.NEYNAR_API_KEY = 'test-api-key';
+    global.fetch = jest.fn();
+    const response = await GET(request(`?q=${'a'.repeat(33)}`));
+    expect(response.status).toBe(400);
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

@@ -57,6 +57,8 @@ export default function AppsPage() {
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<CatalogApp[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -107,6 +109,39 @@ export default function AppsPage() {
   }, []);
 
   useEffect(() => { void loadCatalog(); }, [loadCatalog]);
+
+  useEffect(() => {
+    const query = search.trim();
+    if (query.length < 2) {
+      setSearchResults(null);
+      setSearchError(null);
+      return;
+    }
+
+    setSearchResults(null);
+    setSearchError(null);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/mini-app-catalog?q=${encodeURIComponent(query)}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not search Mini Apps.');
+        setSearchResults(Array.isArray(data.apps) ? data.apps : []);
+        setSearchError(null);
+      } catch (cause) {
+        if (controller.signal.aborted) return;
+        setSearchError(cause instanceof Error ? cause.message : 'Could not search Mini Apps.');
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [search]);
 
   const launch = (url: string, title: string) => {
     setError(null);
@@ -199,10 +234,14 @@ export default function AppsPage() {
   };
 
   const savedUrls = new Set(apps.map(app => appDetails(app)?.url).filter((url): url is string => Boolean(url)));
-  const visibleCatalog = catalog.filter(app => {
-    const query = search.trim().toLowerCase();
-    return !query || `${app.name} ${app.description} ${app.author ?? ''} ${app.category ?? ''}`.toLowerCase().includes(query);
-  });
+  const searchQuery = search.trim();
+  const isRemoteSearch = searchQuery.length >= 2;
+  const visibleCatalog = isRemoteSearch
+    ? (searchResults ?? [])
+    : catalog.filter(app => {
+      const query = searchQuery.toLowerCase();
+      return !query || `${app.name} ${app.description} ${app.author ?? ''} ${app.category ?? ''}`.toLowerCase().includes(query);
+    });
 
   return (
     <AppShell>
@@ -219,7 +258,7 @@ export default function AppsPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 id="discover-apps-heading" className="text-xl font-semibold text-white">Discover apps</h2>
-              <p className="mt-1 text-sm text-zinc-400">Explore featured Mini Apps. No URL needed.</p>
+              <p className="mt-1 text-sm text-zinc-400">Browse featured apps or search the Mini App directory. No URL needed.</p>
             </div>
             <button type="button" onClick={() => void loadCatalog()} className="self-start text-xs font-medium text-zinc-400 hover:text-white sm:self-auto">
               Refresh directory
@@ -237,8 +276,10 @@ export default function AppsPage() {
             />
           </label>
 
-          {catalogLoading ? (
+          {(catalogLoading && !isRemoteSearch) || (isRemoteSearch && searchResults === null && !searchError) ? (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 text-sm text-zinc-400">Loading available apps…</div>
+          ) : isRemoteSearch && searchError ? (
+            <div role="alert" className="rounded-2xl border border-amber-900/70 bg-amber-950/20 p-5 text-sm text-amber-100">{searchError}</div>
           ) : catalogError ? (
             <div role="alert" className="rounded-2xl border border-amber-900/70 bg-amber-950/20 p-5 text-sm text-amber-100">
               <p>{catalogError}</p>
@@ -246,7 +287,7 @@ export default function AppsPage() {
             </div>
           ) : visibleCatalog.length === 0 ? (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 text-sm text-zinc-400">
-              {catalog.length ? 'No apps match that search.' : 'No apps are listed in the directory yet.'}
+              {isRemoteSearch || catalog.length ? 'No apps match that search.' : 'No apps are listed in the directory yet.'}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
