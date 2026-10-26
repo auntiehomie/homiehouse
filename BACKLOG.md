@@ -6,6 +6,8 @@ updated: 2026-10-11
 
 ## Next
 
+- [ ] Prototype an embedded EVM wallet on Base Sepolia with existing HomieHouse auth, passkey recovery, and a Wagmi-compatible provider; keep Hypersnap posting authorization separate [added::2026-10-26] [doc::docs/EMBEDDED_EVM_WALLET.md]
+
 ## In Progress
 
 - [ ] Deploy and verify the non-upgradeable HH2 escrow contract on Base; configure `NEXT_PUBLIC_HH2_STAKING_CONTRACT_ADDRESS` before enabling on-chain staking [added::2026-10-11]
