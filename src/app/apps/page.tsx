@@ -14,6 +14,17 @@ interface SavedApp {
   saved_at?: string;
 }
 
+interface CatalogApp {
+  id: string;
+  url: string;
+  name: string;
+  description: string;
+  iconUrl?: string;
+  heroImageUrl?: string;
+  author?: string;
+  category?: string;
+}
+
 function appDetails(app: SavedApp): { url: string; title: string } | null {
   let data = app.app_data;
   if (typeof data === 'string') {
@@ -42,6 +53,10 @@ function parseMiniAppUrl(value: string): { url: string; title: string } {
 export default function AppsPage() {
   const { fid, isAuthenticated } = useFarcasterAuth();
   const [apps, setApps] = useState<SavedApp[]>([]);
+  const [catalog, setCatalog] = useState<CatalogApp[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,6 +90,23 @@ export default function AppsPage() {
   }, [isAuthenticated]);
 
   useEffect(() => { void loadApps(); }, [loadApps]);
+
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    try {
+      const response = await fetch('/api/mini-app-catalog', { cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not load the Mini App directory.');
+      setCatalog(Array.isArray(data.apps) ? data.apps : []);
+      setCatalogError(null);
+    } catch (cause) {
+      setCatalogError(cause instanceof Error ? cause.message : 'Could not load the Mini App directory.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadCatalog(); }, [loadCatalog]);
 
   const launch = (url: string, title: string) => {
     setError(null);
@@ -140,6 +172,38 @@ export default function AppsPage() {
     }
   };
 
+  const saveCatalogApp = async (app: CatalogApp) => {
+    if (!isAuthenticated || !fid) {
+      launch(app.url, app.name);
+      setMessage('App opened. Sign in to save it to your Apps list.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch('/api/saved-apps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(getAuthHeaders('write:profile') ?? {}) },
+        body: JSON.stringify({ fid, app_id: app.url, app_data: { url: app.url, title: app.name } }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not save this app.');
+      setApps(current => [data.app, ...current.filter(item => item.app_id !== app.url)]);
+      setMessage(`${app.name} saved to your apps.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save this app.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savedUrls = new Set(apps.map(app => appDetails(app)?.url).filter((url): url is string => Boolean(url)));
+  const visibleCatalog = catalog.filter(app => {
+    const query = search.trim().toLowerCase();
+    return !query || `${app.name} ${app.description} ${app.author ?? ''} ${app.category ?? ''}`.toLowerCase().includes(query);
+  });
+
   return (
     <AppShell>
       <main className="mx-auto w-full max-w-4xl px-3 pb-24 pt-5 sm:px-6 lg:pt-8">
@@ -147,13 +211,90 @@ export default function AppsPage() {
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">HomieHouse</p>
           <h1 className="text-3xl font-bold text-white">Apps</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
-            Open Mini Apps in HomieHouse and keep the ones you use in one place.
+            Browse apps available across the network, open them here, and save the ones you use.
           </p>
         </header>
 
-        <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 sm:p-5">
-          <h2 className="text-base font-semibold text-white">Add a Mini App</h2>
-          <p className="mt-1 text-sm text-zinc-400">Paste its HTTPS URL to save it to your launch list.</p>
+        <section className="mb-7" aria-labelledby="discover-apps-heading">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 id="discover-apps-heading" className="text-xl font-semibold text-white">Discover apps</h2>
+              <p className="mt-1 text-sm text-zinc-400">Explore featured Mini Apps. No URL needed.</p>
+            </div>
+            <button type="button" onClick={() => void loadCatalog()} className="self-start text-xs font-medium text-zinc-400 hover:text-white sm:self-auto">
+              Refresh directory
+            </button>
+          </div>
+
+          <label className="mb-4 block">
+            <span className="sr-only">Search available apps</span>
+            <input
+              type="search"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              placeholder="Search apps by name, topic, or creator…"
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-900/70 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-violet-500"
+            />
+          </label>
+
+          {catalogLoading ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 text-sm text-zinc-400">Loading available apps…</div>
+          ) : catalogError ? (
+            <div role="alert" className="rounded-2xl border border-amber-900/70 bg-amber-950/20 p-5 text-sm text-amber-100">
+              <p>{catalogError}</p>
+              <button type="button" onClick={() => void loadCatalog()} className="mt-2 font-semibold underline underline-offset-2">Try again</button>
+            </div>
+          ) : visibleCatalog.length === 0 ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 text-sm text-zinc-400">
+              {catalog.length ? 'No apps match that search.' : 'No apps are listed in the directory yet.'}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {visibleCatalog.map((app, index) => (
+                <article key={app.id} className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60">
+                  <button type="button" onClick={() => launch(app.url, app.name)} className="block w-full text-left">
+                    <div className="relative aspect-[1.3/1] bg-gradient-to-br from-violet-950 to-zinc-900">
+                      {app.heroImageUrl && index === 0 ? (
+                        <img src={app.heroImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                      ) : app.iconUrl ? (
+                        <img src={app.iconUrl} alt="" className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-2xl object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 grid place-items-center text-3xl font-bold text-violet-200">{app.name.slice(0, 1).toUpperCase()}</div>
+                      )}
+                      {index === 0 && <span className="absolute left-2 top-2 rounded-full bg-violet-600/90 px-2 py-1 text-[10px] font-semibold text-white">Featured</span>}
+                    </div>
+                    <div className="p-3">
+                      <h3 className="truncate text-sm font-semibold text-white">{app.name}</h3>
+                      <p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-zinc-400">{app.description || app.author || new URL(app.url).hostname}</p>
+                      {app.category && <p className="mt-2 truncate text-[10px] uppercase tracking-wide text-violet-300">{app.category.replaceAll('-', ' ')}</p>}
+                    </div>
+                  </button>
+                  <div className="flex items-center gap-2 border-t border-zinc-800/80 p-2">
+                    <button type="button" onClick={() => launch(app.url, app.name)} className="flex-1 rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500">Open</button>
+                    {isAuthenticated && (
+                      <button
+                        type="button"
+                        onClick={() => void saveCatalogApp(app)}
+                        disabled={saving || savedUrls.has(app.url)}
+                        aria-label={savedUrls.has(app.url) ? `${app.name} saved` : `Save ${app.name}`}
+                        className="rounded-lg bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 disabled:opacity-50"
+                      >
+                        {savedUrls.has(app.url) ? 'Saved' : 'Save'}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {message && <p role="status" className="mb-4 text-sm text-emerald-300">{message}</p>}
+        {error && <p role="alert" className="mb-4 text-sm text-rose-300">{error}</p>}
+
+        <details className="mb-7 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 sm:p-5">
+          <summary className="cursor-pointer text-base font-semibold text-white">Add an app by URL</summary>
+          <p className="mt-2 text-sm text-zinc-400">Use this for apps that are not listed in discovery.</p>
           <form onSubmit={addApp} className="mt-4 flex flex-col gap-2 sm:flex-row">
             <input
               type="url"
@@ -178,9 +319,7 @@ export default function AppsPage() {
           {!isAuthenticated && (
             <p className="mt-3 text-xs text-zinc-500">You can open an app now. Sign in to save it for later.</p>
           )}
-          {message && <p role="status" className="mt-3 text-sm text-emerald-300">{message}</p>}
-          {error && <p role="alert" className="mt-3 text-sm text-rose-300">{error}</p>}
-        </section>
+        </details>
 
         <section className="mb-7">
           <h2 className="mb-3 text-lg font-semibold text-white">HomieHouse apps</h2>
