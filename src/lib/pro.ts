@@ -81,6 +81,18 @@ export async function consumeAskHomieProRequest(
   return { allowed: false, used: Number((usage[0] as any)?.requests ?? monthlyLimit) };
 }
 
+/** Return one reserved response when generation fails before a response is delivered. */
+export async function releaseAskHomieProRequest(userFid: number): Promise<void> {
+  await ensureAskHomieTables();
+  await sql`
+    UPDATE ask_homie_usage
+    SET requests = GREATEST(requests - 1, 0),
+        updated_at = NOW()
+    WHERE user_fid = ${userFid}
+      AND period_start = date_trunc('month', NOW())::date
+  `;
+}
+
 /** Subscription and current-month usage for the signed-in account. */
 export async function getAskHomieProStatus(userFid: number): Promise<{
   active: boolean;
