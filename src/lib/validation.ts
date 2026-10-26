@@ -3,6 +3,7 @@
  */
 
 import { ValidationError } from './errors';
+import { MAX_CAST_EMBEDS } from './cast-embeds';
 
 /**
  * Validate cast text content.
@@ -218,8 +219,8 @@ export function validateEmbeds(embeds: any): any[] {
     throw new ValidationError('Embeds must be an array', 'embeds');
   }
 
-  if (embeds.length > 2) {
-    throw new ValidationError('Maximum 2 embeds allowed per cast', 'embeds');
+  if (embeds.length > MAX_CAST_EMBEDS) {
+    throw new ValidationError(`Maximum ${MAX_CAST_EMBEDS} embeds allowed per cast`, 'embeds');
   }
 
   // Validate each embed has a URL

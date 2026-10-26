@@ -40,6 +40,7 @@ import createLinkifyPlugin from '@draft-js-plugins/linkify';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { searchUsers } from '@/lib/hypersnap';
+import { MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
@@ -385,24 +386,28 @@ export default function CastComposer({
 
   // ── Image upload ──────────────────────────────────────────────────────
   const handleImageUpload = useCallback(async () => {
+    const slots = MAX_CAST_PHOTOS - imageUrls.length;
+    if (slots <= 0 || uploadingImage) return;
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
+    input.multiple = true;
     input.onchange = async (e: Event) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      const files = Array.from((e.target as HTMLInputElement).files ?? []).slice(0, slots);
+      if (!files.length) return;
       setUploadingImage(true);
       try {
-        const form = new FormData();
-        form.append('file', file);
-        const res = await fetch('/api/upload', {
-          method: 'POST',
-          body: form,
-        });
-        const data = await res.json();
-        if (data?.url) {
-          setImageUrls((prev) => [...prev, data.url]);
+        const uploaded: string[] = [];
+        for (const file of files) {
+          const form = new FormData();
+          form.append('file', file);
+          if (userFid) form.append('fid', String(userFid));
+          const res = await fetch('/api/upload-image', { method: 'POST', body: form });
+          const data = await res.json();
+          if (res.ok && data?.ok && data?.url) uploaded.push(data.url);
         }
+        if (uploaded.length) setImageUrls((prev) => [...prev, ...uploaded].slice(0, MAX_CAST_PHOTOS));
       } catch (err) {
         console.error('Image upload failed:', err);
       } finally {
@@ -410,7 +415,7 @@ export default function CastComposer({
       }
     };
     input.click();
-  }, []);
+  }, [imageUrls.length, uploadingImage, userFid]);
 
   const removeImage = useCallback((url: string) => {
     setImageUrls((prev) => prev.filter((u) => u !== url));
@@ -436,6 +441,7 @@ export default function CastComposer({
       const result = await submitCast({
         text,
         embeds,
+        galleryImages: imageUrls,
         channelKey: selectedChannel || undefined,
       });
 
@@ -444,7 +450,9 @@ export default function CastComposer({
         EditorState.createWithContent(ContentState.createFromText('')),
       );
       setImageUrls([]);
-      setStatus('Cast sent!');
+      setStatus(result.galleryFallback
+        ? 'Cast sent with a Homiehouse photo gallery link.'
+        : 'Cast sent!');
 
       if (onSubmitted) {
         onSubmitted(result);
@@ -589,11 +597,13 @@ export default function CastComposer({
         <button
           type="button"
           onClick={handleImageUpload}
-          style={editorStyles.iconBtn}
-          disabled={uploadingImage}
-          title="Add image"
+          style={{ ...editorStyles.iconBtn, width: 'auto', minWidth: '52px' }}
+          disabled={uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS}
+          title={imageUrls.length >= MAX_CAST_PHOTOS ? 'Maximum 4 photos' : `Add photos (${imageUrls.length}/${MAX_CAST_PHOTOS})`}
+          aria-label={imageUrls.length >= MAX_CAST_PHOTOS ? 'Maximum 4 photos attached' : `Add photos, ${imageUrls.length} of ${MAX_CAST_PHOTOS} attached`}
         >
           {uploadingImage ? '⏳' : '🖼️'}
+          <span style={{ fontSize: '11px', marginLeft: '3px' }}>{imageUrls.length}/{MAX_CAST_PHOTOS}</span>
         </button>
 
         {/* Character count */}
