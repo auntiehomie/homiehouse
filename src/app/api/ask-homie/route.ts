@@ -6,7 +6,7 @@ import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
-import { ASK_HOMIE_PRO_MONTHLY_LIMIT, consumeAskHomieProRequest, isAskHomieProUser, isProUser } from '@/lib/pro';
+import { ASK_HOMIE_PRO_MONTHLY_LIMIT, consumeAskHomieProRequest, isAskHomieProUser, isProUser, releaseAskHomieProRequest } from '@/lib/pro';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { fetchCast } from '@/lib/hypersnap';
 import { formatLiveCastContext, liveCastSearchMetadata, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
@@ -65,6 +65,7 @@ async function fetchCastData(castHash: string) {
 export async function POST(req: NextRequest) {
   const logger = createApiLogger('/ask-homie');
   logger.start();
+  let askHomieUsageReservedFid: number | null = null;
 
   try {
     // SECURITY: Rate limit — free tier 10/hr, Pro tier 60/hr
@@ -135,11 +136,13 @@ export async function POST(req: NextRequest) {
           limit: ASK_HOMIE_PRO_MONTHLY_LIMIT,
         }, { status: 429 });
       }
+      askHomieUsageReservedFid = authenticatedFid;
     }
 
     if (isLearningMode(learningMode)) {
       const { generateConversationLearning } = await import('@/lib/ai/conversation-learning');
       const result = await generateConversationLearning({ mode: learningMode, messages, castContext, topic: learningTopic });
+      askHomieUsageReservedFid = null;
       return NextResponse.json({ ...result, response: sanitizeAssistantResponse(result.response) }, {
         headers: { 'Cache-Control': 'private, no-store' },
       });
@@ -294,6 +297,7 @@ ${contextualMessage}`;
       });
     }
 
+    askHomieUsageReservedFid = null;
     return NextResponse.json({
       response: sanitizeAssistantResponse(result.content),
       suggestions: result.suggestions,
@@ -313,6 +317,9 @@ ${contextualMessage}`;
       userStats: UserProfileStorage.getStats(userIdentifier)
     });
   } catch (error: any) {
+    if (askHomieUsageReservedFid !== null) {
+      try { await releaseAskHomieProRequest(askHomieUsageReservedFid); } catch {}
+    }
     logger.error('AI request failed', error);
     return handleApiError(error, 'POST /ask-homie');
   }
