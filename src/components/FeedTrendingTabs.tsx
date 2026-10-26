@@ -22,10 +22,10 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
 
   return (
     <div>
-      <nav aria-label="Learn, earn and connect" className="flex flex-wrap gap-2 mb-4 text-sm">
-        <Link href="/learn" className="btn text-xs" style={{ padding: '8px 12px' }}>📚 Learn</Link>
-        <Link href="/shop" className="btn text-xs" style={{ padding: '8px 12px' }}>✨ Earn & redeem</Link>
-        <Link href="/community" className="btn text-xs" style={{ padding: '8px 12px' }}>🤝 Connect</Link>
+      <nav aria-label="Learn, earn and connect" className="hh-feed-shortcuts flex flex-wrap gap-2 mb-4 text-sm">
+        <Link href="/learn" className="btn text-xs">📚 Learn</Link>
+        <Link href="/shop" className="btn text-xs">✨ Earn & redeem</Link>
+        <Link href="/community" className="btn text-xs">🤝 Connect</Link>
       </nav>
       <div aria-label="Feed views" className="hh-feed-tabs">
         <button className="btn" aria-pressed={feedType === 'following'} onClick={() => { setFeedType('following'); setSelectedChannel(null); }}>Following</button>
