@@ -52,7 +52,7 @@ export function rankCommunityCasts<T extends CommunityCast>(casts: T[], historie
     const context = Math.min(1, 0.5 + (cast.parent_hash ? 0.25 : 0) + (cast.embeds?.length ? 0.25 : 0));
     const components = { context, engagement, participation, freshness, history };
     const score = Object.entries(COMMUNITY_WEIGHTS).reduce((sum, [key, weight]) => sum + components[key as keyof typeof components] * weight, 0);
-    const reasons = ['Community experiment: ranked within this Hypersnap page'];
+    const reasons = ['Community: ranked within this Hypersnap discovery page'];
     if (sufficientHistory) reasons.push(`${sample.length} sampled casts across ${activeWeeks} active weeks; earliest observed ${new Date(oldest!).toISOString().slice(0, 10)}`);
     else reasons.push('Limited casting history; neutral history and participation scores');
     if (engagement >= 0.5) reasons.push('Engagement relative to reported audience size (aggregate counts)');

@@ -1,16 +1,18 @@
-# Community feed experiment
+# Community Feed
 
 Community is an optional feed tab. Following remains the member default and preserves native newest-first ordering; Discovery preserves node ordering. Mute/hide preferences still apply. No automatic spam exclusion is added.
 
-## Candidate and history boundary
+## Candidate selection and history boundary
 
-`GET /api/feed?feed_type=community` reads the existing Hypersnap trending endpoint, then reorders **only that page**, returning its original cursor. It cannot promote casts excluded by the upstream candidate feed, and is not a complete network index. Page boundaries remain upstream boundaries: a later page may contain a higher-scoring cast. The client appends pages, deduplicates hashes, and restores its saved ordered cards rather than reranking on detail return.
+`GET /api/feed?feed_type=community` reads the Hypersnap trending endpoint, then reorders **only that page**, returning its original cursor. It cannot promote casts excluded by the upstream candidate feed, and is not a complete network index. Page boundaries remain upstream boundaries: a later page may contain a higher-scoring cast. The client appends pages, deduplicates hashes, and restores its saved ordered cards rather than reranking on detail return.
+
+The optional environment settings `HOMIEHOUSE_COMMUNITY_TRENDING_WINDOW`, `HOMIEHOUSE_COMMUNITY_INCLUDE_SIGNER_FIDS`, and `HOMIEHOUSE_COMMUNITY_EXCLUDE_SIGNER_FIDS` refine the candidate page before local ranking. The signer FIDs are **publishing client app IDs** that registered cast signing keys; they are not author FIDs. Inclusion accepts casts signed by listed apps and excludes unknown clients. Exclusion drops casts from listed apps; exclusion wins if an app appears in both lists. The window accepts `1h`, `6h`, `12h`, `24h`, or `7d`. Leave both lists unset for normal Hypersnap trending. Signer filtering requires a node running the Hypersnap [`trending_exclude_signer_fids` change](https://github.com/farcasterorg/hypersnap/tree/feature/trending_exclude_signer_fids) or a compatible build; do not claim the filter is active until the node responds with filtered results.
 
 For every valid author FID, the server samples at most 50 recent casts through `/v2/farcaster/feed/user/casts`. Six concurrent requests maximum, each with a 1.5-second timeout. The process-local cache holds at most 500 public samples for 15 minutes. Cache misses can add up to roughly 13.5 seconds for a 50-author page; scale testing and a persistent index should precede broader adoption. Cache is expendable and may differ across server instances. History failures yield neutral scores without dropping candidates. Invalid author IDs never become requests.
 
 Dates in the future, invalid dates, other authors' casts and duplicate hashes are ignored. Earliest observed is only the earliest date in that sample, not a first-ever cast, registration date, identity age, or durable reputation record. Frequent casters may have years of history absent from a recent sample.
 
-## Version community-v1
+## Current scoring: community-v1
 
 All components are bounded 0–1. Weights sum to one:
 
@@ -26,6 +28,17 @@ Stable ties retain original node order. Prefer at most two casts per author whil
 
 Each cast includes score components, sample size, earliest observed and reasons under `community_ranking`; the UI exposes “Why this cast?” and a feed-level explanation. No grammar, writing-length, language, sentiment, AI detector or human-authenticity classifier is used. Context is not personalized relevance. No LLM calls, paid APIs, database migrations, private messages or wallet information are required.
 
+## EigenTrust as a complementary signal
+
+EigenTrust is not part of the current Community score. The right next step is to compute a separate, explainable trust score for authors from a **Hypersnap-derived interaction graph**, then blend it with the existing cast signals after review. It should help answer “does this author sit in a trusted part of this community's network?” It cannot answer “is this cast about the topic I want?”
+
+1. Build a rolling public-event index from the Hypersnap node: follows, likes, recasts, and replies. Form directed, weighted edges from the acting FID to the cast author FID. Deduplicate events, apply time decay, and cap each account's influence so repeated activity cannot dominate. Do not construct this graph by fanning out to many node endpoints on each feed request.
+2. Compute separate contexts: personalized scores seeded by accounts a member follows or engages with, and an optional shared score seeded by accounts the Quorum-led community explicitly chooses. Keep these scopes distinct and record the seed set and graph coverage with each snapshot.
+3. Use trust only as one ranking component after candidate selection. Keep topic relevance, recency, conversation context, and newcomer exploration in the blend. Do not remove casts based on a single trust score, and show the trust path or score coverage in “Why this cast?”
+4. Compare EigenTrust against current Community ordering on a human-reviewed sample and watch for new-author exposure, topic fit, and latency before choosing weights or changing the default.
+
+OpenRank's existing Farcaster rankings are precomputed against their own Farcaster graph. They are not automatically scores from the personal Hypersnap node. OpenRank documents a custom-graph SDK, but its compute path has its own setup and access requirements. A local EigenTrust computation over a maintained Hypersnap event index gives Homiehouse control over data provenance, seeds, contexts, and refresh cadence.
+
 ## Evaluate before advancing
 
 1. Review actual candidate pages for useful conversation discovery, old/new author distribution and short/non-English/personal posts. Compare with Discovery and Following.
@@ -34,4 +47,4 @@ Each cast includes score components, sample size, earliest observed and reasons 
 4. Collect voluntary “more/less like this” feedback and test contextual relevance; avoid a universal public authenticity score.
 5. Benchmark latency and node load, consolidate concurrent sample requests, and validate ranking outcomes against a human-reviewed dataset before changing weights or defaults.
 
-Rollback: remove/hide the Community tab; existing Following/Discovery have no ranking dependency at request time. This experiment is proposed via PR and is not automatically deployed by local validation.
+Rollback: remove/hide the Community tab; existing Following/Discovery have no ranking dependency at request time. Community remains an optional view and does not change Following or Discovery.

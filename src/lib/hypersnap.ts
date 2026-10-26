@@ -177,6 +177,22 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
   }
   const qs = new URLSearchParams({ limit: String(limit) });
   if (params.cursor) qs.set('cursor', String(params.cursor));
+  const timeWindow = typeof params.time_window === 'string' ? params.time_window.trim() : '';
+  if (timeWindow) {
+    if (!['1h', '6h', '12h', '24h', '7d'].includes(timeWindow)) {
+      throw new Error('Hypersnap trending time_window must be one of 1h, 6h, 12h, 24h, or 7d');
+    }
+    qs.set('time_window', timeWindow);
+  }
+  for (const name of ['include_signer_fids', 'exclude_signer_fids']) {
+    const raw = typeof params[name] === 'string' ? params[name].trim() : '';
+    if (!raw) continue;
+    const fids = [...new Set(raw.split(',').map((fid: string) => fid.trim()))];
+    if (fids.length > 100 || fids.some((fid: string) => !/^[1-9]\d*$/.test(fid))) {
+      throw new Error(`${name} must be a comma-separated list of up to 100 positive app FIDs`);
+    }
+    qs.set(name, fids.join(','));
+  }
   const endpoint = `/v2/farcaster/feed/trending?${qs}`;
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
