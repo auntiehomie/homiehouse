@@ -27,6 +27,15 @@ const LearnIcon = (
   </svg>
 );
 
+const AppsIcon = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+  </svg>
+);
+
 const CastIcon = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -52,6 +61,7 @@ const NAV_ITEMS = [
   { href: '/feed', label: 'Feed', exact: true, icon: FeedIcon },
   { href: '/messages', label: 'Messages', icon: <span style={{ fontSize: 18 }}>✉️</span> },
   { href: '/learn', label: 'Learn', icon: LearnIcon },
+  { href: '/apps', label: 'Apps', icon: AppsIcon },
   { href: '/community', label: 'Community', icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🛡️</span> },
   { href: '/hh2', label: 'HH2 Token', icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🪙</span> },
   {
