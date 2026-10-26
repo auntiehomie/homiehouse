@@ -21,7 +21,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
     void el.offsetHeight;
     el.classList.add('hh-page-transition');
     const timer = setTimeout(() => { el.style.pointerEvents = ''; }, 150);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); el.style.pointerEvents = ''; };
   }, [pathname]);
 
   return (

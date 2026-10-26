@@ -443,8 +443,8 @@ function LearningFeed() {
             style={{
               flexShrink: 0, padding: '5px 14px', borderRadius: 20, fontSize: 13,
               fontWeight: channelId === ch.id ? 700 : 400,
-              background: channelId === ch.id ? 'var(--accent)' : 'transparent',
-              color: channelId === ch.id ? '#fff' : 'var(--muted-on-dark)',
+              background: channelId === ch.id ? 'var(--btn-primary-bg)' : 'transparent',
+              color: channelId === ch.id ? 'var(--btn-primary-color)' : 'var(--muted-on-dark)',
               border: `1px solid ${channelId === ch.id ? 'var(--accent)' : 'var(--border)'}`,
               cursor: 'pointer', transition: 'all 0.15s',
             }}
@@ -983,8 +983,8 @@ function HomieReadPanel({ currentPlan, initialQuestion = '' }: { currentPlan: Le
             disabled={!input.trim() || loading}
             style={{
               padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700,
-              background: input.trim() && !loading ? 'var(--accent)' : 'var(--surface)',
-              color: input.trim() && !loading ? '#fff' : 'var(--muted-on-dark)',
+              background: input.trim() && !loading ? 'var(--btn-primary-bg)' : 'var(--surface)',
+              color: input.trim() && !loading ? 'var(--btn-primary-color)' : 'var(--muted-on-dark)',
               border: 'none', cursor: input.trim() && !loading ? 'pointer' : 'not-allowed',
               transition: 'all 0.15s',
             }}

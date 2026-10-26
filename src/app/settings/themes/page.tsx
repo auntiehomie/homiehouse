@@ -164,6 +164,14 @@ function colorsToVars(c: CustomColors): Record<string, string> {
   };
 }
 
+function fadeThemeChange(update: () => void) {
+  if (document.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.startViewTransition(update);
+  } else {
+    update();
+  }
+}
+
 // ── ThemeCard ─────────────────────────────────────────────────────────────────
 
 function ThemeCard({
@@ -575,7 +583,7 @@ export default function ThemesPage() {
                 key={theme.id}
                 theme={theme}
                 active={activeTheme === theme.id}
-                onClick={() => applyTheme(theme.id)}
+                onClick={() => fadeThemeChange(() => applyTheme(theme.id))}
               />
             ))}
           </div>
@@ -603,7 +611,7 @@ export default function ThemesPage() {
                 theme={theme}
                 active={activeTheme === theme.id}
                 locked={!unlocked}
-                onClick={() => handlePremiumClick(theme.id)}
+                onClick={() => fadeThemeChange(() => handlePremiumClick(theme.id))}
               />
             ))}
           </div>
@@ -633,7 +641,7 @@ export default function ThemesPage() {
                     preview: theme.preview,
                   }}
                   active={activeTheme === theme.id}
-                  onClick={() => applyShopTheme(theme)}
+                  onClick={() => fadeThemeChange(() => applyShopTheme(theme))}
                 />
               ))}
             </div>
@@ -672,7 +680,7 @@ export default function ThemesPage() {
             <ThemeBuilder
               colors={customColors}
               onChange={setCustomColors}
-              onApply={applyCustomTheme}
+              onApply={() => fadeThemeChange(applyCustomTheme)}
               active={activeTheme === 'custom'}
             />
           ) : (

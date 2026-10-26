@@ -879,34 +879,28 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   padding-bottom: max(env(safe-area-inset-bottom), 16px);
 }
 
-/* Page transition — fade up from slight offset for a fluid mobile feel */
-@keyframes hhPageIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.hh-page-transition {
-  animation: hhPageIn 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-/* Toast fade-in */
-@keyframes hhFadeIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
-/* Page transition — quick fade only; no translate (causes layout shift) */
+/* A single fade avoids competing route animations and layout movement. */
 @keyframes hhPageIn {
   from { opacity: 0; }
-  to   { opacity: 1; }
+  to { opacity: 1; }
 }
-.hh-page-transition {
-  animation: hhPageIn 0.12s ease-out;
-}
-
-/* Toast fade-in */
+.hh-page-transition { animation: hhPageIn 240ms ease-out; }
 @keyframes hhFadeIn {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Restrained depth follows each palette, including custom/shop themes. */
+.surface {
+  background-image: linear-gradient(155deg, color-mix(in srgb, var(--text-on-dark) 4%, transparent), transparent 65%);
+}
+.btn {
+  border-color: color-mix(in srgb, var(--text-on-dark) 30%, var(--surface));
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hh-page-transition { animation: none; }
+  .btn { transition: none; }
 }
 
 /* Shared polish: consistent focus treatment and comfortable reading measure. */
@@ -940,4 +934,13 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 }
 @media (max-height: 500px) {
   .modal { max-height: calc(var(--hh-viewport-height, 100dvh) - 16px); }
+}
+
+/* Crossfade theme changes where supported; older browsers apply immediately. */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: ease-in-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }

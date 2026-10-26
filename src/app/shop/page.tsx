@@ -262,8 +262,8 @@ export default function ShopPage() {
                           disabled={!afford}
                           style={{
                             width: '100%', padding: '8px 12px', borderRadius: 8,
-                            background: afford ? 'var(--accent)' : 'rgba(255,255,255,0.08)',
-                            color: afford ? '#fff' : 'var(--muted-on-dark)',
+                            background: afford ? 'var(--btn-primary-bg)' : 'rgba(255,255,255,0.08)',
+                            color: afford ? 'var(--btn-primary-color)' : 'var(--muted-on-dark)',
                             border: 'none', fontWeight: 600, fontSize: 13,
                             cursor: afford ? 'pointer' : 'not-allowed',
                             transition: 'opacity 0.15s',
