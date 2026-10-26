@@ -176,7 +176,7 @@ export default function MobileNav() {
           zIndex: 9500,
           background: 'var(--nav-bg)',
           // Extend background into the safe area so the notch/status bar region is opaque
-          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingTop: 'var(--hh-top-inset, env(safe-area-inset-top, 0px))',
         }}
       >
         <style>{`
