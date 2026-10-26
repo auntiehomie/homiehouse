@@ -244,7 +244,11 @@ function parseLessonJson(raw: string): LessonContent | null {
  * the original quiz is returned unchanged, so verification can never break a
  * lesson.
  */
-async function verifyQuiz(quiz: QuizQuestion[], topicContext: string): Promise<QuizQuestion[]> {
+async function verifyQuiz(
+  quiz: QuizQuestion[],
+  topicContext: string,
+  providerOrder?: string[],
+): Promise<QuizQuestion[]> {
   if (!Array.isArray(quiz) || quiz.length === 0) return quiz;
   if (getLLMProviders().length === 0) return quiz;
 
@@ -273,6 +277,7 @@ Return ONLY a JSON array — no markdown, no prose. One object per question:
       maxTokens: 700,
       temperature: 0,
       timeoutMs: 15000,
+      providerOrder,
     });
     const raw = (message.content ?? '')
       .replace(/^```(?:json)?\s*/i, '')
@@ -752,6 +757,14 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     // enrichment for case studies and fast-moving protocol topics so an
     // optional provider cannot add latency to every course.
     const needsLiveResearch = isHyperliquid || tagSet.includes('case-study') || tagSet.includes('current');
+    const hasKnowledgeBaseContext = topicContext.includes('# Knowledge Base Context');
+    const lessonProviderOrder = hasKnowledgeBaseContext && !needsLiveResearch
+      ? ['openrouter-gpt-oss', 'openrouter-deepseek', 'openrouter-haiku']
+      : ['openrouter-deepseek', 'openrouter-haiku'];
+    // Preserve Gemini as a fallback only for deployments that have no OpenRouter key.
+    if (!process.env.OPENROUTER_API_KEY && process.env.GEMINI_API_KEY) {
+      lessonProviderOrder.push('gemini');
+    }
     if (process.env.TAVILY_API_KEY && needsLiveResearch) {
       const searchQuery = [title, ...(tags ?? []).slice(0, 2), 'blockchain cryptocurrency 2026'].join(' ');
       const ctrl = new AbortController();
@@ -777,16 +790,17 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       }
     }
 
-    // ── Single unified provider chain via llmChat ───────────────────────────
-    // Provider order: Haiku 4.5 (fast, cheap, great for structured JSON) →
-    // GLM 5.2 (paid) → GLM 5.2 (free) → GPT-OSS → Gemma. 55s timeout per
-    // provider so lesson generation has room to breathe.
+    // ── Cost-aware lesson provider tiers via llmChat ───────────────────────
+    // KB-grounded evergreen lessons start with GPT-OSS; all other lessons start
+    // with DeepSeek. Haiku is the quality recovery tier. Free models are omitted
+    // because their rate limits caused unreliable course fallbacks.
     try {
       const { message, provider } = await llmChat({
         messages: [{ role: 'user', content: enrichedPrompt }],
         maxTokens: 5500,
         temperature: 0.7,
         timeoutMs: 35000,
+        providerOrder: lessonProviderOrder,
       });
       content = message.content?.trim() ?? '';
       usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
@@ -817,6 +831,10 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
           maxTokens: 5500,
           temperature: 0.4,
           timeoutMs: 35000,
+          providerOrder: [
+            'openrouter-haiku',
+            ...lessonProviderOrder.filter((name) => name !== 'openrouter-haiku'),
+          ],
         });
         lesson = parseLessonJson(message.content ?? '');
         if (lesson) logger.info('recovered on strict retry');
@@ -865,7 +883,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       const initialLesson = lesson;
       after(async () => {
         try {
-          const verifiedQuiz = await verifyQuiz(initialLesson.quiz, topicContext);
+          const verifiedQuiz = await verifyQuiz(initialLesson.quiz, topicContext, lessonProviderOrder);
           await redis.set(cacheKey, { ...initialLesson, quiz: verifiedQuiz }, { ex: 60 * 60 * 24 * 30 });
         } catch {
           // The already-cached lesson remains available if verification fails.
@@ -874,7 +892,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     } else {
       // Local/dev deployments without Redis retain the original correctness
       // behavior because there is no warm cache to update later.
-      lesson.quiz = await verifyQuiz(lesson.quiz, topicContext);
+      lesson.quiz = await verifyQuiz(lesson.quiz, topicContext, lessonProviderOrder);
     }
 
     return rewardTrackedLessonResponse(rewardFid, rewardModuleId, lesson);
