@@ -28,6 +28,7 @@ function getHypersnapBase(): string {
 }
 
 const HYPERSNAP_BASE = getHypersnapBase();
+const READ_SOURCE_FIELD = '__homiehouseHypersnapReadSource';
 
 /** Safe diagnostic label; intentionally never returns the configured URL. */
 export function getHypersnapReadNodeSource(): 'personal' | 'public' {
@@ -182,12 +183,12 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
   // 1. Primary Hypersnap node
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
-    if (Array.isArray(data?.casts)) return data;
+    if (Array.isArray(data?.casts)) return { ...data, [READ_SOURCE_FIELD]: 'configured' };
   } catch (_) {}
 
   // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
   const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
-  if (Array.isArray(fallback?.casts)) return fallback;
+  if (Array.isArray(fallback?.casts)) return { ...fallback, [READ_SOURCE_FIELD]: 'fallback' };
 
   throw new Error('Feed unavailable on both nodes');
 }
@@ -221,10 +222,10 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
   const endpoint = `/v2/farcaster/feed/trending?${qs}`;
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
-    if (Array.isArray(data?.casts)) return data;
+    if (Array.isArray(data?.casts)) return { ...data, [READ_SOURCE_FIELD]: 'configured' };
   } catch {}
   const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
-  if (Array.isArray(fallback?.casts)) return fallback;
+  if (Array.isArray(fallback?.casts)) return { ...fallback, [READ_SOURCE_FIELD]: 'fallback' };
   throw new Error('Trending feed unavailable on both nodes');
 }
 
