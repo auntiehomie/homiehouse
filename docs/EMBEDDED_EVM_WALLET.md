@@ -13,7 +13,7 @@ Hypersnap identity and posting authorization remain separate from EVM asset acce
 
 | Avenue | Fit for HomieHouse | Main tradeoff |
 | --- | --- | --- |
-| **Coinbase CDP Embedded Wallets** | Custom JWT authentication can bridge a verified HomieHouse session; the CDP Wagmi connector exposes the embedded wallet through the existing Wagmi model. EVM EOAs work across EVM networks, including Base. | Current product documentation marks Embedded Wallets as beta. Confirm production readiness, terms, pricing, and recovery behavior before shipping beyond testnet. |
+| **Coinbase CDP Embedded Wallets** | Custom JWT authentication can bridge a verified HomieHouse session; the CDP Wagmi connector exposes the embedded wallet through the existing Wagmi model. EVM EOAs work across EVM networks, including Base. | Coinbase announced general availability on 2025-10-15. Verify current terms, pricing, recovery, and account-portability behavior for HomieHouse before production. |
 | **Base Account SDK Sub Accounts** | App-specific embedded accounts, EIP-1193 access, and Wagmi/Viem integration; passkey-oriented and designed around Base. | Requires a Coinbase/Base Account connection. Device changes can trigger signer-owner updates, so account continuity and recovery need testing. More Base-specific than the current multi-chain wallet surface. |
 
 Proceed with a **Base Sepolia-only CDP Embedded Wallets spike**, using HomieHouse custom-JWT auth and the CDP Wagmi connector. This is a technical prototype choice, not a production vendor commitment. Keep RainbowKit and WalletConnect available. Create a regular embedded EOA for this spike; do not silently substitute a smart account or connect this wallet to FID custody.
@@ -33,7 +33,7 @@ Proceed with a **Base Sepolia-only CDP Embedded Wallets spike**, using HomieHous
 3. **Wallet integration:** install and configure the CDP hooks and Wagmi connector at the client boundary. Preserve RainbowKit and WalletConnect as alternate connectors; avoid changing Hypersnap code.
 4. **Wallet UI:** support explicit create/reconnect, view/copy/QR address, Base Sepolia ETH and HH2 balances, a small test transfer, and pending/success/failure states with an explorer link.
 5. **Testnet validation:** exercise account linking, reload, session expiry, logout, passkey cancel/recovery, device change, rejected transaction, insufficient gas, and provider outage. Verify the same HomieHouse account reconnects to the same wallet.
-6. **Production gate:** review beta status, terms, pricing, recovery and deletion guarantees, supported origins, security controls, and account portability before configuring production credentials or enabling mainnet. Continue to require the FID custody EOA for Hypersnap posting approval.
+6. **Production gate:** review terms, pricing, recovery and deletion guarantees, supported origins, security controls, and account portability before configuring production credentials or enabling mainnet. Continue to require the FID custody EOA for Hypersnap posting approval.
 
 ## Acceptance criteria
 
@@ -52,7 +52,7 @@ Proceed with a **Base Sepolia-only CDP Embedded Wallets spike**, using HomieHous
 - Custom-JWT issuer/audience/JWKS and server signing-secret configuration.
 - Verify custom JWT lifecycle, CDP account linking, Wagmi 3 compatibility, and address persistence.
 - Confirm recovery and device-change behavior across iPhone, iPad, and desktop, including a lost-device scenario.
-- Confirm the beta's terms, pricing, security posture, production support, and account portability before rollout.
+- Confirm current terms, pricing, security posture, support commitments, and account portability before rollout.
 - Compare the recovery/continuity experience against Base Account SDK Sub Accounts before committing to production.
 
 ## Primary references
@@ -61,6 +61,7 @@ Proceed with a **Base Sepolia-only CDP Embedded Wallets spike**, using HomieHous
 - [HomieHouse wallet page](../src/app/wallet/page.tsx)
 - [Hypersnap wallet signer migration](./HYPERSNAP_WALLET_SIGNER_MIGRATION.md)
 - [Hypersnap protocol-token login](./HYPERSNAP_PROTOCOL_AUTH.md)
+- [CDP Embedded Wallets general availability announcement](https://www.coinbase.com/developer-platform/discover/launches/embedded-wallets-ga)
 - [CDP Embedded Wallets auth overview](https://docs.cdp.coinbase.com/embedded-wallets/authentication/auth-methods)
 - [CDP custom JWT authentication](https://docs.cdp.coinbase.com/embedded-wallets/authentication/custom-auth)
 - [CDP React hooks](https://docs.cdp.coinbase.com/embedded-wallets/react)
