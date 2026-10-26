@@ -825,7 +825,7 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 /* On desktop (lg+), the sidebar is used instead of the top nav */
 @media (min-width: 1024px) {
   .hh-content-offset {
-    padding-top: 0;
+    padding-top: var(--hh-top-inset);
   }
 }
 
@@ -845,11 +845,21 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   }
 }
 
-/* Set --nav-total-height once so nav and content offset always match.
-   The nav inner div is 52px + env(safe-area-inset-top) for the notch. */
+/* Keep both navigation layouts below the system status bar, including iPads
+   wide enough to use the desktop layout. */
 :root {
-  --nav-total-height: calc(52px + env(safe-area-inset-top, 0px));
+  --hh-top-inset: env(safe-area-inset-top, 0px);
+  --nav-total-height: calc(52px + var(--hh-top-inset));
 }
+
+/* Installed iPad apps can report a zero safe-area inset despite showing the
+   status bar. Reserve its height on touch devices in standalone mode. */
+@media (display-mode: standalone) and (hover: none) and (pointer: coarse) {
+  :root {
+    --hh-top-inset: max(28px, env(safe-area-inset-top, 0px));
+  }
+}
+
 
 /* Safe area for mobile devices with notches */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
