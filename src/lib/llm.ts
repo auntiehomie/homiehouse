@@ -5,11 +5,8 @@
  * `openai` SDK with different baseURLs. Providers are tried in order until one
  * succeeds.
  *
- * Current provider selection (Sep 2026):
- * - OpenRouter paid models: Anthropic Haiku 4.5 (primary) + GLM 5.2 (backup)
- * - Gemini direct API: free tier, reliable, but reasoning model that sometimes
- *   puts text in the reasoning field instead of content
- * - OpenRouter free models: GLM 5.2 free, GPT-OSS, Gemma for redundancy
+ * General provider selection is shared by app features. Callers can pass a
+ * providerOrder when a task needs a specific cost or quality tier.
  *
  * Configure via env vars:
  *   OPENROUTER_API_KEY — https://openrouter.ai (paid + free models)
@@ -31,14 +28,14 @@ export interface LLMProvider {
 export function getLLMProviders(): LLMProvider[] {
   const providers: LLMProvider[] = [];
 
-  // ─── OpenRouter — Anthropic Haiku + GLM 5.2 (paid, primary) ────────────────
+  // ─── OpenRouter paid models ────────────────────────────────────────────────
   if (process.env.OPENROUTER_API_KEY) {
     const orClient = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY,
       baseURL: 'https://openrouter.ai/api/v1',
     });
 
-    // Claude Haiku 4.5 — fast, cheap ($0.001/$0.005 per 1M), excellent for structured JSON
+    // Claude Haiku 4.5 — quality recovery tier, strong structured JSON support.
     providers.push({
       name: 'openrouter-haiku',
       client: orClient,
@@ -46,7 +43,14 @@ export function getLLMProviders(): LLMProvider[] {
       visionModel: 'anthropic/claude-haiku-4.5',
     });
 
-    // GLM 5.2 — strong general-purpose, 256k context, tool support
+    // DeepSeek V4.1 Flash — low-cost default for high-volume lesson generation.
+    providers.push({
+      name: 'openrouter-deepseek',
+      client: orClient,
+      model: 'deepseek/deepseek-v4.1-flash',
+    });
+
+    // GLM 5.2 — retained for non-lesson app features.
     providers.push({
       name: 'openrouter-glm',
       client: orClient,
@@ -113,6 +117,8 @@ export interface LLMChatParams {
   vision?: boolean;
   /** Per-provider timeout in ms (default 8000). Pass a higher value for long-generation tasks like lesson creation. */
   timeoutMs?: number;
+  /** Optional ordered allowlist for callers that need a task-specific model tier. */
+  providerOrder?: string[];
 }
 
 export interface LLMResponse {
@@ -129,7 +135,13 @@ export interface LLMResponse {
  * reasoning text into `content` so callers can always read `message.content`.
  */
 export async function llmChat(params: LLMChatParams): Promise<LLMResponse> {
-  const providers = getLLMProviders();
+  const configuredProviders = getLLMProviders();
+  const providers = params.providerOrder
+    ? params.providerOrder.flatMap((name) => {
+        const provider = configuredProviders.find((candidate) => candidate.name === name);
+        return provider ? [provider] : [];
+      })
+    : configuredProviders;
   if (providers.length === 0) {
     throw new Error('No LLM provider configured (set OPENROUTER_API_KEY or GEMINI_API_KEY)');
   }
