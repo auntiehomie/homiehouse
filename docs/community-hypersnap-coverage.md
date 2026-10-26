@@ -20,6 +20,10 @@ Optional variables: `MAX_PAGES` (default 10, capped at 50) and `HOMIEHOUSE_PRODU
 
 The probe requests 50 items per page and does not claim that 50 is the node's maximum. It stops after `MAX_PAGES` to keep this diagnostic bounded. If the private node cannot be reached from the execution environment, run the same command from a host with network access to that node. Do not copy the private URL into `NEXT_PUBLIC_HYPERSNAP_URL`.
 
+## Preview measurement (2026-10-26)
+
+The PR Preview was configured with the existing personal-node URL as an encrypted, branch-scoped Preview variable. Its Community and global trending routes returned 50 casts each with another page cursor; following returned 100 users with another cursor; author history returned 25 casts with another cursor. All four responses reported `configured: personal`, `servedBy: fallback`, and `fallbackReason: request_error`. The returned data came from the public fallback. This establishes that Homiehouse falls back successfully in Preview; it does not establish reachability or coverage on the personal node. The exact cause is still unresolved, and the cast reaction-list endpoint has not been checked directly against that node.
+
 ## How to interpret results
 
 - `following.hasMore`, `userCastHistory.hasMore`, and the cursor list show whether the queried endpoint supports pagination. `pages` and `count` show the amount sampled, not total network coverage.
