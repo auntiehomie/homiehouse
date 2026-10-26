@@ -1,6 +1,7 @@
 import Foundation
 
 struct APIClient {
+    private struct Failure: Decodable { let error: String? }
     let baseURL: URL
     var session: URLSession = .shared
 
@@ -25,7 +26,6 @@ struct APIClient {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw ClientError.message("No server response.") }
         guard (200..<300).contains(http.statusCode) else {
-            struct Failure: Decodable { let error: String? }
             let error = try? JSONDecoder().decode(Failure.self, from: data)
             throw ClientError.message(error?.error ?? "Request failed (\(http.statusCode)).")
         }
