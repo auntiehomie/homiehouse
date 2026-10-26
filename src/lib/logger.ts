@@ -69,13 +69,18 @@ export class ApiLogger {
     
     if (error) {
       if (process.env.NODE_ENV === 'production') {
-        // In production, only log safe error info
-        console.error(`[${this.context}] Error details:`, {
-          name: error?.name,
-          message: error?.message,
-          code: error?.code,
-          status: error?.status,
-        });
+        // Providers often throw their aggregated failure message as a string.
+        // Keep it bounded so outages are diagnosable without logging request data.
+        if (typeof error === 'string') {
+          console.error(`[${this.context}] Error message:`, error.slice(0, 500));
+        } else {
+          console.error(`[${this.context}] Error details:`, {
+            name: error?.name,
+            message: typeof error?.message === 'string' ? error.message.slice(0, 500) : undefined,
+            code: error?.code,
+            status: error?.status,
+          });
+        }
       } else {
         // In development, log full error
         console.error(`[${this.context}] Full error:`, error);

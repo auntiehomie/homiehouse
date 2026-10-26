@@ -20,6 +20,16 @@ function getRedis(): Redis | null {
   try { return new Redis({ url, token }); } catch { return null; }
 }
 
+function getLessonCacheKey(moduleId: string | undefined, eli5: boolean, context: unknown): string | null {
+  if (!moduleId) return null;
+  const serialized = JSON.stringify(context);
+  let hash = 2166136261;
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash = Math.imul(hash ^ serialized.charCodeAt(index), 16777619);
+  }
+  return `lesson:v12:${moduleId}:${(hash >>> 0).toString(36)}${eli5 ? ':eli5' : ''}`;
+}
+
 // Claude (primary writer) can take ~50s on a content-heavy lesson; give web
 // enrichment + generation + quiz verification headroom so a slow call never
 // times out mid-generation.
@@ -438,21 +448,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (getLLMProviders().length === 0) {
-      logger.warn('No AI provider configured, returning fallback');
-      if (sourceCast) return castLessonUnavailableResponse();
-      return rewardTrackedLessonResponse(rewardFid, rewardModuleId, fallbackLesson(title, description, objectives), {
-        headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
-      });
-    }
-
-    // ── Cache check — return stored lesson if available ──────────────────────
+    // Look up validated content before checking provider availability. This lets
+    // learners reopen lessons during an upstream outage without another model call.
     const redis = getRedis();
-    // v5: regenerate every module with increased maxTokens (8000) so the
-    // full lesson JSON isn't truncated mid-object.
-    // v10 invalidates lessons cached before KB grounding was verified.
-    const cacheKey = moduleId ? `lesson:v11:${moduleId}${eli5 ? ':eli5' : ''}` : null;
-    if (redis && cacheKey && !rewardFid) {
+    // Include the lesson context so personalized and cast-derived modules cannot
+    // share content just because they happen to use the same module ID.
+    const cacheKey = getLessonCacheKey(typeof moduleId === 'string' ? moduleId : undefined, Boolean(eli5), {
+      title,
+      description,
+      whyItMatters,
+      objectives,
+      difficulty,
+      tags,
+      sourceCast,
+    });
+    if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
         if (cached) {
@@ -460,6 +470,14 @@ export async function POST(req: NextRequest) {
           return rewardTrackedLessonResponse(rewardFid, rewardModuleId, cached);
         }
       } catch {}
+    }
+
+    if (getLLMProviders().length === 0) {
+      logger.warn('No AI provider configured, returning fallback');
+      if (sourceCast) return castLessonUnavailableResponse();
+      return rewardTrackedLessonResponse(rewardFid, rewardModuleId, fallbackLesson(title, description, objectives), {
+        headers: { 'X-HomieHouse-Lesson-Source': 'fallback' },
+      });
     }
 
     const titleLower = title?.toLowerCase() ?? '';
@@ -773,7 +791,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
       content = message.content?.trim() ?? '';
       usedProvider = provider + (enrichedPrompt !== prompt ? '+tavily' : '');
     } catch (aiErr: any) {
-      logger.error('Provider chain failed', aiErr?.message);
+      logger.error('Provider chain failed', aiErr?.message ?? aiErr);
     }
 
     if (!content) {
@@ -838,7 +856,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     }
 
     // ── Cache the (verified + shuffled) lesson for 30 days ──────────────────
-    if (redis && cacheKey && !rewardFid) {
+    if (redis && cacheKey) {
       try { await redis.set(cacheKey, lesson, { ex: 60 * 60 * 24 * 30 }); } catch {}
 
       // Do the independent fact-check after the response path. The first
