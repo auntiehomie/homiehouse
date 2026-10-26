@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 import { ASK_HOMIE_PRO_PRICE_ID, getStripeOrThrow, getAskHomieProSubscriber } from '@/lib/stripe';
+import { isProUser } from '@/lib/pro';
 
 export const dynamic = 'force-dynamic';
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.app';
@@ -11,6 +12,9 @@ export async function POST(req: NextRequest) {
     const fid = await verifyFarcasterSignerAuth(req, 'write:shop');
     if (!ASK_HOMIE_PRO_PRICE_ID) {
       return NextResponse.json({ ok: false, error: 'Ask Homie Pro Stripe price is not configured.' }, { status: 503 });
+    }
+    if (await isProUser(fid)) {
+      return NextResponse.json({ ok: false, error: 'Ask Homie usage is included with HomieHouse Pro.' }, { status: 409 });
     }
     const existing = await getAskHomieProSubscriber(fid);
     if (existing?.status === 'active' && (!existing.expires_at || new Date(existing.expires_at).getTime() > Date.now())) {
