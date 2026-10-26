@@ -28,7 +28,7 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
         <Link href="/community" className="btn text-xs" style={{ padding: '8px 12px' }}>🤝 Connect</Link>
       </nav>
       <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: '0 0 12px' }}>
-        {feedType === 'community' ? 'Community · context, activity and freshness ranked' : feedType === 'following' ? 'Following · newest first from Hypersnap' : 'Discovery · ranked casts, not every network post'}
+        {feedType === 'community' ? 'Community · up to 7 days from Hypersnap, personalized by your likes' : feedType === 'following' ? 'Following · newest first from Hypersnap' : 'Discovery · ranked casts, not every network post'}
         {' · Automated spam filtering is temporarily off. Your mute and hide choices still apply.'}
       </p>
       <div aria-label="Feed views" className="hh-feed-tabs">
@@ -40,8 +40,8 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
       {feedType === 'community' && (
         <details className="surface" style={{ marginBottom: 12, fontSize: 13 }}>
           <summary>How Community ranks casts</summary>
-          <p>The current ranking balances sampled casting history, participation, engagement and freshness, with small bonuses for reply context and attachments. Every fifth position offers discovery space when a less-engaged author is available. EigenTrust is a planned extra trust signal, not a replacement for these signals or topic relevance.</p>
-          <p>Community reorders each Hypersnap trending page. It cannot see every network cast or verify authenticity, truth, or reply quality. History uses up to 50 recent casts per author, so it may miss years of activity. Missing history receives neutral scores. Casts are reordered, not removed.</p>
+          <p>Community asks your configured Hypersnap node for the broadest currently supported trending window (up to 7 days) and a full page of up to 50 casts, then follows its pagination. Your recent likes on this device tune the order toward similar topics, authors and channels while each fifth position preserves discovery from the node’s original order.</p>
+          <p>The node still controls which casts and history it can return; Community cannot show casts outside that coverage or verify authenticity, truth, or reply quality. The current ranking also balances sampled author history, participation, engagement and freshness. EigenTrust is a planned extra trust signal, not a replacement for topic relevance.</p>
           <p>Use “Why this cast?” to see the signals. Following remains newest first.</p>
         </details>
       )}

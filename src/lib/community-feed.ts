@@ -22,8 +22,10 @@ function communitySignerFids(envName: string): string | undefined {
  * Hypersnap trending behavior.
  */
 export function getCommunityTrendingParams() {
+  // Hypersnap's trending route supports up to a seven-day window. Use that
+  // broadest documented window by default; members can still narrow it via env.
   const configuredWindow = process.env.HOMIEHOUSE_COMMUNITY_TRENDING_WINDOW?.trim();
-  const time_window = configuredWindow || '24h';
+  const time_window = configuredWindow || '7d';
   if (!COMMUNITY_TRENDING_WINDOWS.has(time_window)) {
     throw new Error('HOMIEHOUSE_COMMUNITY_TRENDING_WINDOW must be one of 1h, 6h, 12h, 24h, or 7d');
   }
