@@ -920,7 +920,29 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 
 /* Keep feed controls reachable at narrow widths, desktop zoom and landscape. */
 .hh-feed-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-.hh-feed-tabs > button { flex: 1 1 90px; min-width: 0; white-space: normal; padding: 10px 12px; }
+/* Keep each label intact. Wrap whole tabs when larger text needs more room. */
+.hh-feed-tabs > button {
+  flex: 1 0 auto;
+  min-width: max-content;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  padding: 6px 8px;
+  min-height: 44px;
+  border-width: 1px;
+  border-radius: 8px;
+}
+.hh-feed-shortcuts .btn {
+  padding: 6px 10px;
+  min-height: 44px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  border-width: 1px;
+  border-radius: 8px;
+}
 .hh-feed-tabs > button[aria-pressed="true"] { background: var(--btn-primary-bg); color: var(--btn-primary-color); }
 .hh-feed-column { max-width: 760px; }
 .hh-feed-cards { min-width: 0; max-width: 100%; }
