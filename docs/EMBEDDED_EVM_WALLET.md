@@ -13,10 +13,10 @@ Hypersnap identity and posting authorization remain separate from EVM asset acce
 
 | Avenue | Fit for HomieHouse | Main tradeoff |
 | --- | --- | --- |
-| **Coinbase CDP Embedded Wallets** | Custom JWT authentication can bridge a verified HomieHouse session; the CDP Wagmi connector exposes the embedded wallet through the existing Wagmi model. EVM EOAs work across EVM networks, including Base. | Coinbase announced general availability on 2025-10-15. Verify current terms, pricing, recovery, and account-portability behavior for HomieHouse before production. |
+| **Coinbase CDP Embedded Wallets** | Custom JWT authentication can bridge a verified HomieHouse session; the CDP Wagmi connector exposes the embedded wallet through the existing Wagmi model. EVM EOAs work across EVM networks, including Base. | Coinbase describes end-user wallets as self-custody and announced general availability on 2025-10-15. However, key infrastructure is provider-managed, so verify export, recovery, and account-portability behavior and assess the Coinbase dependency against HomieHouse's decentralization goals. |
 | **Base Account SDK Sub Accounts** | App-specific embedded accounts, EIP-1193 access, and Wagmi/Viem integration; passkey-oriented and designed around Base. | Requires a Coinbase/Base Account connection. Device changes can trigger signer-owner updates, so account continuity and recovery need testing. More Base-specific than the current multi-chain wallet surface. |
 
-Proceed with a **Base Sepolia-only CDP Embedded Wallets spike**, using HomieHouse custom-JWT auth and the CDP Wagmi connector. This is a technical prototype choice, not a production vendor commitment. Keep RainbowKit and WalletConnect available. Create a regular embedded EOA for this spike; do not silently substitute a smart account or connect this wallet to FID custody.
+Proceed with a **Base Sepolia-only CDP Embedded Wallets spike**, using HomieHouse custom-JWT auth and the CDP Wagmi connector. This is the fastest integration candidate for a testnet spike, not a production vendor commitment. CDP offers better fit with HomieHouse's existing auth and Wagmi stack; Base Account Sub Accounts merit a hands-on comparison if a Base-specific, passkey-first experience better fits the decentralization goal. Keep RainbowKit and WalletConnect available. Create a regular embedded EOA for this spike; do not silently substitute a smart account or connect this wallet to FID custody.
 
 ## Security and account rules
 
@@ -63,8 +63,8 @@ Proceed with a **Base Sepolia-only CDP Embedded Wallets spike**, using HomieHous
 - [Hypersnap protocol-token login](./HYPERSNAP_PROTOCOL_AUTH.md)
 - [CDP Embedded Wallets general availability announcement](https://www.coinbase.com/developer-platform/discover/launches/embedded-wallets-ga)
 - [CDP Embedded Wallets auth overview](https://docs.cdp.coinbase.com/embedded-wallets/authentication/auth-methods)
-- [CDP custom JWT authentication](https://docs.cdp.coinbase.com/embedded-wallets/authentication/custom-auth)
-- [CDP React hooks](https://docs.cdp.coinbase.com/embedded-wallets/react)
-- [CDP Wagmi integration](https://docs.cdp.coinbase.com/embedded-wallets/wagmi)
+- [CDP custom JWT authentication type reference](https://docs.cdp.coinbase.com/sdks/cdp-sdks-v2/frontend/%40coinbase/cdp-core/Type-Aliases/CustomAuth)
+- [CDP frontend SDK and React hooks](https://coinbase.github.io/cdp-web/)
+- [CDP Wagmi integration](https://docs.cdp.coinbase.com/wallets/ecosystem-compatibility/wagmi)
 - [Base Account SDK Sub Accounts](https://docs.base.org/base-account/guides/subaccounts)
 - [Wagmi connector guide](https://wagmi.sh/react/guides/connect-wallet)
