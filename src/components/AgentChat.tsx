@@ -121,6 +121,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const autoStarted = useRef<string | null>(null);
   const sending = useRef(false);
   const [mode, setMode] = useState<AgentMode>('auto');
+  const [includeXForNextTurn, setIncludeXForNextTurn] = useState(false);
   const [userStats, setUserStats] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -213,8 +214,10 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
     sending.current = true;
     setLearningMode(requestedLearningMode);
     const userMessage = question.trim();
+    const xResearchRequested = includeXForNextTurn && !requestedLearningMode && mode !== 'compose';
+    setIncludeXForNextTurn(false);
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage, metadata: { learningMode: requestedLearningMode, learningTopic: topic } }]);
+    setMessages(prev => [...prev, { role: 'user', content: userMessage, metadata: { learningMode: requestedLearningMode, learningTopic: topic, xResearchRequested } }]);
     setIsLoading(true);
 
     try {
@@ -229,6 +232,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           userContext,
           learningMode: requestedLearningMode,
           learningTopic: requestedLearningMode ? topic : undefined,
+          xResearchRequested,
           intent: mode === 'auto' ? undefined : mode
         })
       });
@@ -366,7 +370,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           {(Object.keys(modeDescriptions) as AgentMode[]).map((m) => (
             <button
               key={m}
-              onClick={() => { setMode(m); setLearningMode(undefined); }}
+              onClick={() => { setMode(m); setLearningMode(undefined); setIncludeXForNextTurn(false); }}
               className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
                 mode === m
                   ? 'bg-zinc-600 text-white'
@@ -378,6 +382,18 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             </button>
           ))}
         </div>
+
+        {!learningMode && mode !== 'compose' && (
+          <label className="mt-3 inline-flex items-start gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <input
+              type="checkbox"
+              checked={includeXForNextTurn}
+              onChange={(event) => setIncludeXForNextTurn(event.target.checked)}
+              className="mt-0.5 rounded"
+            />
+            <span>Include recent X posts on my next question (Pro only; up to 5 paid post reads, currently about $0.025 max).</span>
+          </label>
+        )}
 
         {/* User stats */}
         {userStats && (
@@ -567,6 +583,34 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                       className="mt-1 block truncate text-indigo-300 hover:underline"
                     >
                       {url.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0]}
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {msg.role === 'assistant' && msg.metadata?.liveXSearch && (
+                <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
+                  <p>
+                    {msg.metadata.liveXSearch.status === 'pro-required'
+                      ? 'X search is available with Homiehouse Pro.'
+                      : msg.metadata.liveXSearch.status === 'searched'
+                        ? `Recent X posts · ${msg.metadata.liveXSearch.resultCount} found`
+                        : msg.metadata.liveXSearch.status === 'no-results'
+                          ? 'X search found no recent matches. This does not disprove the topic.'
+                          : msg.metadata.liveXSearch.status === 'budget-exhausted'
+                            ? 'The monthly X search read limit has been reached.'
+                          : 'X search is unavailable or not configured.'}
+                  </p>
+                  <p>Posts reflect their authors’ claims; open the originals to review context.</p>
+                  {msg.metadata.liveXSearch.citations?.map((post: { url: string; username: string }) => (
+                    <a
+                      key={post.url}
+                      href={post.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 block text-indigo-300 hover:underline"
+                    >
+                      View post by @{post.username} on X ↗
                     </a>
                   ))}
                 </div>
