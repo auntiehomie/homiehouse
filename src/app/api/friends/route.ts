@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchFollowing } from '@/lib/hypersnap';
+import { fetchFollowing, getHypersnapReadDiagnostics } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid } from '@/lib/validation';
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     logger.success('Following list fetched', { count: users.length });
     logger.end();
 
-    return NextResponse.json({ data: users });
+    return NextResponse.json({ data: users, cursor: data?.next?.cursor || null, meta: { readNode: getHypersnapReadDiagnostics(data) } });
   } catch (error: any) {
     logger.error('Failed to fetch friends', error);
     return handleApiError(error, 'GET /friends');

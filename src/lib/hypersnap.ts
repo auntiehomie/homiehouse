@@ -31,6 +31,24 @@ function getPersonalHypersnapBase(): string | null {
 const PERSONAL_HYPERSNAP_BASE = getPersonalHypersnapBase();
 const HYPERSNAP_BASE = PERSONAL_HYPERSNAP_BASE || PUBLIC_HYPERSNAP_BASE;
 const READ_SOURCE_FIELD = '__homiehouseHypersnapReadSource';
+const READ_FAILURE_FIELD = '__homiehouseHypersnapReadFailure';
+
+function classifyReadFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || '');
+  const status = message.match(/Hypersnap API error (\d{3})/i)?.[1];
+  if (status) return `http_${status}`;
+  if (/abort|timeout/i.test(message)) return 'timeout';
+  if (/fetch failed|network|ECONN|ENOTFOUND|EHOST/i.test(message)) return 'network_error';
+  return 'request_error';
+}
+
+function withReadSource(data: any, source: 'configured' | 'fallback', failure?: string): any {
+  return {
+    ...data,
+    [READ_SOURCE_FIELD]: source,
+    ...(failure ? { [READ_FAILURE_FIELD]: failure } : {}),
+  };
+}
 
 /** Safe diagnostic label; intentionally never returns the configured URL. */
 export function getHypersnapReadNodeSource(): 'personal' | 'public' {
@@ -40,6 +58,20 @@ export function getHypersnapReadNodeSource(): 'personal' | 'public' {
     || process.env.SNAPCHAIN_NODE_URL?.trim()
   )) return 'personal';
   return 'public';
+}
+
+export function getHypersnapReadDiagnostics(data: any): {
+  configured: 'personal' | 'public';
+  servedBy: 'personal' | 'public' | 'fallback';
+  fallbackReason?: string;
+} {
+  const configured = getHypersnapReadNodeSource();
+  const source = data?.[READ_SOURCE_FIELD];
+  return {
+    configured,
+    servedBy: source === 'fallback' ? 'fallback' : configured,
+    ...(typeof data?.[READ_FAILURE_FIELD] === 'string' ? { fallbackReason: data[READ_FAILURE_FIELD] } : {}),
+  };
 }
 
 /** Ardea/Arca — second Hypersnap node, same API surface. Used when primary is slow/unavailable. */
@@ -145,12 +177,18 @@ async function fallbackNotifications(endpoint: string): Promise<any> {
  */
 export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-  const data = await hypersnapFetch(`/v2/farcaster/user/following?${qs.toString()}`);
-  // Normalise: some Hypersnap builds return { result: [...] }, others { users: [...] }
-  if (data?.result && !data?.users) {
-    return { ...data, users: data.result };
+  const endpoint = `/v2/farcaster/user/following?${qs.toString()}`;
+  const normalize = (data: any) => data?.result && !data?.users ? { ...data, users: data.result } : data;
+  let failure = 'empty_response';
+  try {
+    const data = normalize(await hypersnapFetch(endpoint));
+    if (Array.isArray(data?.users)) return withReadSource(data, 'configured');
+  } catch (error) {
+    failure = classifyReadFailure(error);
   }
-  return data;
+  const fallback = normalize(await fallbackFetch(endpoint));
+  if (Array.isArray(fallback?.users)) return withReadSource(fallback, 'fallback', failure);
+  throw new Error('Following list unavailable on both nodes');
 }
 
 /**
@@ -182,15 +220,16 @@ export async function fetchFeed(params: Record<string, any> = {}): Promise<any> 
     ? `/v2/farcaster/feed?${qs.toString()}`
     : `/v2/farcaster/feed/following?${qs.toString()}`;
 
-  // 1. Primary Hypersnap node
+  // 1. Configured primary Hypersnap node
+  let failure = 'empty_response';
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
-    if (Array.isArray(data?.casts)) return { ...data, [READ_SOURCE_FIELD]: 'configured' };
-  } catch (_) {}
+    if (Array.isArray(data?.casts)) return withReadSource(data, 'configured');
+  } catch (error) { failure = classifyReadFailure(error); }
 
   // 2. Fallback hub (HYPERSNAP_FALLBACK_URL)
   const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
-  if (Array.isArray(fallback?.casts)) return { ...fallback, [READ_SOURCE_FIELD]: 'fallback' };
+  if (Array.isArray(fallback?.casts)) return withReadSource(fallback, 'fallback', failure);
 
   throw new Error('Feed unavailable on both nodes');
 }
@@ -222,12 +261,13 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
     qs.set(name, fids.join(','));
   }
   const endpoint = `/v2/farcaster/feed/trending?${qs}`;
+  let failure = 'empty_response';
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
-    if (Array.isArray(data?.casts)) return { ...data, [READ_SOURCE_FIELD]: 'configured' };
-  } catch {}
+    if (Array.isArray(data?.casts)) return withReadSource(data, 'configured');
+  } catch (error) { failure = classifyReadFailure(error); }
   const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
-  if (Array.isArray(fallback?.casts)) return { ...fallback, [READ_SOURCE_FIELD]: 'fallback' };
+  if (Array.isArray(fallback?.casts)) return withReadSource(fallback, 'fallback', failure);
   throw new Error('Trending feed unavailable on both nodes');
 }
 
@@ -425,12 +465,13 @@ export async function fetchUserCastsPage(fid: number, limit = 50, cursor?: strin
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
   const endpoint = `/v2/farcaster/feed/user/casts?${qs}`;
+  let failure = 'empty_response';
   try {
     const data = await hypersnapFetch(endpoint);
-    if (Array.isArray(data?.casts)) return data;
-  } catch {}
+    if (Array.isArray(data?.casts)) return withReadSource(data, 'configured');
+  } catch (error) { failure = classifyReadFailure(error); }
   const fallback = await fallbackFetch(endpoint);
-  if (Array.isArray(fallback?.casts)) return fallback;
+  if (Array.isArray(fallback?.casts)) return withReadSource(fallback, 'fallback', failure);
   throw new Error(`Author feed unavailable for fid=${fid}`);
 }
 

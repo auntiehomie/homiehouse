@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchFeed, fetchChannelFeed, getHypersnapReadNodeSource } from '@/lib/hypersnap';
+import { fetchFeed, fetchChannelFeed, getHypersnapReadDiagnostics } from '@/lib/hypersnap';
 import { getCommunityTrendingParams, rankCommunityPage } from '@/lib/community-feed';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
@@ -86,9 +86,7 @@ export async function GET(req: NextRequest) {
 
     const rawCursor = data?.next?.cursor || null;
     const cursor_out = rawCursor === '5b6e756c6c2c6e756c6c5d' ? null : rawCursor;
-    const configuredReadNode = getHypersnapReadNodeSource();
-    const actualReadNode = data?.__homiehouseHypersnapReadSource === 'fallback' ? 'fallback' : configuredReadNode;
-    return NextResponse.json({ data: casts, cursor: cursor_out, meta: { source: 'hypersnap', feedType: channel ? 'channel' : feedType, checkedAt: new Date().toISOString(), readNode: { configured: configuredReadNode, servedBy: actualReadNode }, automatedSpamFiltering: false, ...(isCommunity ? { ranking: { version: 'community-v1', scope: 'node-page', candidateSource: 'hypersnap-trending', candidateWindow: getCommunityTrendingParams().time_window, pageLimit: 50, personalization: 'device-local-recent-likes', history: 'recent-50-cast-sample', authenticityVerified: false, clientFilterRequested: Boolean(process.env.HOMIEHOUSE_COMMUNITY_INCLUDE_SIGNER_FIDS?.trim() || process.env.HOMIEHOUSE_COMMUNITY_EXCLUDE_SIGNER_FIDS?.trim()) } } : {}) } }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ data: casts, cursor: cursor_out, meta: { source: 'hypersnap', feedType: channel ? 'channel' : feedType, checkedAt: new Date().toISOString(), readNode: getHypersnapReadDiagnostics(data), automatedSpamFiltering: false, ...(isCommunity ? { ranking: { version: 'community-v1', scope: 'node-page', candidateSource: 'hypersnap-trending', candidateWindow: getCommunityTrendingParams().time_window, pageLimit: 50, personalization: 'device-local-recent-likes', history: 'recent-50-cast-sample', authenticityVerified: false, clientFilterRequested: Boolean(process.env.HOMIEHOUSE_COMMUNITY_INCLUDE_SIGNER_FIDS?.trim() || process.env.HOMIEHOUSE_COMMUNITY_EXCLUDE_SIGNER_FIDS?.trim()) } } : {}) } }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: any) {
     logger.error('Failed to fetch feed', error);
     return handleApiError(error, 'GET /feed');
