@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
-import { fetchUserByUsername, fetchUserByFid, fetchUserCastsPage } from '@/lib/hypersnap';
+import { fetchUserByUsername, fetchUserByFid, fetchUserCastsPage, getHypersnapReadDiagnostics } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateUsername } from '@/lib/validation';
@@ -65,12 +65,14 @@ export async function GET(request: NextRequest) {
     let casts = null;
     let next = null;
     let castsUnavailable = false;
+    let castHistoryReadNode = null;
     if (includeCasts && userFid) {
       try {
         logger.info('Fetching user casts', { fid: userFid });
         const page = await fetchUserCastsPage(userFid, 25, searchParams.get('cursor') || undefined);
         casts = page.casts;
         next = page.next ?? null;
+        castHistoryReadNode = getHypersnapReadDiagnostics(page);
         logger.info('Casts fetched', { count: casts.length });
       } catch (error) {
         logger.warn('Failed to fetch casts', { error: String(error) });
@@ -103,7 +105,7 @@ export async function GET(request: NextRequest) {
       displayName: normalizedUser.display_name
     });
 
-    return NextResponse.json({ ...normalizedUser, casts, next, castsUnavailable }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
+    return NextResponse.json({ ...normalizedUser, casts, next, castsUnavailable, ...(includeCasts ? { castHistoryReadNode } : {}) }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');
