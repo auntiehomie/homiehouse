@@ -25,7 +25,7 @@ for (const width of [390, 820, 1280]) {
       await page.goto('/feed');
       await expect(page.getByRole('button', { name: 'Following', exact: true })).toHaveAttribute('aria-pressed', 'true');
       await expect(page.getByText('Following conversation', { exact: true })).toBeVisible();
-      const tab = page.getByRole('button', { name: 'Community · beta', exact: true });
+      const tab = page.getByRole('button', { name: 'Community', exact: true });
       await tab.click();
       await expect(tab).toHaveAttribute('aria-pressed', 'true');
       await expect(page.getByText(cast.text, { exact: true })).toBeVisible();

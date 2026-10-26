@@ -3,6 +3,7 @@ import { rateLimit } from '@/lib/ratelimit';
 
 const DEFAULT_HYPERSNAP_URL = 'https://haatz.quilibrium.com';
 const HYPERSNAP_WRITE_BASE =
+  process.env.MY_HYPERSNAP_NODE_URL?.trim() ||
   process.env.HYPERSNAP_NODE_URL?.trim() ||
   process.env.SNAPCHAIN_NODE_URL?.trim() ||
   process.env.NEXT_PUBLIC_HYPERSNAP_URL ||
@@ -51,6 +52,8 @@ async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
  * Ed25519 signer key, then POSTs the raw bytes here.
  * Hypersnap exposes the Snapchain-compatible /v1/submitMessage API. We forward
  * server-side to the configured personal Hypersnap node, with Haatz as fallback.
+ * MY_HYPERSNAP_NODE_URL is the preferred setting. SNAPCHAIN_NODE_URL remains
+ * accepted as a legacy alias for existing deployments.
  * Reads keep their separate NEXT_PUBLIC_HYPERSNAP_URL setting.
  */
 export async function POST(request: NextRequest) {

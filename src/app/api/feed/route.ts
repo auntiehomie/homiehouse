@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchFeed, fetchChannelFeed } from '@/lib/hypersnap';
-import { rankCommunityPage } from '@/lib/community-feed';
+import { getCommunityTrendingParams, rankCommunityPage } from '@/lib/community-feed';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateLimit } from '@/lib/validation';
@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     const cursor = searchParams.get("cursor");
     const limit = validateLimit(limitParam, 100);
     const fid = fidParam ? validateFid(fidParam).toString() : undefined;
+    const isCommunity = feedType === 'community' && !channel;
     if (feedType === 'following' && !fid && !channel) {
       return NextResponse.json({ error: 'Sign in to load your Following feed.' }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
     }
@@ -64,11 +65,16 @@ export async function GET(req: NextRequest) {
       } else {
         fetchParams.feed_type = 'filter'; fetchParams.filter_type = 'global_trending';
         if (fid) fetchParams.viewer_fid = fid;
+        if (isCommunity) {
+          // Hypersnap currently caps trending pages at 50; request the full page
+          // and let the existing cursor pagination expose subsequent candidates.
+          fetchParams.limit = 50;
+          Object.assign(fetchParams, getCommunityTrendingParams());
+        }
         data = await fetchFeed(fetchParams);
       }
     }
 
-    const isCommunity = feedType === 'community' && !channel;
     const casts: any[] = isCommunity ? await rankCommunityPage(data?.casts || []) : data?.casts || [];
     // Node casts remain visible regardless of third-party reputation scores.
     // User-selected mute/hide preferences are applied by the client.
@@ -80,7 +86,7 @@ export async function GET(req: NextRequest) {
 
     const rawCursor = data?.next?.cursor || null;
     const cursor_out = rawCursor === '5b6e756c6c2c6e756c6c5d' ? null : rawCursor;
-    return NextResponse.json({ data: casts, cursor: cursor_out, meta: { source: 'hypersnap', feedType: channel ? 'channel' : feedType, checkedAt: new Date().toISOString(), automatedSpamFiltering: false, ...(isCommunity ? { ranking: { version: 'community-v1', scope: 'node-page', candidateSource: 'hypersnap-trending', history: 'recent-50-cast-sample', authenticityVerified: false } } : {}) } }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ data: casts, cursor: cursor_out, meta: { source: 'hypersnap', feedType: channel ? 'channel' : feedType, checkedAt: new Date().toISOString(), automatedSpamFiltering: false, ...(isCommunity ? { ranking: { version: 'community-v1', scope: 'node-page', candidateSource: 'hypersnap-trending', candidateWindow: getCommunityTrendingParams().time_window, pageLimit: 50, personalization: 'device-local-recent-likes', history: 'recent-50-cast-sample', authenticityVerified: false, clientFilterRequested: Boolean(process.env.HOMIEHOUSE_COMMUNITY_INCLUDE_SIGNER_FIDS?.trim() || process.env.HOMIEHOUSE_COMMUNITY_EXCLUDE_SIGNER_FIDS?.trim()) } } : {}) } }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: any) {
     logger.error('Failed to fetch feed', error);
     return handleApiError(error, 'GET /feed');
