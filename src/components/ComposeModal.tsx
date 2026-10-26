@@ -10,6 +10,8 @@ import {
   type OpenComposeModalDetail,
 } from '@/lib/compose-modal-events';
 import Image from "next/image";
+import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
+import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 
 // Module-level cache so channels are fetched once per session, not on every modal open
 let cachedChannels: any[] | null = null;
@@ -57,10 +59,8 @@ export default function ComposeModal() {
   const [mentionResults, setMentionResults] = useState<any[]>([]);
   const [showMentions, setShowMentions] = useState(false);
   const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [imageProvider, setImageProvider] = useState<'ipfs' | 'imgbb' | null>(null);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
@@ -107,6 +107,7 @@ export default function ComposeModal() {
       composeCompletionRef.current =
         typeof onComplete === 'function' ? onComplete : null;
       setText(prefilledText ?? '');
+      setImageUrls([]);
       setRequestedEmbeds(
         Array.isArray(embeds)
           ? embeds.filter((url): url is string => typeof url === 'string').slice(0, 2)
@@ -155,14 +156,14 @@ export default function ComposeModal() {
       try {
         localStorage.setItem('hh_compose_draft', JSON.stringify({
           text,
-          imageUrl,
+          imageUrls,
           selectedChannel,
           timestamp: Date.now(),
         }));
       } catch {}
     }, 500);
     return () => clearTimeout(t);
-  }, [open, text, imageUrl, selectedChannel]);
+  }, [open, text, imageUrls, selectedChannel]);
 
   // Channel discovery is public data; do not wait for the signer/FID to load.
   // Cache successful results for the session, and let the user retry node reads.
@@ -309,55 +310,52 @@ export default function ComposeModal() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
 
-    // Check file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      setStatus("Image too large. Maximum size is 10MB.");
-      return;
-    }
-
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      setStatus("Please select an image file.");
-      return;
-    }
-
+    const slots = MAX_CAST_PHOTOS - imageUrls.length;
+    if (slots <= 0) return;
+    const toUpload = files.slice(0, slots);
     setUploadingImage(true);
-    setStatus("Uploading image...");
+    setStatus(toUpload.length > 1 ? `Uploading ${toUpload.length} photos…` : 'Uploading photo…');
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (userFid) formData.append('fid', String(userFid));
-
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
-      const data = await response.json();
-
-      if (data.ok && data.url) {
-        setUploadedImage(data.url);
-        setImageUrl(data.url);
-        setImageProvider(data.provider === 'ipfs' ? 'ipfs' : 'imgbb');
-      } else {
-        setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
+    const uploaded: string[] = [];
+    for (const file of toUpload) {
+      if (file.size > 10 * 1024 * 1024) {
+        setStatus(`${file.name}: over 10 MB, skipped`);
+        continue;
       }
-    } catch (error: any) {
-      setStatus(`Upload error: ${error.message}`);
-    } finally {
-      setUploadingImage(false);
+      if (!file.type.startsWith('image/')) {
+        setStatus(`${file.name}: choose an image file`);
+        continue;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (userFid) formData.append('fid', String(userFid));
+        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (!response.ok || !data.ok || !data.url) {
+          setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
+          continue;
+        }
+        uploaded.push(data.url);
+      } catch (error: any) {
+        setStatus(`Upload error: ${error.message}`);
+      }
     }
+
+    if (uploaded.length) {
+      setImageUrls(prev => [...prev, ...uploaded].slice(0, MAX_CAST_PHOTOS));
+      setStatus(`✓ ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} added`);
+    }
+    setUploadingImage(false);
   };
 
-  const removeImage = () => {
-    setImageUrl('');
-    setUploadedImage(null);
-    setImageProvider(null);
+  const removeImage = (index: number) => {
+    setImageUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   async function handlePost() {
@@ -383,26 +381,17 @@ export default function ComposeModal() {
       // Prepare cast data (for scheduled path)
       const body: any = { text: castText, fid: userFid };
 
-      // Build embeds array
-      const embeds: { url: string }[] = requestedEmbeds.map(url => ({ url }));
-
-      // Add image embed if provided
-      if (imageUrl.trim()) {
-        if (!embeds.some(embed => embed.url === imageUrl.trim())) {
-          embeds.push({ url: imageUrl.trim() });
-        }
-      }
-
-      // Add URL embed if we have a preview (URL is already in the text; just attach as embed)
-      if (urlPreview && detectedUrl) {
-        if (!embeds.some(embed => embed.url === detectedUrl)) {
-          embeds.push({ url: detectedUrl });
-        }
-      }
-
-      if (embeds.length > 0) {
-        body.embeds = embeds.slice(0, 2);
-      }
+      // Scheduled casts cannot retry after a node-side embed rejection, so
+      // larger photo sets are scheduled as a single Homiehouse gallery link.
+      const useGalleryForSchedule = isScheduled && imageUrls.length > 2;
+      const embedUrls = [
+        ...(useGalleryForSchedule ? [buildCastGalleryUrl(imageUrls)] : imageUrls),
+        ...requestedEmbeds,
+        ...(urlPreview && detectedUrl ? [detectedUrl] : []),
+      ].filter((url, index, all) => !!url && all.indexOf(url) === index);
+      const maxEmbeds = useGalleryForSchedule ? 2 : imageUrls.length > 2 ? MAX_CAST_EMBEDS : 2;
+      const embeds = embedUrls.slice(0, maxEmbeds).map(url => ({ url }));
+      if (embeds.length) body.embeds = embeds;
 
       // Add channel if selected
       if (selectedChannel) {
@@ -440,10 +429,11 @@ export default function ComposeModal() {
         
         if (data.ok) {
           finishComposeRequest(null);
-          setStatus("✓ Cast scheduled successfully!");
+          setStatus(useGalleryForSchedule
+            ? '✓ Cast scheduled with a Homiehouse photo gallery.'
+            : '✓ Cast scheduled successfully!');
           setText("");
-          setImageUrl("");
-          setUploadedImage(null);
+          setImageUrls([]);
           setScheduleTime("");
           setIsScheduled(false);
           setUrlPreview(null);
@@ -466,24 +456,29 @@ export default function ComposeModal() {
         // Post first part
         let prevHash: string;
         let firstHash: string;
+        let usedGalleryFallback = false;
         if (replyParentHash && replyParentFid) {
-          const { castHash } = await reply({
+          const result = await reply({
             text: threadParts[0],
             parentCastHash: replyParentHash,
             parentCastFid: replyParentFid,
             embeds: body.embeds,
+            galleryImages: imageUrls,
           });
-          prevHash = castHash;
-          firstHash = castHash;
+          prevHash = result.castHash;
+          firstHash = result.castHash;
+          usedGalleryFallback = !!result.galleryFallback;
         } else {
-          const { castHash } = await submitCast({
+          const result = await submitCast({
             text: threadParts[0],
             embeds: body.embeds,
+            galleryImages: imageUrls,
             channelKey: body.channelKey,
             parentUrl: body.parentUrl,
           });
-          prevHash = castHash;
-          firstHash = castHash;
+          prevHash = result.castHash;
+          firstHash = result.castHash;
+          usedGalleryFallback = !!result.galleryFallback;
         }
 
         // Chain remaining parts as self-replies
@@ -497,16 +492,20 @@ export default function ComposeModal() {
           prevHash = castHash;
         }
 
-        setStatus(isThread ? `✓ Thread posted (${threadParts.length} casts)!` : "✓ Posted successfully!");
+        setStatus(usedGalleryFallback
+          ? '✓ Posted with a Homiehouse photo gallery link.'
+          : isThread ? `✓ Thread posted (${threadParts.length} casts)!` : "✓ Posted successfully!");
+        const postedEmbeds = usedGalleryFallback
+          ? [{ url: buildCastGalleryUrl(imageUrls) }]
+          : body.embeds;
         finishComposeRequest({
           hash: firstHash,
           text: castText,
-          embeds: body.embeds?.map((embed: { url: string }) => embed.url),
+          embeds: postedEmbeds?.map((embed: { url: string }) => embed.url),
           channelKey: body.channelKey,
         });
         setText("");
-        setImageUrl("");
-        setUploadedImage(null);
+        setImageUrls([]);
         setUrlPreview(null);
         setDetectedUrl(null);
         setReplyParentHash(null);
@@ -535,7 +534,7 @@ export default function ComposeModal() {
     if (!text.trim()) return;
     localStorage.setItem('hh_compose_draft', JSON.stringify({
       text,
-      imageUrl,
+      imageUrls,
       selectedChannel,
       timestamp: Date.now(),
     }));
@@ -547,7 +546,8 @@ export default function ComposeModal() {
       if (!raw) return;
       const draft = JSON.parse(raw);
       if (draft.text) setText(draft.text);
-      if (draft.imageUrl) setImageUrl(draft.imageUrl);
+      if (Array.isArray(draft.imageUrls)) setImageUrls(draft.imageUrls.slice(0, MAX_CAST_PHOTOS));
+      else if (draft.imageUrl) setImageUrls([draft.imageUrl]);
       if (draft.selectedChannel) setSelectedChannel(draft.selectedChannel);
     } catch {}
     setHasDraft(false);
@@ -564,8 +564,7 @@ export default function ComposeModal() {
     setHasDraft(false);
     setOpen(false);
     setText('');
-    setImageUrl('');
-    setUploadedImage(null);
+    setImageUrls([]);
     setScheduleTime('');
     setIsScheduled(false);
     setIsLongForm(false);
@@ -585,7 +584,7 @@ export default function ComposeModal() {
     doClose();
   }
 
-  const canPost = !loading && !uploadingImage && (!!text.trim() || !!imageUrl.trim()) && (!isScheduled || !!scheduleTime);
+  const canPost = !loading && !uploadingImage && (!!text.trim() || imageUrls.length > 0) && (!isScheduled || !!scheduleTime);
 
   return (
     <>
@@ -676,13 +675,17 @@ export default function ComposeModal() {
             </div>
 
             {/* Hidden file input */}
-            <input id="image-upload" type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} style={{ display: 'none' }} />
+            <input id="image-upload" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS} style={{ display: 'none' }} />
 
             {/* Image preview */}
-            {imageUrl && (
-              <div style={{ marginTop: 10, position: 'relative', display: 'inline-block' }}>
-                <img src={imageUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
-                <button onClick={() => { setImageUrl(''); setUploadedImage(null); }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+            {imageUrls.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: imageUrls.length === 1 ? '1fr' : '1fr 1fr', gap: 8, marginTop: 10 }}>
+                {imageUrls.map((url, index) => (
+                  <div key={`${url}-${index}`} style={{ position: 'relative' }}>
+                    <img src={url} alt={`Photo ${index + 1}`} style={{ width: '100%', height: imageUrls.length === 1 ? 220 : 140, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
+                    <button type="button" onClick={() => removeImage(index)} aria-label={`Remove photo ${index + 1}`} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -774,11 +777,12 @@ export default function ComposeModal() {
             <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
               {/* Left: scrollable tools */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
-                <label htmlFor="image-upload" style={{ ...toolBtn, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.4 : 1 }} title="Add photo">
+                <label htmlFor="image-upload" style={{ ...toolBtn, cursor: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 'not-allowed' : 'pointer', opacity: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 0.4 : 1 }} title={`Add photos (${imageUrls.length}/${MAX_CAST_PHOTOS})`}>
                   {uploadingImage
                     ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
                     : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   }
+                  <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 3 }}>{imageUrls.length}/{MAX_CAST_PHOTOS}</span>
                 </label>
 
                 <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel" style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>

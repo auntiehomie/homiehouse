@@ -10,6 +10,7 @@ import { castTypeForText } from '@/lib/cast-text';
 import { fetchChannelParentUrl } from '@/lib/hypersnap';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { publishOptimisticCast } from '@/lib/optimistic-casts';
+import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
@@ -18,6 +19,7 @@ import {
   ReactionType,
   type FarcasterSigner,
   type CastEmbed,
+  type CastAddInput,
 } from '@/lib/fc-message-builder';
 
 async function submitMessage(message: Uint8Array): Promise<unknown> {
@@ -34,9 +36,54 @@ async function submitMessage(message: Uint8Array): Promise<unknown> {
   return data;
 }
 
+function isEmbedLimitError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /pro.?user.?feature|(?:too many|maximum|max(?:imum)?|limit|exceed\w*)[^\n]{0,48}embed|embed[^\n]{0,48}(?:limit|maximum|max|pro)/i.test(message);
+}
+
+async function publishCastWithGalleryFallback(params: {
+  fid: number;
+  text: string;
+  embeds: CastEmbed[];
+  galleryImages?: string[];
+  parent?: CastAddInput['parent'];
+  signer: FarcasterSigner;
+}): Promise<{ result: any; embeds: CastEmbed[]; galleryFallback: boolean }> {
+  const castType = castTypeForText(params.text);
+  const publish = async (embeds: CastEmbed[]) => {
+    const message = await buildSignedMessage(
+      { type: MessageType.CAST_ADD, fid: params.fid, body: { castAddBody: {
+        text: params.text,
+        embeds: embeds.length ? embeds : undefined,
+        parent: params.parent,
+        type: castType,
+      } } },
+      params.signer,
+    );
+    return submitMessage(message);
+  };
+
+  try {
+    return { result: await publish(params.embeds), embeds: params.embeds, galleryFallback: false };
+  } catch (error) {
+    const images = params.galleryImages?.slice(0, 4) ?? [];
+    if (images.length < 3 || params.embeds.length < 3 || !isEmbedLimitError(error)) throw error;
+
+    const galleryEmbeds: CastEmbed[] = [{ url: buildCastGalleryUrl(images) }];
+    return { result: await publish(galleryEmbeds), embeds: galleryEmbeds, galleryFallback: true };
+  }
+}
+
+export interface CastSubmissionResult {
+  castHash: string;
+  galleryFallback?: boolean;
+}
+
 export interface SubmitCastParams {
   text: string;
   embeds?: { url: string }[];
+  /** Photos to preserve in a gallery if the node rejects four individual embeds. */
+  galleryImages?: string[];
   channelKey?: string;
   parentUrl?: string;
 }
@@ -51,17 +98,19 @@ export interface ReplyParams {
   parentCastHash: string;
   parentCastFid: number;
   embeds?: { url: string }[];
+  /** Photos to preserve in a gallery if the node rejects four individual embeds. */
+  galleryImages?: string[];
 }
 
 export interface UseFarcasterWritesReturn {
   hasActiveSigner: boolean;
   requestSigner: () => Promise<void>;
-  submitCast: (params: SubmitCastParams) => Promise<{ castHash: string }>;
+  submitCast: (params: SubmitCastParams) => Promise<CastSubmissionResult>;
   likeCast: (params: ReactionParams) => Promise<void>;
   unlikeCast: (params: ReactionParams) => Promise<void>;
   recast: (params: ReactionParams) => Promise<void>;
   removeRecast: (params: ReactionParams) => Promise<void>;
-  reply: (params: ReplyParams) => Promise<{ castHash: string }>;
+  reply: (params: ReplyParams) => Promise<CastSubmissionResult>;
   follow: (targetFid: number) => Promise<void>;
   unfollow: (targetFid: number) => Promise<void>;
   signerApprovalUrl: null;
@@ -124,22 +173,19 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid } }));
   }, [fid]);
 
-  const submitCast = useCallback(async (params: SubmitCastParams): Promise<{ castHash: string }> => {
+  const submitCast = useCallback(async (params: SubmitCastParams): Promise<CastSubmissionResult> => {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
     const resolvedParentUrl = params.parentUrl || (params.channelKey ? await fetchChannelParentUrl(params.channelKey) : undefined);
-    // Protocol cast limits are UTF-8 bytes, including emoji and punctuation.
-    const castType = castTypeForText(params.text);
-    const message = await buildSignedMessage(
-      { type: MessageType.CAST_ADD, fid, body: { castAddBody: {
-        text: params.text,
-        embeds: embeds.length ? embeds : undefined,
-        parent: resolvedParentUrl ? { url: resolvedParentUrl } : undefined,
-        type: castType,
-      } } },
+    const published = await publishCastWithGalleryFallback({
+      fid,
+      text: params.text,
+      embeds,
+      galleryImages: params.galleryImages,
+      parent: resolvedParentUrl ? { url: resolvedParentUrl } : undefined,
       signer,
-    );
-    const result: any = await submitMessage(message);
+    });
+    const result: any = published.result;
     const castHash = result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '';
     if (typeof castHash === 'string' && castHash) {
       publishOptimisticCast({
@@ -152,12 +198,12 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
           display_name: displayName || undefined,
           pfp_url: pfpUrl || undefined,
         },
-        embeds: params.embeds?.map((embed) => ({ url: embed.url })),
+        embeds: published.embeds.map((embed) => ({ url: 'url' in embed ? embed.url : '' })),
         channel: params.channelKey ? { id: params.channelKey } : undefined,
         optimistic: true,
       });
     }
-    return { castHash };
+    return { castHash, galleryFallback: published.galleryFallback };
   }, [getSigner, fid, username, displayName, pfpUrl]);
 
   const likeCast = useCallback(async (params: ReactionParams): Promise<void> => {
@@ -208,19 +254,18 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     await submitMessage(message);
   }, [getSigner, fid]);
 
-  const reply = useCallback(async (params: ReplyParams): Promise<{ castHash: string }> => {
+  const reply = useCallback(async (params: ReplyParams): Promise<CastSubmissionResult> => {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
-    const message = await buildSignedMessage(
-      { type: MessageType.CAST_ADD, fid, body: { castAddBody: {
-        text: params.text,
-        type: castTypeForText(params.text),
-        embeds: embeds.length ? embeds : undefined,
-        parent: { castId: { fid: params.parentCastFid, hash: hexToBytes(params.parentCastHash) } },
-      } } },
+    const published = await publishCastWithGalleryFallback({
+      fid,
+      text: params.text,
+      embeds,
+      galleryImages: params.galleryImages,
+      parent: { castId: { fid: params.parentCastFid, hash: hexToBytes(params.parentCastHash) } },
       signer,
-    );
-    const result: any = await submitMessage(message);
+    });
+    const result: any = published.result;
     const castHash = result?.hash ?? result?.cast?.hash ?? result?.data?.hash ?? '';
     if (typeof castHash === 'string' && castHash) {
       publishOptimisticCast({
@@ -233,13 +278,13 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
           display_name: displayName || undefined,
           pfp_url: pfpUrl || undefined,
         },
-        embeds: params.embeds?.map((embed) => ({ url: embed.url })),
+        embeds: published.embeds.map((embed) => ({ url: 'url' in embed ? embed.url : '' })),
         parent_hash: params.parentCastHash,
         parent_author: { fid: params.parentCastFid },
         optimistic: true,
       });
     }
-    return { castHash };
+    return { castHash, galleryFallback: published.galleryFallback };
   }, [getSigner, fid, username, displayName, pfpUrl]);
 
   const follow = useCallback(async (targetFid: number): Promise<void> => {

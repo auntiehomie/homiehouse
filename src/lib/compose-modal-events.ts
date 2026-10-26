@@ -3,7 +3,7 @@ export const OPEN_COMPOSE_MODAL_EVENT = 'openComposeModal';
 export type ComposeCastResult = {
   hash: string;
   text?: string;
-  embeds?: [] | [string] | [string, string];
+  embeds?: string[];
   channelKey?: string;
 };
 

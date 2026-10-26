@@ -3,6 +3,7 @@
 import React from 'react';
 import SmartEmbed from './SmartEmbed';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
+import { isCastGalleryUrl, parseCastGalleryImages } from '@/lib/cast-gallery';
 
 // Extract YouTube video ID from various URL formats
 function parseYouTubeId(url: string): string | null {
@@ -68,6 +69,37 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
 
   const embedUrl: string = typeof embed === 'string' ? embed : embed.url;
   if (!embedUrl || typeof embedUrl !== 'string') return null;
+
+  if (isCastGalleryUrl(embedUrl)) {
+    let galleryImages: string[] = [];
+    try {
+      galleryImages = parseCastGalleryImages(new URL(embedUrl).searchParams.get('photos') ?? undefined);
+    } catch {}
+
+    return (
+      <a href={embedUrl} target="_blank" rel="noopener noreferrer" className="block max-w-full overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+        {galleryImages.length > 0 && (
+          <div className="grid grid-cols-2 gap-1 p-1">
+            {galleryImages.slice(0, 4).map((imageUrl, imageIndex) => (
+              <img
+                key={`${imageUrl}-${imageIndex}`}
+                src={imageUrl}
+                alt={`Gallery photo ${imageIndex + 1}`}
+                loading="lazy"
+                className="aspect-square w-full rounded-md object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ))}
+          </div>
+        )}
+        <div className="px-3 py-2 text-sm font-medium text-violet-300">
+          {galleryImages.length
+            ? `View all ${galleryImages.length} photos in Homiehouse`
+            : 'View photo gallery in Homiehouse'}
+        </div>
+      </a>
+    );
+  }
 
   // Image
   const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(embedUrl) ||

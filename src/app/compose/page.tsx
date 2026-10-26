@@ -7,6 +7,8 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import ComposeInspiration from '@/components/ComposeInspiration';
 import { splitCastText, publishCastParts, type ThreadProgress } from '@/lib/cast-text';
 import { getAuthHeaders } from '@/lib/client-auth';
+import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
+import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 
 function ComposePageInner() {
   const router = useRouter();
@@ -230,9 +232,7 @@ function ComposePageInner() {
   };
 
 
-  // Farcaster supports max 2 embeds per cast. A URL preview occupies one slot,
-  // so the image limit is 1 when a URL is detected, otherwise 2.
-  const maxImages = urlPreview && detectedUrl ? 1 : 2;
+  const maxImages = MAX_CAST_PHOTOS;
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -301,10 +301,14 @@ function ComposePageInner() {
 
       const body: any = { text, fid: userFid };
 
-      // Build embeds — max 2 per Farcaster protocol
-      const embeds: any[] = uploadedImages.map(url => ({ url }));
-      // URL preview takes the remaining slot (if any)
-      if (urlPreview && detectedUrl && embeds.length < 2) {
+      // Scheduled casts cannot retry on an embed-limit response, so preserve
+      // larger photo sets in a single Homiehouse gallery link.
+      const useGalleryForSchedule = isScheduled && uploadedImages.length > 2;
+      const embeds: any[] = useGalleryForSchedule
+        ? [{ url: buildCastGalleryUrl(uploadedImages) }]
+        : uploadedImages.slice(0, MAX_CAST_PHOTOS).map(url => ({ url }));
+      const maxEmbeds = uploadedImages.length > 2 ? MAX_CAST_EMBEDS : 2;
+      if (urlPreview && detectedUrl && embeds.length < maxEmbeds) {
         embeds.push({ url: detectedUrl });
       }
       if (embeds.length > 0) {
@@ -366,7 +370,9 @@ function ComposePageInner() {
         }
         
         if (data.ok) {
-          setStatus("✓ Cast scheduled successfully!");
+          setStatus(useGalleryForSchedule
+            ? '✓ Cast scheduled with a Homiehouse photo gallery.'
+            : '✓ Cast scheduled successfully!');
           setText("");
           setUploadedImages([]);
           setScheduleTime("");
@@ -389,17 +395,24 @@ function ComposePageInner() {
           threadProgress.current = { fingerprint, progress: { hashes: [] } };
         }
         const progress = threadProgress.current.progress;
+        let usedGalleryFallback = false;
         try {
-          await publishCastParts(parts, progress, (part, parentHash) => parentHash
-            ? reply({ text: part, parentCastHash: parentHash, parentCastFid: userFid })
-            : submitCast({ text: part, embeds: body.embeds, channelKey: body.channelKey }));
+          await publishCastParts(parts, progress, async (part, parentHash) => {
+            const result = parentHash
+              ? await reply({ text: part, parentCastHash: parentHash, parentCastFid: userFid })
+              : await submitCast({ text: part, embeds: body.embeds, galleryImages: uploadedImages, channelKey: body.channelKey });
+            usedGalleryFallback ||= !!result.galleryFallback;
+            return result;
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           throw new Error(progress.hashes.length
             ? `${progress.hashes.length} of ${parts.length} parts posted. Retry to continue the remaining parts. ${message}`
             : message);
         }
-        setStatus("✓ Posted successfully!");
+        setStatus(usedGalleryFallback
+          ? '✓ Posted with a Homiehouse photo gallery link.'
+          : '✓ Posted successfully!');
         setText("");
         setUploadedImages([]);
         setUrlPreview(null);
@@ -689,7 +702,7 @@ function ComposePageInner() {
               }
               {uploadedImages.length > 0 && (
                 <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 3, color: uploadedImages.length >= maxImages ? '#f87171' : 'var(--muted-on-dark)' }}>
-                  {uploadedImages.length}/{maxImages}
+                  {uploadedImages.length}/{MAX_CAST_PHOTOS}
                 </span>
               )}
               <input id="image-upload-compose" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || uploadedImages.length >= maxImages} style={{ display: 'none' }} />
