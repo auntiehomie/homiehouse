@@ -103,8 +103,8 @@ export default function FeedCurationChat({ onClose }: FeedCurationChatProps) {
                 <div
                   key={interest}
                   style={{
-                    background: 'var(--accent)',
-                    color: 'white',
+                    background: 'var(--btn-primary-bg)',
+                    color: 'var(--btn-primary-color)',
                     padding: '6px 12px',
                     borderRadius: '20px',
                     fontSize: '14px',
@@ -127,7 +127,7 @@ export default function FeedCurationChat({ onClose }: FeedCurationChatProps) {
                       justifyContent: 'center',
                       cursor: 'pointer',
                       fontSize: '12px',
-                      color: 'white'
+                      color: 'var(--btn-primary-color)'
                     }}
                   >
                     ×
@@ -195,8 +195,8 @@ export default function FeedCurationChat({ onClose }: FeedCurationChatProps) {
                     transition: 'all 0.2s'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--accent)';
-                    e.currentTarget.style.color = 'white';
+                    e.currentTarget.style.background = 'var(--btn-primary-bg)';
+                    e.currentTarget.style.color = 'var(--btn-primary-color)';
                     e.currentTarget.style.borderColor = 'var(--accent)';
                   }}
                   onMouseLeave={(e) => {
