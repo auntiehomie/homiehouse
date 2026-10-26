@@ -6,8 +6,8 @@
  * src/lib/farcaster-writes.ts). The stubs below throw descriptive errors
  * pointing to the proper implementation path.
  *
- * Primary node:  NEXT_PUBLIC_HYPERSNAP_URL  (default: Hypersnap Public — haatz.quilibrium.com)
- * Fallback node: HYPERSNAP_FALLBACK_URL     (default: self-hosted proxy on droplet)
+ * Primary node: personal server URL when configured, otherwise NEXT_PUBLIC_HYPERSNAP_URL.
+ * Fallback node: HYPERSNAP_FALLBACK_URL; personal-node reads default to the public node.
  */
 
 /**
@@ -16,18 +16,20 @@
  * it does not mean this client should switch to the public Snapchain service.
  * Private URLs are never selected in a browser bundle.
  */
-function getHypersnapBase(): string {
-  if (typeof process === 'undefined') return 'https://haatz.quilibrium.com';
-  if (typeof window === 'undefined') {
-    const personalNode = process.env.MY_HYPERSNAP_NODE_URL
-      || process.env.HYPERSNAP_NODE_URL
-      || process.env.SNAPCHAIN_NODE_URL;
-    if (personalNode?.trim()) return personalNode.trim().replace(/\/$/, '');
-  }
-  return process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
+const PUBLIC_HYPERSNAP_BASE =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_HYPERSNAP_URL) ||
+  'https://haatz.quilibrium.com';
+
+function getPersonalHypersnapBase(): string | null {
+  if (typeof process === 'undefined' || typeof window !== 'undefined') return null;
+  const personalNode = process.env.MY_HYPERSNAP_NODE_URL
+    || process.env.HYPERSNAP_NODE_URL
+    || process.env.SNAPCHAIN_NODE_URL;
+  return personalNode?.trim().replace(/\/$/, '') || null;
 }
 
-const HYPERSNAP_BASE = getHypersnapBase();
+const PERSONAL_HYPERSNAP_BASE = getPersonalHypersnapBase();
+const HYPERSNAP_BASE = PERSONAL_HYPERSNAP_BASE || PUBLIC_HYPERSNAP_BASE;
 const READ_SOURCE_FIELD = '__homiehouseHypersnapReadSource';
 
 /** Safe diagnostic label; intentionally never returns the configured URL. */
@@ -43,7 +45,7 @@ export function getHypersnapReadNodeSource(): 'personal' | 'public' {
 /** Ardea/Arca — second Hypersnap node, same API surface. Used when primary is slow/unavailable. */
 const HYPERSNAP_FALLBACK =
   (typeof process !== 'undefined' && process.env.HYPERSNAP_FALLBACK_URL) ||
-  'http://161.35.52.192:3100';
+  (PERSONAL_HYPERSNAP_BASE ? PUBLIC_HYPERSNAP_BASE : 'http://161.35.52.192:3100');
 
 // ─── Generic fetch ──────────────────────────────────────────────────────────
 
