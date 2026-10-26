@@ -12,6 +12,8 @@ import { formatLiveCastContext, liveCastSearchMetadata, searchRelevantCasts, sho
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
 import { formatLiveWebContext, searchTopicWeb } from '@/lib/ai/news';
 import { shouldSearchWeb } from '@/lib/agent-context';
+import { formatLiveXContext, isXResearchConfigured, liveXSearchMetadata, searchRecentXPosts } from '@/lib/ai/x-research';
+import { reserveXBudget } from '@/lib/x-budget';
 
 // Module-level logger for helper functions
 const logger = createApiLogger('/ask-homie');
@@ -81,11 +83,13 @@ export async function POST(req: NextRequest) {
       eli5 = false,
       learningMode,
       learningTopic,
+      xResearchRequested = false,
     } = await req.json();
 
     if (!Array.isArray(messages) || (!messages.length && !feedback) || (isLearningMode(learningMode) && !messages.some((message: any) => message?.role === 'user')) || messages.length > 100 ||
       messages.some((message: any) => !['user', 'assistant'].includes(message?.role) || typeof message?.content !== 'string' || message.content.length > 20000) ||
       (learningMode !== undefined && !isLearningMode(learningMode)) ||
+      typeof xResearchRequested !== 'boolean' ||
       (learningTopic !== undefined && (typeof learningTopic !== 'string' || learningTopic.length > 200))) {
       return NextResponse.json({ error: 'Invalid conversation or learning request' }, { status: 400 });
     }
@@ -232,6 +236,7 @@ ${contextualMessage}`;
       (researchIntent === 'auto' && shouldSearchWeb(userMessage));
     let liveCastResearch: Awaited<ReturnType<typeof searchRelevantCasts>> | null = null;
     let liveWebResearch: Awaited<ReturnType<typeof searchTopicWeb>> = null;
+    let liveXResearch: Awaited<ReturnType<typeof searchRecentXPosts>> | null = null;
 
     if (liveWebSearchRequested) {
       const castText = activeCastContext?.text ? `\n\nCast to explain:\n${activeCastContext.text}` : '';
@@ -247,8 +252,33 @@ ${contextualMessage}`;
       contextualMessage = `${formatLiveCastContext(liveCastResearch)}\n${contextualMessage}`;
     }
 
+    // X is searched only when the user opts in for this turn. Its paid API
+    // usage is limited to Pro members and at most five post reads per call.
+    // Do not search for compose turns or during lesson generation.
+    const xSearchEligible = xResearchRequested && !isLearningMode(learningMode) && researchIntent !== 'compose';
+    let xResearchStatus: 'pro-required' | 'searched' | 'unavailable' | 'no-results' | 'budget-exhausted' | undefined;
+    if (xSearchEligible) {
+      if (!isPro) {
+        xResearchStatus = 'pro-required';
+      } else if (!isXResearchConfigured()) {
+        xResearchStatus = 'unavailable';
+      } else {
+        // Reserve the full result cap atomically before calling the paid API.
+        // This intentionally errs on the safe side when fewer than five posts
+        // are returned, and keeps the existing shared monthly X read cap.
+        const budget = await reserveXBudget('read', 5);
+        if (!budget.allowed) {
+          liveXResearch = { status: 'budget-exhausted', posts: [] };
+        } else {
+          liveXResearch = await searchRecentXPosts(userMessage);
+        }
+        xResearchStatus = liveXResearch.status;
+        contextualMessage = `${formatLiveXContext(liveXResearch)}\n${contextualMessage}`;
+      }
+    }
+
     // Process the request
-    const effectiveIntent = researchIntent === 'auto' && liveCastSearchRequested
+    const effectiveIntent = researchIntent === 'auto' && (liveCastSearchRequested || xSearchEligible)
       ? 'research'
       : researchIntent;
     const result = await orchestrator.processRequest(contextualMessage, effectiveIntent);
@@ -267,6 +297,11 @@ ${contextualMessage}`;
       metadata: {
         ...result.metadata,
         ...(liveCastResearch ? { liveCastSearch: liveCastSearchMetadata(liveCastResearch) } : {}),
+        ...(xResearchRequested ? {
+          liveXSearch: liveXResearch
+            ? liveXSearchMetadata(liveXResearch)
+            : { provider: 'X', status: xResearchStatus || 'unavailable', resultCount: 0, citations: [] },
+        } : {}),
         ...(liveWebSearchRequested ? {
           liveWebSearch: {
             provider: 'Brave Search',

@@ -14,18 +14,24 @@ building a separate bot.
 
 ## Why this needs a plan before code
 
-Unlike Farcaster (Hypersnap's read API is free and unauthenticated, writes go
-straight to a hub with no per-call cost), **X's API costs real money per
-call as of 2026.** In February 2026 X moved new developers to pay-per-use by
-default and closed the flat-rate Basic ($200/mo) and Pro ($5,000/mo) tiers to
-new signups:
+Unlike Hypersnap's unauthenticated reads, **X's API charges per resource**.
+The [current X API pricing documentation](https://docs.x.com/x-api/getting-started/pricing)
+lists public Post reads at $0.005 per Post, and
+pay-per-use accounts are capped at 3 million Post reads per monthly billing
+cycle. Recent Search returns posts from the last seven days; full-archive
+search is available to pay-per-use and Enterprise customers according to the
+[Search Posts documentation](https://docs.x.com/x-api/posts/search/introduction).
+Prices and access requirements can change, so check the official X Developer
+Console before enabling a feature.
 
 - **Writes**: ~$0.015 per post, $0.20 per post that contains a link
-- **Reads**: ~$0.005 per read, with a hard 2,000,000 reads/month cap before
-  you're forced onto Enterprise (~$42,000+/month)
-- Legacy Basic/Pro tiers still exist for developers who already had them
-  (50,000 posts/mo + 15,000 reads/mo on Basic), but aren't available to sign
-  up for fresh
+- **Reads**: $0.005 per returned Post resource on the current pay-per-use
+  schedule; pay-per-use accounts have a 3,000,000 Post-read monthly cap.
+- **Ask Homie research**: optional per-turn opt-in, Homiehouse Pro only, recent
+  search only, five Post reads maximum per request. The current maximum X
+  search read charge is about $0.025 per opted-in turn. It reserves five reads
+  against the shared local monthly cap before making the request and keeps
+  post text request-scoped rather than saving an X corpus.
 
 This is the opposite of every other integration in this codebase, where the
 existing security audit's "uncontrolled AI costs" warning was about LLM
@@ -74,7 +80,9 @@ X_APP_SECRET=            # "API Key Secret"
 X_ACCESS_TOKEN=          # generated for the @homiehouselol account specifically
 X_ACCESS_SECRET=
 X_MONTHLY_POST_CAP=300   # optional, defaults to 300 (~10/day)
-X_MONTHLY_READ_CAP=3000  # optional, defaults to 3000
+X_MONTHLY_READ_CAP=500   # optional, defaults to 500 reserved read resources (~$2.50 at $0.005 each)
+X_RESEARCH_ENABLED=false # optional Ask Homie Recent Search; Pro-only and per-turn opt-in
+X_RESEARCH_BEARER_TOKEN= # app-only Bearer Token; server-side only
 X_AGENT_ENABLED=false     # gates X AI mention replies
 X_AI_REPLY_APPROVAL_CONFIRMED= # written approval required for AI mention replies
 ```
@@ -88,6 +96,9 @@ X_AI_REPLY_APPROVAL_CONFIRMED= # written approval required for AI mention replie
    (not an OAuth2 app-login flow)
 4. Set X credentials and caps in Vercel. Leave AI mention replies disabled
    unless written approval has been recorded.
+   For Ask Homie Recent Search, configure an X Developer Console account
+   spending limit first, then set `X_RESEARCH_BEARER_TOKEN`; leave
+   `X_RESEARCH_ENABLED=false` until the read budget is intentionally enabled.
 5. Use `GET /api/agent/x-post?dry=1` with the cron secret to review a draft
    without publishing.
 6. Confirm the account and budget before enabling or increasing scheduled

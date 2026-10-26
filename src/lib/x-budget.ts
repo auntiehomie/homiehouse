@@ -38,7 +38,7 @@ function currentMonth(): string {
 
 /** Conservative defaults — override via env once real usage patterns are known. */
 const DEFAULT_MONTHLY_POST_CAP = 300; // ~10/day, well under legacy Basic-tier volume
-const DEFAULT_MONTHLY_READ_CAP = 3000; // mention polling + timeline reads
+const DEFAULT_MONTHLY_READ_CAP = 500; // conservative shared cap; Ask Homie reserves up to 5 per search
 
 function getPostCap(): number {
   return Number(process.env.X_MONTHLY_POST_CAP) || DEFAULT_MONTHLY_POST_CAP;
@@ -78,6 +78,43 @@ export async function checkXBudget(kind: XUsageKind): Promise<BudgetCheck> {
   } catch (err) {
     console.error('[x-budget] checkXBudget failed — denying (fail closed):', (err as Error).message);
     return { allowed: false, used: 0, cap, reason: 'Budget check failed (DB unreachable) — denying by default' };
+  }
+}
+
+/** Atomically reserve capacity before a paid API call. Fails closed. */
+export async function reserveXBudget(kind: XUsageKind, count = 1): Promise<BudgetCheck> {
+  const cap = kind === 'post' ? getPostCap() : getReadCap();
+  const amount = Math.max(1, Math.floor(count));
+  try {
+    await ensureTable();
+    const db = getDb();
+    const month = currentMonth();
+    const column = kind === 'post' ? 'posts_count' : 'reads_count';
+    const { rows } = await db.query<{ used: number }>(
+      `INSERT INTO agent_x_usage (month, ${column}, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (month) DO UPDATE SET
+         ${column} = agent_x_usage.${column} + $2,
+         updated_at = NOW()
+       WHERE agent_x_usage.${column} + $2 <= $3
+       RETURNING ${column} AS used`,
+      [month, amount, cap]
+    );
+    if (rows[0]) return { allowed: true, used: Number(rows[0].used), cap };
+
+    const current = await db.query<{ used: number }>(
+      `SELECT ${column} AS used FROM agent_x_usage WHERE month = $1`,
+      [month]
+    );
+    return {
+      allowed: false,
+      used: Number(current.rows[0]?.used ?? cap),
+      cap,
+      reason: `Monthly X ${kind} cap (${cap}) reached`,
+    };
+  } catch (err) {
+    console.error('[x-budget] reserveXBudget failed — denying (fail closed):', (err as Error).message);
+    return { allowed: false, used: 0, cap, reason: 'Budget reservation failed (DB unreachable) — denying by default' };
   }
 }
 
