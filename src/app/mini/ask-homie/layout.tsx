@@ -6,13 +6,21 @@ const miniAppFrame = {
   button: {
     title: "Ask Homie",
     action: {
-      type: "launch_frame",
+      type: "launch_miniapp",
       name: "Ask Homie AI",
       url: "https://homiehouse.xyz/mini/ask-homie",
       splashImageUrl: "https://homiehouse.xyz/og-ask-homie.png",
       splashBackgroundColor: "#8B5CF6"
     }
   }
+};
+
+const legacyFrame = {
+  ...miniAppFrame,
+  button: {
+    ...miniAppFrame.button,
+    action: { ...miniAppFrame.button.action, type: 'launch_frame' },
+  },
 };
 
 export const metadata: Metadata = {
@@ -24,7 +32,10 @@ export const metadata: Metadata = {
     images: ['/og-ask-homie.png']
   },
   other: {
-    'fc:miniapp': JSON.stringify(miniAppFrame)
+    'fc:miniapp': JSON.stringify(miniAppFrame),
+    // Keep the legacy embed tag for clients that have not switched to
+    // `fc:miniapp` yet.
+    'fc:frame': JSON.stringify(legacyFrame),
   }
 };
 

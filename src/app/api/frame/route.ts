@@ -46,7 +46,9 @@ export async function GET(request: NextRequest) {
     if (!res.ok) return NextResponse.json({ isFrame: false });
     const html = await res.text();
 
-    const version = extractMeta(html, 'fc:frame');
+    // Current Mini Apps use `fc:miniapp`; older Frame clients use
+    // `fc:frame`. Read both so a shared Mini App URL can launch in the host.
+    const version = extractMeta(html, 'fc:miniapp') ?? extractMeta(html, 'fc:frame');
     if (!version) return NextResponse.json({ isFrame: false });
 
     const image = extractMeta(html, 'fc:frame:image') ?? extractMeta(html, 'og:image') ?? '';

@@ -41,6 +41,18 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/apps',
+    label: 'Apps',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+        <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+        <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+        <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" strokeWidth={2} />
+      </svg>
+    ),
+  },
+  {
     href: '/community',
     label: 'Community',
     icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🛡️</span>,

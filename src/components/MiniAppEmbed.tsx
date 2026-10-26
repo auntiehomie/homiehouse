@@ -76,7 +76,12 @@ export function MiniAppEmbed({
         hostRef.current = host;
       }
 
+      // Install the host bridge before navigating. Mini App SDKs request their
+      // context as soon as their page loads; assigning src in the JSX can let
+      // a cached app make that request before exposeToIframe has registered
+      // its message listener.
       const cleanup = host.mountMiniApp(iframe, snapUrl);
+      iframe.src = snapUrl;
 
       return () => {
         cleanup();
@@ -160,7 +165,6 @@ export function MiniAppEmbed({
       {status !== 'error' && (
         <iframe
           ref={iframeRef}
-          src={snapUrl}
           title={title}
           sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-presentation allow-downloads"
           allow="camera; microphone; clipboard-read; clipboard-write; web-share"
