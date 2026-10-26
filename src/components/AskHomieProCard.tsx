@@ -23,7 +23,7 @@ export default function AskHomieProCard({ userFid }: Props) {
       if (!auth) { setLoading(false); return; }
       try {
         const res = await fetch(`/api/pro-status?fid=${userFid}`, {
-          headers: auth, cache: 'no-store',
+          headers: { ...auth }, cache: 'no-store',
         });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Unable to load Ask Homie access.');
@@ -49,7 +49,7 @@ export default function AskHomieProCard({ userFid }: Props) {
     try {
       const auth = getAuthHeaders('write:shop');
       if (!auth) throw new Error('Sign in again to manage Ask Homie Pro.');
-      const res = await fetch(endpoint, { method: 'POST', headers: auth });
+      const res = await fetch(endpoint, { method: 'POST', headers: { ...auth } });
       const data = await res.json();
       if (!res.ok || !data.ok || !data.url) throw new Error(data.error || 'Unable to open billing.');
       window.location.href = data.url;
