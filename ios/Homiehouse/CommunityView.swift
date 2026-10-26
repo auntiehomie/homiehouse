@@ -59,8 +59,10 @@ struct CommunityView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Compose", systemImage: "square.and.pencil") { compose = true } }
             }
         } detail: {
-            if let selected { CastDetailView(cast: selected, api: api, bridge: bridge).id(selected.hash) }
-            else { ContentUnavailableView("Your community", systemImage: "bubble.left.and.bubble.right", description: Text("Choose a cast to explore its conversation.")) }
+            NavigationStack {
+                if let selected { CastDetailView(cast: selected, api: api, bridge: bridge).id(selected.hash) }
+                else { ContentUnavailableView("Your community", systemImage: "bubble.left.and.bubble.right", description: Text("Choose a cast to explore its conversation.")) }
+            }
         }
         .sheet(isPresented: $connect) { ConnectView(bridge: bridge) }
         .sheet(isPresented: $compose) { ComposerView(bridge: bridge) { Task { await load() } } }

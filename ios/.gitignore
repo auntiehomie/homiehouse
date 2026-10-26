@@ -1,4 +1,4 @@
 DerivedData/
-*.xcuserstate
+*.xcresult/
 xcuserdata/
-*.xcarchive
+*.xcuserstate
