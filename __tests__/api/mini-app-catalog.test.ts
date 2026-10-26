@@ -7,85 +7,58 @@ jest.mock('@/lib/logger', () => ({ createApiLogger: () => ({ error: jest.fn() })
 const request = (query = '') => new NextRequest(`http://localhost/api/mini-app-catalog${query}`);
 
 describe('/api/mini-app-catalog', () => {
-  const originalApiKey = process.env.NEYNAR_API_KEY;
   const originalFetch = global.fetch;
 
   afterEach(() => {
-    if (originalApiKey === undefined) delete process.env.NEYNAR_API_KEY;
-    else process.env.NEYNAR_API_KEY = originalApiKey;
     global.fetch = originalFetch;
     jest.clearAllMocks();
   });
 
-  it('explains when catalog credentials are not configured', async () => {
-    delete process.env.NEYNAR_API_KEY;
-    global.fetch = jest.fn();
-    const response = await GET(request());
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({ error: 'Mini App discovery is not configured yet.' });
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
-  it('returns safe app cards from the hosted discovery catalog', async () => {
-    process.env.NEYNAR_API_KEY = 'test-api-key';
+  it('returns safe app cards from the public Mini App discovery feed without a provider key', async () => {
     global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({
-      frames: [
+      result: { frames: [
         {
-          frames_url: 'https://app.example/mini',
-          title: 'Fallback title',
-          author: { username: 'builder' },
-          manifest: { miniapp: {
-            home_url: 'https://app.example/',
-            name: 'Example App',
-            description: 'A useful app',
-            icon_url: 'https://cdn.example/icon.png',
-            primary_category: 'utility',
-          } },
+          domain: 'app.example',
+          homeUrl: 'https://app.example/',
+          name: 'Example App',
+          author: { username: 'builder', displayName: 'Builder' },
+          iconUrl: 'https://cdn.example/icon.png',
+          requiredChains: ['eip155:8453'],
         },
-        { frames_url: 'http://unsafe.example/app', title: 'Unsafe app' },
-      ],
+        { domain: 'unsafe.example', homeUrl: 'http://unsafe.example/app', name: 'Unsafe app' },
+      ] },
     }), { status: 200, headers: { 'content-type': 'application/json' } })) as jest.Mock;
 
     const response = await GET(request());
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ apps: [{
-      id: 'https://app.example/mini',
+      id: 'app.example',
       url: 'https://app.example/',
       name: 'Example App',
-      description: 'A useful app',
+      description: 'by Builder',
       iconUrl: 'https://cdn.example/icon.png',
-      author: '@builder',
-      category: 'utility',
+      author: 'Builder',
     }] });
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://api.neynar.com/v2/farcaster/frame/catalog/?limit=100&time_window=7d',
-      expect.objectContaining({ headers: expect.objectContaining({ 'x-api-key': 'test-api-key' }) }),
+      'https://client.warpcast.com/v1/top-frameapps?limit=100',
+      expect.objectContaining({ headers: { accept: 'application/json' } }),
     );
   });
 
-  it('searches the wider Mini App index when a query is supplied', async () => {
-    process.env.NEYNAR_API_KEY = 'test-api-key';
+  it('filters the discovery feed locally when a query is supplied', async () => {
     global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({
-      frames: [{
-        frames_url: 'https://search.example/',
-        manifest: { miniapp: { home_url: 'https://search.example/', name: 'Search result' } },
-      }],
+      result: { frames: [
+        { domain: 'music.example', homeUrl: 'https://music.example/', name: 'Music app' },
+        { domain: 'games.example', homeUrl: 'https://games.example/', name: 'Games app' },
+      ] },
     }), { status: 200, headers: { 'content-type': 'application/json' } })) as jest.Mock;
 
     const response = await GET(request('?q=music%20app'));
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ apps: [expect.objectContaining({ name: 'Search result' })] });
+    await expect(response.json()).resolves.toEqual({ apps: [expect.objectContaining({ name: 'Music app' })] });
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://api.neynar.com/v2/farcaster/frame/search/?q=music+app&limit=50',
-      expect.objectContaining({ headers: expect.objectContaining({ 'x-api-key': 'test-api-key' }) }),
+      'https://client.warpcast.com/v1/top-frameapps?limit=100',
+      expect.any(Object),
     );
-  });
-
-  it('rejects search terms longer than the provider limit', async () => {
-    process.env.NEYNAR_API_KEY = 'test-api-key';
-    global.fetch = jest.fn();
-    const response = await GET(request(`?q=${'a'.repeat(33)}`));
-    expect(response.status).toBe(400);
-    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

@@ -258,7 +258,7 @@ export default function AppsPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 id="discover-apps-heading" className="text-xl font-semibold text-white">Discover apps</h2>
-              <p className="mt-1 text-sm text-zinc-400">Browse featured apps or search the Mini App directory. No URL needed.</p>
+              <p className="mt-1 text-sm text-zinc-400">Browse popular Mini Apps. No URL needed.</p>
             </div>
             <button type="button" onClick={() => void loadCatalog()} className="self-start text-xs font-medium text-zinc-400 hover:text-white sm:self-auto">
               Refresh directory
