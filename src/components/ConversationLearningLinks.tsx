@@ -15,9 +15,10 @@ function PendingLabel({ children }: { children: string }) {
 
 export default function ConversationLearningLinks({ cast }: Props) {
   return (
-    <div aria-label="Learn from this conversation" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }} onClick={event => event.stopPropagation()}>
-      <Link className="btn" prefetch={false} href={conversationLearningUrl(cast, 'explain')}><PendingLabel>Explain in plain English</PendingLabel></Link>
-      <Link className="btn" prefetch={false} href={conversationLearningUrl(cast, 'lesson')}><PendingLabel>Build me a lesson</PendingLabel></Link>
+    <div aria-label="Learn from this cast" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 8, fontSize: 12 }} onClick={event => event.stopPropagation()}>
+      <span style={{ color: 'var(--muted-on-dark, #999)' }}>Learn from this cast:</span>
+      <Link prefetch={false} href={conversationLearningUrl(cast, 'explain')} style={{ color: 'var(--muted-on-dark, #b8b8b8)', textDecoration: 'underline', textUnderlineOffset: 2 }}><PendingLabel>Explain</PendingLabel></Link>
+      <Link prefetch={false} href={conversationLearningUrl(cast, 'lesson')} style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2 }}><PendingLabel>Build a lesson with Ask Homie</PendingLabel></Link>
     </div>
   );
 }

@@ -335,17 +335,6 @@ export default function CastDetailClient() {
   const authorFid = author?.fid ?? 0;
   const authorPfp = author?.pfp_url;
   const text = cast.text || '';
-  const learningTopic = /(?:ethereum|eth\b|rollup|layer.?2|l2\b)/i.test(text)
-    ? { label: 'Ethereum and scaling', track: 'decentralization' }
-    : /(?:wallet|seed phrase|phishing|scam|security|private key)/i.test(text)
-      ? { label: 'Wallet and crypto safety', track: 'decentralization' }
-      : /(?:defi|liquidity|staking|yield|stablecoin|swap)/i.test(text)
-        ? { label: 'DeFi fundamentals', track: 'finance' }
-        : /(?:agent|artificial intelligence|\bAI\b|machine learning|\bLLM\b)/i.test(text)
-          ? { label: 'AI and agents', track: 'ai' }
-          : /(?:creator|community|social|farcaster|channel)/i.test(text)
-            ? { label: 'Web3 creator communities', track: 'creator' }
-            : null;
   const embeds = castEmbedUrls(cast.text || '', cast.embeds);
   const replies = cast.replies?.casts || cast.direct_replies || [];
   const parentChain: any[] = cast.parent_chain || [];
@@ -561,6 +550,9 @@ export default function CastDetailClient() {
           {/* Action buttons */}
           {renderActionRow(cast.hash, authorFid, text, authorUsername)}
 
+          {/* Keep cast-based learning attached to the parent, before its replies. */}
+          <ConversationLearningLinks cast={{ hash: cast.hash, text, author: { username: authorUsername } }} />
+
           {/* Reply input for main cast */}
           {replyingTo === cast.hash && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
@@ -598,38 +590,7 @@ export default function CastDetailClient() {
         )}
         </section>
 
-        <section aria-label="Learn about this cast" className="surface" style={{ marginBottom: 20, padding: 16 }}>
-          <h2 style={{ margin: '0 0 6px', fontSize: 16 }}>Learn from this conversation</h2>
-          <p style={{ margin: 0, fontSize: 14 }}>Understand an unfamiliar idea or explore a topic with Ask Homie.</p>
-          <ConversationLearningLinks cast={{ hash: cast.hash, text, author: { username: authorUsername } }} />
-        </section>
 
-        {/* Learning discovery follows the conversation so its card does not split the thread. */}
-        {learningTopic && (
-          <section aria-label="Learn about this cast" className="surface" style={{ marginBottom: 20, padding: 16 }}>
-            <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>📚 Learn from this conversation</p>
-            <p style={{ margin: '0 0 12px', fontSize: 14 }}>Curious about {learningTopic.label.toLowerCase()}? Get a short path built around this cast, or ask @thehomie for a plain-English explanation.</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              <Link
-                className="btn primary"
-                href={`/learn?track=${learningTopic.track}&related=1&sourceCastId=${encodeURIComponent(cast.hash)}&sourceCast=${encodeURIComponent(JSON.stringify({ author: authorUsername, text: text.slice(0, 1800) }))}`}
-                onClick={() => {
-                  // Keep the full bounded cast available to Learn without
-                  // putting a long post into the navigation URL.
-                  try {
-                    sessionStorage.setItem(`hh_learning_source_cast:${cast.hash}`, JSON.stringify({
-                      author: authorUsername,
-                      text: text.slice(0, 10000),
-                    }));
-                  } catch { /* Learn falls back to the short query context. */ }
-                }}
-              >
-                Build a learning path from this cast →
-              </Link>
-              <Link className="btn" href={`/ask-homie?cast=${encodeURIComponent(JSON.stringify({ author: { username: authorUsername }, text: text.slice(0, 1500), hash: cast.hash }))}`}>Ask @thehomie</Link>
-            </div>
-          </section>
-        )}
       </div>
 
       {/* Quote Cast Modal */}
