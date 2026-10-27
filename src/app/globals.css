@@ -991,11 +991,17 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 .hh-typing-indicator > span:nth-child(3) { animation-delay: 320ms; }
 .hh-character-meter { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-on-dark); font-size: 12px; }
 .hh-character-meter-number { min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
-.hh-character-track { stroke: var(--border); }
-.hh-character-progress { stroke: var(--accent); transition: stroke-dashoffset 180ms ease-out, stroke 180ms ease; }
-.hh-character-meter[data-tone="warning"] .hh-character-progress { stroke: #fbbf24; }
+.hh-character-track {
+  display: inline-block; width: 40px; height: 6px; flex-shrink: 0;
+  border-radius: 999px; overflow: hidden; background: var(--border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-dark) 20%, transparent);
+}
+.hh-character-progress {
+  display: block; width: 100%; height: 100%; border-radius: inherit;
+  transform-origin: left;
+  transition: transform 180ms ease-out, background-color 180ms ease;
+}
 .hh-character-meter[data-tone="over"] { color: #f87171; }
-.hh-character-meter[data-tone="over"] .hh-character-progress { stroke: #f87171; }
 @media (prefers-reduced-motion: reduce) {
   .hh-chat-message, .hh-typing-indicator > span { animation: none; }
   .hh-typing-indicator > span { opacity: .7; }
