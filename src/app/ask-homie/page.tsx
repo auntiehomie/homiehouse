@@ -5,6 +5,7 @@ import Link from "next/link";
 import HHLogo from '@/components/HHLogo';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import TypingDots from '@/components/TypingDots';
 import AgentChat from '@/components/AgentChat';
 import FeedCurationChat from '@/components/FeedCurationChat';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
@@ -221,7 +222,7 @@ function AskHomieContent() {
 
 export default function AskHomiePage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)', color: 'var(--muted-on-dark)' }}>Loading…</div>}>
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)', color: 'var(--muted-on-dark)' }}><TypingDots label="Opening Ask Homie" /></div>}>
       <AskHomieContent />
     </Suspense>
   );

@@ -4,8 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import CharacterMeter from '@/components/CharacterMeter';
 import ComposeInspiration from '@/components/ComposeInspiration';
-import { splitCastText, publishCastParts, type ThreadProgress } from '@/lib/cast-text';
+import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
@@ -731,15 +732,7 @@ function ComposePageInner() {
 
           {/* Right: char count + Post/Schedule button */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto', paddingLeft: 8 }}>
-            {text.length > 260 && (
-              <span style={{
-                fontSize: 12,
-                color: 'var(--muted-on-dark)',
-                minWidth: 28, textAlign: 'right',
-              }}>
-                {text.length.toLocaleString()}
-              </span>
-            )}
+            <CharacterMeter count={castTextBytes(text)} limit={MAX_CAST_BYTES} unit="bytes" overflowLabel="Thread" />
             <button
               onClick={handlePost}
               disabled={loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)}
