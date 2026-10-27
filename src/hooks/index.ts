@@ -1,1 +1,0 @@
-export { useFarcasterWrites } from './useFarcasterWrites';
