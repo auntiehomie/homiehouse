@@ -25,6 +25,18 @@ function ComposePageInner() {
   const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    // Dismiss the keyboard so the confirmation stays visible on iOS.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const timer = window.setTimeout(() => {
+      if (fromAskHomie) router.replace(returnTo!, { scroll: false });
+      else router.back();
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [successMessage, fromAskHomie, returnTo, router]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
@@ -285,6 +297,7 @@ function ComposePageInner() {
   }
 
   async function handlePost() {
+    if (loading || successMessage) return;
     setStatus(null);
     setLoading(true);
     try {
@@ -380,9 +393,7 @@ function ComposePageInner() {
           setIsScheduled(false);
           setUrlPreview(null);
           setDetectedUrl(null);
-          setTimeout(() => {
-            closeComposer();
-          }, 1500);
+          setSuccessMessage('Cast scheduled');
         } else {
           const errorMsg = data.error || data.message || "unknown error";
           const errorCode = data.code || '';
@@ -418,9 +429,7 @@ function ComposePageInner() {
         setUploadedImages([]);
         setUrlPreview(null);
         setDetectedUrl(null);
-        setTimeout(() => {
-          closeComposer();
-        }, 1500);
+        setSuccessMessage('Cast successful');
       }
     } catch (err: any) {
       setStatus(String(err?.message || err));
@@ -436,7 +445,14 @@ function ComposePageInner() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
+    <div className={successMessage ? 'hh-compose-success-exit' : undefined} style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
+      {successMessage && (
+        <div className="hh-compose-success-overlay">
+          <div className="hh-compose-success-notice" role="status" aria-live="polite">
+            <span aria-hidden="true">✓</span> {successMessage}
+          </div>
+        </div>
+      )}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
         <button aria-label={fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
           {fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -735,7 +751,7 @@ function ComposePageInner() {
             <CharacterMeter count={castTextBytes(text)} limit={MAX_CAST_BYTES} unit="bytes" overflowLabel="Thread" />
             <button
               onClick={handlePost}
-              disabled={loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)}
+              disabled={!!successMessage || loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)}
               style={{
                 padding: '7px 14px', borderRadius: 24, border: 'none', cursor: 'pointer',
                 background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
