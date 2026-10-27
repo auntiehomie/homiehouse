@@ -10,7 +10,7 @@ import { isProUser } from '@/lib/pro';
 import { fetchCast } from '@/lib/hypersnap';
 import { formatLiveCastContext, liveCastSearchMetadata, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
-import { formatLiveWebContext, searchTopicWeb } from '@/lib/ai/news';
+import { formatLiveWebContext, isTopicWebSearchConfigured, searchTopicWeb } from '@/lib/ai/news';
 import { shouldSearchWeb } from '@/lib/agent-context';
 import { formatLiveXContext, isXResearchConfigured, liveXSearchMetadata, searchRecentXPosts } from '@/lib/ai/x-research';
 import { reserveXBudget } from '@/lib/x-budget';
@@ -304,8 +304,8 @@ ${contextualMessage}`;
         } : {}),
         ...(liveWebSearchRequested ? {
           liveWebSearch: {
-            provider: 'Brave Search',
-            status: liveWebResearch ? 'searched' : 'unavailable',
+            provider: 'Web search',
+            status: liveWebResearch ? 'searched' : isTopicWebSearchConfigured() ? 'unavailable' : 'not-configured',
             citations: liveWebResearch?.citations ?? [],
           },
         } : {}),

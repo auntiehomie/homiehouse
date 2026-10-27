@@ -32,6 +32,16 @@ interface BraveContextResponse {
   };
 }
 
+interface TavilySearchResponse {
+  answer?: unknown;
+  results?: Array<{ url?: unknown; title?: unknown; content?: unknown }>;
+}
+
+/** Brave is preferred; support Tavily as a fallback for existing deployments. */
+export function isTopicWebSearchConfigured(): boolean {
+  return Boolean(process.env.BRAVE_API_KEY || process.env.TAVILY_API_KEY || process.env.TAVILT_API_KEY);
+}
+
 const NEWS_SYSTEM = `You are a crypto news lookup tool. Search the web for ONE specific, real crypto/web3/blockchain news story from the last 48 hours — something with a real headline and a real source, not a general trend.
 
 Respond with ONLY a JSON object, no other text:
@@ -96,10 +106,11 @@ export async function fetchCryptoNews(): Promise<CryptoNewsItem | null> {
  */
 export async function searchTopicWeb(query: string): Promise<TopicWebContext | null> {
   const apiKey = process.env.BRAVE_API_KEY;
+  const tavilyApiKey = process.env.TAVILY_API_KEY || process.env.TAVILT_API_KEY;
   const cleanQuery = query.trim().slice(0, 600);
-  if (!apiKey || cleanQuery.length < 5) return null;
+  if ((!apiKey && !tavilyApiKey) || cleanQuery.length < 5) return null;
 
-  try {
+  if (apiKey) try {
     const endpoint = new URL('https://api.search.brave.com/res/v1/llm/context');
     endpoint.searchParams.set('q', cleanQuery);
     endpoint.searchParams.set('count', '6');
@@ -118,31 +129,62 @@ export async function searchTopicWeb(query: string): Promise<TopicWebContext | n
       signal: AbortSignal.timeout(12000),
     });
 
+    if (response.ok) {
+      const data = await response.json() as BraveContextResponse;
+      const sources = Array.isArray(data?.grounding?.generic) ? data.grounding.generic : [];
+      const citations: string[] = [];
+      const excerpts = sources.flatMap((source) => {
+        const url = typeof source?.url === 'string' && /^https?:\/\//i.test(source.url) ? source.url : '';
+        if (!url) return [];
+        citations.push(url);
+        const snippets = Array.isArray(source?.snippets)
+          ? source.snippets.filter((snippet: unknown) => typeof snippet === 'string').slice(0, 3)
+          : [];
+        if (!snippets.length) return [];
+        return [`${String(source.title || url).slice(0, 180)} (${url})\n${snippets.join('\n')}`];
+      });
+      const summary = excerpts.join('\n\n').slice(0, 7000);
+      if (summary) return { summary, citations: [...new Set(citations)].slice(0, 6) };
+    }
+  } catch (error) {
+    console.warn('[news] Brave topic search unavailable:', (error as Error).message);
+  }
+
+  // Several existing Vercel deployments have the Tavily variable configured;
+  // accept the historical TAVILT_API_KEY spelling as well as the documented
+  // TAVILY_API_KEY so the fallback works without rotating a secret.
+  if (tavilyApiKey) try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tavilyApiKey}`,
+      },
+      body: JSON.stringify({ query: cleanQuery, search_depth: 'basic', max_results: 6 }),
+      signal: AbortSignal.timeout(12000),
+    });
     if (!response.ok) {
-      console.warn('[news] Brave topic search failed:', response.status);
+      console.warn('[news] Tavily topic search failed:', response.status);
       return null;
     }
-
-    const data = await response.json() as BraveContextResponse;
-    const sources = Array.isArray(data?.grounding?.generic) ? data.grounding.generic : [];
+    const data = await response.json() as TavilySearchResponse;
+    const results = Array.isArray(data?.results) ? data.results : [];
     const citations: string[] = [];
-    const excerpts = sources.flatMap((source) => {
-      const url = typeof source?.url === 'string' && /^https?:\/\//i.test(source.url) ? source.url : '';
-      if (!url) return [];
+    const excerpts = results.flatMap((result) => {
+      const url = typeof result?.url === 'string' && /^https?:\/\//i.test(result.url) ? result.url : '';
+      const content = typeof result?.content === 'string' ? result.content.trim() : '';
+      if (!url || !content) return [];
       citations.push(url);
-      const snippets = Array.isArray(source?.snippets)
-        ? source.snippets.filter((snippet: unknown) => typeof snippet === 'string').slice(0, 3)
-        : [];
-      if (!snippets.length) return [];
-      return [`${String(source.title || url).slice(0, 180)} (${url})\n${snippets.join('\n')}`];
+      return [`${String(result.title || url).slice(0, 180)} (${url})\n${content.slice(0, 1400)}`];
     });
     const summary = excerpts.join('\n\n').slice(0, 7000);
     if (!summary) return null;
     return { summary, citations: [...new Set(citations)].slice(0, 6) };
   } catch (error) {
-    console.warn('[news] Brave topic search unavailable:', (error as Error).message);
-    return null;
+    console.warn('[news] Tavily topic search unavailable:', (error as Error).message);
   }
+
+  return null;
 }
 
 /** Format live web results as source-grounded context for Ask Homie's model. */
@@ -151,5 +193,5 @@ export function formatLiveWebContext(context: TopicWebContext): string {
     ? context.citations.map((url, index) => `[${index + 1}] ${url}`).join('\n')
     : 'No citation URLs were returned.';
 
-  return `\n\n[LIVE WEB SEARCH — Brave Search]\nThis is retrieved web material and may be incomplete or wrong. Use it as evidence, distinguish verified facts from uncertainty, and cite claims from it using the exact source URLs below. Do not invent citations.\n${context.summary}\nSources:\n${citations}\n[END LIVE WEB SEARCH]\n`;
+  return `\n\n[LIVE WEB SEARCH]\nThis is retrieved web material and may be incomplete or wrong. Use it as evidence, distinguish verified facts from uncertainty, and cite claims from it using the exact source URLs below. Do not invent citations.\n${context.summary}\nSources:\n${citations}\n[END LIVE WEB SEARCH]\n`;
 }
