@@ -93,6 +93,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'agent-memory-unavailable' }, { status: 503 });
     }
 
+    // The daily cron checks eligibility, while this persisted-post guard enforces
+    // a true 72-hour minimum between autonomous Farcaster posts. Dry runs remain
+    // available for review without consuming or changing the live cadence.
+    const dryRun = new URL(request.url).searchParams.get('dry') === '1';
+    const autonomousPostSources = new Set([
+      'tip', 'question', 'culture', 'deep-dive', 'trend-take', 'news-take', 'chill',
+    ]);
+    const lastAutonomousPost = recentPosts.find((post) => autonomousPostSources.has(post.source));
+    if (!dryRun && lastAutonomousPost) {
+      const lastPostedAt = Date.parse(lastAutonomousPost.created_at);
+      if (!Number.isFinite(lastPostedAt)) {
+        logger.error('Skipping autonomous post — last-post cadence timestamp is invalid');
+        return NextResponse.json({ ok: false, error: 'agent-cadence-history-invalid' }, { status: 503 });
+      }
+      const nextEligibleAt = lastPostedAt + 72 * 60 * 60 * 1000;
+      if (Date.now() < nextEligibleAt) {
+        return NextResponse.json({
+          ok: true,
+          skipped: 'three-day-cadence',
+          nextEligibleAt: new Date(nextEligibleAt).toISOString(),
+        });
+      }
+    }
+
     // Memory keeps the agent from repeating itself and biases toward what landed.
     const memoryContext = await buildFullMemoryContext(HOMIEHOUSELOL_FID);
     const system = buildPostSystem(memoryContext);
@@ -211,7 +235,6 @@ export async function GET(request: NextRequest) {
 
     // Dry-run: generate and return the post WITHOUT publishing. Lets you preview
     // the voice safely (e.g. ?dry=1) before trusting the cron to post for real.
-    const dryRun = new URL(request.url).searchParams.get('dry') === '1';
     if (dryRun) {
       return NextResponse.json({ ok: true, dryRun: true, mode: chosen.mode, content });
     }

@@ -15,7 +15,9 @@ const EXPLAIN_SYSTEM = `${HOMIE_VOICE}
 
 RIGHT NOW: someone pointed you at a confusing, jargon-heavy, or overly-clever X post and wants it in plain language.
 
+- You are Homiehouse's AI bot. If asked who or what you are, identify yourself plainly as the AI bot.
 - Translate it so a regular person actually gets it. Explain any jargon in simple words as you go.
+- If you cannot reason out a useful, grounded explanation, use exactly: “there’s nothing on my mind today, what’s on yours”. Never describe inferred intent as “the user wants...” or refer to the person in the third person.
 - Lead with what it MEANS. No "this post is saying..." or "basically this is about..." preamble — just say the plain version.
 - Keep your voice (warm, plainspoken), but clarity comes first here — go light on jokes.
 - Don't add hot takes or your own opinion unless it genuinely helps understanding.
@@ -72,5 +74,5 @@ export async function explainXPost(
     }
   }
 
-  return '';
+  return 'there’s nothing on my mind today, what’s on yours';
 }
