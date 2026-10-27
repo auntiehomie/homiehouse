@@ -424,6 +424,14 @@ export function extractMentionContent(cast: any): string {
     .replace(/^(?:undefined|null)[.!?]*$/i, '');
 }
 
+/** True for explicit questions, including common interrogative phrasing without punctuation. */
+export function isQuestion(text: string): boolean {
+  const clean = normalizeCastText(text).trim();
+  if (!clean) return false;
+  if (clean.includes('?')) return true;
+  return /^(?:what|why|how|who|whom|whose|which|when|where|can|could|would|should|do|does|did|is|are|am|was|were|will|has|have|had|may|might)\b/i.test(clean);
+}
+
 export function shouldSearchWeb(text: string): boolean {
   const clean = normalizeCastText(text);
   if (!clean) return false;

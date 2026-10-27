@@ -8,6 +8,7 @@ import { handleApiError } from '@/lib/errors';
 import { explainXPost } from '@/lib/ai/x-explain';
 import { rateLimit } from '@/lib/ratelimit';
 import { isXAiReplyAutomationApproved } from '@/lib/x-automation-policy';
+import { isQuestion } from '@/lib/agent-context';
 
 export const maxDuration = 60;
 
@@ -75,6 +76,9 @@ export async function GET(request: NextRequest) {
     // everything we saw (even mentions we don't reply to).
     for (const mention of [...mentions].reverse()) {
       newestId = mention.id;
+
+      const directQuestion = (mention.text || '').replace(/@\w+/g, '').trim();
+      if (!isQuestion(directQuestion)) continue;
 
       if (attempted >= 1) continue; // one reply per cron run (matches the Farcaster cron)
 

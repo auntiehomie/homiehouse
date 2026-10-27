@@ -14,6 +14,8 @@ updated: 2026-10-11
 
 ## In Review
 
+- [ ] Set @thehomie's autonomous Farcaster cadence to one cast per 72 hours; require question-only replies, explicit AI identity, and the fixed no-answer fallback [branch::codex/thehomie-question-cadence]
+
 - [ ] Fix Ask Homie live Farcaster research: retrieve casts from Hypersnap before answering, fail closed for current-event questions without evidence, and suppress model-emitted tool-call markup [branch::codex/ask-homie-live-cast-research]
 
 - [x] Ground personalized AI learning plans in synced KB source details and preserve KB modules in generation fallbacks [done::2026-10-10] [pr::https://github.com/auntiehomie/homiehouse/pull/219] [commit::cef139f]
