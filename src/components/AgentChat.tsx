@@ -270,13 +270,13 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   };
 
   useEffect(() => {
-    if (!contextReady || loadedHistoryKey !== historyKey || initialLearningMode !== 'explain') return;
+    if (!contextReady || loadedHistoryKey !== historyKey || !initialLearningMode) return;
     if (autoStarted.current === historyKey) return;
     autoStarted.current = historyKey;
     // Returning from Share or refreshing a saved conversation must not spend
     // another request or replace the learner's draft.
     if (!messages.some(message => message.role === 'user')) {
-      void handleSend(learningQuestion('explain'), 'explain');
+      void handleSend(learningQuestion(initialLearningMode), initialLearningMode);
     }
     // Run once after this account/context's history has been restored.
     // eslint-disable-next-line react-hooks/exhaustive-deps
