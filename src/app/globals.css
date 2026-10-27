@@ -1007,3 +1007,20 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   .hh-typing-indicator > span { opacity: .7; }
   .hh-character-progress { transition: none; }
 }
+
+/* Confirm the acknowledged post before returning to the previous screen. */
+@keyframes hhComposeDissolve { to { opacity: 0; } }
+.hh-compose-success-exit { animation: hhComposeDissolve 180ms ease-out 600ms forwards; }
+.hh-compose-success-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: color-mix(in srgb, var(--bg-dark) 85%, transparent);
+}
+.hh-compose-success-notice {
+  padding: 16px 24px; border-radius: 16px;
+  background: var(--surface); color: var(--text-on-dark);
+  border: 1px solid var(--border); font-size: 18px; font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hh-compose-success-exit { animation: none; }
+}
