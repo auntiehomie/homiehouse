@@ -4,6 +4,12 @@ export function isLearningMode(value: unknown): value is LearningMode {
   return value === 'explain' || value === 'lesson';
 }
 
+export function isLessonRequest(value: string): boolean {
+  const question = value.trim();
+  return /\b(?:build|create|make|write|generate|teach me)\b.{0,60}\b(?:lesson(?:\s+plan)?|course|learning plan)\b/i.test(question) ||
+    /\b(?:lesson(?:\s+plan)?|learning plan)\b.{0,30}\b(?:about|on|for|for me)\b/i.test(question);
+}
+
 export function learningQuestion(mode: LearningMode, topic = ''): string {
   const subject = topic.trim() || 'the main idea in this conversation';
   return mode === 'explain'

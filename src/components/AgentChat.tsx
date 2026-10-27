@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { learningQuestion, isLearningMode, type LearningMode } from '@/lib/conversation-learning';
-import TypingDots from './TypingDots';
+import { learningQuestion, isLearningMode, isLessonRequest, type LearningMode } from '@/lib/conversation-learning';
 import MentionInput from './MentionInput';
 import { chatHistoryKey, loadChatSnapshot, saveChatSnapshot } from '@/lib/ask-homie-history';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
@@ -117,13 +116,6 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
-  const typingRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (isLoading) typingRef.current?.scrollIntoView({
-      block: 'nearest',
-      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-    });
-  }, [isLoading]);
   const [learningMode, setLearningMode] = useState<LearningMode | undefined>(initialLearningMode);
   const [topic, setTopic] = useState('');
   const autoStarted = useRef<string | null>(null);
@@ -220,12 +212,13 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const handleSend = async (question = input, requestedLearningMode = learningMode) => {
     if (!question.trim() || sending.current || !contextReady || loadedHistoryKey !== historyKey) return;
     sending.current = true;
-    setLearningMode(requestedLearningMode);
     const userMessage = question.trim();
-    const xResearchRequested = includeXForNextTurn && !requestedLearningMode && mode !== 'compose';
+    const effectiveLearningMode = requestedLearningMode || (isLessonRequest(userMessage) ? 'lesson' : undefined);
+    setLearningMode(effectiveLearningMode);
+    const xResearchRequested = includeXForNextTurn && !effectiveLearningMode && mode !== 'compose';
     setIncludeXForNextTurn(false);
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage, metadata: { learningMode: requestedLearningMode, learningTopic: topic, xResearchRequested } }]);
+    setMessages(prev => [...prev, { role: 'user', content: userMessage, metadata: { learningMode: effectiveLearningMode, learningTopic: topic, xResearchRequested } }]);
     setIsLoading(true);
 
     try {
@@ -238,8 +231,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           mode: 'agent',
           userId: userId || `temp_${Date.now()}`,
           userContext,
-          learningMode: requestedLearningMode,
-          learningTopic: requestedLearningMode ? topic : undefined,
+          learningMode: effectiveLearningMode,
+          learningTopic: effectiveLearningMode ? topic : undefined,
           xResearchRequested,
           intent: mode === 'auto' ? undefined : mode
         })
@@ -511,7 +504,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`hh-chat-message flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
               className={`max-w-[80%] rounded-lg p-3 ${
@@ -580,7 +573,11 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               {msg.role === 'assistant' && msg.metadata?.liveWebSearch && (
                 <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
                   <div>
-                    Live web search {msg.metadata.liveWebSearch.status === 'searched' ? 'sources' : 'unavailable'}
+                    {msg.metadata.liveWebSearch.status === 'searched'
+                      ? 'Live web search sources'
+                      : msg.metadata.liveWebSearch.status === 'not-configured'
+                        ? 'Live web search not configured'
+                        : 'Live web search unavailable'}
                   </div>
                   {msg.metadata.liveWebSearch.citations?.map((url: string, sourceIndex: number) => (
                     <a
@@ -715,9 +712,15 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           </div>
         ))}
 
-        {(isLoading || !contextReady) && (
-          <div ref={typingRef} className="hh-chat-message flex justify-start">
-            <TypingDots label={contextReady ? 'Ask Homie is thinking' : 'Loading conversation'} />
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-zinc-800 rounded-lg p-3">
+              <div className="flex gap-2">
+                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
           </div>
         )}
       </div>
