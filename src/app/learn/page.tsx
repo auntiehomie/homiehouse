@@ -3,6 +3,8 @@ import { Suspense } from 'react';
 import LearnClient from '@/app/_page-clients/LearnClient';
 import SentryErrorBoundary from '@/components/SentryErrorBoundary';
 import { CURATED_MODULES } from '@/lib/curated-curriculum';
+import { PREMIUM_TRACKS } from '@/lib/premium-curriculum';
+import type { CourseCatalogItem } from '@/components/learning/CourseCatalog';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
@@ -50,10 +52,29 @@ export const metadata: Metadata = {
 };
 
 export default function LearnPage() {
+  const catalogCourses = CURATED_MODULES.map((module): CourseCatalogItem => ({
+    id: module.id,
+    title: module.title,
+    description: module.description,
+    estimatedMinutes: module.estimatedMinutes,
+    difficulty: module.difficulty,
+    tags: module.tags,
+    section: module.tags.includes('network-states') ? 'network' : 'safety',
+  })).concat(PREMIUM_TRACKS.flatMap(track => track.modules.map((module): CourseCatalogItem => ({
+    id: module.id,
+    title: module.title,
+    description: module.description,
+    estimatedMinutes: module.estimatedMinutes,
+    difficulty: module.difficulty,
+    tags: module.tags,
+    section: 'premium',
+    href: `/learn/premium/${module.id}`,
+  }))));
+
   return (
     <SentryErrorBoundary label="Learn">
       <Suspense>
-        <LearnClient />
+        <LearnClient catalogCourses={catalogCourses} />
       </Suspense>
       <script
         type="application/ld+json"
