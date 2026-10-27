@@ -116,6 +116,13 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState(initialMessage || '');
   const [isLoading, setIsLoading] = useState(false);
+  const typingRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isLoading) typingRef.current?.scrollIntoView({
+      block: 'nearest',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+  }, [isLoading]);
   const [learningMode, setLearningMode] = useState<LearningMode | undefined>(initialLearningMode);
   const [topic, setTopic] = useState('');
   const autoStarted = useRef<string | null>(null);
@@ -503,7 +510,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`hh-chat-message flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
               className={`max-w-[80%] rounded-lg p-3 ${
@@ -708,13 +715,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         ))}
 
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-zinc-800 rounded-lg p-3">
-              <div className="flex gap-2">
-                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
+          <div ref={typingRef} className="hh-chat-message flex justify-start" role="status" aria-label="Ask Homie is thinking">
+            <div className="hh-typing-indicator" aria-hidden="true">
+              <span /><span /><span />
             </div>
           </div>
         )}

@@ -16,6 +16,7 @@
  * Accepts optional `onSubmitted` callback and `defaultChannel`.
  */
 
+import CharacterMeter from './CharacterMeter';
 import React, {
   useState,
   useCallback,
@@ -100,17 +101,6 @@ const editorStyles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     cursor: 'pointer',
     transition: 'opacity 0.15s',
-  },
-  charCount: {
-    fontSize: '12px',
-    color: 'var(--muted, #999)',
-    paddingRight: '8px',
-  },
-  charCountOver: {
-    fontSize: '12px',
-    color: '#ef4444',
-    paddingRight: '8px',
-    fontWeight: 600,
   },
   channelBadge: {
     display: 'inline-flex',
@@ -298,7 +288,6 @@ export default function CastComposer({
     [editorState],
   );
   const charLimit = 320;
-  const isLongCast = charCount > charLimit;
 
   // ── Load channels ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -607,12 +596,7 @@ export default function CastComposer({
         </button>
 
         {/* Character count */}
-        <span
-          style={charCount > charLimit ? editorStyles.charCountOver : editorStyles.charCount}
-        >
-          {charCount} / {charLimit}
-          {isLongCast && ' (long cast)'}
-        </span>
+        <CharacterMeter count={charCount} limit={charLimit} />
 
         {/* Status */}
         {status && (

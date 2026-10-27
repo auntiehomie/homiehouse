@@ -966,3 +966,38 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
+
+/* Conversation motion is short, quiet, and independent of network latency. */
+@keyframes hhMessageIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes hhTypingPulse {
+  0%, 65%, 100% { opacity: .3; }
+  30% { opacity: 1; }
+}
+.hh-chat-message { animation: hhMessageIn 180ms ease-out; }
+.hh-typing-indicator {
+  display: inline-flex; gap: 6px; align-items: center;
+  min-height: 40px; padding: 12px 16px; border-radius: 16px;
+  background: var(--surface); color: var(--text-on-dark);
+  border: 1px solid var(--border);
+}
+.hh-typing-indicator > span {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  animation: hhTypingPulse 1200ms ease-in-out infinite;
+}
+.hh-typing-indicator > span:nth-child(2) { animation-delay: 160ms; }
+.hh-typing-indicator > span:nth-child(3) { animation-delay: 320ms; }
+.hh-character-meter { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-on-dark); font-size: 12px; }
+.hh-character-meter-number { min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+.hh-character-track { stroke: var(--border); }
+.hh-character-progress { stroke: var(--accent); transition: stroke-dashoffset 180ms ease-out, stroke 180ms ease; }
+.hh-character-meter[data-tone="warning"] .hh-character-progress { stroke: #fbbf24; }
+.hh-character-meter[data-tone="over"] { color: #f87171; }
+.hh-character-meter[data-tone="over"] .hh-character-progress { stroke: #f87171; }
+@media (prefers-reduced-motion: reduce) {
+  .hh-chat-message, .hh-typing-indicator > span { animation: none; }
+  .hh-typing-indicator > span { opacity: .7; }
+  .hh-character-progress { transition: none; }
+}
