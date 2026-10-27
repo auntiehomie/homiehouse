@@ -940,9 +940,12 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   font-size: 0.75rem;
   line-height: 1.4;
   white-space: nowrap;
-  border-width: 1px;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-decoration: none;
 }
+.hh-feed-shortcuts .btn:nth-child(2) { font-weight: 700; }
 .hh-feed-tabs > button[aria-pressed="true"] { background: var(--btn-primary-bg); color: var(--btn-primary-color); }
 .hh-feed-column { max-width: 760px; }
 .hh-feed-cards { min-width: 0; max-width: 100%; }

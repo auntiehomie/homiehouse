@@ -1509,11 +1509,18 @@ function LearnPageContent() {
           <Link href="/feed" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Feed</Link>
         </div>
 
-        <div style={{ padding: '0 16px 12px' }}>
-          <Link href="/learn/network-states" style={{ color: 'var(--accent)', fontSize: 14 }}>Network States: proposal, counterpoints, and alternatives →</Link>
-        </div>
-        {/* Tab nav — always visible */}
+        {/* Learning navigation — Course Catalog stays first and visible on mobile. */}
         <div style={{ display: 'flex', gap: 0, padding: '0 16px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+          <Link
+            href="/learn/library"
+            style={{
+              flexShrink: 0, padding: '10px 18px', fontSize: 13, fontWeight: 700,
+              color: 'var(--accent)', textDecoration: 'none', borderBottom: '2px solid var(--accent)',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span aria-hidden="true">📚</span> Course Catalog
+          </Link>
           {([
             { id: 'plan' as LearnTab, label: 'My Plan', icon: '📚' },
             { id: 'completed' as LearnTab, label: 'Completed', icon: '✅' },

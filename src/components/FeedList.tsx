@@ -17,6 +17,7 @@ import { FeedSkeleton } from "./Skeletons";
 import { formatDistanceToNow } from "date-fns";
 import { FeedScope } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+import HH2TipAction from '@/components/HH2TipAction';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { personalizePage, preferenceStorage } from '@/lib/like-curation';
@@ -1007,6 +1008,8 @@ export default function FeedList({
                 }
                 label={actionLoading === `recast-${key}` ? '…' : recastedCasts.has(key) ? 'Recasted' : 'Recast'}
               />
+
+              <HH2TipAction recipientFid={authorObj?.fid ?? null} recipientUsername={authorUsername} />
 
               {/* Quote */}
               <ActionBtn
