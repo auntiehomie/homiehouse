@@ -138,7 +138,7 @@ export default function RootLayout({
           <FarcasterAuthProvider>
             <QueryProvider>
               <PageTransition>
-                <div className="pb-20 lg:pb-0 hh-content-offset">
+                <div className="hh-content-offset">
                   {children}
                 </div>
               </PageTransition>
