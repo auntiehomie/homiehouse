@@ -31,7 +31,7 @@ what’s on yours”. It must not narrate inferred user intent or describe a per
 in the third person. When asked about its identity, it states that it is
 Homiehouse's AI bot.
 
-The Farcaster tip cron checks daily, while the route enforces a persisted
+The Farcaster tip cron checks every six hours, while the route enforces a persisted
 72-hour minimum between autonomous casts. The eligibility check runs before
 generation, uses only autonomous-post history, and fails closed if the cadence
 timestamp is invalid. Authenticated dry runs remain available for review and do

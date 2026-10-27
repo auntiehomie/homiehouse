@@ -459,7 +459,7 @@ export async function GET(request: NextRequest) {
         // Defensive fail-closed path for an unexpected empty result; normal
         // reasoning failures return the requested fixed fallback from generateReply.
         if (!reply) {
-          console.error(`[agent/mention] All LLM providers failed for ${castHash} — deferring, not posting`);
+          console.error(`[agent/mention] Unexpected empty reply for ${castHash} — deferring, not posting`);
           await recordReplyBatch({
             trackingKeys,
             replyHash: 'llm-failed-deferred',

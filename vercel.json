@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/agent/tip",
-      "schedule": "0 9 * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/agent/mention",
