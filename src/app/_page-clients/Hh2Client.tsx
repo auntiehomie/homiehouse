@@ -35,21 +35,21 @@ const EARN_METHODS = [
   },
   {
     icon: '🏠',
-    title: 'Join the Community',
-    points: 'Ongoing rewards',
-    description: 'Participate in the HomieHouse community. Cast, engage, and build reputation with fellow homies.',
-    cta: 'Open Feed',
-    href: '/feed',
+    title: 'Daily learning challenge and streak bonuses',
+    points: 'Available challenges',
+    description: 'Complete the daily challenge and maintain a learning streak. Available bonuses appear below when you qualify.',
+    cta: 'View challenges',
+    href: '/learn',
     soon: false,
   },
   {
     icon: '✍️',
-    title: 'Create & Share Content',
-    points: 'Creator rewards',
-    description: 'Compose and share casts about Web3, crypto, and community. Quality content gets noticed.',
-    cta: 'Compose',
-    href: '/compose',
-    soon: false,
+    title: 'Community quality tips',
+    points: 'In design',
+    description: 'The Homie bot is being designed to recognize original, substantive posts about crypto, AI, decentralization, and technology. Rewards will use transparent quality criteria and reputation signals; posting alone will not earn HH2.',
+    cta: null,
+    href: null,
+    soon: true,
   },
   {
     icon: '🤝',
@@ -304,6 +304,13 @@ export default function Hh2Client() {
                 }}>
                   Earn More →
                 </Link>
+                <Link href="/shop" style={{
+                  padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: 'transparent', border: '1px solid rgba(251,191,36,0.5)',
+                  color: '#fbbf24', textDecoration: 'none',
+                }}>
+                  Redeem HH2 →
+                </Link>
                 <a
                   href={UNISWAP_LINK}
                   target="_blank"
@@ -389,8 +396,11 @@ export default function Hh2Client() {
           <Hh2BurnClient />
 
           {/* How to earn */}
-          <div style={{ marginBottom: 28 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-on-dark)', margin: '0 0 14px' }}>How to Earn HH2</h2>
+          <div id="how-to-earn" style={{ marginBottom: 28, scrollMarginTop: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-on-dark)', margin: 0 }}>How to Earn HH2</h2>
+              <Link href="/shop" style={{ color: '#fbbf24', fontSize: 13, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>Redeem HH2 →</Link>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {EARN_METHODS.map((m) => (
                 <div key={m.title} style={{

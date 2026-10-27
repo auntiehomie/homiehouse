@@ -24,7 +24,7 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
     <div>
       <nav aria-label="Learn, earn and connect" className="hh-feed-shortcuts flex flex-wrap gap-2 mb-4 text-sm">
         <Link href="/learn" className="btn text-xs">📚 Learn</Link>
-        <Link href="/shop" className="btn text-xs">✨ Earn & redeem</Link>
+        <Link href="/hh2#how-to-earn" className="btn text-xs">✨ Earn & redeem</Link>
         <Link href="/community" className="btn text-xs">🤝 Connect</Link>
       </nav>
       <div aria-label="Feed views" className="hh-feed-tabs">

@@ -6,12 +6,12 @@ import { CURATED_CURRICULUM } from '@/lib/curated-curriculum';
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
 
 export const metadata: Metadata = {
-  title: 'Learning Library',
-  description: 'Free lessons on crypto safety and balanced courses on network states, governance, and alternatives.',
+  title: 'Course Catalog',
+  description: 'Explore structured courses on crypto safety, network states, governance, and alternatives.',
   alternates: { canonical: '/learn/library' },
   openGraph: {
-    title: 'Crypto Safety Library | HomieHouse',
-    description: 'Learn how to participate in crypto without letting one mistake knock you out of the ecosystem.',
+    title: 'Course Catalog | HomieHouse',
+    description: 'Explore structured courses on crypto safety, network states, governance, and alternatives.',
     url: `${BASE_URL}/learn/library`,
     images: [`${BASE_URL}/api/og/content?kind=learning%20library&title=Stay%20in%20the%20Game&description=Practical%20crypto%20safety%2C%20without%20the%20hype.`],
   },
@@ -33,7 +33,7 @@ export default function LearningLibraryPage() {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
-    name: 'HomieHouse Learning Library',
+    name: 'HomieHouse Course Catalog',
     url: `${BASE_URL}/learn/library`,
     description: metadata.description,
     hasPart: CURATED_CURRICULUM.map(({ module }) => ({
@@ -49,10 +49,10 @@ export default function LearningLibraryPage() {
     <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <header className="max-w-3xl">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">Free safety curriculum</p>
-        <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Stay in the game.</h1>
+        <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent)]">Homiehouse Learning Hub</p>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">Course Catalog</h1>
         <p className="mt-5 text-lg leading-8 text-[var(--muted-on-dark)]">
-          Learn how wallets, signatures, scams, position sizing, and DeFi risk actually work. No price calls. No guaranteed returns. No wallet connection required to read.
+          Browse structured courses and practical lessons. Explore network states from multiple perspectives, or start with the fundamentals of crypto safety.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link href="/learn?track=survival" className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-white no-underline">Start the interactive track</Link>
@@ -61,9 +61,9 @@ export default function LearningLibraryPage() {
       </header>
 
       <section className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6" aria-labelledby="network-state-heading">
-        <h2 id="network-state-heading" className="text-2xl font-bold">Network States: proposal and counterpoints</h2>
-        <p className="my-4 leading-7 text-[var(--muted-on-dark)]">Four courses on the proposal, founder power, inclusion, and alternatives. Read sources from supporters and critics, then test your understanding.</p>
-        <Link href="/learn/network-states" className="text-[var(--accent)] underline">Explore the four courses →</Link>
+        <h2 id="network-state-heading" className="text-2xl font-bold">Network States: proposal, counterpoints, and alternatives</h2>
+        <p className="my-4 leading-7 text-[var(--muted-on-dark)]">Examine the proposal, founder power, inclusion, and alternatives through four courses. Read sources from supporters and critics, then test your understanding.</p>
+        <Link href="/learn/network-states" className="text-[var(--accent)] underline">Explore the Network States courses →</Link>
       </section>
 
       <section className="mt-12 grid gap-4 md:grid-cols-2" aria-label="Safety lessons">
