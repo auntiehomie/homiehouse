@@ -1,0 +1,40 @@
+{
+  "crons": [
+    {
+      "path": "/api/publish-scheduled-casts",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/push/check-notifications",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/agent/tip",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/agent/mention",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/agent/engagement-check",
+      "schedule": "0 6,18 * * *"
+    },
+    {
+      "path": "/api/agent/kb-sync",
+      "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/agent/kb-enrich",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/agent/x-post",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/agent/x-mention",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

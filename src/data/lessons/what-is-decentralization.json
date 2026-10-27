@@ -1,0 +1,60 @@
+{
+    "intro": "This module covers what is decentralization?. Explore the core idea of decentralization \u2014 removing single points of control \u2014 and why it matters in finance, social media, and beyond.",
+    "concepts": [
+        {
+            "title": "The difference between centralized and decentralized systems",
+            "explanation": "This concept covers: explain the difference between centralized and decentralized systems. Take your time here \u2014 understanding this building block will make the rest of the module click into place.",
+            "analogy": "Think of What Is Decentralization? like learning a new city: you start with a map (the overview), then explore each neighborhood (the concepts) one at a time."
+        },
+        {
+            "title": "Name real-world examples where decentralization changes the power balance",
+            "explanation": "This concept covers: name real-world examples where decentralization changes the power balance. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        },
+        {
+            "title": "Why censorship resistance matters",
+            "explanation": "This concept covers: understand why censorship resistance matters. Take your time here \u2014 understanding this building block will make the rest of the module click into place."
+        }
+    ],
+    "practicalExample": "Try searching Farcaster or Google for \"What Is Decentralization?\" to see how practitioners talk about it in the real world. Look for specific tools, projects, or use cases that match what you're learning here.",
+    "quickActions": [
+        "Search Farcaster for \"What Is Decentralization?\" and read 3 recent posts",
+        "Write down one question this module raised that you want to dig into later",
+        "Find one project or app that uses What in the wild and bookmark it"
+    ],
+    "summary": "What Is Decentralization? is a core piece of the Web3 stack. Understanding it gives you a foundation for evaluating real projects and making better decisions as a participant in decentralized systems.",
+    "quiz": [
+        {
+            "question": "What is the main purpose of this module on What Is Decentralization??",
+            "options": [
+                "To provide entertainment",
+                "To teach foundational concepts of what is decentralization?",
+                "To sell crypto",
+                "To replace traditional education"
+            ],
+            "correctIndex": 1,
+            "explanation": "This module is designed to give you a practical foundation in what is decentralization? as part of your decentralization journey."
+        },
+        {
+            "question": "Why is understanding decentralization important?",
+            "options": [
+                "It helps you make money quickly",
+                "It is required by law",
+                "It lets you understand and participate in systems without central gatekeepers",
+                "It replaces the internet"
+            ],
+            "correctIndex": 2,
+            "explanation": "Decentralization removes single points of control, giving you more ownership and freedom in digital systems."
+        },
+        {
+            "question": "What is the best way to learn about Web3 concepts?",
+            "options": [
+                "Wait until the technology is perfect",
+                "Read theory only",
+                "Combine reading with hands-on experimentation",
+                "Ask someone else to do it for you"
+            ],
+            "correctIndex": 2,
+            "explanation": "The most effective learning combines understanding concepts with practical, hands-on exploration."
+        }
+    ]
+}

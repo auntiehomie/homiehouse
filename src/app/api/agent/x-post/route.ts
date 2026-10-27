@@ -1,0 +1,246 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { postToX } from '@/lib/x-client';
+import { checkXBudget, recordXUsage } from '@/lib/x-budget';
+import { verifyCronSecret } from '@/lib/auth';
+import { handleApiError } from '@/lib/errors';
+import { createApiLogger } from '@/lib/logger';
+import { getDb } from '@/lib/db';
+import { fetchCryptoNews } from '@/lib/ai/news';
+import { buildPostSystem, pickKnowledgePostMode, postInstruction, type PostMode, type KBArticle } from '@/lib/ai/persona';
+import { pickFreshKBArticle, pickKBArticleForPosting } from '@/lib/kb-sync';
+import { rateLimit } from '@/lib/ratelimit';
+import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
+
+const logger = createApiLogger('/agent/x-post');
+
+export const maxDuration = 60;
+
+/**
+ * Scheduled autonomous posting for @thehomie on X.
+ *
+ * X and Farcaster posts share the same voice and choose educational
+ * modes grounded in articles and processed context synced from Rufus-vault.
+ * X credentials are user-context OAuth 1.0a tokens for the account that should
+ * publish. Missing credentials or synced KB content safely skip publication.
+ */
+
+// ─── Minimal local memory (agent_x_posts) — separate from agent_posts, which
+// is keyed by Farcaster fid. Mirrors agent-memory.ts's shape and fail-silent
+// behavior but scoped to the one X account this bot runs as. ─────────────────
+
+const CREATE_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS agent_x_posts (
+    id         SERIAL PRIMARY KEY,
+    x_post_id  TEXT,
+    text       TEXT NOT NULL,
+    source     TEXT NOT NULL DEFAULT 'tip',
+    topic      TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+`;
+
+interface XAgentPost {
+  text: string;
+  source: string;
+  topic: string | null;
+}
+
+async function getRecentXPosts(limit = 8): Promise<XAgentPost[]> {
+  try {
+    const db = getDb();
+    await db.query(CREATE_TABLE_SQL);
+    const { rows } = await db.query<XAgentPost>(
+      `SELECT text, source, topic FROM agent_x_posts ORDER BY created_at DESC LIMIT $1`,
+      [limit]
+    );
+    return rows;
+  } catch (err) {
+    logger.warn('getRecentXPosts failed', err);
+    return [];
+  }
+}
+
+async function saveXPost(params: { xPostId?: string; text: string; source: string; topic?: string }): Promise<void> {
+  try {
+    const db = getDb();
+    await db.query(CREATE_TABLE_SQL);
+    await db.query(
+      `INSERT INTO agent_x_posts (x_post_id, text, source, topic) VALUES ($1, $2, $3, $4)`,
+      [params.xPostId ?? null, params.text, params.source, params.topic ?? null]
+    );
+  } catch (err) {
+    logger.warn('saveXPost failed', err);
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    verifyCronSecret(request, process.env.CRON_SECRET);
+
+    // Explicit on-switch — same gate as x-mention. Off unless set to "true", so a
+    // scheduled cron can never publish or spend on X by accident.
+    // Dry runs (?dry=1) never call postToX, so they stay allowed for review.
+    const isDryRun = new URL(request.url).searchParams.get('dry') === '1';
+    if (!isDryRun && process.env.X_AGENT_ENABLED !== 'true') {
+      return NextResponse.json({ ok: true, skipped: 'X_AGENT_ENABLED is not "true"' });
+    }
+
+    // Rate limit: 10 requests/hour per IP (cron endpoint protection)
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+    const { success: rateLimitOk } = rateLimit(`agent-x-post:${ip}`, 10, 3600);
+    if (!rateLimitOk) {
+      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    }
+
+    const budget = await checkXBudget('post');
+    if (!budget.allowed) {
+      logger.info(`Skipping — ${budget.reason}`);
+      return NextResponse.json({ ok: true, skipped: 'budget', ...budget });
+    }
+
+    const recentPosts = await getRecentXPosts(8);
+    const recentTexts = recentPosts.map((p) => p.text).filter(Boolean);
+    const recentTopics = recentPosts.map((p) => p.topic || '').filter(Boolean);
+    const lastSource = recentPosts[0]?.source as PostMode | undefined;
+    const lastMode: PostMode | null =
+      lastSource === 'tip' || lastSource === 'trend-take' || lastSource === 'news-take' ||
+      lastSource === 'chill' || lastSource === 'question' ||
+      lastSource === 'culture' || lastSource === 'deep-dive'
+        ? lastSource : null;
+
+    let chosen = pickKnowledgePostMode(lastMode);
+    // trend-take needs a Farcaster cast, which doesn't make sense to react to
+    // on X — treat it the same as "no trend found" and fall back to a tip.
+    if (chosen.needsTrend) {
+      chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
+    }
+
+    // news-take works the same on X as on Farcaster — it's a reaction to a
+    // real web news story, not a platform-specific cast, so it's fully reusable.
+    let news: { headline: string; summary: string; source?: string } | undefined;
+    if (chosen.needsNews) {
+      const article = await fetchCryptoNews();
+      if (article) {
+        news = article;
+      } else {
+        chosen = { mode: 'tip', weight: 0, needsTrend: false, needsNews: false, needsKB: false };
+      }
+    }
+
+    let kbArticle: KBArticle | undefined;
+    if (chosen.needsKB) {
+      const dbArticle = await pickKBArticleForPosting(recentTopics);
+      if (dbArticle) {
+        kbArticle = {
+          title: dbArticle.title,
+          summary: dbArticle.summary || '',
+          source: dbArticle.source || undefined,
+          tags: dbArticle.tags,
+          learningPoints: dbArticle.learning_points || [],
+          url: dbArticle.url || undefined,
+        };
+      }
+    }
+    if (!kbArticle) {
+      logger.warn('Skipping X post — no synced knowledge-base article is available');
+      return NextResponse.json({ ok: false, error: 'knowledge-base-unavailable' }, { status: 503 });
+    }
+
+    const system = buildPostSystem('', 'x');
+    let topic = kbArticle.title;
+    // Teach one complete idea per tweet instead of clipping a longer explanation.
+    const maxPostLength = 280;
+    // At most one Learning Hub invitation among four recent posts.
+    const promoteLearning = !recentTexts.slice(0, 3).some((text) => /homiehouse\.app\/learn|learning hub/i.test(text));
+    let content = await writeAgentPost(
+      system,
+      postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning, platform: 'x' }),
+      { maxLen: maxPostLength, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
+    );
+
+    if (content && tooSimilar(content, recentTexts)) {
+      if (chosen.needsKB) {
+        const retryArticle = await pickFreshKBArticle([...recentTopics, kbArticle?.title || '']);
+        if (retryArticle) {
+          topic = retryArticle.title;
+          kbArticle = {
+            title: retryArticle.title,
+            summary: retryArticle.summary || '',
+            source: retryArticle.source || undefined,
+            tags: retryArticle.tags,
+            learningPoints: retryArticle.learning_points || [],
+            url: retryArticle.url || undefined,
+          };
+        }
+      }
+      const retry = await writeAgentPost(
+        system,
+        postInstruction(chosen.mode, { topic, news, kbArticle, promoteLearning, platform: 'x' }) +
+          '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT.',
+        { maxLen: 280, model: process.env.AGENT_POST_MODEL || 'claude-sonnet-5' },
+      );
+      if (retry) content = retry;
+    }
+
+    if (!content) throw new Error('LLM returned an empty post');
+    if (tooSimilar(content, recentTexts)) {
+      return NextResponse.json({ ok: true, skipped: 'duplicate', mode: chosen.mode, content });
+    }
+
+    const dryRun = new URL(request.url).searchParams.get('dry') === '1';
+    if (dryRun) {
+      return NextResponse.json({ ok: true, dryRun: true, mode: chosen.mode, content });
+    }
+
+    // Deep-dive mode: if the LLM used "---" to separate multiple casts,
+    // publish them as a threaded reply chain. X has 280 chars per cast.
+    // Falls back to single tweet if anything goes wrong.
+    if (chosen.mode === 'deep-dive') {
+      const casts = splitThreadCasts(content);
+      if (casts.length > 1) {
+        try {
+          const firstText = casts[0].slice(0, 280);
+          const { id: firstId } = await postToX(firstText);
+          await recordXUsage('post');
+          await saveXPost({ xPostId: firstId, text: firstText, source: chosen.mode, topic: kbArticle?.title?.slice(0, 80) || topic });
+
+          let replyToId = firstId;
+          for (let i = 1; i < casts.length && i < 3; i++) {
+            const replyText = casts[i].slice(0, 280);
+            const { id: replyId } = await postToX(replyText, replyToId);
+            await saveXPost({ xPostId: replyId, text: replyText, source: chosen.mode, topic: kbArticle?.title?.slice(0, 80) || topic });
+            replyToId = replyId;
+          }
+
+          logger.success(`Posted thread (${chosen.mode}): ${casts.length} tweets`);
+          return NextResponse.json({
+            ok: true,
+            mode: chosen.mode,
+            threaded: true,
+            casts: casts.length,
+            content: firstText,
+            xPostId: firstId,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (threadErr: any) {
+          logger.warn('Thread publish failed, falling back to single tweet', threadErr);
+          content = content.slice(0, 280);
+        }
+      }
+    }
+
+    const { id } = await postToX(content);
+    await recordXUsage('post');
+    await saveXPost({ xPostId: id, text: content, source: chosen.mode, topic: kbArticle?.title?.slice(0, 80) || topic || news?.headline?.slice(0, 80) });
+
+    return NextResponse.json({ ok: true, mode: chosen.mode, content, xPostId: id, timestamp: new Date().toISOString() });
+  } catch (error: any) {
+    if (error?.message?.includes('X API not configured')) {
+      logger.info('Not configured — skipping (this is expected until X credentials are provisioned)');
+      return NextResponse.json({ ok: true, skipped: 'not-configured' });
+    }
+    logger.error('Unhandled error', error);
+    return handleApiError(error, 'GET /agent/x-post');
+  }
+}
