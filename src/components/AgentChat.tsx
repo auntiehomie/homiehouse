@@ -6,6 +6,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { learningQuestion, isLearningMode, type LearningMode } from '@/lib/conversation-learning';
+import TypingDots from './TypingDots';
 import MentionInput from './MentionInput';
 import { chatHistoryKey, loadChatSnapshot, saveChatSnapshot } from '@/lib/ask-homie-history';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
@@ -714,11 +715,9 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
           </div>
         ))}
 
-        {isLoading && (
-          <div ref={typingRef} className="hh-chat-message flex justify-start" role="status" aria-label="Ask Homie is thinking">
-            <div className="hh-typing-indicator" aria-hidden="true">
-              <span /><span /><span />
-            </div>
+        {(isLoading || !contextReady) && (
+          <div ref={typingRef} className="hh-chat-message flex justify-start">
+            <TypingDots label={contextReady ? 'Ask Homie is thinking' : 'Loading conversation'} />
           </div>
         )}
       </div>
