@@ -17,6 +17,7 @@ import { formatUnits } from 'viem';
 import { prefetchLesson } from '@/lib/lesson-client-cache';
 import DailyChallengeClient from './DailyChallengeClient';
 import { fetchPremiumTrack } from '@/lib/pro-client';
+import CourseCatalog, { type CatalogLevel, type CatalogTrack, type CourseCatalogItem } from '@/components/learning/CourseCatalog';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -43,7 +44,7 @@ interface LearningPlan {
 type PageState = 'quiz' | 'generating' | 'plan';
 type Track = 'ai' | 'finance' | 'creator' | 'decentralization' | 'all';
 type Level = 'beginner' | 'intermediate' | 'advanced';
-type LearnTab = 'plan' | 'completed' | 'premium' | 'homie' | 'feed';
+type LearnTab = 'catalog' | 'plan' | 'completed' | 'premium' | 'homie' | 'feed';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
@@ -999,14 +1000,18 @@ function HomieReadPanel({ currentPlan, initialQuestion = '' }: { currentPlan: Le
 
 // ─── Page Content ─────────────────────────────────────────────────────────────
 
-function LearnPageContent() {
+function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogItem[] }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { fid: farcasterFid } = useFarcasterAuth();
 
 
   const [pageState, setPageState] = useState<PageState>('quiz');
-  const [activeTab, setActiveTab] = useState<LearnTab>('plan');
+  const [activeTab, setActiveTab] = useState<LearnTab>(() => {
+    const requested = searchParams.get('tab');
+    const valid: LearnTab[] = ['catalog', 'plan', 'completed', 'premium', 'homie', 'feed'];
+    return requested && valid.includes(requested as LearnTab) ? requested as LearnTab : searchParams.get('track') ? 'plan' : 'catalog';
+  });
   const [tabsReady, setTabsReady] = useState(false);
   useEffect(() => { setTabsReady(true); }, []);
   const [step, setStep] = useState(1);
@@ -1071,6 +1076,22 @@ function LearnPageContent() {
     const normalized = t ? legacyMap[t] || t : null;
     if (normalized && valid.includes(normalized as Track)) {
       setTrack(normalized as Track);
+      if (searchParams.get('start') === 'path') {
+        const requestedLevel = searchParams.get('level');
+        const selectedLevel: Level | null = requestedLevel === 'beginner' || requestedLevel === 'intermediate' || requestedLevel === 'advanced'
+          ? requestedLevel
+          : null;
+        if (selectedLevel) {
+          setLevel(selectedLevel);
+          setLevelIdx(selectedLevel === 'beginner' ? 0 : selectedLevel === 'intermediate' ? 2 : 3);
+          setGoals('');
+          setStep(3);
+          setPageState('quiz');
+          setActiveTab('plan');
+          setError(null);
+          return;
+        }
+      }
       const isRelatedPath = searchParams.get('related') === '1';
       const isQuestionPath = searchParams.get('build') === '1';
       if (isRelatedPath || isQuestionPath) {
@@ -1199,7 +1220,7 @@ function LearnPageContent() {
   // visit to the hub.
   useEffect(() => {
     try {
-      const isGeneratedPath = searchParams.get('related') === '1' || searchParams.get('build') === '1';
+      const isGeneratedPath = searchParams.get('related') === '1' || searchParams.get('build') === '1' || searchParams.get('start') === 'path';
       if (!isGeneratedPath && sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) !== null) {
         const previousPlan = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PLAN_KEY) || 'null') as string | null;
         const previousProgress = JSON.parse(sessionStorage.getItem(RELATED_BACKUP_PROGRESS_KEY) || 'null') as string | null;
@@ -1270,6 +1291,7 @@ function LearnPageContent() {
   // Load from Neon whenever the Farcaster FID becomes available (fires after auth resolves,
   // not just at mount — this is what makes cross-device sync work reliably).
   useEffect(() => {
+    if (searchParams.get('start') === 'path') return;
     const fid = getFid();
     if (!fid) return;
     fetch(`/api/learning-progress?fid=${fid}`)
@@ -1290,7 +1312,7 @@ function LearnPageContent() {
       .catch(() => {});
   // farcasterFid as dep: re-runs once Farcaster auth resolves and the FID becomes non-null
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farcasterFid]);
+  }, [farcasterFid, searchParams]);
 
   // Load the leaderboard opt-in preference once on mount.
   useEffect(() => {
@@ -1494,6 +1516,17 @@ function LearnPageContent() {
   ];
   const goalChips = ['Financial independence', 'Build something', 'Understand the ecosystem', 'Connect with communities'];
 
+  const beginInteractivePath = (selectedTrack: CatalogTrack, selectedLevel: CatalogLevel) => {
+    setTrack(selectedTrack);
+    setLevel(selectedLevel);
+    setLevelIdx(selectedLevel === 'beginner' ? 0 : selectedLevel === 'intermediate' ? 2 : 3);
+    setGoals('');
+    setStep(3);
+    setPageState('quiz');
+    setError(null);
+    setActiveTab('plan');
+  };
+
   // ─── Shared layout ────────────────────────────────────────────────────────
 
   const wrap = (children: React.ReactNode) => (
@@ -1509,20 +1542,11 @@ function LearnPageContent() {
           <Link href="/feed" style={{ fontSize: 13, color: 'var(--muted-on-dark)', textDecoration: 'none' }}>← Feed</Link>
         </div>
 
-        {/* Learning navigation — Course Catalog stays first and visible on mobile. */}
+        {/* Course selection, interactive path, and learner tools. */}
         <div style={{ display: 'flex', gap: 0, padding: '0 16px', overflowX: 'auto', scrollbarWidth: 'none' }}>
-          <Link
-            href="/learn/library"
-            style={{
-              flexShrink: 0, padding: '10px 18px', fontSize: 13, fontWeight: 700,
-              color: 'var(--accent)', textDecoration: 'none', borderBottom: '2px solid var(--accent)',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}
-          >
-            <span aria-hidden="true">📚</span> Course Catalog
-          </Link>
           {([
-            { id: 'plan' as LearnTab, label: 'My Plan', icon: '📚' },
+            { id: 'catalog' as LearnTab, label: 'Course Catalog', icon: '📚' },
+            { id: 'plan' as LearnTab, label: 'Interactive Path', icon: '🧭' },
             { id: 'completed' as LearnTab, label: 'Completed', icon: '✅' },
             { id: 'premium' as LearnTab, label: 'Premium', icon: '⭐' },
             { id: 'homie' as LearnTab, label: 'Ask Homie', icon: '🤖' },
@@ -1534,7 +1558,8 @@ function LearnPageContent() {
               aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                padding: '10px 18px', fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500,
+                flexShrink: 0, minHeight: 46, padding: '10px 16px', fontSize: 13,
+                fontWeight: activeTab === tab.id ? 700 : 500, whiteSpace: 'nowrap',
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: activeTab === tab.id ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
                 borderBottom: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
@@ -1567,14 +1592,9 @@ function LearnPageContent() {
               .hh-learn-setup > div:first-child p { max-width: 680px; margin-inline: auto !important; }
             }
           `}</style>
-          {activeTab !== 'homie' && activeTab !== 'feed' && (
-            <section className="surface" aria-label="Learn from your curiosity" style={{ margin: '16px auto', maxWidth: 688, padding: 16 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px' }}>Saw something you want to understand?</h2>
-              <p style={{ fontSize: 14, margin: '0 0 12px', color: 'var(--muted-on-dark)' }}>Use Ask Homie to explain an idea in plain English or build a focused lesson around your question. You can also start directly from a cast.</p>
-              <Link className="btn primary" href="/ask-homie?learning=lesson">Build a lesson with Ask Homie</Link>
-            </section>
-          )}
-          {activeTab === 'homie'
+          {activeTab === 'catalog'
+            ? <CourseCatalog courses={catalogCourses} onSelectPath={beginInteractivePath} />
+            : activeTab === 'homie'
             ? <HomieReadPanel currentPlan={plan} initialQuestion={searchParams.get('question') ?? ''} />
             : activeTab === 'feed'
             ? <LearningFeed />
@@ -1654,27 +1674,6 @@ function LearnPageContent() {
             {error}
           </p>
         )}
-
-        <div style={{
-          marginBottom: 16, padding: '14px 16px', borderRadius: 14,
-          background: 'linear-gradient(135deg, rgba(52,211,153,.09), rgba(99,102,241,.09))',
-          border: '1px solid rgba(99,102,241,.24)',
-        }}>
-          <p style={{ margin: '0 0 10px', color: 'var(--text-on-dark)', fontSize: 14, fontWeight: 750 }}>
-            Learn it → spot it in your feed → explain it back
-          </p>
-          <p style={{ margin: 0, color: 'var(--muted-on-dark)', fontSize: 12, lineHeight: 1.6 }}>
-            HomieHouse turns conversations from your feed into a personal curriculum, gives you a place to ask questions, then helps you share what clicked with the community.
-          </p>
-          <div style={{ display: 'flex', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
-            <button onClick={() => setActiveTab('feed')} style={{ padding: '7px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 12, fontWeight: 650, cursor: 'pointer' }}>
-              Explore the learning feed
-            </button>
-            <button onClick={() => setActiveTab('homie')} style={{ padding: '7px 11px', borderRadius: 8, border: '1px solid rgba(99,102,241,.35)', background: 'rgba(99,102,241,.1)', color: '#c7d2fe', fontSize: 12, fontWeight: 650, cursor: 'pointer' }}>
-              Ask Homie a question
-            </button>
-          </div>
-        </div>
 
         {/* Progress — shown at top so it's immediately visible */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginBottom: 20 }}>
@@ -2109,7 +2108,7 @@ function LearnPageContent() {
   );
 }
 
-export default function LearnClient() {
+export default function LearnClient({ catalogCourses }: { catalogCourses: CourseCatalogItem[] }) {
   return (
     <Suspense fallback={
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)', color: 'var(--muted-on-dark)', gap: 16 }}>
@@ -2118,7 +2117,7 @@ export default function LearnClient() {
         <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Loading Learning Hub…</p>
       </div>
     }>
-      <LearnPageContent />
+      <LearnPageContent catalogCourses={catalogCourses} />
     </Suspense>
   );
 }
