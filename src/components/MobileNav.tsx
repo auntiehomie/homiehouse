@@ -163,7 +163,7 @@ export default function MobileNav() {
     return pathname === path || pathname.startsWith(path + '/');
   }, [pathname]);
 
-  if (!mounted || !isAuthenticated) return null;
+  if (!mounted || !isAuthenticated || pathname === '/') return null;
 
   return (
     <>
@@ -172,7 +172,9 @@ export default function MobileNav() {
         className="lg:hidden hh-bottom-nav hh-mobile-nav"
         style={{
           position: 'fixed',
-          bottom: 0, left: 0, right: 0,
+          // Let the visible controls sit closer to the physical screen edge;
+          // the remaining safe-area padding still protects the home indicator.
+          bottom: -12, left: 0, right: 0,
           zIndex: 9500,
           background: 'var(--nav-bg)',
           borderTop: '1px solid var(--nav-border)',
