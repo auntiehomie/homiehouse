@@ -49,11 +49,13 @@ function ComposePageInner() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
   const composeTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const composeViewportHeightRef = useRef<number | null>(null);
   const [isEditingCast, setIsEditingCast] = useState(false);
 
-  // iOS Safari can pan the document to the end of a long compose page when
-  // its software keyboard opens, leaving the focused textarea above the
-  // visible area. Re-center it after the visual viewport finishes resizing.
+  // iOS Safari can pan the document when its software keyboard opens. Wait
+  // for the initial keyboard resize, then make one minimal correction if the
+  // focused editor is obscured. Re-centering on each viewport resize can make
+  // the cast jump as the keyboard's suggestion bar changes while typing.
   useEffect(() => {
     if (!isEditingCast) return;
 
@@ -62,7 +64,15 @@ function ComposePageInner() {
     if (!textarea || !viewport) return;
 
     let frame = 0;
-    const revealFocusedEditor = () => {
+    let resizeTimer = 0;
+    let adjustedForKeyboard = false;
+    const initialViewportHeight = composeViewportHeightRef.current ?? viewport.height;
+    const revealFocusedEditor = (afterKeyboardResize = false) => {
+      if (adjustedForKeyboard || document.activeElement !== textarea) return;
+
+      const keyboardOpen = viewport.height < initialViewportHeight - 80;
+      if (!keyboardOpen && !afterKeyboardResize) return;
+
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         if (document.activeElement !== textarea) return;
@@ -70,20 +80,32 @@ function ComposePageInner() {
         const rect = textarea.getBoundingClientRect();
         const visibleTop = viewport.offsetTop;
         const visibleBottom = visibleTop + viewport.height;
-        if (rect.top < visibleTop || rect.bottom > visibleBottom) {
-          textarea.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
+        const margin = 12;
+
+        if (rect.bottom > visibleBottom - margin) {
+          window.scrollBy({ top: rect.bottom - visibleBottom + margin, behavior: 'auto' });
+        } else if (rect.top < visibleTop + margin) {
+          window.scrollBy({ top: rect.top - visibleTop - margin, behavior: 'auto' });
         }
+
+        if (keyboardOpen) adjustedForKeyboard = true;
       });
     };
 
-    viewport.addEventListener('resize', revealFocusedEditor);
+    const handleViewportResize = () => {
+      if (adjustedForKeyboard) return;
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => revealFocusedEditor(), 120);
+    };
+
+    viewport.addEventListener('resize', handleViewportResize);
     // Safari reports the final keyboard viewport size asynchronously.
-    const settleTimer = window.setTimeout(revealFocusedEditor, 180);
-    revealFocusedEditor();
+    const settleTimer = window.setTimeout(() => revealFocusedEditor(true), 180);
 
     return () => {
-      viewport.removeEventListener('resize', revealFocusedEditor);
+      viewport.removeEventListener('resize', handleViewportResize);
       window.clearTimeout(settleTimer);
+      window.clearTimeout(resizeTimer);
       cancelAnimationFrame(frame);
     };
   }, [isEditingCast]);
@@ -526,10 +548,12 @@ function ComposePageInner() {
                 }}
                 onFocus={e => {
                   e.target.style.borderColor = 'var(--accent)';
+                  composeViewportHeightRef.current = window.visualViewport?.height ?? null;
                   setIsEditingCast(true);
                 }}
                 onBlur={e => {
                   e.target.style.borderColor = 'var(--border)';
+                  composeViewportHeightRef.current = null;
                   setIsEditingCast(false);
                 }}
               />
