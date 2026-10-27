@@ -167,16 +167,17 @@ export default function MobileNav() {
 
   return (
     <>
-      {/* ── Slim top bar (mobile only) ───────────────────────────────────────── */}
+      {/* ── Bottom quick nav (mobile only) ───────────────────────────────────── */}
       <nav
-        className="lg:hidden"
+        className="lg:hidden hh-bottom-nav hh-mobile-nav"
         style={{
           position: 'fixed',
-          top: 0, left: 0, right: 0,
+          bottom: 0, left: 0, right: 0,
           zIndex: 9500,
           background: 'var(--nav-bg)',
-          // Extend background into the safe area so the notch/status bar region is opaque
-          paddingTop: 'var(--hh-top-inset, env(safe-area-inset-top, 0px))',
+          borderTop: '1px solid var(--nav-border)',
+          // Extend the background below the controls into the iOS home-indicator area.
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
         }}
       >
         <style>{`
@@ -201,12 +202,12 @@ export default function MobileNav() {
          maxWidth: '100%',
          margin: '0 auto',
          padding: '0 12px',
-         height: 52,
+         height: 56,
          display: 'flex',
          alignItems: 'center',
          justifyContent: 'space-between',
          gap: 8,
-          // Note: safe-area padding is already on the parent <nav> — don't duplicate here
+          // Safe-area padding is already on the parent <nav>.
        }}>
           {/* Left: hamburger */}
           <button

@@ -816,16 +816,17 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   }
 }
 
-/* Content offset for fixed nav in PWA standalone mode */
+/* Keep page content clear of the iOS status bar and the mobile bottom nav. */
 .hh-content-offset {
-  /* Clear the fixed top nav — uses --nav-total-height so nav and content always match */
-  padding-top: var(--nav-total-height, calc(52px + env(safe-area-inset-top, 0px)));
+  padding-top: var(--hh-top-inset, env(safe-area-inset-top, 0px));
+  padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), 16px));
 }
 
-/* On desktop (lg+), the sidebar is used instead of the top nav */
+/* On desktop (lg+), the sidebar replaces mobile navigation. */
 @media (min-width: 1024px) {
   .hh-content-offset {
     padding-top: var(--hh-top-inset);
+    padding-bottom: 0;
   }
 }
 
@@ -845,11 +846,9 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   }
 }
 
-/* Keep both navigation layouts below the system status bar, including iPads
-   wide enough to use the desktop layout. */
+/* Keep the desktop layout below the system status bar on iPads. */
 :root {
   --hh-top-inset: env(safe-area-inset-top, 0px);
-  --nav-total-height: calc(52px + var(--hh-top-inset));
 }
 
 /* Installed iPad apps can report a zero safe-area inset despite showing the
@@ -861,7 +860,7 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 }
 
 
-/* Safe area for mobile devices with notches */
+/* Safe area for older bottom-nav styles */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .bottom-nav {
     padding-bottom: env(safe-area-inset-bottom);
