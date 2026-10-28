@@ -270,6 +270,11 @@ function ProfileContent() {
   const [viewerFid, setViewerFid] = useState<number | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [followingOpen, setFollowingOpen] = useState(false);
+  const [followingUsers, setFollowingUsers] = useState<any[]>([]);
+  const [followingCursor, setFollowingCursor] = useState<string | null>(null);
+  const [followingLoading, setFollowingLoading] = useState(false);
+  const [followingError, setFollowingError] = useState(false);
   const [badges, setBadges] = useState<{ id: string; name: string; emoji: string }[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -375,6 +380,34 @@ function ProfileContent() {
       setCastsCursor(data.next?.cursor ?? null);
     } catch { setCastsPageError(true); }
     finally { setLoadingMoreCasts(false); }
+  };
+
+  const loadFollowing = async (reset = false) => {
+    if (!profile || followingLoading) return;
+    setFollowingLoading(true);
+    setFollowingError(false);
+    try {
+      const cursor = reset ? null : followingCursor;
+      const query = new URLSearchParams({ fid: String(profile.fid) });
+      if (cursor) query.set('cursor', cursor);
+      const response = await fetch(`/api/friends?${query.toString()}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Following list unavailable');
+      const payload = await response.json();
+      const users = Array.isArray(payload.data) ? payload.data : [];
+      setFollowingUsers((previous) => reset ? users : [...previous, ...users]);
+      setFollowingCursor(payload.cursor ?? null);
+    } catch {
+      setFollowingError(true);
+    } finally {
+      setFollowingLoading(false);
+    }
+  };
+
+  const openFollowing = () => {
+    setFollowingUsers([]);
+    setFollowingCursor(null);
+    setFollowingOpen(true);
+    void loadFollowing(true);
   };
 
   // A cast opened from this profile should return to the same tab and scroll
@@ -554,8 +587,15 @@ function ProfileContent() {
               <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>Followers</div>
             </div>
             <div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{profile.following_count.toLocaleString()}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>Following</div>
+              <button
+                type="button"
+                onClick={openFollowing}
+                aria-label={`View ${profile.following_count.toLocaleString()} accounts followed by ${profile.display_name || profile.username}`}
+                style={{ padding: 0, border: 0, background: 'none', color: 'inherit', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{profile.following_count.toLocaleString()}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Following</div>
+              </button>
             </div>
             <div>
               <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{profile.fid}</div>
@@ -620,6 +660,66 @@ function ProfileContent() {
           )}
         </div>
       </div>
+
+      {followingOpen && (
+        <div
+          onClick={(event) => { if (event.target === event.currentTarget) setFollowingOpen(false); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="following-dialog-title"
+            className="surface"
+            style={{ width: 'min(100%, 32rem)', maxHeight: 'min(80vh, 44rem)', display: 'flex', flexDirection: 'column', borderRadius: 14, overflow: 'hidden' }}
+          >
+            <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <h2 id="following-dialog-title" style={{ fontSize: '1.1rem', margin: 0 }}>Following</h2>
+                <p style={{ margin: '3px 0 0', color: 'var(--muted-on-dark)', fontSize: '0.8rem' }}>Accounts followed by @{profile.username}</p>
+              </div>
+              <button type="button" className="btn" onClick={() => setFollowingOpen(false)} aria-label="Close following list">Close</button>
+            </header>
+            <div style={{ overflowY: 'auto', padding: '0.5rem 1rem 1rem' }}>
+              {followingUsers.map((entry, index) => {
+                const user = entry?.user ?? entry;
+                const fid = Number(user?.fid ?? entry?.fid);
+                const username = user?.username || `fid-${fid}`;
+                const displayName = user?.display_name || username;
+                return (
+                  <Link
+                    key={`${fid}-${index}`}
+                    href={`/profile?fid=${fid}`}
+                    onClick={() => setFollowingOpen(false)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.25rem', color: 'inherit', textDecoration: 'none', borderBottom: '1px solid var(--border)' }}
+                  >
+                    <Image
+                      src={user?.pfp_url || '/default-avatar.png'}
+                      alt=""
+                      width={42}
+                      height={42}
+                      style={{ borderRadius: '50%', objectFit: 'cover', background: 'var(--bg-dark)' }}
+                      onError={(event) => { (event.currentTarget as HTMLImageElement).src = '/default-avatar.png'; }}
+                    />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: 'block', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                      <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--muted-on-dark)' }}>@{username}</span>
+                    </span>
+                    <span aria-hidden="true" style={{ color: 'var(--muted-on-dark)' }}>›</span>
+                  </Link>
+                );
+              })}
+              {followingLoading && <p role="status" style={{ textAlign: 'center', padding: '1rem', color: 'var(--muted-on-dark)' }}>Loading accounts…</p>}
+              {followingError && <div style={{ textAlign: 'center', padding: '1rem' }}>
+                <p role="alert" style={{ color: 'var(--muted-on-dark)' }}>Could not load this following list right now.</p>
+                <button type="button" className="btn" onClick={() => void loadFollowing(followingUsers.length === 0)}>Try again</button>
+              </div>}
+              {!followingLoading && !followingError && followingUsers.length === 0 && <p style={{ textAlign: 'center', padding: '1.5rem 0.5rem', color: 'var(--muted-on-dark)' }}>This account is not following anyone yet.</p>}
+              {!followingLoading && followingCursor && <button type="button" className="btn" onClick={() => void loadFollowing()} style={{ display: 'block', width: '100%', marginTop: '0.75rem' }}>Load more</button>}
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)' }}>

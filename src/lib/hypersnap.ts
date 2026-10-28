@@ -175,8 +175,9 @@ async function fallbackNotifications(endpoint: string): Promise<any> {
  * GET /v2/farcaster/user/following?fid=:fid&limit=:limit
  * Maps Hypersnap's `result` array to `users` for API compatibility.
  */
-export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
+export async function fetchFollowing(fid: number, limit = 100, cursor?: string | null): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
   const endpoint = `/v2/farcaster/user/following?${qs.toString()}`;
   const normalize = (data: any) => data?.result && !data?.users ? { ...data, users: data.result } : data;
   let failure = 'empty_response';
