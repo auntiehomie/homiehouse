@@ -23,6 +23,7 @@ jest.mock('@/lib/ai/news', () => ({
   searchTopicWeb: (...args: unknown[]) => searchTopicWeb(...args),
   formatLiveWebContext: (research: { summary: string; citations: string[] }) =>
     `LIVE WEB ${research.summary} ${research.citations.join(' ')}`,
+  isTopicWebSearchConfigured: () => false,
 }));
 jest.mock('@/lib/agent-context', () => ({
   shouldSearchWeb: (question: string) => question.includes('?'),
@@ -127,7 +128,7 @@ describe('/api/ask-homie', () => {
     expect(searchTopicWeb).toHaveBeenCalledWith(expect.stringContaining('A cast about decentralized identity.'));
     expect(processRequest).toHaveBeenCalledWith(expect.stringContaining('LIVE WEB A current, sourced explanation.'), 'research');
     await expect(response.json()).resolves.toMatchObject({
-      metadata: { liveWebSearch: { provider: 'Brave Search', status: 'searched', citations: ['https://example.org/article'] } },
+      metadata: { liveWebSearch: { provider: 'Web search', status: 'searched', citations: ['https://example.org/article'] } },
     });
   });
 
