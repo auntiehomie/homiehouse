@@ -175,8 +175,9 @@ async function fallbackNotifications(endpoint: string): Promise<any> {
  * GET /v2/farcaster/user/following?fid=:fid&limit=:limit
  * Maps Hypersnap's `result` array to `users` for API compatibility.
  */
-export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
+export async function fetchFollowing(fid: number, limit = 100, cursor?: string | null): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
   const endpoint = `/v2/farcaster/user/following?${qs.toString()}`;
   const normalize = (data: any) => data?.result && !data?.users ? { ...data, users: data.result } : data;
   let failure = 'empty_response';
@@ -353,7 +354,7 @@ export async function fetchChannelFeed(channelId: string, params: {
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-  const endpoint = `/v2/farcaster/user/channels?${qs.toString()}`;
+  const endpoint = `/v2/farcaster/channel/user-active?${qs.toString()}`;
 
   // 1. Primary hub
   try {
@@ -387,10 +388,10 @@ export function normalizeChannelListResponse(data: any): any[] | null {
 /**
  * Fetch the full channel list from Hypersnap, retrying the fallback node when
  * the primary node errors or returns an empty list.
- * GET /v2/farcaster/channel/list?limit=:limit
+ * GET /v2/farcaster/channel/all?limit=:limit
  */
 export async function fetchChannelList(limit = 50): Promise<any> {
-  const endpoint = `/v2/farcaster/channel/list?limit=${limit}`;
+  const endpoint = `/v2/farcaster/channel/all?limit=${limit}`;
   let primaryResult: any = null;
   let primaryError: unknown;
 

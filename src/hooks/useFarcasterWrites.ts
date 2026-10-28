@@ -29,7 +29,7 @@ async function submitMessage(message: Uint8Array): Promise<unknown> {
     body: message as unknown as BodyInit,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  if (!res.ok || data?.ok === false || data?.success === false) {
     const detail = data?.details || data?.hub?.error_detail || data?.error || data?.hub?.errMsg || data?.hub?.message || `hub error ${res.status}`;
     throw new Error(detail);
   }
