@@ -1,0 +1,812 @@
+"use client";
+
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import CharacterMeter from '@/components/CharacterMeter';
+import ComposeInspiration from '@/components/ComposeInspiration';
+import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
+import { getAuthHeaders } from '@/lib/client-auth';
+import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
+import { buildCastGalleryUrl } from '@/lib/cast-gallery';
+
+function ComposePageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { fid: userFid } = useFarcasterAuth()
+  const { hasActiveSigner, requestSigner, submitCast, reply, getPrivateKeyHex } = useFarcasterWrites();
+
+  const [text, setText] = useState(searchParams.get('text') || "");
+  const returnTo = searchParams.get('returnTo');
+  const fromAskHomie = returnTo === '/ask-homie' || returnTo?.startsWith('/ask-homie?');
+  const closeComposer = () => fromAskHomie ? router.replace(returnTo!, { scroll: false }) : router.back();
+  const parts = splitCastText(text);
+  const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    // Dismiss the keyboard so the confirmation stays visible on iOS.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const timer = window.setTimeout(() => {
+      if (fromAskHomie) router.replace(returnTo!, { scroll: false });
+      else router.back();
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [successMessage, fromAskHomie, returnTo, router]);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState<string>('');
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<string>('');
+  const [channels, setChannels] = useState<any[]>([]);
+  const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
+  const [channelSearch, setChannelSearch] = useState<string>('');
+  const [urlPreview, setUrlPreview] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const composeTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const composeViewportHeightRef = useRef<number | null>(null);
+  const [isEditingCast, setIsEditingCast] = useState(false);
+
+  // iOS Safari can pan the document when its software keyboard opens. Wait
+  // for the initial keyboard resize, then make one minimal correction if the
+  // focused editor is obscured. Re-centering on each viewport resize can make
+  // the cast jump as the keyboard's suggestion bar changes while typing.
+  useEffect(() => {
+    if (!isEditingCast) return;
+
+    const textarea = composeTextareaRef.current;
+    const viewport = window.visualViewport;
+    if (!textarea || !viewport) return;
+
+    let frame = 0;
+    let resizeTimer = 0;
+    let adjustedForKeyboard = false;
+    const initialViewportHeight = composeViewportHeightRef.current ?? viewport.height;
+    const revealFocusedEditor = (afterKeyboardResize = false) => {
+      if (adjustedForKeyboard || document.activeElement !== textarea) return;
+
+      const keyboardOpen = viewport.height < initialViewportHeight - 80;
+      if (!keyboardOpen && !afterKeyboardResize) return;
+
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (document.activeElement !== textarea) return;
+
+        const rect = textarea.getBoundingClientRect();
+        const visibleTop = viewport.offsetTop;
+        const visibleBottom = visibleTop + viewport.height;
+        const margin = 12;
+
+        if (rect.bottom > visibleBottom - margin) {
+          window.scrollBy({ top: rect.bottom - visibleBottom + margin, behavior: 'auto' });
+        } else if (rect.top < visibleTop + margin) {
+          window.scrollBy({ top: rect.top - visibleTop - margin, behavior: 'auto' });
+        }
+
+        if (keyboardOpen) adjustedForKeyboard = true;
+      });
+    };
+
+    const handleViewportResize = () => {
+      if (adjustedForKeyboard) return;
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => revealFocusedEditor(), 120);
+    };
+
+    viewport.addEventListener('resize', handleViewportResize);
+    // Safari reports the final keyboard viewport size asynchronously.
+    const settleTimer = window.setTimeout(() => revealFocusedEditor(true), 180);
+
+    return () => {
+      viewport.removeEventListener('resize', handleViewportResize);
+      window.clearTimeout(settleTimer);
+      window.clearTimeout(resizeTimer);
+      cancelAnimationFrame(frame);
+    };
+  }, [isEditingCast]);
+
+  // Unified inline trigger autocomplete (@mention, /channel, $token)
+  const [activeTrigger, setActiveTrigger] = useState<{ type: '@' | '/' | '$'; query: string; startPos: number } | null>(null);
+  const [triggerResults, setTriggerResults] = useState<any[]>([]);
+
+  // Load channels on mount
+  useEffect(() => {
+    if (userFid) fetchChannels(userFid);
+  }, [userFid]);
+
+  async function fetchChannels(fid: number) {
+    try {
+      const response = await fetch(`/api/channels?fid=${fid}&limit=100`);
+      const data = await response.json();
+
+      if (data.ok && data.channels) {
+        // Filter to human-readable channel IDs only (exclude token-gated URI channels)
+        const clean = data.channels.filter((ch: any) =>
+          ch.id && !ch.id.includes(':') && !ch.id.includes('/')
+        );
+        setChannels(clean.length ? clean : data.channels.slice(0, 20));
+      } else {
+        // Fallback to popular channels
+        setChannels([
+          { id: 'base', name: 'Base' },
+          { id: 'farcaster', name: 'Social' },
+          { id: 'dev', name: 'Dev' },
+          { id: 'art', name: 'Art' },
+          { id: 'music', name: 'Music' },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+      // Fallback to popular channels
+      setChannels([
+        { id: 'base', name: 'Base' },
+        { id: 'farcaster', name: 'Social' },
+        { id: 'dev', name: 'Dev' },
+        { id: 'art', name: 'Art' },
+        { id: 'music', name: 'Music' },
+      ]);
+    }
+  }
+
+  // Unified trigger search: @user, /channel, $token
+  useEffect(() => {
+    if (!activeTrigger || activeTrigger.query.length < 2) {
+      setTriggerResults([]);
+      return;
+    }
+    const { type, query } = activeTrigger;
+    const delay = type === '/' ? 0 : 300;
+    const timer = setTimeout(async () => {
+      try {
+        if (type === '@') {
+          const r = await fetch(`/api/search-users?q=${encodeURIComponent(query)}`);
+          const d = await r.json();
+          setTriggerResults(d.users?.slice(0, 6) || []);
+        } else if (type === '/') {
+          const filtered = channels.filter(ch =>
+            ch.id?.toLowerCase().includes(query.toLowerCase()) ||
+            ch.name?.toLowerCase().includes(query.toLowerCase())
+          );
+          setTriggerResults(filtered.slice(0, 8));
+        } else if (type === '$') {
+          const r = await fetch(`/api/tokens/search?q=${encodeURIComponent(query)}&limit=6`);
+          const d = await r.json();
+          setTriggerResults(d.tokens || []);
+        }
+      } catch {}
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [activeTrigger, channels]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    // selectionStart can be null on iOS Safari during IME/autocorrect — fall back to end of text
+    const cursorPos = e.target.selectionStart ?? newText.length;
+    setText(newText);
+
+    const before = newText.substring(0, cursorPos);
+    // Find the last trigger character before the cursor
+    const candidates = (['@', '/', '$'] as const).map(t => ({ type: t, pos: before.lastIndexOf(t) })).filter(c => c.pos !== -1);
+    const best = candidates.sort((a, b) => b.pos - a.pos)[0];
+
+    if (best) {
+      const query = before.substring(best.pos + 1);
+      if (!query.includes(' ') && !query.includes('\n')) {
+        setActiveTrigger({ type: best.type, query, startPos: best.pos });
+        return;
+      }
+    }
+
+    setActiveTrigger(null);
+    setTriggerResults([]);
+  };
+
+  function insertTriggerResult(result: any) {
+    if (!activeTrigger) return;
+    const { type, startPos, query } = activeTrigger;
+    const before = text.substring(0, startPos);
+    const after = text.substring(startPos + query.length + 1);
+
+    if (type === '@') {
+      setText(`${before}@${result.username} ${after}`);
+    } else if (type === '/') {
+      // Strip the /query from text; channel is tracked separately
+      setText((before + after).replace(/^\s+/, ''));
+      setSelectedChannel(result.id);
+    } else if (type === '$') {
+      setText(`${before}$${result.symbol} ${after}`);
+    }
+
+    setActiveTrigger(null);
+    setTriggerResults([]);
+  }
+
+  // Detect URLs in text and fetch preview (handles https:// and bare domains)
+  useEffect(() => {
+    const urlRegex = /(?:https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|run|fun|us|uk|ca|au|de|fr|jp)[^\s]*)/gi;
+    const matches = text.match(urlRegex);
+
+    if (matches && matches.length > 0) {
+      const rawUrl = matches[0];
+      const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+      if (url !== detectedUrl) {
+        setDetectedUrl(url);
+        fetchUrlPreview(url);
+      }
+    } else {
+      setDetectedUrl(null);
+      setUrlPreview(null);
+    }
+  }, [text]);
+
+  const fetchUrlPreview = async (url: string) => {
+    setLoadingPreview(true);
+    try {
+      const response = await fetch('/api/url-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok) {
+          setUrlPreview(data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching URL preview:', error);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+
+  const maxImages = MAX_CAST_PHOTOS;
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ''; // reset so same file can be re-selected
+    if (!files.length) return;
+
+    const slots = maxImages - uploadedImages.length;
+    if (slots <= 0) return;
+
+    const toUpload = files.slice(0, slots);
+    setUploadingImage(true);
+
+    const uploaded: string[] = [];
+    for (let i = 0; i < toUpload.length; i++) {
+      const file = toUpload[i];
+      if (file.size > 10 * 1024 * 1024) { setStatus(`${file.name}: over 10 MB, skipped`); continue; }
+      if (!file.type.startsWith('image/')) continue;
+
+      setStatus(toUpload.length > 1 ? `Uploading ${i + 1} of ${toUpload.length}…` : 'Uploading image…');
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (data.ok && data.url) { uploaded.push(data.url); }
+        else { setStatus(`Upload failed: ${data.error || 'Unknown error'}`); }
+      } catch (err: any) { setStatus(`Upload error: ${err.message}`); }
+    }
+
+    if (uploaded.length) {
+      setUploadedImages(prev => [...prev, ...uploaded]);
+      setStatus(uploaded.length > 1 ? `✓ ${uploaded.length} images added` : '✓ Image added');
+      setTimeout(() => setStatus(null), 2000);
+    }
+    setUploadingImage(false);
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  async function handleEnablePosting() {
+    setLoading(true);
+    try {
+      await requestSigner();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePost() {
+    if (loading || successMessage) return;
+    setStatus(null);
+    setLoading(true);
+    try {
+      if (!userFid) {
+        setStatus("Sign in to post.");
+        setLoading(false);
+        return;
+      }
+
+      if (!hasActiveSigner) {
+        setStatus("Please enable posting first.");
+        setLoading(false);
+        return;
+      }
+
+      const body: any = { text, fid: userFid };
+
+      // Scheduled casts cannot retry on an embed-limit response, so preserve
+      // larger photo sets in a single Homiehouse gallery link.
+      const useGalleryForSchedule = isScheduled && uploadedImages.length > 2;
+      const embeds: any[] = useGalleryForSchedule
+        ? [{ url: buildCastGalleryUrl(uploadedImages) }]
+        : uploadedImages.slice(0, MAX_CAST_PHOTOS).map(url => ({ url }));
+      const maxEmbeds = uploadedImages.length > 2 ? MAX_CAST_EMBEDS : 2;
+      if (urlPreview && detectedUrl && embeds.length < maxEmbeds) {
+        embeds.push({ url: detectedUrl });
+      }
+      if (embeds.length > 0) {
+        body.embeds = embeds;
+      }
+
+      // Add channel if selected
+      if (selectedChannel) {
+        body.channelKey = selectedChannel;
+        // channel selected
+      } else {
+        // no channel selected
+      }
+
+      // If scheduled, save to database instead of posting immediately
+      if (isScheduled && parts.length > 1) {
+        setStatus('Scheduling threads is not supported yet. Turn off scheduling to post this thread now.');
+        return;
+      }
+      if (isScheduled && scheduleTime) {
+        const scheduledDate = new Date(scheduleTime);
+        const now = new Date();
+
+        if (scheduledDate <= now) {
+          setStatus("Scheduled time must be in the future.");
+          setLoading(false);
+          return;
+        }
+
+        body.scheduled_time = scheduledDate.toISOString();
+
+        // Pass the user's signer private key so the server can sign the cast at publish time
+        const signerPrivateKey = getPrivateKeyHex();
+        if (!signerPrivateKey) {
+          setStatus("Posting permissions required to schedule. Tap 'Enable Posting', authorize the Hypersnap signer, then try again.");
+          setLoading(false);
+          return;
+        }
+        body.private_key = signerPrivateKey;
+
+       const res = await fetch("/api/schedule-cast", {
+         method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+         body: JSON.stringify(body),
+       });
+
+
+        
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          console.error('[ComposePage] Failed to parse schedule response:', parseErr);
+          const text = await res.text();
+          console.error('[ComposePage] Raw schedule response:', text);
+          setStatus(`Server error (${res.status}): Could not parse response. Check console.`);
+          setLoading(false);
+          return;
+        }
+        
+        if (data.ok) {
+          setStatus(useGalleryForSchedule
+            ? '✓ Cast scheduled with a Homiehouse photo gallery.'
+            : '✓ Cast scheduled successfully!');
+          setText("");
+          setUploadedImages([]);
+          setScheduleTime("");
+          setIsScheduled(false);
+          setUrlPreview(null);
+          setDetectedUrl(null);
+          setSuccessMessage('Cast scheduled');
+        } else {
+          const errorMsg = data.error || data.message || "unknown error";
+          const errorCode = data.code || '';
+          const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
+          console.error('[ComposePage] Schedule API error:', { status: res.status, error: errorMsg, code: errorCode });
+          setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
+        }
+            } else {
+        const fingerprint = JSON.stringify([userFid, body.text, body.embeds, body.channelKey]);
+        if (threadProgress.current.fingerprint !== fingerprint) {
+          threadProgress.current = { fingerprint, progress: { hashes: [] } };
+        }
+        const progress = threadProgress.current.progress;
+        let usedGalleryFallback = false;
+        try {
+          await publishCastParts(parts, progress, async (part, parentHash) => {
+            const result = parentHash
+              ? await reply({ text: part, parentCastHash: parentHash, parentCastFid: userFid })
+              : await submitCast({ text: part, embeds: body.embeds, galleryImages: uploadedImages, channelKey: body.channelKey });
+            usedGalleryFallback ||= !!result.galleryFallback;
+            return result;
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(progress.hashes.length
+            ? `${progress.hashes.length} of ${parts.length} parts posted. Retry to continue the remaining parts. ${message}`
+            : message);
+        }
+        setStatus(usedGalleryFallback
+          ? '✓ Posted with a Homiehouse photo gallery link.'
+          : '✓ Posted successfully!');
+        setText("");
+        setUploadedImages([]);
+        setUrlPreview(null);
+        setDetectedUrl(null);
+        setSuccessMessage('Cast successful');
+      }
+    } catch (err: any) {
+      setStatus(String(err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const muted = { color: 'var(--muted-on-dark)' } as React.CSSProperties;
+  const toolBtn: React.CSSProperties = {
+    padding: '8px 10px', borderRadius: 8, background: 'none', border: 'none',
+    color: 'var(--muted-on-dark)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center',
+  };
+
+  return (
+    <div className={successMessage ? 'hh-compose-success-exit' : undefined} style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }}>
+      {successMessage && (
+        <div className="hh-compose-success-overlay">
+          <div className="hh-compose-success-notice" role="status" aria-live="polite">
+            <span aria-hidden="true">✓</span> {successMessage}
+          </div>
+        </div>
+      )}
+      <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
+        <button aria-label={fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
+          {fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>}
+        </button>
+        <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-on-dark)' }}>New Cast</h1>
+        <div style={{ width: 22 }} />
+      </header>
+
+      <main style={{ maxWidth: 640, margin: '0 auto', padding: '12px 16px', width: '100%', boxSizing: 'border-box' }}>
+        {!userFid ? (
+          <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>💬</div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 10, color: 'var(--text-on-dark)' }}>Connect to Cast</h2>
+            <p style={{ color: 'var(--muted-on-dark)', marginBottom: 28, maxWidth: 320, margin: '0 auto 28px', lineHeight: 1.6, fontSize: 14 }}>
+              Sign in with a wallet linked to your account, or create an account to get started.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 280, margin: '0 auto' }}>
+              <button
+                onClick={() => router.push('/')}
+                style={{ padding: '11px 24px', borderRadius: 24, background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer' }}
+              >
+                Sign in with wallet
+              </button>
+              <button
+                onClick={() => router.push('/settings')}
+                style={{ padding: '11px 24px', borderRadius: 24, background: 'none', color: 'var(--text-on-dark)', fontWeight: 600, fontSize: 14, border: '1px solid var(--border)', cursor: 'pointer' }}
+              >
+                Import account in Settings
+              </button>
+            </div>
+            <p style={{ color: 'var(--muted-on-dark)', fontSize: 12, marginTop: 20, lineHeight: 1.5 }}>
+              Profile import is read-only. Posting access is granted separately by signing a Hypersnap authorization with the FID custody wallet.
+            </p>
+          </div>
+        ) : userFid && !hasActiveSigner ? (
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <div style={{ fontSize: 52, marginBottom: 20 }}>🔐</div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: 'var(--text-on-dark)' }}>Enable Posting</h2>
+            <p style={{ ...muted, marginBottom: 28, maxWidth: 340, margin: '0 auto 28px', lineHeight: 1.5 }}>
+              Authorize a scoped HomieHouse signer with the wallet that controls this account ID. No recovery phrase or separate app approval is needed.
+            </p>
+            <button
+              onClick={handleEnablePosting}
+              disabled={loading}
+              style={{ padding: '10px 28px', borderRadius: 24, background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontWeight: 600, fontSize: 15, border: 'none', cursor: 'pointer', opacity: loading ? 0.5 : 1 }}
+            >
+              {loading ? 'Creating…' : 'Enable Posting'}
+            </button>
+            {status && <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--surface)', borderRadius: 10, fontSize: 13, ...muted }}>{status}</div>}
+          </div>
+        ) : null}
+        {userFid && hasActiveSigner && (
+          <div>
+            {parts.length > 1 && <p role="status" style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>This draft will post as a thread of {parts.length} casts. Your full text is preserved.</p>}
+            {/* Textarea with floating autocomplete */}
+            <div style={{ position: 'relative' }}>
+              <textarea
+                ref={composeTextareaRef}
+                value={text}
+                onChange={handleTextChange}
+                placeholder="What's on your mind?"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  background: 'var(--surface)', color: 'var(--text-on-dark)',
+                  fontSize: 16, padding: '14px', lineHeight: 1.6,
+                  border: '1px solid var(--border)', borderRadius: 12,
+                  outline: 'none', resize: 'none', minHeight: 130,
+                  fontFamily: 'inherit',
+                }}
+                onFocus={e => {
+                  e.target.style.borderColor = 'var(--accent)';
+                  composeViewportHeightRef.current = window.visualViewport?.height ?? null;
+                  setIsEditingCast(true);
+                }}
+                onBlur={e => {
+                  e.target.style.borderColor = 'var(--border)';
+                  composeViewportHeightRef.current = null;
+                  setIsEditingCast(false);
+                }}
+              />
+
+              {/* Autocomplete dropdown */}
+              {activeTrigger && triggerResults.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+                  maxHeight: 240, overflowY: 'auto',
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 10, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                }}>
+                  {triggerResults.map((result, i) => (
+                    <button
+                      key={result.fid ?? result.id ?? result.symbol ?? i}
+                      onMouseDown={e => { e.preventDefault(); insertTriggerResult(result); }}
+                      onTouchStart={e => { e.preventDefault(); insertTriggerResult(result); }}
+                      style={{
+                        width: '100%', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                        background: 'transparent', border: 'none',
+                        borderBottom: i < triggerResults.length - 1 ? '1px solid var(--border)' : 'none',
+                        cursor: 'pointer', textAlign: 'left', color: 'var(--text-on-dark)',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      {activeTrigger.type === '@' && (
+                        <>
+                          {result.pfp_url
+                            ? <img src={result.pfp_url} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                            : <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+                          }
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{result.display_name}</div>
+                            <div style={{ fontSize: 12, ...muted }}>@{result.username}</div>
+                          </div>
+                        </>
+                      )}
+                      {activeTrigger.type === '/' && (
+                        <>
+                          {result.imageUrl
+                            ? <img src={result.imageUrl} alt="" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                            : <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, ...muted }}>#</div>
+                          }
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>/{result.id}</div>
+                            {result.name && <div style={{ fontSize: 12, ...muted }}>{result.name}</div>}
+                          </div>
+                        </>
+                      )}
+                      {activeTrigger.type === '$' && (
+                        <>
+                          {result.image
+                            ? <img src={result.image} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                            : <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, ...muted, fontWeight: 700 }}>$</div>
+                          }
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>${result.symbol}</div>
+                            <div style={{ fontSize: 12, ...muted }}>{result.name}</div>
+                          </div>
+                          {result.currentPrice != null && (
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                ${result.currentPrice < 0.01 ? result.currentPrice.toFixed(6) : result.currentPrice.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                              </div>
+                              {result.priceChangePercentage24h != null && (
+                                <div style={{ fontSize: 11, color: result.priceChangePercentage24h >= 0 ? '#4ade80' : '#f87171' }}>
+                                  {result.priceChangePercentage24h >= 0 ? '+' : ''}{result.priceChangePercentage24h.toFixed(2)}%
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Image previews */}
+            {uploadedImages.length > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: uploadedImages.length === 1 ? '1fr' : '1fr 1fr',
+                gap: 8, marginTop: 10,
+              }}>
+                {uploadedImages.map((url, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img
+                      src={url} alt={`Image ${i + 1}`}
+                      style={{ width: '100%', height: uploadedImages.length === 1 ? 192 : 140, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <button
+                      onClick={() => removeImage(i)}
+                      style={{ position: 'absolute', top: 6, right: 6, width: 24, height: 24, borderRadius: '50%', background: 'rgba(0,0,0,0.72)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* URL preview */}
+            {detectedUrl && (
+              loadingPreview ? (
+                <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, ...muted }}>Loading preview…</div>
+              ) : (
+                <a href={detectedUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                  style={{ display: 'block', marginTop: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', textDecoration: 'none' }}>
+                  {urlPreview?.metadata?.image && (
+                    <img src={urlPreview.metadata.image} alt={urlPreview.metadata.title} style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  <div style={{ padding: '10px 12px' }}>
+                    {urlPreview?.metadata?.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-on-dark)', marginBottom: 3 }}>{urlPreview.metadata.title}</div>}
+                    {urlPreview?.metadata?.description && <div style={{ fontSize: 12, ...muted, marginBottom: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{urlPreview.metadata.description}</div>}
+                    <div style={{ fontSize: 11, ...muted }}>{urlPreview?.metadata?.siteName || (() => { try { return new URL(detectedUrl).hostname; } catch { return detectedUrl; } })()}</div>
+                  </div>
+                </a>
+              )
+            )}
+
+            {/* Schedule picker */}
+            {isScheduled && (
+              <div style={{ marginTop: 10 }}>
+                <input
+                  type="datetime-local"
+                  value={scheduleTime}
+                  onChange={e => setScheduleTime(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-on-dark)', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
+                />
+              </div>
+            )}
+
+            {status && (
+              <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                {status}
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Toolbar — directly under the cast box */}
+      <div style={{
+        background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}>
+        {/* Channel picker opens upward from here */}
+        {showChannelSuggestions && (
+          <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+            <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
+              <input
+                type="text"
+                value={channelSearch}
+                onChange={e => setChannelSearch(e.target.value)}
+                placeholder="Search channels…"
+                autoFocus
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
+              />
+            </div>
+            {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
+              <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }}
+                style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={muted}>/</span>{ch.id}
+                {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden', maxWidth: 640, margin: '0 auto' }}>
+          {/* Left scrollable actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
+            <label
+              htmlFor="image-upload-compose"
+              style={{ ...toolBtn, cursor: (uploadingImage || uploadedImages.length >= maxImages) ? 'not-allowed' : 'pointer', opacity: (uploadingImage || uploadedImages.length >= maxImages) ? 0.4 : 1 }}
+              title={uploadedImages.length >= maxImages ? `Max ${maxImages} image${maxImages > 1 ? 's' : ''}` : 'Add photo'}
+            >
+              {uploadingImage
+                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
+                : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              }
+              {uploadedImages.length > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 3, color: uploadedImages.length >= maxImages ? '#f87171' : 'var(--muted-on-dark)' }}>
+                  {uploadedImages.length}/{MAX_CAST_PHOTOS}
+                </span>
+              )}
+              <input id="image-upload-compose" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || uploadedImages.length >= maxImages} style={{ display: 'none' }} />
+            </label>
+
+            <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel"
+              style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
+              <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
+              {selectedChannel && (
+                <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
+              )}
+            </button>
+
+            <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast"
+              style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </button>
+
+            <button onClick={() => router.push('/scheduled')} title="View scheduled casts" aria-label="View scheduled casts"
+              style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10 }}>
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </button>
+          </div>
+
+          {/* Right: char count + Post/Schedule button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto', paddingLeft: 8 }}>
+            <CharacterMeter count={castTextBytes(text)} limit={MAX_CAST_BYTES} unit="bytes" overflowLabel="Thread" />
+            <button
+              onClick={handlePost}
+              disabled={!!successMessage || loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)}
+              style={{
+                padding: '7px 14px', borderRadius: 24, border: 'none', cursor: 'pointer',
+                background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)',
+                fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                opacity: (loading || uploadingImage || (!text.trim() && !uploadedImages.length) || (isScheduled && !scheduleTime)) ? 0.4 : 1,
+              }}
+            >
+              {loading ? '…' : (isScheduled ? 'Schedule' : parts.length > 1 ? `Post thread (${parts.length})` : 'Post')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {userFid && hasActiveSigner ? (
+        <ComposeInspiration
+          fid={userFid}
+          hasText={text.trim().length > 0}
+          onUseDraft={(draft) => {
+            setText(draft);
+            setStatus('Draft added — make it yours before posting.');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export default function ComposePage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }} />}>
+      <ComposePageInner />
+    </Suspense>
+  );
+}

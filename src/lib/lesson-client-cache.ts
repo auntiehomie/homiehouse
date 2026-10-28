@@ -1,0 +1,154 @@
+import { getAuthHeaders } from '@/lib/client-auth';
+import { correctLessonRepositoryReferences } from '@/lib/lesson-source-corrections';
+
+export interface LessonModuleRequest {
+  id: string;
+  title: string;
+  description: string;
+  whyItMatters: string;
+  objectives: string[];
+  estimatedMinutes: number;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  tags: string[];
+  sourceCast?: { author?: string; text: string };
+}
+
+export interface LessonQuizQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface LessonContent {
+  intro: string;
+  concepts: Array<{ title: string; explanation: string; analogy?: string }>;
+  practicalExample: string;
+  quickActions: string[];
+  summary: string;
+  quiz: LessonQuizQuestion[];
+}
+
+interface CachedLesson {
+  cachedAt: number;
+  lesson: LessonContent;
+}
+
+const CACHE_PREFIX = 'hh_lesson_v2:';
+const CACHE_INDEX_KEY = 'hh_lesson_cache_index_v2';
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_CACHED_LESSONS = 6;
+const inflight = new Map<string, Promise<LessonContent>>();
+
+function fingerprint(value: string): string {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function lessonKey(module: LessonModuleRequest, eli5: boolean): string {
+  const revision = fingerprint(JSON.stringify({
+    title: module.title,
+    description: module.description,
+    whyItMatters: module.whyItMatters,
+    objectives: module.objectives,
+    sourceCast: module.sourceCast,
+  }));
+  return `${CACHE_PREFIX}${module.id}:${eli5 ? 'eli5' : 'standard'}:${revision}`;
+}
+
+function readIndex(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const value = JSON.parse(window.localStorage.getItem(CACHE_INDEX_KEY) ?? '[]');
+    return Array.isArray(value) ? value.filter((key): key is string => typeof key === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function touchIndex(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const keys = [key, ...readIndex().filter(item => item !== key)];
+    const staleKeys = keys.slice(MAX_CACHED_LESSONS);
+    staleKeys.forEach(item => window.localStorage.removeItem(item));
+    window.localStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(keys.slice(0, MAX_CACHED_LESSONS)));
+  } catch {
+    // Storage can be unavailable in private browsing. The network path still works.
+  }
+}
+
+export function getCachedLesson(module: LessonModuleRequest, eli5: boolean): LessonContent | null {
+  if (typeof window === 'undefined') return null;
+  const key = lessonKey(module, eli5);
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(key) ?? 'null') as CachedLesson | null;
+    if (!cached?.lesson || Date.now() - cached.cachedAt > CACHE_TTL_MS) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    touchIndex(key);
+    const lesson = correctLessonRepositoryReferences(cached.lesson);
+    if (JSON.stringify(lesson) !== JSON.stringify(cached.lesson)) {
+      window.localStorage.setItem(key, JSON.stringify({ ...cached, lesson }));
+    }
+    return lesson;
+  } catch {
+    return null;
+  }
+}
+
+function cacheLesson(module: LessonModuleRequest, eli5: boolean, lesson: LessonContent): void {
+  if (typeof window === 'undefined') return;
+  const key = lessonKey(module, eli5);
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ cachedAt: Date.now(), lesson } satisfies CachedLesson));
+    touchIndex(key);
+  } catch {
+    // A full or unavailable localStorage should never prevent a lesson from opening.
+  }
+}
+
+export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<LessonContent> {
+  const authenticated = Boolean(getAuthHeaders());
+  const cached = authenticated ? null : getCachedLesson(module, eli5);
+  if (cached) return Promise.resolve(cached);
+
+  const key = lessonKey(module, eli5);
+  // Authenticated requests register a user-specific server-side reward attempt.
+  // Never coalesce them with a guest or different-account request.
+  const existing = authenticated ? undefined : inflight.get(key);
+  if (existing) return existing;
+
+  const request = fetch('/api/lesson', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(getAuthHeaders() ?? {}) },
+    body: JSON.stringify({ ...module, moduleId: module.id, eli5 }),
+  })
+    .then(async response => {
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || 'Failed to load lesson');
+      const lesson = correctLessonRepositoryReferences(data as LessonContent);
+      // Don't cache fallback lessons — they're temporary content from AI provider failures.
+      if (response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
+        cacheLesson(module, eli5, lesson);
+      }
+      return lesson;
+    })
+    .finally(() => { if (!authenticated) inflight.delete(key); });
+
+  if (!authenticated) inflight.set(key, request);
+  return request;
+}
+
+export function prefetchLesson(module: LessonModuleRequest, eli5: boolean): void {
+  // Authenticated lesson requests start the server-side reward timer. Fetch them
+  // only after the learner opens the lesson, never while the plan is prefetching.
+  if (getAuthHeaders()) return;
+  void loadLesson(module, eli5).catch(() => {
+    // Prefetching is best-effort; the lesson screen owns user-facing errors.
+  });
+}

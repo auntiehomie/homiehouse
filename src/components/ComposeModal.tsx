@@ -1,0 +1,824 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
+import { getAuthHeaders } from "@/lib/client-auth";
+import {
+  OPEN_COMPOSE_MODAL_EVENT,
+  type ComposeCastResult,
+  type OpenComposeModalDetail,
+} from '@/lib/compose-modal-events';
+import Image from "next/image";
+import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
+import { buildCastGalleryUrl } from '@/lib/cast-gallery';
+
+// Module-level cache so channels are fetched once per session, not on every modal open
+let cachedChannels: any[] | null = null;
+
+/** Split long text into thread-sized chunks at natural break points. */
+function splitIntoThread(text: string, limit: number): string[] {
+  if (text.length <= limit) return [text];
+  const parts: string[] = [];
+  let remaining = text.trim();
+
+  while (remaining.length > limit) {
+    const half = Math.floor(limit / 2);
+    // Prefer paragraph → line → sentence → word boundary
+    const candidates = [
+      remaining.lastIndexOf('\n\n', limit),
+      remaining.lastIndexOf('\n', limit),
+      Math.max(
+        remaining.lastIndexOf('. ', limit),
+        remaining.lastIndexOf('! ', limit),
+        remaining.lastIndexOf('? ', limit),
+      ),
+      remaining.lastIndexOf(' ', limit),
+    ];
+    const splitAt = candidates.find(i => i > half) ?? limit;
+    parts.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trim();
+  }
+
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+
+export default function ComposeModal() {
+  const { fid: userFid } = useFarcasterAuth();
+  const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
+
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [replyParentHash, setReplyParentHash] = useState<string | null>(null);
+  const [replyParentFid, setReplyParentFid] = useState<number | null>(null);
+  const [replyParentName, setReplyParentName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [mentionResults, setMentionResults] = useState<any[]>([]);
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [scheduleTime, setScheduleTime] = useState<string>('');
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<string>('');
+  const [channels, setChannels] = useState<any[]>([]);
+  const [channelSearch, setChannelSearch] = useState<string>('');
+  const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelsError, setChannelsError] = useState<string | null>(null);
+  const [channelReload, setChannelReload] = useState(0);
+  const [urlPreview, setUrlPreview] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const [isLongForm, setIsLongForm] = useState(false);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [requestedEmbeds, setRequestedEmbeds] = useState<string[]>([]);
+  const composeCompletionRef = useRef<
+    ((cast: ComposeCastResult | null) => void) | null
+  >(null);
+
+  const CAST_LIMIT = 320;
+  const LONG_FORM_LIMIT = 10000;
+  const THREAD_MAX = CAST_LIMIT * 10; // up to ~10 casts per thread
+
+  // Legacy stub — no longer needed, writes go direct via useFarcasterWrites
+  const getStoredSignerUuid = (): string | undefined => undefined;
+
+  // Listen for custom event to open compose with pre-filled text
+  useEffect(() => {
+    const handleOpenCompose = (e: CustomEvent<OpenComposeModalDetail>) => {
+      const {
+        text: prefilledText,
+        embeds,
+        channelKey,
+        parentCastHash,
+        parentCastFid,
+        replyingToName,
+        onComplete,
+      } = e.detail || {};
+
+      // A second request dismisses the first one instead of leaving its
+      // Mini App RPC promise pending forever.
+      composeCompletionRef.current?.(null);
+      composeCompletionRef.current =
+        typeof onComplete === 'function' ? onComplete : null;
+      setText(prefilledText ?? '');
+      setImageUrls([]);
+      setRequestedEmbeds(
+        Array.isArray(embeds)
+          ? embeds.filter((url): url is string => typeof url === 'string').slice(0, 2)
+          : [],
+      );
+      setSelectedChannel(typeof channelKey === 'string' ? channelKey : '');
+      setReplyParentHash(parentCastHash ?? null);
+      setReplyParentFid(parentCastFid ?? null);
+      setReplyParentName(replyingToName ?? null);
+      setOpen(true);
+    };
+
+    window.addEventListener(OPEN_COMPOSE_MODAL_EVENT, handleOpenCompose as EventListener);
+    
+    return () => {
+      window.removeEventListener(OPEN_COMPOSE_MODAL_EVENT, handleOpenCompose as EventListener);
+      composeCompletionRef.current?.(null);
+      composeCompletionRef.current = null;
+    };
+  }, []);
+
+  function finishComposeRequest(cast: ComposeCastResult | null) {
+    const complete = composeCompletionRef.current;
+    composeCompletionRef.current = null;
+    complete?.(cast);
+  }
+
+  // Check for saved draft when modal opens with no pre-filled text
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem('hh_compose_draft');
+      if (raw && !text) {
+        const draft = JSON.parse(raw);
+        if (draft.text) setHasDraft(true);
+      }
+    } catch {}
+  }, [open]);
+
+  // Auto-save draft continuously as the user types so the text survives
+  // accidental dismissals (back swipe, app backgrounded, tap outside).
+  // Debounced to avoid hammering localStorage on every keystroke.
+  useEffect(() => {
+    if (!open || !text.trim()) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem('hh_compose_draft', JSON.stringify({
+          text,
+          imageUrls,
+          selectedChannel,
+          timestamp: Date.now(),
+        }));
+      } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [open, text, imageUrls, selectedChannel]);
+
+  // Channel discovery is public data; do not wait for the signer/FID to load.
+  // Cache successful results for the session, and let the user retry node reads.
+  useEffect(() => {
+    if (!open) return;
+    if (cachedChannels?.length && channelReload === 0) {
+      setChannels(cachedChannels);
+      setChannelsError(null);
+      return;
+    }
+
+    let active = true;
+    setChannelsLoading(true);
+    setChannelsError(null);
+
+    fetch('/api/channels?limit=50', { cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error(`Channel request failed (${response.status}).`);
+        const data = await response.json();
+        if (!data?.ok || !Array.isArray(data?.channels)) {
+          throw new Error(data?.error || 'Hypersnap did not return a channel list.');
+        }
+        const list = data.channels.filter((channel: any) =>
+          typeof channel?.id === 'string' && channel.id.trim().length > 0
+        );
+        if (!list.length) throw new Error('Hypersnap returned no channels. Try again in a moment.');
+        return list;
+      })
+      .then(list => {
+        if (!active) return;
+        cachedChannels = list;
+        setChannels(list);
+      })
+      .catch(error => {
+        if (!active) return;
+        setChannels([]);
+        setChannelsError(error?.message || 'Could not load channels from Hypersnap.');
+      })
+      .finally(() => {
+        if (active) setChannelsLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [open, channelReload]);
+
+  // Search for users when typing @mentions
+  useEffect(() => {
+    const searchMentions = async () => {
+      if (!mentionSearch || mentionSearch.length < 2) {
+        setMentionResults([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/search-users?q=${encodeURIComponent(mentionSearch)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setMentionResults(data.users || []);
+        }
+      } catch (error) {
+        console.error('Error searching users:', error);
+      }
+    };
+
+    const timeoutId = setTimeout(searchMentions, 300);
+    return () => clearTimeout(timeoutId);
+  }, [mentionSearch]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    
+    setText(newText);
+
+    // Check for @ mention
+    const textBeforeCursor = newText.substring(0, cursorPos);
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@');
+    
+    if (lastAtSymbol !== -1) {
+      const textAfterAt = textBeforeCursor.substring(lastAtSymbol + 1);
+      // Check if there's a space after @ (which would end the mention)
+      if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+        setMentionSearch(textAfterAt);
+        setMentionStartPos(lastAtSymbol);
+        setShowMentions(true);
+        return;
+      }
+    }
+    
+    setShowMentions(false);
+    setMentionSearch('');
+  };
+
+  // Detect URLs in text and fetch preview
+  useEffect(() => {
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    const matches = text.match(urlRegex);
+    
+    if (matches && matches.length > 0) {
+      const url = matches[0]; // Take first URL
+      if (url !== detectedUrl) {
+        setDetectedUrl(url);
+        fetchUrlPreview(url);
+      }
+    } else {
+      setDetectedUrl(null);
+      setUrlPreview(null);
+    }
+  }, [text]);
+
+  const fetchUrlPreview = async (url: string) => {
+    setLoadingPreview(true);
+    try {
+      const response = await fetch('/api/url-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok) {
+          setUrlPreview(data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching URL preview:', error);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const insertMention = (user: any) => {
+    if (mentionStartPos === null) return;
+    
+    const beforeMention = text.substring(0, mentionStartPos);
+    const afterMention = text.substring(mentionStartPos + mentionSearch.length + 1);
+    const newText = `${beforeMention}@${user.username} ${afterMention}`;
+    
+    setText(newText);
+    setShowMentions(false);
+    setMentionSearch('');
+    setMentionStartPos(null);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    const slots = MAX_CAST_PHOTOS - imageUrls.length;
+    if (slots <= 0) return;
+    const toUpload = files.slice(0, slots);
+    setUploadingImage(true);
+    setStatus(toUpload.length > 1 ? `Uploading ${toUpload.length} photos…` : 'Uploading photo…');
+
+    const uploaded: string[] = [];
+    for (const file of toUpload) {
+      if (file.size > 10 * 1024 * 1024) {
+        setStatus(`${file.name}: over 10 MB, skipped`);
+        continue;
+      }
+      if (!file.type.startsWith('image/')) {
+        setStatus(`${file.name}: choose an image file`);
+        continue;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (userFid) formData.append('fid', String(userFid));
+        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const data = await response.json();
+        if (!response.ok || !data.ok || !data.url) {
+          setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
+          continue;
+        }
+        uploaded.push(data.url);
+      } catch (error: any) {
+        setStatus(`Upload error: ${error.message}`);
+      }
+    }
+
+    if (uploaded.length) {
+      setImageUrls(prev => [...prev, ...uploaded].slice(0, MAX_CAST_PHOTOS));
+      setStatus(`✓ ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} added`);
+    }
+    setUploadingImage(false);
+  };
+
+  const removeImage = (index: number) => {
+    setImageUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  async function handlePost() {
+    setStatus(null);
+    setLoading(true);
+    try {
+      if (!userFid) {
+        setStatus("Sign in to post.");
+        setLoading(false);
+        return;
+      }
+
+      if (!hasActiveSigner) {
+        setStatus("Connect your social account to post.");
+        setLoading(false);
+        return;
+      }
+
+      // Split into thread parts (long-form also threads instead of truncating)
+      const threadParts = splitIntoThread(text.trim(), CAST_LIMIT);
+      const castText = threadParts[0];
+
+      // Prepare cast data (for scheduled path)
+      const body: any = { text: castText, fid: userFid };
+
+      // Scheduled casts cannot retry after a node-side embed rejection, so
+      // larger photo sets are scheduled as a single Homiehouse gallery link.
+      const useGalleryForSchedule = isScheduled && imageUrls.length > 2;
+      const embedUrls = [
+        ...(useGalleryForSchedule ? [buildCastGalleryUrl(imageUrls)] : imageUrls),
+        ...requestedEmbeds,
+        ...(urlPreview && detectedUrl ? [detectedUrl] : []),
+      ].filter((url, index, all) => !!url && all.indexOf(url) === index);
+      const maxEmbeds = useGalleryForSchedule ? 2 : imageUrls.length > 2 ? MAX_CAST_EMBEDS : 2;
+      const embeds = embedUrls.slice(0, maxEmbeds).map(url => ({ url }));
+      if (embeds.length) body.embeds = embeds;
+
+      // Add channel if selected
+      if (selectedChannel) {
+        body.channelKey = selectedChannel;
+      }
+
+      // If scheduled, save to database instead of posting immediately
+      if (isScheduled && scheduleTime) {
+        const scheduledDate = new Date(scheduleTime);
+        const now = new Date();
+        
+        if (scheduledDate <= now) {
+          setStatus("Scheduled time must be in the future.");
+          setLoading(false);
+          return;
+        }
+
+        body.scheduled_time = scheduledDate.toISOString();
+        
+        const authHeaders = getAuthHeaders();
+        const res = await fetch("/api/schedule-cast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify(body),
+        });
+
+        let data;
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          setStatus(`Server error (${res.status}): Could not parse response.`);
+          setLoading(false);
+          return;
+        }
+        
+        if (data.ok) {
+          finishComposeRequest(null);
+          setStatus(useGalleryForSchedule
+            ? '✓ Cast scheduled with a Homiehouse photo gallery.'
+            : '✓ Cast scheduled successfully!');
+          setText("");
+          setImageUrls([]);
+          setScheduleTime("");
+          setIsScheduled(false);
+          setUrlPreview(null);
+          setDetectedUrl(null);
+          setTimeout(() => {
+            setOpen(false);
+            setStatus(null);
+          }, 800);
+        } else {
+          const errorMsg = data.error || data.message || "unknown error";
+          const errorCode = data.code || '';
+          const fullError = errorCode ? `${errorMsg} (${errorCode})` : errorMsg;
+          setStatus(`Failed: ${fullError}. Response status: ${res.status}`);
+        }
+            } else {
+        // Post immediately — single cast or auto-thread
+        const isThread = threadParts.length > 1;
+        if (isThread) setStatus(`Posting thread (1/${threadParts.length})…`);
+
+        // Post first part
+        let prevHash: string;
+        let firstHash: string;
+        let usedGalleryFallback = false;
+        if (replyParentHash && replyParentFid) {
+          const result = await reply({
+            text: threadParts[0],
+            parentCastHash: replyParentHash,
+            parentCastFid: replyParentFid,
+            embeds: body.embeds,
+            galleryImages: imageUrls,
+          });
+          prevHash = result.castHash;
+          firstHash = result.castHash;
+          usedGalleryFallback = !!result.galleryFallback;
+        } else {
+          const result = await submitCast({
+            text: threadParts[0],
+            embeds: body.embeds,
+            galleryImages: imageUrls,
+            channelKey: body.channelKey,
+            parentUrl: body.parentUrl,
+          });
+          prevHash = result.castHash;
+          firstHash = result.castHash;
+          usedGalleryFallback = !!result.galleryFallback;
+        }
+
+        // Chain remaining parts as self-replies
+        for (let i = 1; i < threadParts.length; i++) {
+          setStatus(`Posting thread (${i + 1}/${threadParts.length})…`);
+          const { castHash } = await reply({
+            text: threadParts[i],
+            parentCastHash: prevHash,
+            parentCastFid: userFid!,
+          });
+          prevHash = castHash;
+        }
+
+        setStatus(usedGalleryFallback
+          ? '✓ Posted with a Homiehouse photo gallery link.'
+          : isThread ? `✓ Thread posted (${threadParts.length} casts)!` : "✓ Posted successfully!");
+        const postedEmbeds = usedGalleryFallback
+          ? [{ url: buildCastGalleryUrl(imageUrls) }]
+          : body.embeds;
+        finishComposeRequest({
+          hash: firstHash,
+          text: castText,
+          embeds: postedEmbeds?.map((embed: { url: string }) => embed.url),
+          channelKey: body.channelKey,
+        });
+        setText("");
+        setImageUrls([]);
+        setUrlPreview(null);
+        setDetectedUrl(null);
+        setReplyParentHash(null);
+        setReplyParentFid(null);
+        setReplyParentName(null);
+        setIsLongForm(false);
+        setRequestedEmbeds([]);
+        setTimeout(() => {
+          setOpen(false);
+          setStatus(null);
+        }, 800);
+      }
+    } catch (err: any) {
+      setStatus(String(err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const toolBtn: React.CSSProperties = {
+    padding: '8px 10px', borderRadius: 8, background: 'none', border: 'none',
+    color: 'var(--muted-on-dark)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center',
+  };
+
+  function saveDraft() {
+    if (!text.trim()) return;
+    localStorage.setItem('hh_compose_draft', JSON.stringify({
+      text,
+      imageUrls,
+      selectedChannel,
+      timestamp: Date.now(),
+    }));
+  }
+
+  function restoreDraft() {
+    try {
+      const raw = localStorage.getItem('hh_compose_draft');
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.text) setText(draft.text);
+      if (Array.isArray(draft.imageUrls)) setImageUrls(draft.imageUrls.slice(0, MAX_CAST_PHOTOS));
+      else if (draft.imageUrl) setImageUrls([draft.imageUrl]);
+      if (draft.selectedChannel) setSelectedChannel(draft.selectedChannel);
+    } catch {}
+    setHasDraft(false);
+  }
+
+  function dismissDraft() {
+    localStorage.removeItem('hh_compose_draft');
+    setHasDraft(false);
+  }
+
+  function doClose() {
+    finishComposeRequest(null);
+    setShowDraftDialog(false);
+    setHasDraft(false);
+    setOpen(false);
+    setText('');
+    setImageUrls([]);
+    setScheduleTime('');
+    setIsScheduled(false);
+    setIsLongForm(false);
+    setReplyParentHash(null);
+    setReplyParentFid(null);
+    setReplyParentName(null);
+    setRequestedEmbeds([]);
+  }
+
+  function closeModal() {
+    // Draft is already auto-saved by the useEffect above.
+    // If there's text, ask whether to keep or discard before closing.
+    if (text.trim() && !showDraftDialog) {
+      setShowDraftDialog(true);
+      return;
+    }
+    doClose();
+  }
+
+  const canPost = !loading && !uploadingImage && (!!text.trim() || imageUrls.length > 0) && (!isScheduled || !!scheduleTime);
+
+  return (
+    <>
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{ position: 'fixed', inset: 0, top: 'var(--hh-viewport-top, 0px)', bottom: 'auto', height: 'var(--hh-viewport-height, 100dvh)', zIndex: 10001, display: 'flex', flexDirection: 'column', background: 'var(--bg-dark)', color: 'var(--text-on-dark)', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-on-dark)', display: 'flex' }}>
+              <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h1 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-on-dark)' }}>
+              {replyParentName ? `Reply to ${replyParentName}` : 'New Cast'}
+            </h1>
+            <div style={{ width: 22 }} />
+          </div>
+
+          {/* Scrollable body — minHeight:0 prevents iOS Safari flex overflow bug */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px 0' }}>
+            {replyParentName && (
+              <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginBottom: 10 }}>
+                Replying to <strong style={{ color: 'var(--text-on-dark)' }}>@{replyParentName}</strong>
+              </div>
+            )}
+
+            {/* Draft restore banner */}
+            {hasDraft && !text && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', marginBottom: 10, background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 10 }}>
+                <span style={{ fontSize: 13, color: '#a78bfa' }}>You have a saved draft</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={restoreDraft} style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Restore</button>
+                  <button onClick={dismissDraft} style={{ fontSize: 12, color: 'var(--muted-on-dark)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Discard</button>
+                </div>
+              </div>
+            )}
+
+            {/* Long-form toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <button
+                onClick={() => setIsLongForm(v => !v)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: isLongForm ? 'rgba(99,102,241,0.15)' : 'var(--surface)', border: `1px solid ${isLongForm ? 'rgba(99,102,241,0.5)' : 'var(--border)'}`, color: isLongForm ? '#a5b4fc' : 'var(--muted-on-dark)', cursor: 'pointer' }}
+              >
+                ✨ Pro · Long Form
+              </button>
+              {isLongForm && <span style={{ fontSize: 11, color: 'var(--muted-on-dark)' }}>First 320 chars appear in timeline</span>}
+            </div>
+
+            {/* Textarea */}
+            <div style={{ position: 'relative' }}>
+              <textarea
+                value={text}
+                onChange={e => { if (e.target.value.length <= (isLongForm ? LONG_FORM_LIMIT : THREAD_MAX)) handleTextChange(e); }}
+                placeholder={isLongForm ? 'Write your long-form cast…' : "What's on your mind?"}
+                autoFocus
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface)', color: 'var(--text-on-dark)', fontSize: 16, padding: '14px', lineHeight: 1.6, border: '1px solid var(--border)', borderRadius: 12, outline: 'none', resize: 'none', minHeight: isLongForm ? 180 : 130, fontFamily: 'inherit' }}
+                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+              />
+
+              {/* Char count — near limit only */}
+              {text.length > 260 && (
+                <div style={{ textAlign: 'right', marginTop: 4, fontSize: 12, color: text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40) ? (text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : '#f59e0b') : 'var(--muted-on-dark)' }}>
+                  {text.length}/{isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT}
+                </div>
+              )}
+
+              {/* Long-form cutoff preview */}
+              {isLongForm && text.length > CAST_LIMIT && (
+                <div style={{ marginTop: 8, padding: '6px 10px', borderRadius: 8, background: 'rgba(99,102,241,0.08)', border: '1px dashed rgba(99,102,241,0.3)', fontSize: 12, color: '#a5b4fc' }}>
+                  <strong>Timeline preview</strong>: <span style={{ color: 'var(--muted-on-dark)' }}>{text.slice(0, CAST_LIMIT)}</span>
+                </div>
+              )}
+
+              {/* Mention autocomplete */}
+              {showMentions && mentionResults.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                  {mentionResults.slice(0, 5).map(user => (
+                    <button key={user.fid} onClick={() => insertMention(user)} style={{ width: '100%', padding: 12, display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-dark)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      {user.pfp_url && <Image src={user.pfp_url} alt={user.username} width={32} height={32} style={{ borderRadius: '50%', objectFit: 'cover' }} />}
+                      <div><div style={{ fontWeight: 600, fontSize: 14 }}>{user.display_name}</div><div style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>@{user.username}</div></div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Hidden file input */}
+            <input id="image-upload" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS} style={{ display: 'none' }} />
+
+            {/* Image preview */}
+            {imageUrls.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: imageUrls.length === 1 ? '1fr' : '1fr 1fr', gap: 8, marginTop: 10 }}>
+                {imageUrls.map((url, index) => (
+                  <div key={`${url}-${index}`} style={{ position: 'relative' }}>
+                    <img src={url} alt={`Photo ${index + 1}`} style={{ width: '100%', height: imageUrls.length === 1 ? 220 : 140, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
+                    <button type="button" onClick={() => removeImage(index)} aria-label={`Remove photo ${index + 1}`} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* URL Preview */}
+            {(loadingPreview || urlPreview?.metadata) && (
+              <div style={{ marginTop: 10, padding: 12, background: 'var(--surface)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                {loadingPreview ? (
+                  <div style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Loading preview…</div>
+                ) : urlPreview?.metadata && (
+                  <>
+                    {urlPreview.metadata.image && <img src={urlPreview.metadata.image} alt="" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 6, marginBottom: 8 }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />}
+                    {urlPreview.metadata.title && <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{urlPreview.metadata.title}</div>}
+                    {urlPreview.metadata.description && <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{urlPreview.metadata.description}</div>}
+                    <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', marginTop: 6 }}>{urlPreview.metadata.siteName || (detectedUrl ? new URL(detectedUrl).hostname : '')}</div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Schedule picker (when active) */}
+            {isScheduled && (
+              <div style={{ marginTop: 10 }}>
+                <input type="datetime-local" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} min={new Date().toISOString().slice(0, 16)} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-on-dark)', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+              </div>
+            )}
+
+            {status && <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13, color: 'var(--muted-on-dark)' }}>{status}</div>}
+
+            {/* Bottom breathing room so toolbar doesn't cover content */}
+            <div style={{ height: 8 }} />
+          </div>
+
+          {/* Save draft dialog */}
+          {showDraftDialog && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.6)' }}>
+              <div style={{ width: '100%', background: 'var(--bg-dark)', borderTop: '1px solid var(--border)', borderRadius: '16px 16px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
+                <p style={{ margin: '0 0 16px', fontWeight: 700, fontSize: 16, textAlign: 'center' }}>Save draft?</p>
+                <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--muted-on-dark)', textAlign: 'center' }}>Your cast will be saved so you can finish it later.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button onClick={() => { saveDraft(); doClose(); }} style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>Save draft</button>
+                  <button onClick={doClose} style={{ width: '100%', padding: '13px', borderRadius: 12, border: '1px solid var(--border)', background: 'none', color: '#ef4444', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>Discard</button>
+                  <button onClick={() => setShowDraftDialog(false)} style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: 'none', color: 'var(--muted-on-dark)', fontSize: 15, cursor: 'pointer' }}>Keep editing</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom toolbar — same pattern as compose page */}
+          <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
+            {/* Channel picker (opens upward) */}
+            {showChannelSuggestions && (
+              <div id="compose-channel-picker" role="region" aria-label="Hypersnap channels" style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+                <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
+                  <input type="text" value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…" autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+                </div>
+                {channelsLoading ? (
+                  <div role="status" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                    Loading channels from Hypersnap…
+                  </div>
+                ) : channelsError ? (
+                  <div role="alert" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                    <div>{channelsError}</div>
+                    <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>
+                      Retry
+                    </button>
+                  </div>
+                ) : (() => {
+                  const matches = channels.filter(ch =>
+                    !channelSearch ||
+                    ch.id.toLowerCase().includes(channelSearch.toLowerCase()) ||
+                    ch.name?.toLowerCase?.().includes(channelSearch.toLowerCase())
+                  ).slice(0, 8);
+                  if (!matches.length) {
+                    return (
+                      <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                        {channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}
+                      </div>
+                    );
+                  }
+                  return matches.map(ch => (
+                    <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                      <span style={{ color: 'var(--muted-on-dark)' }}>/</span>{ch.id}{ch.name && <span style={{ color: 'var(--muted-on-dark)', marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
+                    </button>
+                  ));
+                })()}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
+              {/* Left: scrollable tools */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
+                <label htmlFor="image-upload" style={{ ...toolBtn, cursor: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 'not-allowed' : 'pointer', opacity: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 0.4 : 1 }} title={`Add photos (${imageUrls.length}/${MAX_CAST_PHOTOS})`}>
+                  {uploadingImage
+                    ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
+                    : <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  }
+                  <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 3 }}>{imageUrls.length}/{MAX_CAST_PHOTOS}</span>
+                </label>
+
+                <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel" style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
+                  <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
+                  {selectedChannel && <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, color: 'var(--muted-on-dark)' }}>×</span>}
+                </button>
+
+                <button onClick={() => setIsScheduled(!isScheduled)} title="Schedule this cast" style={{ ...toolBtn, background: isScheduled ? 'rgba(255,255,255,0.1)' : 'none', color: isScheduled ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
+                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </button>
+              </div>
+
+              {/* Right: char count + thread indicator + Post/Schedule */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 8 }}>
+                {!isLongForm && text.length > CAST_LIMIT ? (
+                  <span style={{ fontSize: 12, color: '#a78bfa', whiteSpace: 'nowrap' }}>
+                    🧵 {splitIntoThread(text.trim(), CAST_LIMIT).length} casts
+                  </span>
+                ) : text.length > 260 && (
+                  <span style={{ fontSize: 12, color: text.length >= (isLongForm ? LONG_FORM_LIMIT : CAST_LIMIT) ? '#ef4444' : text.length > (isLongForm ? LONG_FORM_LIMIT - 200 : CAST_LIMIT - 40) ? '#f59e0b' : 'var(--muted-on-dark)', minWidth: 28, textAlign: 'right' }}>
+                    {text.length}
+                  </span>
+                )}
+                <button
+                  onClick={async () => { await handlePost(); }}
+                  disabled={!canPost}
+                  style={{ padding: '7px 14px', borderRadius: 24, border: 'none', cursor: canPost ? 'pointer' : 'default', background: 'var(--btn-primary-bg, #fff)', color: 'var(--btn-primary-color, #000)', fontSize: 13, fontWeight: 700, opacity: canPost ? 1 : 0.35, whiteSpace: 'nowrap' }}
+                >
+                  {loading ? '…' : isScheduled ? 'Schedule' : (!isLongForm && text.length > CAST_LIMIT ? 'Post thread' : 'Post')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

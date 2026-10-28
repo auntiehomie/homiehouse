@@ -1,0 +1,1225 @@
+'use client';
+
+import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { getEli5Mode } from '@/lib/eli5';
+import { useAccount, useChainId, useSwitchChain } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { base as baseChain } from 'wagmi/chains';
+import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
+import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
+import {
+  getCachedLesson,
+  loadLesson,
+  type LessonContent,
+  type LessonModuleRequest as LearningModule,
+  type LessonQuizQuestion as QuizQuestion,
+} from '@/lib/lesson-client-cache';
+
+const LS_PLAN_KEY = 'hh_learning_plan';
+const LS_PROGRESS_KEY = 'hh_learning_progress';
+const LS_COMPLETIONS_KEY = 'hh_learning_completions';
+const LS_CARD_POSITION_PREFIX = 'hh_lesson_position:';
+
+// ─── Card types ───────────────────────────────────────────────────────────────
+
+type CardDef =
+  | { type: 'intro'; label: string; content: string }
+  | { type: 'why'; label: string; content: string }
+  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }
+  | { type: 'example'; label: string; content: string }
+  | { type: 'actions'; label: string; items: string[] }
+  | { type: 'summary'; label: string; content: string }
+  | { type: 'quiz'; label: string; question: QuizQuestion; qIndex: number; total: number }
+  | { type: 'complete'; label: string };
+
+function splitIntoSentences(text: string): string[] {
+  return text.replace(/([.!?])\s+/g, '$1|||').split('|||').map(s => s.trim()).filter(Boolean);
+}
+
+function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
+  const cards: CardDef[] = [];
+  cards.push({ type: 'intro', label: 'Introduction', content: lesson.intro });
+  cards.push({ type: 'why', label: 'Why It Matters', content: mod.whyItMatters });
+  lesson.concepts.forEach((c, i) => {
+    const base = `Concept ${i + 1} of ${lesson.concepts.length}`;
+    const sentences = splitIntoSentences(c.explanation);
+
+    // Distribute sentences into up to 4 text chunks
+    const numChunks = Math.min(4, Math.max(1, sentences.length));
+    const chunkSize = Math.ceil(sentences.length / numChunks);
+    const textChunks: string[] = [];
+    for (let s = 0; s < sentences.length; s += chunkSize) {
+      textChunks.push(sentences.slice(s, s + chunkSize).join(' '));
+    }
+
+    const total = textChunks.length + (c.analogy ? 1 : 0);
+    textChunks.forEach((text, idx) => {
+      cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false });
+    });
+    if (c.analogy) cards.push({ type: 'concept', label: `${base} · ${total}/${total}`, title: c.title, explanation: '', analogy: c.analogy, part: total, isAnalogy: true });
+  });
+  cards.push({ type: 'example', label: mod.tags.includes('network-states') ? 'Fictional Exercise' : 'Real-World Example', content: lesson.practicalExample });
+  cards.push({ type: 'actions', label: 'Try It Now', items: lesson.quickActions });
+  cards.push({ type: 'summary', label: 'Key Takeaway', content: lesson.summary });
+  lesson.quiz.forEach((q, i) =>
+    cards.push({ type: 'quiz', label: `Question ${i + 1} of ${lesson.quiz.length}`, question: q, qIndex: i, total: lesson.quiz.length })
+  );
+  cards.push({ type: 'complete', label: 'Complete' });
+  return cards;
+}
+
+// ─── Card bodies ──────────────────────────────────────────────────────────────
+
+function CardBody({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="hh-lesson-card-scroll" style={{
+      flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any,
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <div className="hh-lesson-card-body" style={{
+        padding: '20px 20px 24px',
+        display: 'flex', flexDirection: 'column', gap: 18,
+        width: '100%', alignSelf: 'center',
+        boxSizing: 'border-box' as any,
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function IntroCard({ content, lesson }: { content: string; lesson: LessonContent | null }) {
+  return (
+    <CardBody>
+      <div style={{
+        padding: '20px', borderRadius: 16,
+        background: 'linear-gradient(135deg, #1e1b4b 0%, #1a1a2e 100%)',
+        border: '1px solid #3730a3',
+      }}>
+        <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
+      </div>
+      {lesson && <LessonWalkthrough lesson={lesson} />}
+    </CardBody>
+  );
+}
+
+function WhyCard({ content }: { content: string }) {
+  return (
+    <CardBody>
+      <div style={{
+        padding: '20px 18px', borderRadius: 16,
+        background: 'var(--bg-dark)', borderLeft: '4px solid var(--accent)',
+      }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6, fontStyle: 'italic' }}>
+          💡 {content}
+        </p>
+      </div>
+    </CardBody>
+  );
+}
+
+function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }) {
+  if (isAnalogy) {
+    return (
+      <CardBody>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          {title}
+        </p>
+        <div style={{ padding: '20px', borderRadius: 16, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)' }}>
+          <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: '0 0 10px', fontWeight: 600 }}>Think of it this way…</p>
+          <p style={{ fontSize: 15, color: '#c7d2fe', margin: 0, lineHeight: 1.6, fontStyle: 'italic' }}>
+            🔁 {analogy ?? 'No analogy provided.'}
+          </p>
+        </div>
+      </CardBody>
+    );
+  }
+
+  if (part === 1) {
+    return (
+      <CardBody>
+        <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.3 }}>
+          {title}
+        </h2>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
+          {explanation}
+        </p>
+      </CardBody>
+    );
+  }
+
+  return (
+    <CardBody>
+      <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+        {title} — continued
+      </p>
+      <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
+        {explanation}
+      </p>
+    </CardBody>
+  );
+}
+
+function ExampleCard({ content }: { content: string }) {
+  return (
+    <CardBody>
+      <div style={{
+        padding: '20px', borderRadius: 16,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+      }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>{content}</p>
+      </div>
+    </CardBody>
+  );
+}
+
+function ActionsCard({ items }: { items: string[] }) {
+  return (
+    <CardBody>
+      <p style={{ fontSize: 14, color: 'var(--muted-on-dark)', margin: 0 }}>
+        Put this knowledge to work right now:
+      </p>
+      {items.map((action, i) => (
+        <div key={i} style={{
+          display: 'flex', gap: 14, alignItems: 'flex-start',
+          padding: '16px', borderRadius: 14,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+        }}>
+          <span style={{
+            flexShrink: 0, width: 28, height: 28, borderRadius: '50%',
+            background: 'var(--accent)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 800, marginTop: 1,
+          }}>
+            {i + 1}
+          </span>
+          <span style={{ fontSize: 15, color: 'var(--text-on-dark)', lineHeight: 1.7 }}>{action}</span>
+        </div>
+      ))}
+    </CardBody>
+  );
+}
+
+function SummaryCard({ content, onShare, isNetworkState = false }: { content: string; onShare: () => void; isNetworkState?: boolean }) {
+  return (
+    <CardBody>
+      <div style={{
+        padding: '20px', borderRadius: 16,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+      }}>
+        <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
+          {content}
+        </p>
+      </div>
+      <button
+        onClick={onShare}
+        style={{
+          width: '100%', padding: '13px 16px', borderRadius: 12,
+          background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+          color: '#c7d2fe', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        Share what clicked to your feed →
+      </button>
+      <div style={{
+        padding: '12px 14px', borderRadius: 12,
+        background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)',
+      }}>
+        <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
+          {isNetworkState
+            ? 'Source-linked course content. Compare the proposal with its counterpoints using Course sources above. Classroom examples are fictional; agreement with an author is not required.'
+            : '🤖 AI-generated content by Claude (Anthropic). Cross-reference with ethereum.org, Uniswap docs, or the /defi and /web3 communities. Not financial advice.'}
+        </p>
+      </div>
+    </CardBody>
+  );
+}
+
+function QuizCard({
+  question, qIndex, total,
+  selected, checked, onSelect, onCheck,
+}: {
+  question: QuizQuestion;
+  qIndex: number;
+  total: number;
+  selected: number | null;
+  checked: boolean;
+  onSelect: (i: number) => void;
+  onCheck: () => void;
+}) {
+  const correct = question.correctIndex;
+
+  return (
+    <CardBody>
+      <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        Question {qIndex + 1} of {total}
+      </p>
+      <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.5 }}>
+        {question.question}
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {question.options.map((opt, oi) => {
+          let border = '2px solid var(--border)';
+          let bg = 'var(--bg-dark)';
+          let color = 'var(--text-on-dark)';
+          if (checked) {
+            if (oi === correct) { border = '2px solid #22c55e'; bg = 'rgba(34,197,94,0.1)'; color = '#86efac'; }
+            else if (oi === selected) { border = '2px solid #ef4444'; bg = 'rgba(239,68,68,0.08)'; color = '#fca5a5'; }
+            else { border = '2px solid transparent'; color = 'var(--muted-on-dark)'; }
+          } else if (selected === oi) {
+            border = '2px solid var(--accent)';
+            bg = 'rgba(99,102,241,0.1)';
+            color = 'var(--accent)';
+          }
+
+          return (
+            <button
+              key={oi}
+              onClick={() => !checked && onSelect(oi)}
+              style={{
+                width: '100%', textAlign: 'left', padding: '14px 16px', borderRadius: 12,
+                border, background: bg, color,
+                fontSize: 15, lineHeight: 1.5, cursor: checked ? 'default' : 'pointer',
+                transition: 'all 0.12s', fontWeight: selected === oi ? 600 : 400,
+              }}
+            >
+              <span style={{ fontWeight: 700, marginRight: 10, fontSize: 13, opacity: 0.6 }}>
+                {['A', 'B', 'C', 'D'][oi]}
+              </span>
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* The result + explanation now render in the fixed footer (renderQuizResultCard)
+          so they're never clipped by the Next button. */}
+
+      {!checked && selected !== null && (
+        <button
+          onClick={onCheck}
+          style={{
+            width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+            background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+            color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Check Answer
+        </button>
+      )}
+    </CardBody>
+  );
+}
+
+type ClaimStatus = 'idle' | 'sending' | 'success' | 'failed' | 'not-connected' | 'wrong-chain' | 'already-claimed';
+
+function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, rewardError, onRetryVerification, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
+  mod: LearningModule;
+  onShare: () => void;
+  onBack: () => void;
+  rewardEarned: boolean;
+  rewardVerificationDone: boolean;
+  rewardError: string | null;
+  onRetryVerification: () => void;
+  claimStatus: ClaimStatus;
+  claimTxHash: string | null;
+  claimError: string | null;
+  switchPending: boolean;
+  onSwitchChain: () => void;
+}) {
+  return (
+    <CardBody>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, textAlign: 'center' }}>
+        <div style={{ fontSize: 64, animation: 'celebrateBounce 0.6s cubic-bezier(0.18,0.89,0.32,1.28)' }}>🎉</div>
+        <div>
+          <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-on-dark)', margin: '0 0 8px' }}>
+            Give yourself a pat on the back!
+          </p>
+          <p style={{ fontSize: 15, color: 'var(--muted-on-dark)', margin: '0 0 6px', lineHeight: 1.6 }}>
+            You've completed <strong style={{ color: 'var(--text-on-dark)' }}>{mod.title}</strong>.
+          </p>
+          <p style={{ fontSize: 16, color: '#fbbf24', fontWeight: 700, margin: '0 0 6px' }}>
+            {rewardEarned ? '🪙 +100 HH2 earned!' : rewardVerificationDone ? 'Lesson finished — HH2 reward verification is pending.' : 'Verifying HH2 eligibility…'}
+          </p>
+        </div>
+
+        {rewardVerificationDone && !rewardEarned && (
+          <div role="alert" style={{ maxWidth: 360, width: '100%', padding: 14, borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-on-dark)' }}>{rewardError || 'Verification is unavailable. Your lesson progress is saved.'}</p>
+            <button type="button" onClick={onRetryVerification} className="btn primary">Retry HH2 verification</button>
+          </div>
+        )}
+
+        {/* ── HH2 auto-claim status ─────────────────────────────────────── */}
+        {claimStatus === 'sending' && (
+          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 320 }}>
+            <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid rgba(251,191,36,0.3)', borderTopColor: '#fbbf24', animation: 'hhSpin 0.8s linear infinite', flexShrink: 0 }} />
+            <p style={{ fontSize: 14, color: '#fbbf24', margin: 0, fontWeight: 600 }}>Sending 100 HH2 to your wallet…</p>
+          </div>
+        )}
+
+        {claimStatus === 'success' && claimTxHash && (
+          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#22c55e', margin: '0 0 6px' }}>✅ 100 HH2 sent to your wallet!</p>
+            <a href={`https://basescan.org/tx/${claimTxHash}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--muted-on-dark)', wordBreak: 'break-all' }}>
+              View on Basescan ↗
+            </a>
+          </div>
+        )}
+
+        {claimStatus === 'already-claimed' && (
+          <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: 14, color: '#86efac', margin: 0 }}>✅ HH2 already claimed for this module</p>
+          </div>
+        )}
+
+        {claimStatus === 'failed' && (
+          <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: 14, color: '#fca5a5', margin: '0 0 4px', fontWeight: 600 }}>⚠️ Auto-claim didn't go through</p>
+            <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>{claimError || 'Visit /hh2 to claim your HH2 manually.'}</p>
+          </div>
+        )}
+
+        {claimStatus === 'not-connected' && (
+          <div style={{ width: '100%', maxWidth: 320 }}>
+            <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', marginBottom: 12 }}>
+              <p style={{ fontSize: 14, color: '#a5b4fc', margin: '0 0 4px', fontWeight: 600 }}>🔗 Connect your wallet for auto-claim</p>
+              <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: 0 }}>Connect to receive 100 HH2 on Base automatically.</p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <ConnectButton />
+            </div>
+          </div>
+        )}
+
+        {claimStatus === 'wrong-chain' && (
+          <div style={{ width: '100%', maxWidth: 320 }}>
+            <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', marginBottom: 12 }}>
+              <p style={{ fontSize: 14, color: '#fbbf24', margin: 0, fontWeight: 600 }}>Switch to Base to claim your HH2</p>
+            </div>
+            <button
+              onClick={onSwitchChain}
+              disabled={switchPending}
+              style={{
+                width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+                background: switchPending ? 'rgba(251,191,36,0.5)' : '#fbbf24',
+                color: '#000', fontSize: 15, fontWeight: 700,
+                cursor: switchPending ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {switchPending ? 'Switching…' : 'Switch to Base →'}
+            </button>
+          </div>
+        )}
+
+        <p style={{ fontSize: 15, color: 'var(--accent)', fontWeight: 600, margin: '0 0 4px' }}>
+          Ready to go deeper?
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
+          <button
+            onClick={onShare}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 12,
+              background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+              color: '#a5b4fc', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Share Progress to your feed
+          </button>
+          <button
+            onClick={onBack}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 12,
+              background: 'linear-gradient(180deg, #22c55e 0%, #16a34a 100%)',
+              border: 'none', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Back to Learning Plan →
+          </button>
+        </div>
+      </div>
+    </CardBody>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function Skeleton() {
+  const tips = [
+    '💡 Never share your seed phrase — no legitimate service will ever ask for it.',
+    '🔑 A hardware wallet is the gold standard for storing significant crypto holdings.',
+    '📚 Completing lessons earns you HH2 tokens — build your streak!',
+    '⚡ Self-custody means you are the bank — always protect your keys.',
+    '🔒 On-chain transactions are usually irreversible — double-check before signing.',
+  ];
+  const tip = tips[Math.floor(Date.now() / 3000) % tips.length];
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, padding: '20px', maxWidth: 560, width: '100%', alignSelf: 'center', boxSizing: 'border-box' as any }}>
+      {/* Loading indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <div style={{
+          width: 18, height: 18, borderRadius: '50%',
+          border: '2px solid rgba(99,102,241,0.4)',
+          borderTopColor: 'var(--accent)',
+          animation: 'hhSpin 0.6s linear infinite',
+          flexShrink: 0,
+        }} />
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted-on-dark)', margin: 0 }}>
+          Loading your lesson…
+        </p>
+      </div>
+      {/* Shimmer skeleton bars */}
+      {[85, 95, 75, 90, 65, 80, 70].map((w, i) => (
+        <div
+          key={i}
+          style={{
+            height: 16,
+            width: `${w}%`,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0.5) 50%, rgba(99,102,241,0.15) 100%)',
+            backgroundSize: '200% 100%',
+            animation: 'hhShimmer 1s ease-in-out infinite',
+            animationDelay: `${i * 0.12}s`,
+          }}
+        />
+      ))}
+      <div style={{
+        marginTop: 8, padding: '14px 16px', borderRadius: 12,
+        background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+      }}>
+        <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', margin: 0, lineHeight: 1.6 }}>
+          {tip}
+        </p>
+      </div>
+      <style>{`@keyframes hhShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+const DIFF_BADGE: Record<string, { color: string }> = {
+  beginner: { color: '#22c55e' },
+  intermediate: { color: '#f97316' },
+  advanced: { color: '#a855f7' },
+};
+
+function ModuleLessonContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const moduleId = searchParams.get('id');
+
+  const [mod, setMod] = useState<LearningModule | null>(null);
+  const [lessonContent, setLessonContent] = useState<LessonContent | null>(null);
+  const [cards, setCards] = useState<CardDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCorrectionReport, setShowCorrectionReport] = useState(false);
+
+  // Card navigation state
+  const [cardIndex, setCardIndex] = useState(0);
+  const [dir, setDir] = useState<'forward' | 'back'>('forward');
+  const [animating, setAnimating] = useState(false);
+
+  // Anti-gaming: record when the module was opened
+  const moduleStartTime = useRef(Date.now());
+  const MIN_MODULE_SECONDS = 45;
+
+  // Swipe tracking
+  const swipeTouchX = useRef<number | null>(null);
+  const swipeTouchY = useRef<number | null>(null);
+
+  // Quiz state: per question index → selected answer
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizChecked, setQuizChecked] = useState<Record<number, boolean>>({});
+  const [quizFailed, setQuizFailed] = useState(false);
+  // Transient pop-up shown the instant a quiz answer is checked, so the learner
+  // sees the result without scrolling down to the inline explanation.
+  const [quizToast, setQuizToast] = useState<null | boolean>(null);
+  const quizToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showQuizToast = useCallback((correct: boolean) => {
+    setQuizToast(correct);
+    if (quizToastTimer.current) clearTimeout(quizToastTimer.current);
+    quizToastTimer.current = setTimeout(() => setQuizToast(null), 2800);
+  }, []);
+
+  // Wallet + auto-claim state
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChain, isPending: switchPending } = useSwitchChain();
+  const isOnBase = chainId === baseChain.id;
+
+  // Completion
+  const [alreadyDone, setAlreadyDone] = useState(false);
+  const [rewardEarned, setRewardEarned] = useState(false);
+  const [rewardVerificationDone, setRewardVerificationDone] = useState(false);
+  const [rewardError, setRewardError] = useState<string | null>(null);
+  const [rewardAttemptMissing, setRewardAttemptMissing] = useState(false);
+
+  // HH2 auto-claim state
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
+  const [claimTxHash, setClaimTxHash] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const claimFired = useRef(false);
+
+  useEffect(() => {
+    if (!moduleId) { router.replace('/learn'); return; }
+    try {
+      const raw = localStorage.getItem(LS_PLAN_KEY);
+      if (!raw) { router.replace('/learn'); return; }
+      const plan = JSON.parse(raw);
+      const found = plan.modules?.find((m: LearningModule) => m.id === moduleId);
+      if (!found) { router.replace('/learn'); return; }
+      setMod(found);
+
+      const progRaw = localStorage.getItem(LS_PROGRESS_KEY);
+      const progress: string[] = progRaw ? JSON.parse(progRaw) : [];
+      setAlreadyDone(progress.includes(moduleId));
+
+      const eli5 = getEli5Mode();
+      const cached = getAuthHeaders() ? null : getCachedLesson(found, eli5);
+      if (cached) {
+        setLessonContent(cached);
+        setCards(buildCards(cached, found));
+        setLoading(false);
+        return;
+      }
+
+      loadLesson(found, eli5)
+        .then(data => {
+          setLessonContent(data);
+          setCards(buildCards(data, found));
+          setLoading(false);
+        })
+        .catch((loadError) => { setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.'); setLoading(false); });
+    } catch { setError('Could not load module.'); setLoading(false); }
+  }, [moduleId, router]);
+
+  useEffect(() => {
+    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    try {
+      const saved = Number(localStorage.getItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`));
+      if (Number.isInteger(saved) && saved > 0 && saved < cards.length - 1) setCardIndex(saved);
+    } catch {}
+  }, [moduleId, cards.length, alreadyDone]);
+
+  useEffect(() => {
+    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    try { localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cardIndex)); } catch {}
+  }, [moduleId, cards.length, cardIndex, alreadyDone]);
+
+  const currentCard = cards[cardIndex];
+  const totalCards = cards.length;
+  const progress = totalCards > 0 ? ((cardIndex + 1) / totalCards) : 0;
+
+  const navigate = useCallback((direction: 'forward' | 'back') => {
+    if (animating) return;
+    const next = direction === 'forward' ? cardIndex + 1 : cardIndex - 1;
+    if (next < 0 || next >= totalCards) return;
+    setQuizToast(null);
+    setDir(direction);
+    setCardIndex(next);
+    setAnimating(true);
+    setTimeout(() => setAnimating(false), 260);
+  }, [animating, cardIndex, totalCards]);
+
+  const canContinue = (): boolean => {
+    if (!currentCard) return false;
+    if (currentCard.type === 'quiz') {
+      // Must have checked (seen result) before continuing
+      return quizChecked[currentCard.qIndex] === true;
+    }
+    if (currentCard.type === 'complete') return false;
+    return true;
+  };
+
+  const handleContinue = () => {
+    if (currentCard?.type === 'complete') return;
+    navigate('forward');
+  };
+
+  const handleComplete = useCallback(async () => {
+    if (!moduleId) return;
+    // The server starts the attempt when it serves this lesson and enforces this time gate.
+    const authHeaders = getAuthHeaders();
+    let verified = false;
+    setRewardVerificationDone(false);
+    setRewardError(null);
+    setRewardAttemptMissing(false);
+    if (authHeaders) {
+      try {
+        const answers = cards
+          .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+          .map(card => quizAnswers[card.qIndex] ?? -1);
+        const response = await fetch('/api/learning-completion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ moduleId, answers }),
+        });
+        const result = await response.json();
+        verified = response.ok && result.ok && (result.amount > 0 || result.alreadyCompleted || result.alreadyClaimed);
+        if (!verified) {
+          const message = typeof result.error === 'string' ? result.error : 'Verification failed. Please try again.';
+          setRewardError(message);
+          setRewardAttemptMissing(message.includes('Open this lesson while signed in'));
+        }
+      } catch {
+        setRewardAttemptMissing(false);
+        setRewardError('Network error during reward verification. Please try again.');
+      }
+    } else {
+      setRewardAttemptMissing(false);
+      setRewardError('Sign in to verify this reward. Your learning progress is saved.');
+    }
+    setRewardEarned(verified);
+    setRewardVerificationDone(true);
+
+    try {
+      const raw = localStorage.getItem(LS_PROGRESS_KEY);
+      const progress: string[] = raw ? JSON.parse(raw) : [];
+      const updatedProgress = progress.includes(moduleId) ? progress : [...progress, moduleId];
+      if (!progress.includes(moduleId)) localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(updatedProgress));
+      localStorage.removeItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`);
+      if (mod) {
+        const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
+        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number }> =
+          compRaw ? JSON.parse(compRaw) : {};
+        if (!completions[moduleId]) {
+          completions[moduleId] = {
+            completedAt: new Date().toISOString(),
+            title: mod.title,
+            description: mod.description,
+            difficulty: mod.difficulty,
+            estimatedMinutes: mod.estimatedMinutes,
+          };
+          localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
+        }
+        const fid = getStoredFid();
+        if (fid && authHeaders) {
+          const plan = (() => {
+            try { return JSON.parse(localStorage.getItem(LS_PLAN_KEY) ?? 'null'); } catch { return null; }
+          })();
+          await fetch('/api/learning-progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({ plan, completed_ids: updatedProgress, completions }),
+          }).catch(() => {});
+        }
+      }
+    } catch {}
+  }, [moduleId, mod, cards, quizAnswers]);
+
+  const handleRetryVerification = useCallback(async () => {
+    if (!rewardAttemptMissing) {
+      void handleComplete();
+      return;
+    }
+
+    if (!mod || !getAuthHeaders()) {
+      setRewardError('Your social session is not available to this lesson yet. Refresh the page while signed in, then retry.');
+      return;
+    }
+
+    try {
+      // Re-open the lesson through the authenticated API so the server records
+      // an attempt for this FID. The server still enforces its 45-second window.
+      const lesson = await loadLesson(mod, getEli5Mode());
+      setLessonContent(lesson);
+      const refreshedCards = buildCards(lesson, mod);
+      const currentQuiz = cards
+        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+        .map(card => card.question);
+      const refreshedQuiz = refreshedCards
+        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+        .map(card => card.question);
+      const sameQuiz = JSON.stringify(currentQuiz) === JSON.stringify(refreshedQuiz);
+
+      setRewardAttemptMissing(false);
+      if (sameQuiz) {
+        setRewardError('Your signed-in lesson attempt is now registered. Keep this page open for 45 seconds, then tap Retry HH2 verification. Your course progress is saved.');
+        setRewardVerificationDone(true);
+        return;
+      }
+
+      // If the server returns a different quiz, use the verified version and
+      // have the learner redo only the quiz, not the lesson content.
+      setCards(refreshedCards);
+      setQuizAnswers({});
+      setQuizChecked({});
+      setQuizFailed(false);
+      setAlreadyDone(false);
+      const firstQuizIndex = refreshedCards.findIndex(card => card.type === 'quiz');
+      if (firstQuizIndex >= 0) {
+        setDir('back');
+        setCardIndex(firstQuizIndex);
+        setAnimating(true);
+        setTimeout(() => setAnimating(false), 260);
+      }
+    } catch {
+      setRewardError('Could not reconnect this lesson to your signed-in account. Please retry HH2 verification.');
+    }
+  }, [rewardAttemptMissing, mod, cards, handleComplete]);
+
+  // Mark complete when reaching the complete card — retries after the time gate clears
+  // Only awards HH2 if quiz score is 75%+ (quizPassed). If quiz not passed, the
+  // complete card is never shown (see handleContinue logic above), so this effect
+  // only fires when the user has already passed.
+  useEffect(() => {
+    if (currentCard?.type !== 'complete') return;
+    if (!quizPassed) return; // safety guard — should never reach here without passing
+    const elapsed = (Date.now() - moduleStartTime.current) / 1000;
+    const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
+    const timer = setTimeout(() => {
+      void handleComplete();
+    }, remaining * 1000);
+    return () => clearTimeout(timer);
+  }, [currentCard, handleComplete]);
+
+  // ── HH2 auto-claim ──────────────────────────────────────────────────────
+  const doClaim = useCallback(async () => {
+    const fid = getStoredFid();
+    if (!fid || !address) {
+      setClaimStatus('failed');
+      setClaimError('Missing FID or wallet address.');
+      return;
+    }
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) {
+      setClaimStatus('failed');
+      setClaimError('Not authenticated — connect your social account.');
+      return;
+    }
+    setClaimStatus('sending');
+    try {
+      // Retry the claim up to 3 times with backoff — the Neon sync from
+      // handleComplete may still be propagating when we fire this.
+      let lastError = '';
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch('/api/claim-hh2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({ fid, walletAddress: address }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          setClaimStatus('success');
+          setClaimTxHash(data.txHash ?? null);
+          return;
+        }
+        const errLower = (data.error ?? '').toLowerCase();
+        if (errLower.includes('nothing to claim') || errLower.includes('no completed')) {
+          // Sync hasn't landed yet — wait and retry
+          lastError = data.error ?? 'Nothing to claim yet';
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+        // Real error — don't retry
+        setClaimStatus('failed');
+        setClaimError(data.error ?? 'Claim failed');
+        return;
+      }
+      // Exhausted retries — the sync likely didn't propagate in time
+      setClaimStatus('failed');
+      setClaimError(lastError || 'Sync timed out — visit /hh2 to claim manually');
+    } catch {
+      setClaimStatus('failed');
+      setClaimError('Network error — try again on /hh2');
+    }
+  }, [address]);
+
+  // Auto-claim when the complete card is reached and wallet is on Base
+  useEffect(() => {
+    if (currentCard?.type !== 'complete') {
+      claimFired.current = false;
+      return;
+    }
+    if (!rewardEarned) return;
+    if (claimFired.current) return;
+
+    if (!isConnected) {
+      setClaimStatus('not-connected');
+      return;
+    }
+    if (!isOnBase) {
+      setClaimStatus('wrong-chain');
+      return;
+    }
+
+    claimFired.current = true;
+    const timer = setTimeout(() => doClaim(), 1000);
+    return () => clearTimeout(timer);
+  }, [currentCard, isConnected, isOnBase, doClaim, rewardEarned]);
+
+  const quizCards = cards.filter((c): c is Extract<CardDef, { type: 'quiz' }> => c.type === 'quiz');
+  const totalQuestions = quizCards.length;
+  const correctAnswers = quizCards.filter(
+    c => quizChecked[c.qIndex] && quizAnswers[c.qIndex] === c.question.correctIndex
+  ).length;
+  const scorePercent = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+  const quizPassed = scorePercent >= 75;
+
+  const handleRetryQuiz = useCallback(() => {
+    setQuizAnswers({});
+    setQuizChecked({});
+    setQuizFailed(false);
+    const firstQuizIndex = cards.findIndex(c => c.type === 'quiz');
+    if (firstQuizIndex >= 0) {
+      setDir('back');
+      setCardIndex(firstQuizIndex);
+      setAnimating(true);
+      setTimeout(() => setAnimating(false), 260);
+    }
+  }, [cards]);
+
+  const handleShare = () => {
+    if (!mod) return;
+    const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nBuilding my Web3 knowledge one module at a time. 🏡\n\nhomiehouse.lol`;
+    router.push(`/compose?text=${encodeURIComponent(text)}`);
+  };
+
+  const handleShareTakeaway = () => {
+    if (!mod || !currentCard || currentCard.type !== 'summary') return;
+    const takeaway = currentCard.content.length > 180
+      ? `${currentCard.content.slice(0, 177).trimEnd()}…`
+      : currentCard.content;
+    const text = `One thing I learned in “${mod.title}”:\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
+    router.push(`/compose?text=${encodeURIComponent(text)}`);
+  };
+
+  const handleBack = () => {
+    if (cardIndex > 0) navigate('back');
+    else router.push('/learn');
+  };
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    swipeTouchX.current = e.touches[0].clientX;
+    swipeTouchY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (swipeTouchX.current === null || swipeTouchY.current === null) return;
+    const dx = e.changedTouches[0].clientX - swipeTouchX.current;
+    const dy = e.changedTouches[0].clientY - swipeTouchY.current;
+    swipeTouchX.current = null;
+    swipeTouchY.current = null;
+    // Ignore predominantly-vertical gestures (user scrolling card content)
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0 && canContinue()) navigate('forward');
+    else if (dx > 0 && cardIndex > 0) navigate('back');
+  }, [canContinue, navigate, cardIndex]);
+
+  if (error) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24 }}>
+        <p style={{ color: 'var(--muted-on-dark)' }}>{error}</p>
+        <button onClick={() => router.push('/learn')} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
+          ← Back to plan
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hh-lesson-shell" style={{
+      boxSizing: 'border-box',
+      display: 'flex', flexDirection: 'column',
+      background: 'var(--bg-dark)', color: 'var(--text-on-dark)',
+      overscrollBehavior: 'none',
+    }}>
+      {/* Progress bar */}
+      <div style={{ height: 3, background: 'var(--surface)', flexShrink: 0, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%',
+          width: `${progress * 100}%`,
+          background: 'linear-gradient(90deg, var(--accent) 0%, rgba(99,102,241,0.6) 50%, var(--accent) 100%)',
+          backgroundSize: '200% 100%',
+          transition: 'width 0.3s ease',
+          animation: 'shimmer 2s linear infinite',
+        }} />
+      </div>
+
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 16px 10px', flexShrink: 0,
+      }}>
+        <button
+          onClick={handleBack}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-on-dark)', fontSize: 14, padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          {cardIndex === 0 ? 'Back' : 'Previous'}
+        </button>
+
+        <div style={{ textAlign: 'center', minWidth: 0, flex: 1, padding: '0 8px' }}>
+          {currentCard && (
+            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--accent)', margin: 0 }}>
+              {currentCard.label}
+            </p>
+          )}
+          {mod && (
+            <p style={{ fontSize: 10, color: 'var(--muted-on-dark)', margin: '2px 0 0', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {mod.title}
+            </p>
+          )}
+        </div>
+
+        <div style={{ minWidth: 72, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}>
+            {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
+            {mod?.tags.includes('network-states') && <a href={`/learn/library/${encodeURIComponent(mod.id)}#sources`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Course sources ↗</a>}
+          </div>
+          {!loading && mod && currentCard && (
+            <button
+              type="button"
+              onClick={() => setShowCorrectionReport(true)}
+              aria-haspopup="dialog"
+              style={{
+                border: 0, background: 'transparent', color: '#a5b4fc',
+                cursor: 'pointer', padding: 0, fontSize: 10, fontWeight: 700,
+                minHeight: 24,
+              }}
+            >
+              ⚑ Report a correction
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Card content */}
+      <style>{`
+        @keyframes cardSlideInRight { from { opacity: 0; transform: translateX(40px) scale(0.98); } to { opacity: 1; transform: translateX(0) scale(1); } }
+        @keyframes cardSlideInLeft  { from { opacity: 0; transform: translateX(-40px) scale(0.98); } to { opacity: 1; transform: translateX(0) scale(1); } }
+        @keyframes quizToastBounce { 0% { opacity: 0; transform: translate(-50%, -20px) scale(0.8); } 60% { opacity: 1; transform: translate(-50%, 4px) scale(1.05); } 100% { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+        @keyframes quizToastShake { 0% { opacity: 0; transform: translate(-50%, -14px); } 20% { opacity: 1; transform: translate(-50%, 0); } 30% { transform: translate(-54%, 0); } 45% { transform: translate(-46%, 0); } 60% { transform: translate(-52%, 0); } 75% { transform: translate(-48%, 0); } 100% { transform: translate(-50%, 0); } }
+        @keyframes celebrateBounce { 0% { opacity: 0; transform: scale(0) rotate(-20deg); } 50% { opacity: 1; transform: scale(1.3) rotate(10deg); } 70% { transform: scale(0.9) rotate(-5deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+        @keyframes hhSpin { to { transform: rotate(360deg); } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .hh-lesson-shell { height: calc(100dvh - 52px - env(safe-area-inset-top, 0px)); }
+        .hh-lesson-card-body { margin: 0 auto; max-width: 560px; }
+        @media (min-width: 1024px) {
+          .hh-lesson-shell { height: 100dvh; }
+          .hh-lesson-card-body { max-width: 960px; padding: 32px 40px 40px !important; gap: 24px !important; }
+          .hh-lesson-card-body p, .hh-lesson-card-body li { font-size: 20px !important; line-height: 1.75 !important; }
+          .hh-lesson-card-body h2 { font-size: 32px !important; }
+          .hh-lesson-card-scroll { margin: 16px 32px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .hh-lesson-shell *, .hh-lesson-shell *::before, .hh-lesson-shell *::after { animation: none !important; transition: none !important; }
+        }
+        @media (min-width: 768px) and (min-height: 760px) {
+          .hh-lesson-card-body { margin: auto; }
+        }
+      `}</style>
+      <div
+        style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div
+          key={cardIndex}
+          style={{
+            height: '100%',
+            display: 'flex', flexDirection: 'column',
+            animation: `${dir === 'forward' ? 'cardSlideInRight' : 'cardSlideInLeft'} 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)`,
+          }}
+        >
+          {loading ? (
+            <Skeleton />
+          ) : currentCard ? (
+            <>
+              {currentCard.type === 'intro' && <IntroCard content={currentCard.content} lesson={lessonContent} />}
+              {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
+              {currentCard.type === 'concept' && (
+                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} />
+              )}
+              {currentCard.type === 'example' && <ExampleCard content={currentCard.content} />}
+              {currentCard.type === 'actions' && <ActionsCard items={currentCard.items} />}
+              {currentCard.type === 'summary' && <SummaryCard content={currentCard.content} onShare={handleShareTakeaway} isNetworkState={mod?.tags.includes('network-states')} />}
+              {currentCard.type === 'quiz' && (
+                <QuizCard
+                  question={currentCard.question}
+                  qIndex={currentCard.qIndex}
+                  total={currentCard.total}
+                  selected={quizAnswers[currentCard.qIndex] ?? null}
+                  checked={quizChecked[currentCard.qIndex] ?? false}
+                  onSelect={(i) => setQuizAnswers(prev => ({ ...prev, [currentCard.qIndex]: i }))}
+                  onCheck={() => {
+                    setQuizChecked(prev => ({ ...prev, [currentCard.qIndex]: true }));
+                    showQuizToast((quizAnswers[currentCard.qIndex] ?? -1) === currentCard.question.correctIndex);
+                  }}
+                />
+              )}
+              {currentCard.type === 'complete' && mod && (
+                <CompleteCard
+                  mod={mod}
+                  onShare={handleShare}
+                  onBack={() => router.push('/learn')}
+                  rewardEarned={rewardEarned}
+                  rewardVerificationDone={rewardVerificationDone}
+                  rewardError={rewardError}
+                  onRetryVerification={() => { void handleRetryVerification(); }}
+                  claimStatus={claimStatus}
+                  claimTxHash={claimTxHash}
+                  claimError={claimError}
+                  switchPending={switchPending}
+                  onSwitchChain={() => switchChain({ chainId: baseChain.id })}
+                />
+              )}
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Continue button (hidden while loading, on complete card, and on quiz before checked) */}
+      {!loading && currentCard?.type !== 'complete' && currentCard?.type !== 'quiz' && (
+        <div style={{ padding: '12px 20px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', flexShrink: 0 }}>
+          <button
+            onClick={handleContinue}
+            disabled={!canContinue() || animating}
+            style={{
+              width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+              background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+              color: '#fff', fontSize: 16, fontWeight: 700,
+              cursor: canContinue() ? 'pointer' : 'not-allowed',
+              opacity: animating ? 0.7 : 1,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            Continue →
+          </button>
+        </div>
+      )}
+
+      {/* Quiz continue (only after checked) */}
+      {currentCard?.type === 'quiz' && quizChecked[currentCard.qIndex] && (
+        <div style={{ padding: '12px 20px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', flexShrink: 0 }}>
+          {/* Result + explanation — pinned above the button so it's never clipped.
+              Scrolls internally if the explanation is long. */}
+          {(() => {
+            const q = currentCard.question;
+            const isRight = (quizAnswers[currentCard.qIndex] ?? -1) === q.correctIndex;
+            return (
+              <div style={{
+                marginBottom: 12, padding: '14px 16px', borderRadius: 14,
+                background: isRight ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.1)',
+                border: `1px solid ${isRight ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
+                maxHeight: '34vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any,
+              }}>
+                <p style={{ fontSize: 15, fontWeight: 800, margin: '0 0 6px', color: isRight ? '#86efac' : '#fca5a5' }}>
+                  {isRight ? '✅ Correct!' : '❌ Not quite'}
+                </p>
+                <p style={{ fontSize: 14, lineHeight: 1.55, margin: 0, color: 'var(--text-on-dark)' }}>
+                  {q.explanation}
+                </p>
+              </div>
+            );
+          })()}
+          {cardIndex < totalCards - 2 ? (
+            <button
+              onClick={handleContinue}
+              disabled={animating}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+                background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+                color: '#fff', fontSize: 16, fontWeight: 700,
+                cursor: 'pointer', opacity: animating ? 0.7 : 1, transition: 'opacity 0.15s',
+              }}
+            >
+              Next →
+            </button>
+          ) : quizPassed ? (
+            <button
+              onClick={handleContinue}
+              disabled={animating}
+              style={{
+                width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+                background: 'linear-gradient(180deg, #6366f1 0%, #4f46e5 100%)',
+                color: '#fff', fontSize: 16, fontWeight: 700,
+                cursor: 'pointer', opacity: animating ? 0.7 : 1, transition: 'opacity 0.15s',
+              }}
+            >
+              Finish →
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{
+                textAlign: 'center', padding: '14px', borderRadius: 12,
+                background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#f87171' }}>{scorePercent}%</div>
+                <div style={{ fontSize: 14, color: '#fca5a5', marginTop: 2 }}>Need 75% to pass — give it another shot!</div>
+              </div>
+              <button
+                onClick={handleRetryQuiz}
+                disabled={animating}
+                style={{
+                  width: '100%', padding: '16px', borderRadius: 14, border: 'none',
+                  background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)',
+                  color: '#fff', fontSize: 16, fontWeight: 700,
+                  cursor: 'pointer', opacity: animating ? 0.7 : 1, transition: 'opacity 0.15s',
+                }}
+              >
+                Retry Quiz ↺
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Instant quiz result pop-up — visible without scrolling to the explanation */}
+      {quizToast !== null && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 200,
+            pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '12px 20px', borderRadius: 999,
+            maxWidth: 'calc(100vw - 32px)',
+            background: quizToast ? 'rgba(22,163,74,0.97)' : 'rgba(220,38,38,0.97)',
+            color: '#fff', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+            animation: quizToast ? 'quizToastBounce 0.5s cubic-bezier(0.18,0.89,0.32,1.28)' : 'quizToastShake 0.5s ease-out',
+          }}
+        >
+          <span>{quizToast ? '✅' : '❌'}</span>
+          <span>{quizToast ? 'Correct!' : 'Not quite — see why below'}</span>
+        </div>
+      )}
+      {showCorrectionReport && mod && currentCard && (
+        <LessonCorrectionReportDialog
+          moduleId={mod.id}
+          moduleTitle={mod.title}
+          stepNumber={cardIndex + 1}
+          cardLabel={currentCard.label}
+          onClose={() => setShowCorrectionReport(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function ModuleLessonPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--muted-on-dark)', gap: 16 }}>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', animation: 'hhSpin 0.7s linear infinite' }} />
+        <style>{`@keyframes hhSpin { to { transform: rotate(360deg); } }`}</style>
+        <p style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Loading lesson…</p>
+      </div>
+    }>
+      <ModuleLessonContent />
+    </Suspense>
+  );
+}

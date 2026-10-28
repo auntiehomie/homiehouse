@@ -353,7 +353,7 @@ export async function fetchChannelFeed(channelId: string, params: {
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-  const endpoint = `/v2/farcaster/channel/user-active?${qs.toString()}`;
+  const endpoint = `/v2/farcaster/user/channels?${qs.toString()}`;
 
   // 1. Primary hub
   try {
@@ -387,10 +387,10 @@ export function normalizeChannelListResponse(data: any): any[] | null {
 /**
  * Fetch the full channel list from Hypersnap, retrying the fallback node when
  * the primary node errors or returns an empty list.
- * GET /v2/farcaster/channel/all?limit=:limit
+ * GET /v2/farcaster/channel/list?limit=:limit
  */
 export async function fetchChannelList(limit = 50): Promise<any> {
-  const endpoint = `/v2/farcaster/channel/all?limit=${limit}`;
+  const endpoint = `/v2/farcaster/channel/list?limit=${limit}`;
   let primaryResult: any = null;
   let primaryError: unknown;
 
