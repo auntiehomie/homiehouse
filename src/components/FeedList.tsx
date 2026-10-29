@@ -81,16 +81,19 @@ function ActionBtn({
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-label={label}
+      title={label}
       style={{
-        display: 'flex', alignItems: 'center', gap: 5,
+        position: 'relative',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
         border: 'none',
         color: active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
         cursor: disabled ? 'default' : 'pointer',
         fontSize: 13, fontWeight: active ? 600 : 400,
-        padding: '5px 9px', borderRadius: 8,
+        width: 36, height: 36, padding: 0, borderRadius: 999,
         transition: 'background 0.15s, color 0.15s',
-        flexShrink: 0, whiteSpace: 'nowrap',
+        flexShrink: 0,
         opacity: disabled ? 0.5 : 1,
       }}
       onMouseEnter={e => {
@@ -105,7 +108,7 @@ function ActionBtn({
       }}
     >
       {icon}
-      {label}
+      <span style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>{label}</span>
     </button>
   );
 }
@@ -170,6 +173,7 @@ export default function FeedList({
   const [curateLoading, setCurateLoading] = useState(false);
   const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
   const [followedFids, setFollowedFids] = useState<Set<number>>(new Set());
+  const [followingLoadingFids, setFollowingLoadingFids] = useState<Set<number>>(new Set());
   const [castFeedback, setCastFeedback] = useState<Record<string, 'more' | 'less'>>({});
 
   useEffect(() => {
@@ -218,7 +222,20 @@ export default function FeedList({
   const manualRefreshRef = useRef(false);
 
   const router = useRouter();
-  const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn, follow } = useFarcasterWrites();
+
+  const handleFollowAuthor = async (targetFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    setFollowingLoadingFids(previous => new Set(previous).add(targetFid));
+    try {
+      await follow(targetFid);
+      setFollowedFids(previous => new Set(previous).add(targetFid));
+    } catch (error: any) {
+      alert(`Failed to follow: ${error?.message ?? error}`);
+    } finally {
+      setFollowingLoadingFids(previous => { const next = new Set(previous); next.delete(targetFid); return next; });
+    }
+  };
 
   useEffect(() => {
     if (!viewerFid) {
@@ -445,9 +462,9 @@ export default function FeedList({
     (async () => {
       let res;
       let nextCursor: string | null = null;
+      let fid: number | undefined = undefined;
       try {
         // Get FID from localStorage since auth-kit profile doesn't include it
-        let fid: number | undefined = undefined;
         try {
           const storedProfile = localStorage.getItem("hh_profile");
           if (storedProfile) {
@@ -481,7 +498,7 @@ export default function FeedList({
         if (initialFeedRequestRef.current === request) initialFeedRequestRef.current = null;
 
         res = json?.data ?? json;
-        if (Array.isArray(res) && feedType === 'community' && !selectedChannel) res = personalizePage(res, fid);
+        if (Array.isArray(res) && (feedType === 'community' || feedType === 'global') && !selectedChannel) res = personalizePage(res, fid);
         nextCursor = json?.cursor || null;
       } catch (e) {
         initialFeedRequestRef.current = null;
@@ -500,6 +517,28 @@ export default function FeedList({
         if (Array.isArray(res)) saveFeedSnapshot(cacheKey, {
           items: res, cursor: nextCursor, hasMore: !!nextCursor, ts: Date.now(),
         });
+      }
+
+      if (mounted && feedType === 'global' && fid && !selectedChannel) {
+        const likedAuthors = [...new Set(loadRecentInteractions(preferenceStorage(fid))
+          .filter(item => item.type === 'like' && item.authorFid > 0)
+          .map(item => item.authorFid))].slice(0, 3);
+        if (likedAuthors.length) {
+          fetch(`/api/discover-affinity?fids=${likedAuthors.join(',')}`, { cache: 'no-store' })
+            .then(response => response.ok ? response.json() : null)
+            .then(payload => {
+              const affinityCasts = Array.isArray(payload?.casts) ? payload.casts : [];
+              if (!mounted || !affinityCasts.length) return;
+              setItems(previous => {
+                const known = new Set((previous || []).map(cast => cast.hash || cast.id));
+                const merged = [...affinityCasts.filter((cast: any) => !known.has(cast.hash || cast.id)), ...(previous || [])];
+                const personalized = personalizePage(merged, fid);
+                saveFeedSnapshot(cacheKey, { items: personalized, cursor: nextCursor, hasMore: !!nextCursor, ts: Date.now() });
+                return personalized;
+              });
+            })
+            .catch(() => {});
+        }
       }
     })();
     return () => {
@@ -548,7 +587,7 @@ export default function FeedList({
       if (feedRes.ok) {
         const json = await feedRes.json();
         const rawItems = json?.data ?? json;
-        const newItems = Array.isArray(rawItems) && feedType === 'community' && !selectedChannel ? personalizePage(rawItems, fid) : rawItems;
+        const newItems = Array.isArray(rawItems) && (feedType === 'community' || feedType === 'global') && !selectedChannel ? personalizePage(rawItems, fid) : rawItems;
         const nextCursor = json?.cursor || null;
         if (Array.isArray(newItems)) {
           setItems(prev => {
@@ -778,13 +817,9 @@ export default function FeedList({
                 <ul>{it.community_ranking.reasons.map((reason: string) => <li key={reason}>{reason}</li>)}</ul>
               </details>
             )}
-            {feedType === 'global' && authorFid && (
-              <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', marginBottom: 6 }}>
-                {followedFids.has(Number(authorFid)) ? 'Following' : 'Not following'}
-              </div>
-            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'start', flex: 1 }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
                 <Link href={profileHref}>
                   <img
                     src={authorObj?.pfp_url || '/default-avatar.png'}
@@ -801,6 +836,17 @@ export default function FeedList({
                     }}
                   />
                 </Link>
+                {feedType === 'global' && viewerFid && authorFid && !followedFids.has(Number(authorFid)) && (
+                  <button
+                    type="button"
+                    aria-label={`Follow @${authorUsername || authorName}`}
+                    title={`Follow @${authorUsername || authorName}`}
+                    disabled={followingLoadingFids.has(Number(authorFid))}
+                    onClick={() => void handleFollowAuthor(Number(authorFid))}
+                    style={{ position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, display: 'grid', placeItems: 'center', padding: 0, border: '2px solid var(--surface)', borderRadius: '50%', background: 'var(--accent)', color: '#fff', fontSize: 18, lineHeight: 1, fontWeight: 700, cursor: 'pointer', opacity: followingLoadingFids.has(Number(authorFid)) ? 0.6 : 1 }}
+                  >{followingLoadingFids.has(Number(authorFid)) ? '…' : '+'}</button>
+                )}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', flexWrap: 'wrap', minWidth: 0 }}>
                     <Link
@@ -1027,8 +1073,8 @@ export default function FeedList({
             }}>
               {feedType === 'global' && viewerFid && (
                 <>
-                  <button type="button" className="btn" aria-pressed={castFeedback[String(it.hash || it.id)] === 'more'} onClick={() => recordCastFeedback('more', it)} style={{ fontSize: 12, padding: '5px 8px', whiteSpace: 'nowrap' }}>More like this</button>
-                  <button type="button" className="btn" aria-pressed={castFeedback[String(it.hash || it.id)] === 'less'} onClick={() => recordCastFeedback('less', it)} style={{ fontSize: 12, padding: '5px 8px', whiteSpace: 'nowrap' }}>Less like this</button>
+                  <ActionBtn active={castFeedback[String(it.hash || it.id)] === 'more'} onClick={() => recordCastFeedback('more', it)} label="More like this" icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h3.28a2 2 0 0 0 1.7-.95l3.02-4.85a1.5 1.5 0 0 1 2.74 1.68Z"/></svg>} />
+                  <ActionBtn active={castFeedback[String(it.hash || it.id)] === 'less'} onClick={() => recordCastFeedback('less', it)} label="Less like this" icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3.28a2 2 0 0 0-1.7.95l-3.02 4.85a1.5 1.5 0 0 1-2.74-1.68Z"/></svg>} />
                 </>
               )}
               {/* Like */}
