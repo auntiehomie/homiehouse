@@ -44,7 +44,7 @@ export function rankByLikes<T extends Cast>(casts: T[], interactions: RecentInte
       const overlap = [...words].filter(word => sample.words.has(word)).length;
       // Topic overlap matters more than author affinity; repeated likes saturate.
       const topic = overlap / Math.sqrt(Math.max(1, words.size * sample.words.size));
-      score += sample.weight * (topic + (cast.author?.fid && cast.author.fid === sample.item.authorFid ? 0.15 : 0)
+      score += sample.weight * (topic + (cast.author?.fid && cast.author.fid === sample.item.authorFid ? 0.45 : 0)
         + (cast.channel?.id && cast.channel.id === sample.item.channelId ? 0.1 : 0));
     }
     return { cast, index, score };
