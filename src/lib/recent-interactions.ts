@@ -1,4 +1,4 @@
-export type RecentInteractionType = 'like' | 'recast';
+export type RecentInteractionType = 'like' | 'recast' | 'more' | 'less';
 
 export interface RecentInteraction {
   type: RecentInteractionType;
@@ -28,7 +28,7 @@ function browserStorage(): StorageLike | null {
 }
 
 function cleanInteraction(value: RecentInteraction): RecentInteraction | null {
-  if (!value.castHash || !value.text || !['like', 'recast'].includes(value.type)) return null;
+  if (!value.castHash || !value.text || !['like', 'recast', 'more', 'less'].includes(value.type)) return null;
 
   return {
     type: value.type,

@@ -21,7 +21,7 @@ import HH2TipAction from '@/components/HH2TipAction';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { personalizePage, preferenceStorage } from '@/lib/like-curation';
-import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions } from '@/lib/recent-interactions';
+import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions, type RecentInteractionType } from '@/lib/recent-interactions';
 import {
   getPendingOptimisticCasts,
   listenForOptimisticCasts,
@@ -169,6 +169,51 @@ export default function FeedList({
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [curateLoading, setCurateLoading] = useState(false);
   const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
+  const [followedFids, setFollowedFids] = useState<Set<number>>(new Set());
+  const [castFeedback, setCastFeedback] = useState<Record<string, 'more' | 'less'>>({});
+
+  useEffect(() => {
+    if (!viewerFid || feedType !== 'global') { setFollowedFids(new Set()); return; }
+    let cancelled = false;
+    (async () => {
+      const ids = new Set<number>();
+      let cursor: string | null = null;
+      for (let page = 0; page < 20; page++) {
+        const params = new URLSearchParams({ fid: String(viewerFid) });
+        if (cursor) params.set('cursor', cursor);
+        const response = await fetch(`/api/friends?${params}`, { cache: 'no-store' });
+        if (!response.ok) break;
+        const payload = await response.json();
+        for (const user of payload.data || []) {
+          const id = Number(user.fid ?? user.user?.fid);
+          if (Number.isSafeInteger(id) && id > 0) ids.add(id);
+        }
+        cursor = payload.cursor || null;
+        if (!cursor) break;
+      }
+      if (!cancelled) setFollowedFids(ids);
+    })().catch(() => {});
+    return () => { cancelled = true; };
+  }, [viewerFid, feedType]);
+
+  useEffect(() => {
+    const feedback: Record<string, 'more' | 'less'> = {};
+    for (const item of loadRecentInteractions(preferenceStorage(viewerFid))) {
+      if (item.type === 'more' || item.type === 'less') feedback[item.castHash] = item.type;
+    }
+    setCastFeedback(feedback);
+  }, [viewerFid]);
+
+  const recordCastFeedback = (type: 'more' | 'less', cast: any) => {
+    const hash = String(cast.hash || cast.id || '');
+    if (!hash) return;
+    const current = castFeedback[hash];
+    const next = current === type ? undefined : type;
+    const storage = preferenceStorage(viewerFid);
+    if (current) forgetRecentInteraction(current as RecentInteractionType, hash, storage);
+    if (next) rememberRecentInteraction({ type: next, castHash: hash, authorFid: Number(cast.author?.fid) || 0, text: String(cast.text || '').slice(0, 1000), authorUsername: cast.author?.username, channelId: cast.channel?.id }, storage);
+    setCastFeedback(previous => { const updated = { ...previous }; if (next) updated[hash] = next; else delete updated[hash]; return updated; });
+  };
 
   const manualRefreshRef = useRef(false);
 
@@ -733,6 +778,11 @@ export default function FeedList({
                 <ul>{it.community_ranking.reasons.map((reason: string) => <li key={reason}>{reason}</li>)}</ul>
               </details>
             )}
+            {feedType === 'global' && authorFid && (
+              <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', marginBottom: 6 }}>
+                {followedFids.has(Number(authorFid)) ? 'Following' : 'Not following'}
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'start', flex: 1 }}>
                 <Link href={profileHref}>
@@ -975,6 +1025,12 @@ export default function FeedList({
               overflowX: 'auto',
               scrollbarWidth: 'none',
             }}>
+              {feedType === 'global' && viewerFid && (
+                <>
+                  <button type="button" className="btn" aria-pressed={castFeedback[String(it.hash || it.id)] === 'more'} onClick={() => recordCastFeedback('more', it)} style={{ fontSize: 12, padding: '5px 8px', whiteSpace: 'nowrap' }}>More like this</button>
+                  <button type="button" className="btn" aria-pressed={castFeedback[String(it.hash || it.id)] === 'less'} onClick={() => recordCastFeedback('less', it)} style={{ fontSize: 12, padding: '5px 8px', whiteSpace: 'nowrap' }}>Less like this</button>
+                </>
+              )}
               {/* Like */}
               <ActionBtn
                 active={likedCasts.has(key)}

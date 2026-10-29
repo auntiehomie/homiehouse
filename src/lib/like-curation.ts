@@ -27,7 +27,7 @@ function terms(text = ''): Set<string> {
 
 /** Rerank only the newly loaded page: keep existing scroll positions and all candidates. */
 export function rankByLikes<T extends Cast>(casts: T[], interactions: RecentInteraction[], now = Date.now()): T[] {
-  const samples = interactions.filter(item => item.type === 'like'
+  const samples = interactions.filter(item => (item.type === 'like' || item.type === 'more' || item.type === 'less')
     && Number.isFinite(Date.parse(item.reactedAt))
     && Date.parse(item.reactedAt) <= now
     && now - Date.parse(item.reactedAt) < 90 * 86400000);
@@ -36,7 +36,7 @@ export function rankByLikes<T extends Cast>(casts: T[], interactions: RecentInte
   const profile = samples.filter(item => {
     if (seen.has(item.castHash)) return false;
     seen.add(item.castHash); return true;
-  }).map(item => ({ item, words: terms(item.text), weight: Math.exp(-(now - Date.parse(item.reactedAt)) / (30 * 86400000)) }));
+  }).map(item => ({ item, words: terms(item.text), weight: Math.exp(-(now - Date.parse(item.reactedAt)) / (30 * 86400000)) * (item.type === 'less' ? -1 : 1) }));
   const scored = casts.map((cast, index) => {
     const words = terms(cast.text);
     let score = 0;
@@ -47,7 +47,7 @@ export function rankByLikes<T extends Cast>(casts: T[], interactions: RecentInte
       score += sample.weight * (topic + (cast.author?.fid && cast.author.fid === sample.item.authorFid ? 0.15 : 0)
         + (cast.channel?.id && cast.channel.id === sample.item.channelId ? 0.1 : 0));
     }
-    return { cast, index, score: Math.min(1, score) };
+    return { cast, index, score };
   });
   const remaining = scored.slice().sort((a, b) => b.score - a.score || a.index - b.index);
   const output: T[] = [];
