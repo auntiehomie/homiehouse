@@ -9,6 +9,7 @@ import { learningQuestion, isLearningMode, isLessonRequest, type LearningMode } 
 import MentionInput from './MentionInput';
 import { chatHistoryKey, loadChatSnapshot, saveChatSnapshot } from '@/lib/ask-homie-history';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 type AgentMode = 'compose' | 'analyze' | 'learn' | 'research' | 'auto';
 type AgentRole = 'composer' | 'analyzer' | 'coach' | 'researcher';
@@ -224,7 +225,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
     try {
       const response = await fetch('/api/ask-homie', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(getAuthHeaders('read:all') ?? {}) },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: userMessage }],
           castContext,

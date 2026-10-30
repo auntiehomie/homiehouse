@@ -6,7 +6,8 @@ import { createApiLogger } from '@/lib/logger';
 import { handleApiError } from '@/lib/errors';
 import { rateLimit } from '@/lib/ratelimit';
 import { ELI5_INSTRUCTION } from '@/lib/eli5';
-import { isProUser } from '@/lib/pro';
+import { ASK_HOMIE_PRO_MONTHLY_LIMIT, consumeAskHomieProRequest, isAskHomieProUser, isProUser, releaseAskHomieProRequest } from '@/lib/pro';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { fetchCast } from '@/lib/hypersnap';
 import { formatLiveCastContext, liveCastSearchMetadata, searchRelevantCasts, shouldSearchLiveCasts } from '@/lib/ai/cast-research';
 import { sanitizeAssistantResponse } from '@/lib/ai/sanitize-response';
@@ -66,6 +67,7 @@ async function fetchCastData(castHash: string) {
 export async function POST(req: NextRequest) {
   const logger = createApiLogger('/ask-homie');
   logger.start();
+  let askHomieUsageReservedFid: number | null = null;
 
   try {
     // SECURITY: Rate limit — free tier 10/hr, Pro tier 60/hr
@@ -94,22 +96,57 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid conversation or learning request' }, { status: 400 });
     }
 
-    // Check Pro status if userFid provided
-    const userFidForPro = userContext?.fid ? Number(userContext.fid) : 0;
-    const isPro = userFidForPro > 0 && await isProUser(userFidForPro);
-    const rateLimitCount = isPro ? 60 : 10;
-    const { success: rlOk } = rateLimit(`ask-homie:${ip}`, rateLimitCount, 3600);
+    // Only signed-in account identity can unlock paid usage; body-supplied FIDs
+    // are untrusted. Anonymous use keeps the free IP-based allowance.
+    const suppliedFid = Number(userContext?.fid ?? 0);
+    const hasAuthHeaders = req.headers.has('x-session-token') ||
+      (req.headers.has('x-farcaster-fid') && req.headers.has('x-signer-key'));
+    let authenticatedFid = 0;
+    if (hasAuthHeaders) {
+      try {
+        authenticatedFid = await verifyFarcasterSignerAuth(req, 'read:all');
+      } catch {
+        return NextResponse.json({ error: 'Sign in again to use your paid Ask Homie access.' }, { status: 401 });
+      }
+    }
+    if (authenticatedFid && suppliedFid && authenticatedFid !== suppliedFid) {
+      return NextResponse.json({ error: 'Signed-in account does not match the request.' }, { status: 403 });
+    }
+
+    const isPro = authenticatedFid > 0 && await isProUser(authenticatedFid);
+    const isAskHomiePro = authenticatedFid > 0 && await isAskHomieProUser(authenticatedFid);
+    const rateLimitCount = isPro || isAskHomiePro ? 60 : 10;
+    const rateLimitKey = authenticatedFid
+      ? `ask-homie:fid:${authenticatedFid}`
+      : `ask-homie:ip:${ip}`;
+    const { success: rlOk } = rateLimit(rateLimitKey, rateLimitCount, 3600);
     if (!rlOk) {
       return NextResponse.json({
-        error: isPro
+        error: isPro || isAskHomiePro
           ? 'Rate limited. Try again later.'
-          : 'Rate limit reached (10/hour for free users). Upgrade to Pro for 60/hour.',
+          : 'Rate limit reached (10/hour for free users). Upgrade to HomieHouse Pro or Ask Homie Pro for 60/hour.',
       }, { status: 429 });
+    }
+
+    // Ask Homie Pro is a bounded add-on for non-HomieHouse-Pro accounts.
+    // Existing HomieHouse Pro subscribers keep their regular 60/hour usage.
+    if (isAskHomiePro && !isPro && messages.some((message: any) => message.role === 'user')) {
+      const usage = await consumeAskHomieProRequest(authenticatedFid, ASK_HOMIE_PRO_MONTHLY_LIMIT);
+      if (!usage.allowed) {
+        return NextResponse.json({
+          error: `You've used all ${ASK_HOMIE_PRO_MONTHLY_LIMIT} Ask Homie Pro responses this month. Your allowance resets next month.`,
+          code: 'ASK_HOMIE_PRO_MONTHLY_LIMIT',
+          used: usage.used,
+          limit: ASK_HOMIE_PRO_MONTHLY_LIMIT,
+        }, { status: 429 });
+      }
+      askHomieUsageReservedFid = authenticatedFid;
     }
 
     if (isLearningMode(learningMode)) {
       const { generateConversationLearning } = await import('@/lib/ai/conversation-learning');
       const result = await generateConversationLearning({ mode: learningMode, messages, castContext, topic: learningTopic });
+      askHomieUsageReservedFid = null;
       return NextResponse.json({ ...result, response: sanitizeAssistantResponse(result.response) }, {
         headers: { 'Cache-Control': 'private, no-store' },
       });
@@ -290,6 +327,7 @@ ${contextualMessage}`;
       });
     }
 
+    askHomieUsageReservedFid = null;
     return NextResponse.json({
       response: sanitizeAssistantResponse(result.content),
       suggestions: result.suggestions,
@@ -314,6 +352,9 @@ ${contextualMessage}`;
       userStats: UserProfileStorage.getStats(userIdentifier)
     });
   } catch (error: any) {
+    if (askHomieUsageReservedFid !== null) {
+      try { await releaseAskHomieProRequest(askHomieUsageReservedFid); } catch {}
+    }
     logger.error('AI request failed', error);
     return handleApiError(error, 'POST /ask-homie');
   }

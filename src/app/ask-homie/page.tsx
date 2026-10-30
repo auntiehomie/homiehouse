@@ -11,6 +11,7 @@ import FeedCurationChat from '@/components/FeedCurationChat';
 import { SUGGESTED_QUESTIONS } from '@/lib/ai/knowledge';
 import { isLearningMode } from '@/lib/conversation-learning';
 import SidebarNav from '@/components/SidebarNav';
+import AskHomieProCard from '@/components/AskHomieProCard';
 
 function AskHomieContent() {
   const [castContext, setCastContext] = useState<any>(null);
@@ -194,6 +195,8 @@ function AskHomieContent() {
             </div>
           </div>
         )}
+
+        <AskHomieProCard userFid={fid} />
 
         {/* Chat */}
         <div style={{
