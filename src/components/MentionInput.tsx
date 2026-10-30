@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import Image from 'next/image';
 
 interface User {
@@ -16,6 +17,7 @@ interface MentionInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  style?: CSSProperties;
   onUserSelect?: (user: User) => void;
 }
 
@@ -24,6 +26,7 @@ export default function MentionInput({
   onChange, 
   placeholder = 'Type @ to mention a user',
   className = '',
+  style,
   onUserSelect
 }: MentionInputProps) {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -137,7 +140,8 @@ export default function MentionInput({
         placeholder={placeholder}
         className={className}
         rows={2}
-        style={{ 
+        style={{
+          ...style,
           minHeight: '60px',
           maxHeight: '240px',
           resize: 'vertical',
@@ -148,19 +152,22 @@ export default function MentionInput({
       {showDropdown && (
         <div
           ref={dropdownRef}
-          className="absolute z-[9999] mb-1 w-full bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-h-64 overflow-y-auto"
+          className="absolute z-[9999] mb-1 w-full rounded-lg shadow-xl max-h-64 overflow-y-auto"
           style={{
             bottom: '100%',
             left: 0,
-            right: 0
+            right: 0,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--text-on-dark)',
           }}
         >
           {loading ? (
-            <div className="p-3 text-center text-gray-400 text-sm">
+            <div className="p-3 text-center text-sm" style={{ color: 'var(--muted-on-dark)' }}>
               Searching...
             </div>
           ) : users.length === 0 ? (
-            <div className="p-3 text-center text-gray-400 text-sm">
+            <div className="p-3 text-center text-sm" style={{ color: 'var(--muted-on-dark)' }}>
               No users found
             </div>
           ) : (
@@ -168,19 +175,18 @@ export default function MentionInput({
               <button
                 key={user.fid}
                 onClick={() => selectUser(user)}
-                className={`w-full px-3 py-2 flex items-center gap-3 hover:bg-gray-800 transition-colors ${
-                  index === selectedIndex ? 'bg-gray-800' : ''
-                }`}
+                className="w-full px-3 py-2 flex items-center gap-3 transition-colors text-left"
+                style={{ background: index === selectedIndex ? 'var(--bg-dark)' : 'transparent', color: 'var(--text-on-dark)' }}
               >
                 {user.pfp_url && (
                   <Image src={user.pfp_url} alt={user.username} width={32} height={32} className="rounded-full" style={{ objectFit: 'cover' }} />
                 )}
                 <div className="flex-1 text-left">
-                  <div className="text-white font-medium">{user.display_name}</div>
-                  <div className="text-gray-400 text-sm">@{user.username}</div>
+                  <div className="font-medium">{user.display_name}</div>
+                  <div className="text-sm" style={{ color: 'var(--muted-on-dark)' }}>@{user.username}</div>
                 </div>
                 {user.follower_count !== undefined && (
-                  <div className="text-gray-500 text-xs">
+                  <div className="text-xs" style={{ color: 'var(--muted-on-dark)' }}>
                     {user.follower_count.toLocaleString()} followers
                   </div>
                 )}
