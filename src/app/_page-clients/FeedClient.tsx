@@ -66,8 +66,8 @@ export default function FeedClient() {
               <Link
                 href="/pro"
                 style={{
-                  padding: '3px 8px', borderRadius: 6,
-                  background: 'rgba(232,119,34,0.15)', border: '1px solid rgba(232,119,34,0.3)',
+                  padding: '3px 2px', borderRadius: 6,
+                  background: 'transparent', border: 'none',
                   fontSize: 11, fontWeight: 700, color: 'var(--accent)',
                   textDecoration: 'none', whiteSpace: 'nowrap',
                 }}
@@ -76,14 +76,14 @@ export default function FeedClient() {
                 ⚡ Pro
               </Link>
             )}
-            <Link href="/search" className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center hover:border-zinc-500 transition-colors" title="Search">
-              <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Link href="/search" className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors" title="Search" aria-label="Search">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </Link>
             {isAuthenticated && (
-              <Link href="/notifications" className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center hover:border-zinc-500 transition-colors text-zinc-400" title="Notifications">
-                <NotificationBadge className="w-4 h-4" />
+              <Link href="/notifications" className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-100 transition-colors" title="Notifications" aria-label="Notifications">
+                <NotificationBadge className="w-5 h-5" />
               </Link>
             )}
             <SignInButton />
