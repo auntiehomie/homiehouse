@@ -330,7 +330,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   return (
     <div className="flex flex-col h-full" style={{ color: 'var(--text-on-dark)' }}>
       <section aria-label="Ask Homie" className="p-4 space-y-4" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Ask Homie</h2>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
