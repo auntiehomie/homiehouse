@@ -19,6 +19,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
       await page.route('**/api/learning-progress?**', route => route.fulfill({ json: {
         hh2_points: 700, plan: { summary: 'Learning summary. '.repeat(50), modules: [] },
       } }));
+      await page.route('**/api/feed?**', route => route.fulfill({ json: { data: [], cursor: null } }));
 
       await page.goto('/', { waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('heading', { name: /Home/ })).toBeVisible();
