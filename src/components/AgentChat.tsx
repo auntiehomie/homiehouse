@@ -62,7 +62,8 @@ function parseTextWithMentions(text: string): ReactNode[] {
         <Link
           key={match.index}
           href={`/profile?user=${username}`}
-          className="text-zinc-400 hover:text-white hover:underline font-medium"
+          className="hover:underline font-medium"
+          style={{ color: 'var(--accent)' }}
         >
           @{username}
         </Link>
@@ -76,7 +77,8 @@ function parseTextWithMentions(text: string): ReactNode[] {
           href={`https://warpcast.com/~/profiles/${fid}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-zinc-400 hover:text-white hover:underline font-medium"
+          className="hover:underline font-medium"
+          style={{ color: 'var(--accent)' }}
         >
           FID: {fid}
         </Link>
@@ -326,22 +328,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <section aria-label="Learn with Ask Homie" className="border-b border-zinc-700 p-4">
-        <h2 className="font-semibold">What would you like to understand?</h2>
-        <p className="text-sm text-zinc-400 mt-1">Pick an idea from the conversation, or ask about any topic.</p>
-        <label className="block text-sm mt-3" htmlFor="learning-topic">Topic or question (optional)</label>
-        <input id="learning-topic" value={topic} maxLength={200} onChange={event => setTopic(event.target.value)}
-          placeholder="For example: how end-to-end encryption works"
-          className="w-full min-w-0 mt-1 p-2 rounded-lg border border-zinc-700 bg-zinc-900 text-white" />
-        <div className="flex flex-wrap gap-2 mt-3">
-          <button className="btn" disabled={isLoading || !contextReady} onClick={() => void handleSend(learningQuestion('explain', topic), 'explain')}>Explain in plain English</button>
-          <button className="btn primary" disabled={isLoading || !contextReady} onClick={() => void handleSend(learningQuestion('lesson', topic), 'lesson')}>Build me a lesson</button>
-        </div>
-        {learningMode && <p className="text-xs text-zinc-400 mt-2">{learningMode === 'lesson' ? 'Lesson' : 'Plain-English'} mode · Ask follow-up questions below.</p>}
-      </section>
-      {/* Header with mode selector */}
-      <div className="border-b border-zinc-200 dark:border-zinc-800 p-4">
+    <div className="flex flex-col h-full" style={{ color: 'var(--text-on-dark)' }}>
+      <section aria-label="Ask Homie" className="p-4 space-y-4" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Ask Homie</h2>
           <div className="flex items-center gap-2">
@@ -351,7 +339,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   setMessages([]);
                   localStorage.removeItem('hh_chat_history');
                 }}
-                className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-300 dark:hover:text-zinc-200"
+                className="text-sm hover:opacity-75"
+                style={{ color: 'var(--muted-on-dark)' }}
                 title="Clear conversation history"
               >
                 🗑️ Clear
@@ -359,11 +348,32 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             )}
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white"
+              className="text-sm hover:opacity-75"
+              style={{ color: 'var(--muted-on-dark)' }}
             >
               ⚙️ Settings
             </button>
           </div>
+        </div>
+
+        <div>
+          <h3 className="font-semibold">What would you like to understand?</h3>
+          <p className="text-sm mt-1" style={{ color: 'var(--muted-on-dark)' }}>Pick an idea from the conversation, or ask about any topic.</p>
+          <label className="block text-sm mt-3" htmlFor="learning-topic">Topic or question (optional)</label>
+          <input
+            id="learning-topic"
+            value={topic}
+            maxLength={200}
+            onChange={event => setTopic(event.target.value)}
+            placeholder="For example: how end-to-end encryption works"
+            className="w-full min-w-0 mt-1 p-2 rounded-lg"
+            style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-on-dark)' }}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+            <button className="btn w-full" disabled={isLoading || !contextReady} onClick={() => void handleSend(learningQuestion('explain', topic), 'explain')}>Explain in plain English</button>
+            <button className="btn primary w-full" disabled={isLoading || !contextReady} onClick={() => void handleSend(learningQuestion('lesson', topic), 'lesson')}>Build me a lesson</button>
+          </div>
+          {learningMode && <p className="text-xs mt-2" style={{ color: 'var(--muted-on-dark)' }}>{learningMode === 'lesson' ? 'Lesson' : 'Plain-English'} mode · Ask follow-up questions below.</p>}
         </div>
 
         {/* Mode selector */}
@@ -372,11 +382,10 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             <button
               key={m}
               onClick={() => { setMode(m); setLearningMode(undefined); setIncludeXForNextTurn(false); }}
-              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                mode === m
-                  ? 'bg-zinc-600 text-white'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-              }`}
+              className="px-3 py-1.5 rounded-full text-sm transition-colors capitalize"
+              style={mode === m
+                ? { background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)' }
+                : { background: 'var(--bg-dark)', color: 'var(--muted-on-dark)', border: '1px solid var(--border)' }}
               title={modeDescriptions[m]}
             >
               {m}
@@ -385,7 +394,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
         </div>
 
         {!learningMode && mode !== 'compose' && (
-          <label className="mt-3 inline-flex items-start gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+          <label className="mt-3 inline-flex items-start gap-2 text-xs" style={{ color: 'var(--muted-on-dark)' }}>
             <input
               type="checkbox"
               checked={includeXForNextTurn}
@@ -398,7 +407,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
         {/* User stats */}
         {userStats && (
-          <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-400 flex gap-4">
+          <div className="mt-3 text-xs flex flex-wrap gap-x-4 gap-y-1" style={{ color: 'var(--muted-on-dark)' }}>
             <span>📝 {userStats.totalCasts} casts tracked</span>
             <span>💬 {userStats.totalFeedback} feedback items</span>
             {userStats.patterns?.length > 0 && (
@@ -409,18 +418,19 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
         {/* Settings panel */}
         {showSettings && userProfile && (
-          <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-lg space-y-3">
+          <div className="mt-4 p-4 rounded-lg space-y-3" style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)' }}>
             <h3 className="font-medium text-sm mb-2">Preferences</h3>
             
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <label className="block text-zinc-600 dark:text-zinc-400 mb-1">
+                <label className="block mb-1" style={{ color: 'var(--muted-on-dark)' }}>
                   Writing Style
                 </label>
                 <select
                   value={userProfile.writingStyle}
                   onChange={(e) => updateProfile({ writingStyle: e.target.value })}
-                  className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                  className="w-full px-2 py-1 rounded"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-on-dark)' }}
                 >
                   <option value="casual">Casual</option>
                   <option value="professional">Professional</option>
@@ -430,13 +440,14 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               </div>
 
               <div>
-                <label className="block text-zinc-600 dark:text-zinc-400 mb-1">
+                <label className="block mb-1" style={{ color: 'var(--muted-on-dark)' }}>
                   Tone
                 </label>
                 <select
                   value={userProfile.preferredTone}
                   onChange={(e) => updateProfile({ preferredTone: e.target.value })}
-                  className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                  className="w-full px-2 py-1 rounded"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-on-dark)' }}
                 >
                   <option value="friendly">Friendly</option>
                   <option value="informative">Informative</option>
@@ -446,13 +457,14 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               </div>
 
               <div>
-                <label className="block text-zinc-600 dark:text-zinc-400 mb-1">
+                <label className="block mb-1" style={{ color: 'var(--muted-on-dark)' }}>
                   Cast Length
                 </label>
                 <select
                   value={userProfile.castLength}
                   onChange={(e) => updateProfile({ castLength: e.target.value })}
-                  className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800"
+                  className="w-full px-2 py-1 rounded"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-on-dark)' }}
                 >
                   <option value="short">Short</option>
                   <option value="medium">Medium</option>
@@ -483,12 +495,12 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ background: 'var(--bg-dark)' }}>
         {messages.length === 0 && (
-          <div className="text-center text-zinc-500 dark:text-zinc-400 mt-8">
+          <div className="text-center mt-8" style={{ color: 'var(--muted-on-dark)' }}>
             <div className="text-4xl mb-4">🏠</div>
             <p className="text-lg font-medium mb-2">Hey! What are you curious about?</p>
             <p className="text-sm">I can help you:</p>
@@ -507,11 +519,12 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[80%] rounded-lg p-3 ${
-                msg.role === 'user'
-                  ? 'bg-zinc-700 text-white'
-                  : 'bg-zinc-800 text-zinc-100'
-              }`}
+              className="max-w-[90%] sm:max-w-[80%] rounded-lg p-3"
+              style={{
+                background: msg.role === 'user' ? 'var(--accent-soft)' : 'var(--surface)',
+                color: 'var(--text-on-dark)',
+                border: '1px solid var(--border)',
+              }}
             >
               {msg.role === 'assistant' && msg.agentRole && (
                 <div className="text-xs opacity-70 mb-1">
@@ -524,16 +537,16 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   remarkPlugins={[remarkGfm]}
                   components={{
                     a: ({ node, ...props }) => (
-                      <a {...props} target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white hover:underline" />
+                      <a {...props} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: 'var(--accent)' }} />
                     ),
                     code: ({ node, className, children, ...props }) => {
                       const match = /language-(\w+)/.exec(className || '');
                       return match ? (
-                        <code className={`${className} block bg-zinc-800 text-zinc-100 p-2 rounded my-2 overflow-x-auto`} {...props}>
+                        <code className={`${className} block p-2 rounded my-2 overflow-x-auto`} style={{ background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }} {...props}>
                           {children}
                         </code>
                       ) : (
-                        <code className="bg-zinc-200 dark:bg-zinc-700 px-1 py-0.5 rounded text-sm" {...props}>
+                        <code className="px-1 py-0.5 rounded text-sm" style={{ background: 'var(--bg-dark)', color: 'var(--text-on-dark)' }} {...props}>
                           {children}
                         </code>
                       );
@@ -557,13 +570,13 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               )}
 
               {msg.role === 'assistant' && msg.metadata?.liveCastSearch && (
-                <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
+              <div className="mt-3 pt-2 text-xs" style={{ borderTop: '1px solid var(--border)', color: 'var(--muted-on-dark)' }}>
                   <p>{msg.metadata.liveCastSearch.resultCount > 0
                     ? `Related casts · ${msg.metadata.liveCastSearch.resultCount} retrieved from Hypersnap`
                     : 'Hypersnap search found no matches or was unavailable. This does not disprove the topic.'}</p>
                   <p>Posts reflect their authors’ claims and may need corroboration.</p>
                   {msg.metadata.liveCastSearch.citations?.map((cast: { url: string; username: string; text: string; timestamp?: string | number }) => (
-                    <Link key={cast.url} href={cast.url} className="mt-2 block text-indigo-300 hover:underline">
+                    <Link key={cast.url} href={cast.url} className="mt-2 block hover:underline" style={{ color: 'var(--accent)' }}>
                       @{cast.username}: {cast.text}
                     </Link>
                   ))}
@@ -571,7 +584,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               )}
 
               {msg.role === 'assistant' && msg.metadata?.liveWebSearch && (
-                <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
+                <div className="mt-3 pt-2 text-xs" style={{ borderTop: '1px solid var(--border)', color: 'var(--muted-on-dark)' }}>
                   <div>
                     {msg.metadata.liveWebSearch.status === 'searched'
                       ? 'Live web search sources'
@@ -585,7 +598,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-1 block truncate text-indigo-300 hover:underline"
+                      className="mt-1 block truncate hover:underline"
+                      style={{ color: 'var(--accent)' }}
                     >
                       {url.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0]}
                     </a>
@@ -594,7 +608,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               )}
 
               {msg.role === 'assistant' && msg.metadata?.liveXSearch && (
-                <div className="mt-3 border-t border-zinc-700 pt-2 text-xs text-zinc-400">
+                <div className="mt-3 pt-2 text-xs" style={{ borderTop: '1px solid var(--border)', color: 'var(--muted-on-dark)' }}>
                   <p>
                     {msg.metadata.liveXSearch.status === 'pro-required'
                       ? 'X search is available with Homiehouse Pro.'
@@ -613,7 +627,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                       href={post.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 block text-indigo-300 hover:underline"
+                      className="mt-2 block hover:underline"
+                      style={{ color: 'var(--accent)' }}
                     >
                       View post by @{post.username} on X ↗
                     </a>
@@ -623,14 +638,15 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
               {/* Share button for assistant messages */}
               {msg.role === 'assistant' && (
-                <div className="mt-3 pt-2 border-t border-zinc-200 dark:border-zinc-700 flex gap-2">
+                <div className="mt-3 pt-2 flex gap-2" style={{ borderTop: '1px solid var(--border)' }}>
                   <button
                     onClick={() => {
                       const attribution = '\n\nshared from @auntiehomie';
                       const finalText = sanitizeAssistantResponse(msg.content) + attribution;
                       shareCast(finalText);
                     }}
-                    className="text-xs px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors flex items-center gap-1"
+                    className="text-xs px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                    style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)' }}
                     title="Share as cast"
                   >
                     <span aria-hidden="true">📤</span>
@@ -641,7 +657,8 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                       navigator.clipboard.writeText(sanitizeAssistantResponse(msg.content));
                       alert('Copied to clipboard!');
                     }}
-                    className="text-xs px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 rounded-lg transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                    style={{ background: 'var(--bg-dark)', color: 'var(--text-on-dark)', border: '1px solid var(--border)' }}
                     title="Copy to clipboard"
                   >
                     📋 Copy
@@ -656,33 +673,38 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
                   {msg.suggestions.map((suggestion, i) => (
                     <div
                       key={i}
-                      className="bg-white dark:bg-zinc-900 p-2 rounded text-sm border border-zinc-200 dark:border-zinc-700"
+                      className="p-2 rounded text-sm"
+                      style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)' }}
                     >
                       <div className="mb-2">{suggestion}</div>
                       <div className="flex gap-2">
                         {onCastSelect && (
                           <button
                             onClick={() => onCastSelect(suggestion)}
-                            className="text-xs px-2 py-1 bg-white text-black rounded hover:bg-zinc-200"
+                            className="text-xs px-2 py-1 rounded"
+                            style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)' }}
                           >
                             Use this
                           </button>
                         )}
                         <button
                           onClick={() => navigator.clipboard.writeText(suggestion)}
-                          className="text-xs px-2 py-1 bg-zinc-200 dark:bg-zinc-700 rounded hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                          className="text-xs px-2 py-1 rounded"
+                          style={{ background: 'var(--surface)', color: 'var(--text-on-dark)' }}
                         >
                           Copy
                         </button>
                         <button
                           onClick={() => handleFeedback(suggestion, true)}
-                          className="text-xs px-2 py-1 bg-zinc-200 dark:bg-zinc-700 rounded hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                          className="text-xs px-2 py-1 rounded"
+                          style={{ background: 'var(--surface)', color: 'var(--text-on-dark)' }}
                         >
                           👍
                         </button>
                         <button
                           onClick={() => handleFeedback(suggestion, false)}
-                          className="text-xs px-2 py-1 bg-zinc-200 dark:bg-zinc-700 rounded hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                          className="text-xs px-2 py-1 rounded"
+                          style={{ background: 'var(--surface)', color: 'var(--text-on-dark)' }}
                         >
                           👎
                         </button>
@@ -693,7 +715,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
               )}
 
               {msg.role === 'assistant' && msg.metadata?.learningMode && (
-                <div className="mt-3 text-xs text-zinc-400 space-y-1">
+                <div className="mt-3 text-xs space-y-1" style={{ color: 'var(--muted-on-dark)' }}>
                   <p>Background sources · not a live web check</p>
                   {msg.metadata.sources?.length ? msg.metadata.sources.map((source: { title: string; url: string }) => (
                     /^https:\/\//i.test(source.url) ? <a key={source.url} className="block underline break-words" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a> : null
@@ -714,11 +736,11 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-zinc-800 rounded-lg p-3">
+            <div className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
               <div className="flex gap-2">
-                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--accent)', animationDelay: '0ms' }} />
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--accent)', animationDelay: '150ms' }} />
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--accent)', animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -726,14 +748,15 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
       </div>
 
       {/* Input */}
-      <div className="border-t border-zinc-200 dark:border-zinc-800 p-4 overflow-visible">
+      <div className="p-4 overflow-visible" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
         <div className="flex gap-3 relative items-end">
           <div className="flex-1">
             <MentionInput
               value={input}
               onChange={setInput}
               placeholder={`${modeDescriptions[mode]}...`}
-              className="w-full px-4 py-3 text-base rounded-lg border border-zinc-700 bg-zinc-900 text-white focus:outline-none focus:border-zinc-500 disabled:opacity-50"
+              className="w-full px-4 py-3 text-base rounded-lg focus:outline-none disabled:opacity-50"
+              style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', color: 'var(--text-on-dark)' }}
               onUserSelect={(user) => {
                 console.log('User mentioned:', user);
               }}
@@ -743,7 +766,7 @@ export default function AgentChat({ userId, userContext, castContext, onCastSele
             onClick={() => void handleSend()}
             disabled={isLoading || !input.trim() || !contextReady}
             className="px-6 py-3 rounded-lg font-medium transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(180deg, #334155 0%, #1e293b 100%)', color: '#e2e8f0', border: '1px solid #475569' }}
+            style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)', border: '1px solid var(--border)' }}
           >
             Send
           </button>
