@@ -245,6 +245,10 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
   }
   const qs = new URLSearchParams({ limit: String(limit) });
   if (params.cursor) qs.set('cursor', String(params.cursor));
+  const viewerFid = Number(params.viewer_fid);
+  if (Number.isSafeInteger(viewerFid) && viewerFid > 0) {
+    qs.set('viewer_fid', String(viewerFid));
+  }
   const timeWindow = typeof params.time_window === 'string' ? params.time_window.trim() : '';
   if (timeWindow) {
     if (!['1h', '6h', '12h', '24h', '7d'].includes(timeWindow)) {
