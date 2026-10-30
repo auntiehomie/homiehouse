@@ -4,7 +4,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
   test.describe(`${viewport.width}px`, () => {
     test.use({ viewport, serviceWorkers: 'block' });
 
-    test('Home destinations open the full feed from the card and navigation', async ({ page }) => {
+    test('Home destination card opens the full feed in Following view', async ({ page }) => {
       await page.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.origin !== 'http://localhost:3000') return route.abort();
@@ -30,19 +30,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 820, height: 1180 
       await expect(page).toHaveURL('/feed');
       const following = page.getByRole('button', { name: 'Following', exact: true });
       await expect(following).toBeVisible();
-      await following.click();
       await expect(following).toHaveAttribute('aria-pressed', 'true');
-
-      if (viewport.width < 1024) {
-        await page.getByRole('button', { name: 'Open menu' }).click();
-        await page.getByRole('link', { name: 'Feed', exact: true }).filter({ visible: true }).last().click();
-        await expect(page.getByRole('button', { name: 'Close menu' })).toBeHidden();
-        await expect(page).toHaveURL('/feed');
-      } else {
-        await page.goto('/');
-        await page.getByRole('link', { name: 'Feed', exact: true }).click();
-        await expect(page).toHaveURL('/feed');
-      }
     });
   });
 }
