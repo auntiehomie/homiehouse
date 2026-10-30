@@ -819,7 +819,7 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 /* Keep page content clear of the iOS status bar and the mobile bottom nav. */
 .hh-content-offset {
   padding-top: var(--hh-top-inset, env(safe-area-inset-top, 0px));
-  padding-bottom: calc(56px + max(env(safe-area-inset-bottom, 0px), 16px));
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
 /* On desktop (lg+), the sidebar replaces mobile navigation. */
