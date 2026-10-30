@@ -164,9 +164,9 @@ export default function NotificationsPage() {
       {/* Sticky header */}
       <header style={{ background: 'var(--bg-dark)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 10 }}>
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Notifications</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <h1 style={{ fontSize: 'clamp(20px, 5.5vw, 22px)', fontWeight: 700, margin: 0, flex: '1 1 auto' }}>Notifications</h1>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, flex: '0 0 auto' }}>
               <button
                 onClick={() => loadNotifications()}
                 style={{ color: 'var(--muted-on-dark)', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer' }}
@@ -283,11 +283,8 @@ export default function NotificationsPage() {
                       style={{
                         display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
                         padding: '1rem', borderRadius: 10,
-                        background: 'var(--surface)', border: '1px solid var(--border)',
-                        transition: 'border-color 0.15s',
+                        background: 'var(--surface)',
                       }}
-                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)')}
-                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--border)')}
                     >
                       {/* Avatar + badge */}
                       <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -310,10 +307,10 @@ export default function NotificationsPage() {
 
                       {/* Content */}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem', marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem', marginBottom: 4, fontWeight: 600 }}>
                           <Link
                             href={`/profile?user=${actor?.username || actor?.fid}`}
-                            style={{ fontWeight: 600, color: 'var(--text-on-dark)', textDecoration: 'none' }}
+                            style={{ fontWeight: 700, color: 'var(--text-on-dark)', textDecoration: 'none' }}
                           >
                             {actor?.display_name || actor?.username || 'Someone'}
                           </Link>
@@ -329,9 +326,8 @@ export default function NotificationsPage() {
                           <Link
                             href={`/cast/${notification.cast.hash}`}
                             style={{
-                              display: 'block', marginTop: 8, marginLeft: '-60px', padding: '8px 10px',
-                              background: 'var(--bg-dark)', borderRadius: 8,
-                              border: '1px solid var(--border)',
+                              display: 'block', marginTop: 8, marginLeft: 0, padding: '8px 0 8px 12px',
+                              background: 'transparent', borderRadius: 0,
                               fontSize: 13, color: 'var(--muted-on-dark)',
                               textDecoration: 'none', lineHeight: 1.4,
                             } as React.CSSProperties}
@@ -342,7 +338,7 @@ export default function NotificationsPage() {
                           </Link>
                         )}
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, marginLeft: '-60px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 6, marginLeft: 0 }}>
                           <span style={{ fontSize: 12, color: 'var(--muted-on-dark)' }}>
                             {fmtTime(notification.timestamp || notification.most_recent_timestamp || '')}
                           </span>
