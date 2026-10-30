@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import type { CSSProperties } from 'react';
 import Image from 'next/image';
 
 interface User {
@@ -16,6 +17,7 @@ interface MentionInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  style?: CSSProperties;
   onUserSelect?: (user: User) => void;
 }
 
@@ -24,6 +26,7 @@ export default function MentionInput({
   onChange, 
   placeholder = 'Type @ to mention a user',
   className = '',
+  style,
   onUserSelect
 }: MentionInputProps) {
   const [showDropdown, setShowDropdown] = useState(false);
@@ -137,7 +140,8 @@ export default function MentionInput({
         placeholder={placeholder}
         className={className}
         rows={2}
-        style={{ 
+        style={{
+          ...style,
           minHeight: '60px',
           maxHeight: '240px',
           resize: 'vertical',
