@@ -1,0 +1,35 @@
+.header {
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+}
+
+.title {
+  color: #fff;
+  filter: none;
+  font-size: 16px;
+  font-synthesis: none;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.domain {
+  color: #a1a1aa;
+  filter: none;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  opacity: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Safari can report a zero inset for an embedded, edge-to-edge iPhone view.
+   Keep the title row below the Dynamic Island and status bar in that case. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    .header {
+      padding-top: max(60px, env(safe-area-inset-top, 0px));
+    }
+  }
+}

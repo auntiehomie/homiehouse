@@ -13,6 +13,7 @@ import { getMiniAppIdentity } from '@/lib/miniapp-auth';
 import { signInToMiniApp } from '@/lib/miniapp-auth';
 import { requestMiniAppComposeCast } from '@/lib/compose-modal-events';
 import { MiniAppEmbed } from './MiniAppEmbed';
+import styles from './MiniAppViewer.module.css';
 
 interface OpenMiniAppDetail {
   url: string;
@@ -270,8 +271,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       aria-label={app.title || `Mini App from ${domain}`}
     >
       <header
-        className="flex shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-950 px-3 pb-3"
-        style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}
+        className={`flex shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-950 px-3 pb-3 ${styles.header}`}
       >
         <button
           type="button"
@@ -283,10 +283,10 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
           ×
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-sm font-semibold text-white">
+          <div className={`truncate ${styles.title}`}>
             {app.title || 'Mini App'}
           </div>
-          <div className="truncate text-xs text-zinc-400">{domain}</div>
+          <div className={`truncate ${styles.domain}`}>{domain}</div>
         </div>
         <div className="shrink-0">
           <ConnectButton
