@@ -157,7 +157,15 @@ export default function SearchClient() {
                   {casts.map((c: any) => {
                     const author = c.author || {};
                     return (
-                      <div key={c.hash} className="p-3 rounded-xl bg-zinc-900">
+                      <Link
+                        key={c.hash}
+                        href={c.hash ? `/cast/${encodeURIComponent(String(c.hash))}` : '#'}
+                        aria-label={c.hash ? `Open conversation by ${author.display_name || author.username || 'this user'}` : undefined}
+                        aria-disabled={!c.hash}
+                        tabIndex={c.hash ? undefined : -1}
+                        className="block p-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white transition-colors"
+                        onClick={(event) => { if (!c.hash) event.preventDefault(); }}
+                      >
                         <div className="flex items-center gap-2 mb-2">
                           <img
                             src={author.pfp_url || ''}
@@ -165,13 +173,13 @@ export default function SearchClient() {
                             className="w-8 h-8 rounded-full object-cover bg-zinc-700"
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                           />
-                          <Link href={`/profile?user=${author.username || ''}`} className="font-medium text-white text-sm hover:underline">
+                          <span className="font-medium text-white text-sm">
                             {author.display_name || author.username}
-                          </Link>
+                          </span>
                           <span className="text-zinc-500 text-xs">@{author.username}</span>
                         </div>
                         <p className="text-sm text-zinc-200 leading-relaxed line-clamp-4">{c.text}</p>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>
