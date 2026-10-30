@@ -177,7 +177,7 @@ export default function MobileNav() {
           background: 'var(--nav-bg)',
           borderTop: '1px solid var(--nav-border)',
           // Extend the background below the controls into the iOS home-indicator area.
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         <style>{`
