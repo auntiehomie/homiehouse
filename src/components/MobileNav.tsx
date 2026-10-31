@@ -117,7 +117,7 @@ export default function MobileNav() {
           background: 'var(--nav-bg)',
           borderTop: '1px solid var(--nav-border)',
           // Extend the background below the controls into the iOS home-indicator area.
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)',
         }}
       >
         <style>{`
@@ -142,7 +142,7 @@ export default function MobileNav() {
          maxWidth: '100%',
          margin: '0 auto',
          padding: '0 12px',
-         height: 56,
+         height: 64,
          display: 'flex',
          alignItems: 'center',
          justifyContent: 'space-between',
@@ -186,13 +186,14 @@ export default function MobileNav() {
                     alignItems: 'center',
                     gap: 2,
                     padding: '6px 14px',
-                    borderRadius: 10,
+                    borderRadius: 14,
                     textDecoration: 'none',
-                    color: active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
+                    color: active ? 'var(--accent)' : 'var(--muted-on-dark)',
                     fontWeight: active ? 600 : 400,
                     fontSize: 10,
                     transition: 'color 0.15s',
                     position: 'relative',
+                    background: active ? 'var(--accent-soft)' : 'transparent',
                   }}
                 >
                   <span style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -327,12 +328,12 @@ export default function MobileNav() {
                         textDecoration: 'none',
                         fontWeight: active ? 600 : 400,
                         fontSize: 15,
-                        color: active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
-                        background: active ? 'var(--surface)' : 'transparent',
+                        color: active ? 'var(--accent)' : 'var(--muted-on-dark)',
+                        background: active ? 'var(--accent-soft)' : 'transparent',
                         transition: 'background 0.15s, color 0.15s',
                       }}
                       onMouseEnter={(e) => {
-                        if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface)';
+                        if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface-subtle)';
                       }}
                       onMouseLeave={(e) => {
                         if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent';

@@ -1,30 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 /* Friendly palette and typography adapted from the Vite mini app */
 :root {
   /* Monochrome palette */
-  --accent: #FFFFFF;
-  --accent-hover: #D4D4D4;
-  --accent-soft: #A1A1AA;
-  --bg-dark: #111111;
-  --surface: #1C1C1C;
+  --accent: #34D399;
+  --accent-hover: #6EE7B7;
+  --accent-soft: rgba(52, 211, 153, 0.16);
+  --bg-dark: #09090B;
+  --surface: #18181B;
   --text-on-dark: #FFFFFF;
   --muted-on-dark: rgba(255,255,255,0.60);
-  --border: rgba(255,255,255,0.08);
-  --nav-bg: #000000;
-  --nav-border: rgba(255,255,255,0.1);
+  --border: rgba(255,255,255,0.12);
+  --nav-bg: #111113;
+  --nav-border: rgba(255,255,255,0.12);
+
+  /* Semantic aliases keep shared controls consistent across themes. */
+  --text-primary: var(--text-on-dark);
+  --text-secondary: var(--muted-on-dark);
+  --surface-subtle: var(--surface);
+  --separator: var(--border);
+  --control-radius: 12px;
+  --surface-radius: 16px;
 
   --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   --heading-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 
   /* Button theming */
-  --btn-primary-bg: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-  --btn-primary-color: #e2e8f0;
+  --btn-primary-bg: #34D399;
+  --btn-primary-color: #07130F;
 
   /* Light-mode overrides will set these to lighter variants */
   --background: var(--bg-dark);
   --foreground: var(--text-on-dark);
+  color-scheme: dark;
 }
 
 /* Shared controls use vector icons so their color and weight follow every theme. */
@@ -115,7 +123,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0F2B22;
   --nav-border: rgba(255, 255, 255, 0.15);
-  --btn-primary-bg: linear-gradient(180deg, #2d7a5e 0%, #1F5246 100%);
+  --btn-primary-bg: #2d7a5e;
   --btn-primary-color: #FFFFFF;
 }
 
@@ -132,7 +140,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0E0500;
   --nav-border: rgba(197, 165, 114, 0.3);
-  --btn-primary-bg: linear-gradient(180deg, #C53030 0%, #9B2C2C 100%);
+  --btn-primary-bg: #C53030;
   --btn-primary-color: #F5E6C8;
 }
 
@@ -174,7 +182,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0a0a0a;
   --nav-border: #333333;
-  --btn-primary-bg: linear-gradient(180deg, #3a3a3a 0%, #1e1e1e 100%);
+  --btn-primary-bg: #1e1e1e;
   --btn-primary-color: #FF8C00;
 }
 
@@ -266,7 +274,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0f0707;
   --nav-border: rgba(200, 170, 110, 0.22);
-  --btn-primary-bg: linear-gradient(180deg, #6b2e2e 0%, #4a1f1f 100%);
+  --btn-primary-bg: #6b2e2e;
   --btn-primary-color: #e8d4b8;
 }
 
@@ -311,7 +319,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0f0510;
   --nav-border: rgba(255, 105, 180, 0.22);
-  --btn-primary-bg: linear-gradient(135deg, #ff69b4 0%, #ff1493 100%);
+  --btn-primary-bg: #ff1493;
   --btn-primary-color: #1a0a1a;
 }
 
@@ -354,7 +362,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #06010f;
   --nav-border: rgba(255, 113, 206, 0.30);
-  --btn-primary-bg: linear-gradient(135deg, #ff71ce 0%, #b967ff 100%);
+  --btn-primary-bg: #b967ff;
   --btn-primary-color: #0d0221;
 }
 
@@ -380,7 +388,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #060e1a;
   --nav-border: rgba(56, 189, 248, 0.20);
-  --btn-primary-bg: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+  --btn-primary-bg: #0284c7;
   --btn-primary-color: #f0f9ff;
 }
 
@@ -397,7 +405,7 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #1e1f29;
   --nav-border: rgba(98, 114, 164, 0.38);
-  --btn-primary-bg: linear-gradient(180deg, #bd93f9 0%, #9a71e8 100%);
+  --btn-primary-bg: #9a71e8;
   --btn-primary-color: #282a36;
 }
 
@@ -419,25 +427,31 @@
   --foreground: var(--text-on-dark);
   --nav-bg: #0f0500;
   --nav-border: rgba(255, 140, 60, 0.24);
-  --btn-primary-bg: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+  --btn-primary-bg: #ff6b35;
   --btn-primary-color: #1a0a00;
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --bg-dark: #f8f8f8;
     --surface: #ffffff;
     --text-on-dark: #111111;
     --muted-on-dark: rgba(0,0,0,0.6);
-    --border: rgba(0,0,0,0.06);
+    --border: rgba(0,0,0,0.12);
+    --accent: #047857;
+    --accent-hover: #065f46;
+    --accent-soft: rgba(4,120,87,0.12);
+    --nav-bg: #ffffff;
+    --nav-border: rgba(0,0,0,0.12);
+    --btn-primary-bg: #047857;
+    --btn-primary-color: #ffffff;
+    color-scheme: light;
     --text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
     --heading-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
     --background: var(--bg-dark);
     --foreground: var(--text-on-dark);
   }
 }
-
-/* Import Montserrat for headings to match mini app (already imported at top) */
 
 /* Base page styles */
 html, body {
@@ -453,8 +467,8 @@ body {
   padding: 0;
   background: var(--background);
   color: var(--foreground);
-  /* Make Montserrat the primary font, fall back to the geist variable if present */
-  font-family: 'Space Grotesk', var(--font-geist-sans, Inter, system-ui, Avenir, Helvetica, Arial, sans-serif);
+  /* Prefer the platform UI font for a familiar, readable app experience. */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Better touch scrolling on mobile */
@@ -463,12 +477,19 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Keep browser and installed-PWA controls native-feeling on iOS and Android.
+   -apple-system resolves to San Francisco on Apple platforms; system-ui uses
+   Roboto on Android and the platform UI font elsewhere. */
+html { color-scheme: light dark; }
+button, input, textarea, select { font-family: inherit; }
+button { -webkit-appearance: none; appearance: none; }
+
 /* Headings */
 h1, h2, h3 {
-  font-family: 'Space Grotesk', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Avenir, Helvetica, Arial, sans-serif;
   font-weight: 700;
   letter-spacing: -0.5px;
-  text-shadow: var(--heading-shadow);
+  text-shadow: none;
   margin: 0 0 0.5rem 0;
 }
 
@@ -476,8 +497,8 @@ h1, h2, h3 {
 .surface {
   background: var(--surface);
   padding: 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  border-radius: var(--surface-radius);
+  border: 1px solid var(--separator);
 }
 
 .muted { color: var(--muted-on-dark); }
@@ -499,9 +520,9 @@ h1, h2, h3 {
 }
 
 .btn.primary {
-  background: var(--btn-primary-bg, linear-gradient(180deg, #334155 0%, #1e293b 100%));
+  background: var(--btn-primary-bg, #334155);
   color: var(--btn-primary-color, #e2e8f0);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: none;
 }
 
 button[disabled] { opacity: 0.6; cursor: not-allowed; }
@@ -859,23 +880,22 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   bottom: 0;
   left: 0;
   right: 0;
-  background: #000000;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--nav-bg);
+  border-top: 1px solid var(--nav-border);
   z-index: 50;
-  backdrop-filter: blur(10px);
 }
 
 @media (prefers-color-scheme: light) {
   .bottom-nav {
-    background: #ffffff;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    background: var(--nav-bg);
+    border-top-color: var(--nav-border);
   }
 }
 
 /* Keep page content clear of the iOS status bar and the mobile bottom nav. */
 .hh-content-offset {
   padding-top: var(--hh-top-inset, env(safe-area-inset-top, 0px));
-  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(64px + max(env(safe-area-inset-bottom, 0px), 8px));
 }
 
 /* On desktop (lg+), the sidebar replaces mobile navigation. */
@@ -931,7 +951,9 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   z-index: 9500;
   pointer-events: all;
   /* Android: ensure touch targets clear system gesture zone */
-  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+  padding-left: max(env(safe-area-inset-left), 0px);
+  padding-right: max(env(safe-area-inset-right), 0px);
 }
 
 /* A single fade avoids competing route animations and layout movement. */
@@ -945,13 +967,29 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* Restrained depth follows each palette, including custom/shop themes. */
+/* Flat, theme-aware content surfaces. Theme colors remain intact while raised
+   bevels, gradients, and decorative shadows no longer change the component shape. */
 .surface {
-  background-image: linear-gradient(155deg, color-mix(in srgb, var(--text-on-dark) 4%, transparent), transparent 65%);
+  background-image: none;
+  border-radius: var(--surface-radius);
 }
 .btn {
-  border-color: color-mix(in srgb, var(--text-on-dark) 30%, var(--surface));
-  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  border-color: var(--separator);
+  border-radius: var(--control-radius);
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.btn.primary {
+  box-shadow: none;
+}
+:where(h1, h2, h3) {
+  text-shadow: none !important;
+}
+:where([data-theme]) .surface {
+  background-image: none !important;
+  box-shadow: none !important;
+}
+:where([data-theme]) .hh-bottom-nav {
+  box-shadow: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .hh-page-transition { animation: none; }
@@ -965,6 +1003,25 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 }
 :where(button, input, textarea, select) { font: inherit; }
 ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* Platform-adaptive app shell: safe-area padding is part of the hit-area
+   layout, and selection follows system navigation conventions. */
+.hh-mobile-nav { min-height: 64px; }
+.hh-mobile-nav a { min-width: 48px; min-height: 48px; justify-content: center; }
+.hh-mobile-nav a[aria-current="page"],
+.hh-mobile-nav a[data-active="true"] {
+  color: var(--accent) !important;
+}
+.hh-drawer { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
+@media (min-width: 600px) and (max-width: 1023px) {
+  .hh-feed-column { max-width: 760px; margin-inline: auto; }
+}
+@media (display-mode: standalone) {
+  body { min-height: 100dvh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; }
+}
 @media (min-width: 769px) {
   main { margin-top: 1.5rem; }
 }
