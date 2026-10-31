@@ -14,6 +14,7 @@ import AICurationSuggestions from './AICurationSuggestions';
 import { getStoredFid } from '@/lib/client-auth';
 import { useFeedFreshness } from '@/hooks/useFeedFreshness';
 import { FeedSkeleton } from "./Skeletons";
+import AppIcon from './AppIcon';
 import { formatDistanceToNow } from "date-fns";
 import { FeedScope } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
@@ -1382,7 +1383,7 @@ export default function FeedList({
                   gap: '8px'
                 }}
               >
-                💬 Quote Cast
+                <AppIcon name="quote" className="w-4 h-4" /> Quote Cast
               </button>
 
               {/* Recast or Undo Recast */}
@@ -1405,7 +1406,7 @@ export default function FeedList({
                     color: '#ef4444'
                   }}
                 >
-                  ↩️ Undo Recast
+                  <AppIcon name="reply" className="w-4 h-4" /> Undo Recast
                 </button>
               ) : (
                 <button
@@ -1424,7 +1425,7 @@ export default function FeedList({
                     gap: '8px'
                   }}
                 >
-                  🔄 Recast
+                  <AppIcon name="recast" className="w-4 h-4" /> Recast
                 </button>
               )}
 
@@ -1445,7 +1446,7 @@ export default function FeedList({
                   gap: '8px'
                 }}
               >
-                💬 Reply
+                <AppIcon name="messages" className="w-4 h-4" /> Reply
               </button>
               
               <button
@@ -1604,7 +1605,7 @@ export default function FeedList({
                   gap: '8px'
                 }}
               >
-                {quoteLoading ? 'Posting...' : '💬 Post Quote Cast'}
+                {quoteLoading ? 'Posting...' : <><AppIcon name="quote" className="w-4 h-4 inline-block mr-2" />Post Quote Cast</>}
               </button>
               
               <button

@@ -10,6 +10,8 @@ import {
 } from '@/lib/compose-inspiration';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { loadRecentInteractions } from '@/lib/recent-interactions';
+import AppIcon from './AppIcon';
+import type { AppIconName } from './AppIcon';
 
 interface ComposeInspirationProps {
   fid: number;
@@ -35,10 +37,10 @@ function readNotes(): unknown[] {
   }
 }
 
-function sourceIcon(kind: ComposeInspirationSource['kind']): string {
-  if (kind === 'note') return '📝';
-  if (kind === 'reaction') return '✨';
-  return '↗';
+function sourceIcon(kind: ComposeInspirationSource['kind']): AppIconName {
+  if (kind === 'note') return 'knowledge';
+  if (kind === 'reaction') return 'heart';
+  return 'cast';
 }
 
 export default function ComposeInspiration({ fid, hasText, onUseDraft }: ComposeInspirationProps) {
@@ -145,7 +147,7 @@ export default function ComposeInspiration({ fid, hasText, onUseDraft }: Compose
           return (
             <article key={source.id} style={{ padding: '13px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span aria-hidden="true" style={{ width: 26, height: 26, display: 'grid', placeItems: 'center', borderRadius: 8, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }}>{sourceIcon(source.kind)}</span>
+                <span aria-hidden="true" style={{ width: 26, height: 26, display: 'grid', placeItems: 'center', borderRadius: 8, background: 'var(--bg-dark)', color: 'var(--accent)', flexShrink: 0 }}><AppIcon name={sourceIcon(source.kind)} className="w-4 h-4" /></span>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-on-dark)', marginBottom: 4 }}>{source.label}</div>
                   <p style={{ margin: 0, color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{source.headline}</p>
@@ -187,7 +189,7 @@ export default function ComposeInspiration({ fid, hasText, onUseDraft }: Compose
           onClick={() => { setOffset((value) => value + 1); setActiveSourceId(null); setDrafts([]); setError(null); }}
           style={{ marginTop: 12, border: 'none', background: 'none', color: 'var(--muted-on-dark)', fontSize: 12, cursor: 'pointer', padding: '6px 0' }}
         >
-          ↻ Refresh ideas
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><AppIcon name="refresh" className="w-4 h-4" />Refresh ideas</span>
         </button>
       ) : null}
     </section>
