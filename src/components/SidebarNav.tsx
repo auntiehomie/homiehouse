@@ -7,137 +7,25 @@ import { usePathname } from 'next/navigation';
 import { ChannelSidebar } from './ChannelStrip';
 import NotificationBadge from './NotificationBadge';
 import ProfileSummary from './ProfileSummary';
+import AppIcon from './AppIcon';
 
 const NAV_ITEMS = [
-  {
-    href: '/',
-    label: 'Home',
-    exact: true,
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11.5 12 4l9 7.5M5.5 10.5V20h13v-9.5M9.5 20v-6h5v6" />
-      </svg>
-    ),
-  },
-  {
-    href: '/feed',
-    label: 'Feed',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 12h6m-6-4h2" />
-      </svg>
-    ),
-  },
-  { href: '/messages', label: 'Messages', exact: true, icon: <span style={{ fontSize: 18 }}>✉️</span> },
-  {
-    href: '/learn',
-    label: 'Learn',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z"/>
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
-      </svg>
-    ),
-  },
-  {
-    href: '/apps',
-    label: 'Apps',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" strokeWidth={2} />
-        <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" strokeWidth={2} />
-        <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" strokeWidth={2} />
-        <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" strokeWidth={2} />
-      </svg>
-    ),
-  },
-  {
-    href: '/community',
-    label: 'Community',
-    icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🛡️</span>,
-  },
-  {
-    href: '/hh2',
-    label: 'HH2 Token',
-    icon: <span style={{ fontSize: 18, lineHeight: 1 }}>🪙</span>,
-  },
-  {
-    href: '/wallet',
-    label: 'Wallet',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/notes',
-    label: 'Knowledge',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/compose',
-    label: 'Cast',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/notifications',
-    label: 'Alerts',
-    icon: <NotificationBadge className="w-5 h-5" />,
-  },
-  {
-    href: '/ask-homie',
-    label: 'Ask Homie',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/shop',
-    label: 'Shop',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-      </svg>
-    ),
-  },
-  {
-    href: '/pfp-studio',
-    label: 'Studio',
-    icon: <span style={{ fontSize: 16, lineHeight: 1 }}>🎨</span>,
-  },
-  {
-    href: '/pro',
-    label: 'Pro',
-    icon: <span style={{ fontSize: 16, lineHeight: 1 }}>⚡</span>,
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-  },
+  { href: '/', label: 'Home', exact: true, icon: <AppIcon name="home" className="w-5 h-5" /> },
+  { href: '/feed', label: 'Feed', icon: <AppIcon name="feed" className="w-5 h-5" /> },
+  { href: '/messages', label: 'Messages', exact: true, icon: <AppIcon name="messages" className="w-5 h-5" /> },
+  { href: '/learn', label: 'Learn', icon: <AppIcon name="learn" className="w-5 h-5" /> },
+  { href: '/apps', label: 'Apps', icon: <AppIcon name="apps" className="w-5 h-5" /> },
+  { href: '/community', label: 'Community', icon: <AppIcon name="community" className="w-5 h-5" /> },
+  { href: '/hh2', label: 'HH2 Token', icon: <AppIcon name="token" className="w-5 h-5" /> },
+  { href: '/wallet', label: 'Wallet', icon: <AppIcon name="wallet" className="w-5 h-5" /> },
+  { href: '/notes', label: 'Knowledge', icon: <AppIcon name="knowledge" className="w-5 h-5" /> },
+  { href: '/compose', label: 'Cast', icon: <AppIcon name="cast" className="w-5 h-5" /> },
+  { href: '/notifications', label: 'Alerts', icon: <NotificationBadge className="w-5 h-5" /> },
+  { href: '/ask-homie', label: 'Ask Homie', icon: <AppIcon name="ask" className="w-5 h-5" /> },
+  { href: '/shop', label: 'Shop', icon: <AppIcon name="shop" className="w-5 h-5" /> },
+  { href: '/pfp-studio', label: 'Studio', icon: <AppIcon name="studio" className="w-5 h-5" /> },
+  { href: '/pro', label: 'Pro', icon: <AppIcon name="pro" className="w-5 h-5" /> },
+  { href: '/settings', label: 'Settings', icon: <AppIcon name="settings" className="w-5 h-5" /> },
 ];
 
 export default function SidebarNav() {

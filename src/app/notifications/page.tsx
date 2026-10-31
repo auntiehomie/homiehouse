@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import SidebarNav from '@/components/SidebarNav';
+import AppIcon, { type AppIconName } from '@/components/AppIcon';
 
 interface Actor {
   fid: number;
@@ -48,14 +49,14 @@ function getActor(notification: Notification): Actor | null {
   return notification.actor || notification.user || notification.cast?.author || null;
 }
 
-function getIcon(type: string) {
+function getIcon(type: string): AppIconName {
   switch (type) {
-    case 'likes': case 'like': return '❤️';
-    case 'recasts': case 'recast': return '🔄';
-    case 'follows': case 'follow': return '👤';
-    case 'mention': case 'mentions': return '💬';
-    case 'reply': case 'replies': return '↩️';
-    default: return '🔔';
+    case 'likes': case 'like': return 'heart';
+    case 'recasts': case 'recast': return 'recast';
+    case 'follows': case 'follow': return 'user';
+    case 'mention': case 'mentions': return 'mention';
+    case 'reply': case 'replies': return 'reply';
+    default: return 'notifications';
   }
 }
 
@@ -169,13 +170,15 @@ export default function NotificationsPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, flex: '0 0 auto' }}>
               <button
                 onClick={() => loadNotifications()}
-                style={{ color: 'var(--muted-on-dark)', fontSize: 14, background: 'none', border: 'none', cursor: 'pointer' }}
+                className="notification-header-action"
                 title="Refresh notifications"
               >
-                🔄 Refresh
+                <AppIcon name="refresh" className="notification-header-icon" />
+                <span>Refresh</span>
               </button>
-              <Link href="/feed" style={{ color: 'var(--muted-on-dark)', fontSize: 14, textDecoration: 'none' }}>
-                ← Back
+              <Link href="/feed" className="notification-header-action">
+                <AppIcon name="back" className="notification-header-icon" />
+                <span>Back</span>
               </Link>
             </div>
           </div>
@@ -232,7 +235,7 @@ export default function NotificationsPage() {
                 {/* Distinguish fetch failure from genuine empty state using API _meta */}
                 {meta && meta._source === 'empty' && meta._timings ? (
                   <>
-                    <div style={{ fontSize: '3rem' }}>⚠️</div>
+                    <AppIcon name="warning" className="notification-empty-icon" />
                     <div style={{ color: 'var(--muted-on-dark)', textAlign: 'center', maxWidth: 320 }}>
                       Unable to reach notification server — retrying
                     </div>
@@ -244,7 +247,7 @@ export default function NotificationsPage() {
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: '3rem' }}>🔔</div>
+                    <AppIcon name="notifications" className="notification-empty-icon" />
                     <div style={{ color: 'var(--muted-on-dark)', textAlign: 'center' }}>
                       {filter === 'all'
                         ? 'No notifications yet'
@@ -299,9 +302,9 @@ export default function NotificationsPage() {
                           width: 22, height: 22, borderRadius: '50%',
                           background: 'var(--bg-dark)', border: '2px solid var(--bg-dark)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12,
+                          color: 'var(--accent)',
                         }}>
-                          {icon}
+                          <AppIcon name={icon} className="notification-type-icon" />
                         </div>
                       </div>
 
