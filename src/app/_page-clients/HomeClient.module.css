@@ -1,0 +1,235 @@
+.page {
+  --home-background: #09090b;
+  --home-foreground: #f4f4f5;
+  --home-secondary: #a1a1aa;
+  --home-muted: #8b8b95;
+  --home-separator: rgba(255, 255, 255, 0.1);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: clip;
+  background: var(--home-background);
+  color: var(--home-foreground);
+}
+
+.header {
+  position: sticky;
+  z-index: 50;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--home-separator);
+  background: var(--home-background);
+}
+
+.header :global(button) {
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.brand {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.browseLink {
+  color: var(--home-secondary);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.browseLink:hover,
+.browseLink:focus-visible {
+  color: var(--home-foreground);
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-top: 0;
+}
+
+.hero {
+  display: flex;
+  width: 100%;
+  max-width: 760px;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 24px 32px;
+  text-align: center;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 20px;
+  color: #6ee7b7;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.eyebrowDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #34d399;
+}
+
+.title {
+  max-width: 18ch;
+  margin: 0 0 16px;
+  color: var(--home-foreground);
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 720;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  text-wrap: balance;
+  text-shadow: none;
+}
+
+.description {
+  max-width: 43ch;
+  margin: 0 0 24px;
+  color: var(--home-secondary);
+  font-size: clamp(1rem, 2.1vw, 1.125rem);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.actionRow {
+  display: flex;
+  width: min(100%, 420px);
+  justify-content: center;
+}
+
+.primaryAction {
+  display: inline-flex;
+  min-height: 52px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  background: #34d399;
+  color: #07130f;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.primaryAction:hover {
+  background: #6ee7b7;
+}
+
+.primaryAction:active {
+  transform: scale(0.99);
+}
+
+.primaryAction:focus-visible,
+.disclosure:focus-visible {
+  outline: 3px solid #a7f3d0;
+  outline-offset: 3px;
+}
+
+.header :global(button:focus-visible) {
+  outline: 3px solid #a7f3d0;
+  outline-offset: 3px;
+}
+
+.reassurance {
+  color: var(--home-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.explainer {
+  width: min(100%, 760px);
+  padding: 0 24px 40px;
+}
+
+.disclosure {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--home-separator);
+  border-bottom: 1px solid var(--home-separator);
+  background: transparent;
+  color: var(--home-foreground);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.disclosureIcon {
+  flex: 0 0 auto;
+  color: #a5b4fc;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+@media (min-width: 560px) {
+  .hero {
+    padding-top: 48px;
+    padding-bottom: 40px;
+  }
+
+  .actionRow {
+    width: auto;
+  }
+
+  .primaryAction {
+    width: auto;
+    min-width: 260px;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero,
+  .explainer {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .title {
+    font-size: clamp(1.875rem, 8vw, 2rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryAction {
+    transition: none;
+  }
+}
