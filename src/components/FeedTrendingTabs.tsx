@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { startTransition, useState, ViewTransition } from "react";
 import Link from "next/link";
 import FeedList from "./FeedList";
 import { DEFAULT_MEMBER_FEED } from '@/lib/feed-policy';
@@ -20,6 +20,14 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
   const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set());
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
 
+  function selectFeedScope(nextScope: FeedScope) {
+    if (nextScope === feedType && selectedChannel === null) return;
+    startTransition(() => {
+      setFeedType(nextScope);
+      setSelectedChannel(null);
+    });
+  }
+
   return (
     <div>
       <nav aria-label="Learn, earn and connect" className="hh-feed-shortcuts flex flex-wrap gap-2 mb-4 text-sm">
@@ -28,9 +36,9 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
         <Link href="/community" className="btn text-xs">🤝 Connect</Link>
       </nav>
       <div aria-label="Feed views" className="hh-feed-tabs">
-        <button className="btn" aria-pressed={feedType === 'following'} onClick={() => { setFeedType('following'); setSelectedChannel(null); }}>Following</button>
-        <button className="btn" aria-pressed={feedType === 'global'} onClick={() => { setFeedType('global'); setSelectedChannel(null); }}>Discovery</button>
-        <button className="btn" aria-pressed={feedType === 'community'} onClick={() => { setFeedType('community'); setSelectedChannel(null); }}>Community</button>
+        <button className="btn" aria-pressed={feedType === 'following'} onClick={() => selectFeedScope('following')}>Following</button>
+        <button className="btn" aria-pressed={feedType === 'global'} onClick={() => selectFeedScope('global')}>Discovery</button>
+        <button className="btn" aria-pressed={feedType === 'community'} onClick={() => selectFeedScope('community')}>Community</button>
       </div>
 
       {selectedChannel && (
@@ -45,7 +53,12 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
         </div>
       )}
 
-      <div>
+      <ViewTransition
+        key={`${feedType}:${selectedChannel ?? ''}`}
+        enter="hh-feed-enter"
+        exit="hh-feed-exit"
+        default="none"
+      >
           <FeedList 
             feedType={feedType}
             selectedChannel={selectedChannel}
@@ -54,7 +67,7 @@ export default function FeedTrendingTabs({ defaultFeedScope = DEFAULT_MEMBER_FEE
             onMuteUser={(username: string) => setMutedUsers(prev => new Set([...prev, username]))}
             onHideCast={(hash: string) => setHiddenCasts(prev => new Set([...prev, hash]))}
           />
-      </div>
+      </ViewTransition>
 
 
     </div>

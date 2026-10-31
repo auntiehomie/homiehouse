@@ -29,12 +29,18 @@ for (const viewport of [{ width: 393, height: 851 }, { width: 851, height: 393 }
       await page.goto('/feed');
       await expect(page.getByText('Previous node cast', { exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Following', exact: true })).toHaveAttribute('aria-pressed', 'true');
-      for (const name of ['Following', 'Discovery', 'Refresh feed']) {
+      for (const name of ['Following', 'Discovery']) {
         const control = page.getByRole('button', { name, exact: true });
         await expect(control).toBeVisible();
         const box = (await control.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+      }
+      if (viewport.width < 1024) {
+        const hint = page.getByRole('status').filter({ hasText: 'Pull down to refresh' });
+        await expect(hint).toBeVisible();
+        await page.clock.fastForward(2500);
+        await expect(hint).toHaveCount(0);
       }
       await page.clock.fastForward(61_000);
       await expect(page.getByRole('button', { name: 'Load 1 new casts' })).toBeVisible();
