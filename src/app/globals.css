@@ -956,12 +956,15 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   padding-right: max(env(safe-area-inset-right), 0px);
 }
 
-/* A single fade avoids competing route animations and layout movement. */
-@keyframes hhPageIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+/* App Router page changes use a brief native view-transition crossfade. */
+@keyframes hhRouteFadeOut { to { opacity: 0; } }
+@keyframes hhRouteFadeIn { from { opacity: 0; } to { opacity: 1; } }
+::view-transition-old(.hh-route-exit) {
+  animation: 110ms ease-out both hhRouteFadeOut;
 }
-.hh-page-transition { animation: hhPageIn 240ms ease-out; }
+::view-transition-new(.hh-route-enter) {
+  animation: 140ms ease-out both hhRouteFadeIn;
+}
 @keyframes hhFadeIn {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -992,7 +995,12 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   box-shadow: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  .hh-page-transition { animation: none; }
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
   .btn { transition: none; }
 }
 
@@ -1075,11 +1083,40 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 
 /* Crossfade theme changes where supported; older browsers apply immediately. */
 ::view-transition-old(root), ::view-transition-new(root) {
-  animation-duration: 240ms;
+  animation-duration: 140ms;
   animation-timing-function: ease-in-out;
 }
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+}
+
+/* A one-time touch hint fades out quickly after the first feed visit. */
+@keyframes hhPullRefreshHint {
+  0% { opacity: 0; transform: translate(-50%, -6px); }
+  12% { opacity: 1; transform: translate(-50%, 0); }
+  82% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -4px); }
+}
+.hh-pull-refresh-hint {
+  position: fixed;
+  z-index: 9300;
+  top: calc(max(env(safe-area-inset-top, 0px), var(--hh-top-inset, 0px)) + 72px);
+  left: 50%;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--btn-primary-color);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  animation: hhPullRefreshHint 2400ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hh-pull-refresh-hint { animation: none; }
 }
 
 /* Conversation motion is short, quiet, and independent of network latency. */

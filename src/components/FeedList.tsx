@@ -147,6 +147,8 @@ export default function FeedList({
   const [refreshKey, setRefreshKey] = useState(0);
   const [pullDist, setPullDist] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showPullRefreshHint, setShowPullRefreshHint] = useState(false);
+  const pullRefreshHintShownRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
   const PULL_THRESHOLD = 72;
   const [showActions, setShowActions] = useState<string | null>(null);
@@ -649,6 +651,25 @@ export default function FeedList({
     ];
   }, [filteredItems, pendingCasts, selectedChannel]);
 
+  useEffect(() => {
+    if (pullRefreshHintShownRef.current || items === null || displayItems.length === 0) return;
+    pullRefreshHintShownRef.current = true;
+
+    const supportsTouch = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
+    if (!supportsTouch) return;
+
+    try {
+      if (sessionStorage.getItem('hh-pull-refresh-hint-seen')) return;
+      sessionStorage.setItem('hh-pull-refresh-hint-seen', '1');
+    } catch {
+      // Show the hint for this mount if browser storage is unavailable.
+    }
+
+    setShowPullRefreshHint(true);
+    const timer = window.setTimeout(() => setShowPullRefreshHint(false), 2400);
+    return () => window.clearTimeout(timer);
+  }, [items, displayItems.length]);
+
   if (items === null && displayItems.length === 0)
     return (
       <div aria-busy="true" aria-live="polite">
@@ -697,11 +718,20 @@ export default function FeedList({
 
   return (
     <>
-    <div className="hh-feed-status" role="status">
-      <span>{feedError || checkError || (checkedAt ? `Checked ${new Date(checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Checks for updates every minute while visible.')}</span>
-      {feedError && cursor && <button className="btn" onClick={loadMore} disabled={loadingMore}>Retry older casts</button>}
-      <button className="btn" onClick={refreshFeed}>{updates ? `Load ${updates} new casts` : 'Refresh feed'}</button>
-    </div>
+    {showPullRefreshHint && (
+      <div className="hh-pull-refresh-hint" role="status" aria-live="polite">
+        Pull down to refresh
+      </div>
+    )}
+    {(feedError || checkError || checkedAt || (feedError && cursor) || updates > 0) && (
+      <div className="hh-feed-status" role="status">
+        {(feedError || checkError || checkedAt) && (
+          <span>{feedError || checkError || `Checked ${new Date(checkedAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}</span>
+        )}
+        {feedError && cursor && <button className="btn" onClick={loadMore} disabled={loadingMore}>Retry older casts</button>}
+        {updates > 0 && <button className="btn" onClick={refreshFeed}>Load {updates} new casts</button>}
+      </div>
+    )}
     {/* Non-blocking toast for reply/post feedback */}
     {toast && (
       <div
