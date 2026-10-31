@@ -965,6 +965,12 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 ::view-transition-new(.hh-route-enter) {
   animation: 140ms ease-out both hhRouteFadeIn;
 }
+::view-transition-old(.hh-feed-exit) {
+  animation: 110ms ease-out both hhRouteFadeOut;
+}
+::view-transition-new(.hh-feed-enter) {
+  animation: 140ms ease-out both hhRouteFadeIn;
+}
 @keyframes hhFadeIn {
   from { opacity: 0; transform: translateX(-50%) translateY(6px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
