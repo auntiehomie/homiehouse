@@ -133,6 +133,7 @@ export default function RootLayout({
         />
         {/* iOS PWA splash screens — required for clean launch experience */}
         <meta name="mobile-web-app-capable" content="yes" />
+        <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png" />
         <link rel="apple-touch-startup-image" href="/splash.png" />
       </head>
       <body className={`antialiased`}>
