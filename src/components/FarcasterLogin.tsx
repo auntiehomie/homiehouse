@@ -158,7 +158,7 @@ export default function FarcasterLogin({ onLogin, modal = false, onDismiss, requ
             Connect browser wallet
           </button>
           {walletConnectConnector && <button className="btn" onClick={() => void connectWithWalletConnectQr()} disabled={isConnecting || pairingPending} style={{ width: '100%', padding: 13 }}>
-            {isConnecting || pairingPending ? 'Waiting for wallet…' : 'Connect phone wallet with QR'}
+            {isConnecting || pairingPending ? 'Waiting for wallet…' : 'Connect from a different device'}
           </button>}
           {pairingUri && (
             <div role="status" aria-label="WalletConnect pairing QR code">
