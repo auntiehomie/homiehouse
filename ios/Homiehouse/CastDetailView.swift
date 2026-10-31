@@ -30,6 +30,10 @@ struct CastDetailView: View {
             }
         }
         .navigationTitle("Conversation")
+        .navigationBarTitleDisplayMode(.inline)
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(uiColor: .systemGroupedBackground))
         .task { await load() }
         .refreshable { await load() }
         .sheet(isPresented: $replying) { ComposerView(bridge: bridge, parent: cast) { Task { await load() } } }

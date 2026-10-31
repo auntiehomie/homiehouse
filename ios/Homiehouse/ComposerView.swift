@@ -19,11 +19,15 @@ struct ComposerView: View {
                 if !bridge.status.canPublish { Button("Connect account and signer") { connect = true } }
                 if let error { Text(error).foregroundStyle(.red) }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(parent == nil ? "New cast" : "Reply")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(sending) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(sending ? "Publishing…" : "Publish") { Task { await publish() } }
+                        .fontWeight(.semibold)
                         .disabled(sending || !valid || !bridge.status.canPublish)
                 }
             }

@@ -56,12 +56,12 @@ export default function SidebarNav() {
                 textDecoration: 'none',
                 fontWeight: active ? 600 : 400,
                 fontSize: 15,
-                color: active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
+                color: active ? 'var(--accent)' : 'var(--muted-on-dark)',
                 transition: 'background 0.15s, color 0.15s',
-                background: active ? 'var(--surface)' : 'transparent',
+                background: active ? 'var(--accent-soft)' : 'transparent',
               }}
               onMouseEnter={(e) => {
-                if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface)';
+                if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--surface-subtle)';
               }}
               onMouseLeave={(e) => {
                 if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent';

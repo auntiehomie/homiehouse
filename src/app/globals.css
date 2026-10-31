@@ -3,16 +3,16 @@
 /* Friendly palette and typography adapted from the Vite mini app */
 :root {
   /* Monochrome palette */
-  --accent: #FFFFFF;
-  --accent-hover: #D4D4D4;
-  --accent-soft: #A1A1AA;
-  --bg-dark: #111111;
-  --surface: #1C1C1C;
+  --accent: #34D399;
+  --accent-hover: #6EE7B7;
+  --accent-soft: rgba(52, 211, 153, 0.16);
+  --bg-dark: #09090B;
+  --surface: #18181B;
   --text-on-dark: #FFFFFF;
   --muted-on-dark: rgba(255,255,255,0.60);
-  --border: rgba(255,255,255,0.08);
-  --nav-bg: #000000;
-  --nav-border: rgba(255,255,255,0.1);
+  --border: rgba(255,255,255,0.12);
+  --nav-bg: #111113;
+  --nav-border: rgba(255,255,255,0.12);
 
   /* Semantic aliases keep shared controls consistent across themes. */
   --text-primary: var(--text-on-dark);
@@ -26,12 +26,13 @@
   --heading-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 
   /* Button theming */
-  --btn-primary-bg: #334155;
-  --btn-primary-color: #e2e8f0;
+  --btn-primary-bg: #34D399;
+  --btn-primary-color: #07130F;
 
   /* Light-mode overrides will set these to lighter variants */
   --background: var(--bg-dark);
   --foreground: var(--text-on-dark);
+  color-scheme: dark;
 }
 
 /* Shared controls use vector icons so their color and weight follow every theme. */
@@ -431,12 +432,20 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --bg-dark: #f8f8f8;
     --surface: #ffffff;
     --text-on-dark: #111111;
     --muted-on-dark: rgba(0,0,0,0.6);
-    --border: rgba(0,0,0,0.06);
+    --border: rgba(0,0,0,0.12);
+    --accent: #047857;
+    --accent-hover: #065f46;
+    --accent-soft: rgba(4,120,87,0.12);
+    --nav-bg: #ffffff;
+    --nav-border: rgba(0,0,0,0.12);
+    --btn-primary-bg: #047857;
+    --btn-primary-color: #ffffff;
+    color-scheme: light;
     --text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
     --heading-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
     --background: var(--bg-dark);
@@ -468,6 +477,13 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Keep browser and installed-PWA controls native-feeling on iOS and Android.
+   -apple-system resolves to San Francisco on Apple platforms; system-ui uses
+   Roboto on Android and the platform UI font elsewhere. */
+html { color-scheme: light dark; }
+button, input, textarea, select { font-family: inherit; }
+button { -webkit-appearance: none; appearance: none; }
+
 /* Headings */
 h1, h2, h3 {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -481,8 +497,8 @@ h1, h2, h3 {
 .surface {
   background: var(--surface);
   padding: 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  border-radius: var(--surface-radius);
+  border: 1px solid var(--separator);
 }
 
 .muted { color: var(--muted-on-dark); }
@@ -864,23 +880,22 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   bottom: 0;
   left: 0;
   right: 0;
-  background: #000000;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--nav-bg);
+  border-top: 1px solid var(--nav-border);
   z-index: 50;
-  backdrop-filter: blur(10px);
 }
 
 @media (prefers-color-scheme: light) {
   .bottom-nav {
-    background: #ffffff;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    background: var(--nav-bg);
+    border-top-color: var(--nav-border);
   }
 }
 
 /* Keep page content clear of the iOS status bar and the mobile bottom nav. */
 .hh-content-offset {
   padding-top: var(--hh-top-inset, env(safe-area-inset-top, 0px));
-  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(64px + max(env(safe-area-inset-bottom, 0px), 8px));
 }
 
 /* On desktop (lg+), the sidebar replaces mobile navigation. */
@@ -936,7 +951,9 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   z-index: 9500;
   pointer-events: all;
   /* Android: ensure touch targets clear system gesture zone */
-  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  padding-bottom: max(env(safe-area-inset-bottom), 8px);
+  padding-left: max(env(safe-area-inset-left), 0px);
+  padding-right: max(env(safe-area-inset-right), 0px);
 }
 
 /* A single fade avoids competing route animations and layout movement. */
@@ -986,6 +1003,25 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 }
 :where(button, input, textarea, select) { font: inherit; }
 ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* Platform-adaptive app shell: safe-area padding is part of the hit-area
+   layout, and selection follows system navigation conventions. */
+.hh-mobile-nav { min-height: 64px; }
+.hh-mobile-nav a { min-width: 48px; min-height: 48px; justify-content: center; }
+.hh-mobile-nav a[aria-current="page"],
+.hh-mobile-nav a[data-active="true"] {
+  color: var(--accent) !important;
+}
+.hh-drawer { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
+@media (min-width: 600px) and (max-width: 1023px) {
+  .hh-feed-column { max-width: 760px; margin-inline: auto; }
+}
+@media (display-mode: standalone) {
+  body { min-height: 100dvh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; }
+}
 @media (min-width: 769px) {
   main { margin-top: 1.5rem; }
 }
