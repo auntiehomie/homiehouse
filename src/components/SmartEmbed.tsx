@@ -9,6 +9,7 @@ import { buildJfs, getSignerForFid } from '@/lib/snap-jfs';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useRouter } from 'next/navigation';
 import { openComposeModal } from '@/lib/compose-modal-events';
+import { profileHref } from '@/lib/profile-links';
 
 type Result = 'frame' | 'snap' | 'url';
 
@@ -80,7 +81,12 @@ export default function SmartEmbed({ url, castHash }: Props) {
         if (action.params?.hash) router.push(`/cast/${action.params.hash}`);
         return;
       case 'view_profile':
-        router.push(`/profile?user=${action.params?.username || action.params?.fid}`);
+        router.push(profileHref({
+          username: typeof action.params?.username === 'string' ? action.params.username : null,
+          fid: typeof action.params?.fid === 'number' || typeof action.params?.fid === 'string'
+            ? action.params.fid
+            : null,
+        }));
         return;
       case 'compose_cast':
         openComposeModal({ text: action.params?.text ?? '' });
