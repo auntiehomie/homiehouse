@@ -1,7 +1,10 @@
 .dialog {
+  position: fixed;
+  inset-block: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-bottom, 0px));
   width: min(620px, calc(100vw - 24px));
   max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px);
-  margin: auto;
+  margin-block: auto;
+  margin-inline: auto;
   padding: clamp(18px, 4vw, 30px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -10,8 +13,21 @@
   background: var(--surface, #19191d);
   color: var(--text-on-dark, #fff);
   box-shadow: 0 24px 90px #0008;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
 }
-.dialog::backdrop { background: #000b; }
+.dialog::backdrop { background: #000b; transition: background-color 180ms ease-out; }
+@starting-style {
+  .dialog[open] { opacity: 0; transform: translateY(8px) scale(.99); }
+}
+.dialog :global(.btn) { min-height: 44px; }
+.dialog :global(button:focus-visible),
+.dialog :global(summary:focus-visible),
+.dialog :global(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 .steps { list-style: none; padding: 0; margin: 24px 0; display: grid; gap: 18px; }
 .step { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; }
 .number { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--bg-dark, #101014); border: 1px solid var(--border); font-size: 13px; font-weight: 700; }
@@ -22,5 +38,22 @@
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .note { color: var(--muted-on-dark); font-size: 12px; line-height: 1.5; }
 
-.summary { cursor: pointer; padding: 3px 0 10px; font-size: 15px; }
+.summary { cursor: pointer; display: flex; align-items: center; min-height: 44px; padding: 3px 0 10px; font-size: 15px; }
 .summary h3 { display: inline; }
+
+@media (max-width: 640px) {
+  .dialog {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top, 0px)) - max(12px, env(safe-area-inset-bottom, 0px)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog,
+  .dialog::backdrop {
+    transition: none;
+  }
+  @starting-style {
+    .dialog[open] { opacity: 1; transform: none; }
+  }
+}
