@@ -19,8 +19,7 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
 // 1. Farcaster mini-apps are LOADED IN AN IFRAME by the host client (see
 //    src/app/.well-known/farcaster.json's homeUrl: /mini/ask-homie) —
 //    framing them is the whole point, not a vulnerability. X-Frame-Options
-//    and CSP's frame-ancestors are scoped to exclude /mini/*, /api/frame/*,
-//    and /.well-known/* so the mini-app and Frame endpoints stay embeddable
+//    and CSP's frame-ancestors are scoped to exclude /mini/* so mini-apps stay embeddable
 //    by any Farcaster client, while everything else (the main app) is
 //    locked to same-origin framing only.
 //
@@ -28,29 +27,21 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
 //    RainbowKit, wagmi, WalletConnect) whose exact runtime script/connect/
 //    frame origins aren't fully enumerable from source alone, and there's
 //    no environment here to live-test a full wallet-connect flow against a
-//    strict CSP. Shipping a too-strict enforced CSP risks silently breaking
-//    login — worse than not having one. So CSP ships as
-//    Content-Security-Policy-Report-Only: it reports violations (visible in
-//    browser devtools / a configured report-uri) without blocking anything,
-//    which is the standard safe rollout path. Once a deploy's console is
-//    checked for false positives, swap the header name to
-//    Content-Security-Policy to actually enforce it.
+//    strict CSP. A compatible policy is enforced now; a tighter candidate is
+//    also report-only so deploy telemetry can guide further restrictions.
 //
 //    CSP violation reports are sent to /api/csp-report for collection.
-//    Before enforcing: deploy with the report-only header, let it run
-//    through a full usage cycle (auth, wallet interactions, token analysis),
-//    then review the collected reports via the csp-report logs. If no
-//    unexpected violations appear from third-party SDK origins, swap the
-//    header name from Content-Security-Policy-Report-Only to
-//    Content-Security-Policy.
+//    Before tightening further, run a full usage cycle (auth, wallet
+//    interactions, token analysis) and review the csp-report logs.
 const CSP_REPORT_URI = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol'}/api/csp-report`;
 const CSP_REPORT_DIRECTIVE = `report-uri ${CSP_REPORT_URI}`;
 const APP_FRAME_ANCESTORS = "frame-ancestors 'self'";
-const CSP_REPORT_ONLY = [
+const SCRIPT_SRC = `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`;
+const CSP_ENFORCED = [
   "default-src 'self'",
-  // Next.js hydration + wallet SDKs need inline/eval at runtime; tightening
-  // this further requires a nonce-based setup, which needs its own testing pass.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+  // Inline scripts remain temporarily for hydration. Next.js only needs eval
+  // for development diagnostics; production blocks eval and remote scripts.
+  SCRIPT_SRC,
   "style-src 'self' 'unsafe-inline'", // multiple components inject <style>{`@keyframes...`}</style>
   "img-src 'self' data: https:", // avatars/token logos come from arbitrary HTTPS hosts (see images.remotePatterns)
   "font-src 'self' data:",
@@ -60,7 +51,10 @@ const CSP_REPORT_ONLY = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-].join('; ') + '; ' + CSP_REPORT_DIRECTIVE;
+].join('; ');
+const CSP_REPORT_ONLY = CSP_ENFORCED
+  .replace(SCRIPT_SRC, "script-src 'self'")
+  + '; ' + CSP_REPORT_DIRECTIVE;
 
 const SECURITY_HEADERS = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -68,6 +62,7 @@ const SECURITY_HEADERS = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(self)' },
   { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'Content-Security-Policy', value: CSP_ENFORCED },
   { key: 'Content-Security-Policy-Report-Only', value: CSP_REPORT_ONLY },
 ];
 
@@ -77,8 +72,8 @@ const SECURITY_HEADERS = [
 const FRAMEABLE_HEADERS = SECURITY_HEADERS
   .filter((h) => h.key !== 'X-Frame-Options')
   .map((h) =>
-    h.key === 'Content-Security-Policy-Report-Only'
-      ? { ...h, value: CSP_REPORT_ONLY.replace(APP_FRAME_ANCESTORS, 'frame-ancestors *') }
+    h.key === 'Content-Security-Policy' || h.key === 'Content-Security-Policy-Report-Only'
+      ? { ...h, value: h.value.replace(APP_FRAME_ANCESTORS, 'frame-ancestors *') }
       : h
   );
 
@@ -91,8 +86,6 @@ const nextConfig: NextConfig = {
     return [
       { source: '/:path*', headers: SECURITY_HEADERS },
       { source: '/mini/:path*', headers: FRAMEABLE_HEADERS },
-      { source: '/api/frame/:path*', headers: FRAMEABLE_HEADERS },
-      { source: '/.well-known/:path*', headers: FRAMEABLE_HEADERS },
     ];
   },
   async rewrites() {

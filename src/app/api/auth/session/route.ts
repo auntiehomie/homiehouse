@@ -24,7 +24,7 @@ import {
   refreshSession,
   SessionError,
 } from '@/lib/session';
-import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { verifyFarcasterSignerKey } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 import {
   getHomieHouseAuthDomain,
@@ -97,7 +97,14 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const verifiedFid = await verifyFarcasterSignerAuth(req);
+      const signerKey = req.headers.get('x-signer-key');
+      if (!signerKey) {
+        return NextResponse.json(
+          { ok: false, error: 'Approved signer proof required' },
+          { status: 401 },
+        );
+      }
+      const verifiedFid = await verifyFarcasterSignerKey(requestedFid, signerKey);
       if (verifiedFid !== requestedFid) {
         return NextResponse.json(
           {

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { verifyFarcasterSignerAuth, verifyFarcasterSignerKey } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { verifySession } from '@/lib/session';
 import { isActiveHypersnapSigner } from '@/lib/hypersnap-signer-auth';
@@ -28,26 +28,14 @@ describe('Farcaster signer authentication', () => {
   it('accepts a Hypersnap-only signer for checkout without permanently caching it', async () => {
     mockSql.mockResolvedValue([]);
     (isActiveHypersnapSigner as jest.Mock).mockResolvedValue(true);
-    const request = new NextRequest('http://localhost/api/stripe/checkout', {
-      method: 'POST',
-      headers: { 'x-farcaster-fid': '123', 'x-signer-key': '01'.repeat(32) },
-    });
-    await expect(verifyFarcasterSignerAuth(request, 'write:shop')).resolves.toBe(123);
+    await expect(verifyFarcasterSignerKey(123, '01'.repeat(32))).resolves.toBe(123);
     expect(isActiveHypersnapSigner).toHaveBeenCalledWith(123, `0x${'02'.repeat(32)}`);
     expect(global.fetch).not.toHaveBeenCalled();
     expect(mockSql.mock.calls.every(([strings]) => !strings.join('').includes('INSERT'))).toBe(true);
   });
 
   it('derives a public key and accepts an approved signer', async () => {
-    const request = new NextRequest('http://localhost/api/compose/suggestions', {
-      method: 'POST',
-      headers: {
-        'x-farcaster-fid': '123',
-        'x-signer-key': `0x${'01'.repeat(32)}`,
-      },
-    });
-
-    await expect(verifyFarcasterSignerAuth(request)).resolves.toBe(123);
+    await expect(verifyFarcasterSignerKey(123, `0x${'01'.repeat(32)}`)).resolves.toBe(123);
     expect(mockSql).toHaveBeenCalled();
   });
 
@@ -60,16 +48,7 @@ describe('Farcaster signer authentication', () => {
       json: async () => ({ result: `0x${'0'.repeat(63)}1${'0'.repeat(63)}1` }),
     });
 
-    const request = new NextRequest('http://localhost/api/compose/suggestions', {
-      method: 'POST',
-      headers: {
-        'x-farcaster-fid': '123',
-        'x-signer-key': `0x${'01'.repeat(32)}`,
-        'x-signer-uuid': 'approved-request-token',
-      },
-    });
-
-    await expect(verifyFarcasterSignerAuth(request)).resolves.toBe(123);
+    await expect(verifyFarcasterSignerKey(123, `0x${'01'.repeat(32)}`)).resolves.toBe(123);
     expect(global.fetch).toHaveBeenCalledWith(expect.not.stringContaining('warpcast.com'), expect.any(Object));
     expect(mockSql).toHaveBeenCalledTimes(2);
   });
@@ -85,15 +64,7 @@ describe('Farcaster signer authentication', () => {
       }),
     });
 
-    const request = new NextRequest('http://localhost/api/compose/suggestions', {
-      method: 'POST',
-      headers: {
-        'x-farcaster-fid': '123',
-        'x-signer-key': `0x${'01'.repeat(32)}`,
-      },
-    });
-
-    await expect(verifyFarcasterSignerAuth(request)).resolves.toBe(123);
+    await expect(verifyFarcasterSignerKey(123, `0x${'01'.repeat(32)}`)).resolves.toBe(123);
     expect(global.fetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ method: 'POST' }),
@@ -102,16 +73,20 @@ describe('Farcaster signer authentication', () => {
   });
 
   it('rejects malformed signer keys before querying for approval', async () => {
+    await expect(verifyFarcasterSignerKey(123, 'not-a-private-key')).rejects.toMatchObject({
+      code: 'INVALID_SIGNER_KEY',
+      status: 401,
+    });
+    expect(mockSql).not.toHaveBeenCalled();
+  });
+
+  it('rejects raw signer headers on ordinary API routes', async () => {
     const request = new NextRequest('http://localhost/api/compose/suggestions', {
       method: 'POST',
-      headers: {
-        'x-farcaster-fid': '123',
-        'x-signer-key': 'not-a-private-key',
-      },
+      headers: { 'x-farcaster-fid': '123', 'x-signer-key': '01'.repeat(32) },
     });
-
     await expect(verifyFarcasterSignerAuth(request)).rejects.toMatchObject({
-      code: 'INVALID_SIGNER_KEY',
+      code: 'MISSING_AUTH_HEADERS',
       status: 401,
     });
     expect(mockSql).not.toHaveBeenCalled();

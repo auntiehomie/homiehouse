@@ -2,7 +2,7 @@
  * POST /api/stripe/checkout
  *
  * Creates a Stripe Checkout Session for the HomieHouse Pro subscription.
- * Requires Farcaster signer auth (x-farcaster-fid + x-signer-key headers).
+ * Requires a scoped HomieHouse session.
  *
  * The client redirects to the returned URL for the Stripe-hosted checkout page.
  */

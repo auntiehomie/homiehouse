@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateImageFile } from '@/lib/validation';
+import { validateImageFile, validateImageSignature } from '@/lib/validation';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { rateLimit } from '@/lib/ratelimit';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/upload-image');
   logger.start();
 
   try {
+    const authenticatedFid = await verifyFarcasterSignerAuth(request, 'write:casts');
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
     const { success: rlOk } = rateLimit(`upload-image:${ip}`, 20, 3600);
     if (!rlOk) {
@@ -18,13 +21,17 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fid = formData.get('fid');
-    logger.info('Upload request', { fid: fid ? Number(fid) : 'unknown' });
+    if (fid !== null && Number(fid) !== authenticatedFid) {
+      return NextResponse.json({ error: 'FID does not match authenticated user' }, { status: 403 });
+    }
+    logger.info('Upload request', { fid: authenticatedFid });
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     validateImageFile(file);
+    await validateImageSignature(file);
 
     logger.info('Uploading image', { fileName: file.name, fileType: file.type, fileSize: file.size });
 
@@ -105,6 +112,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, url: result.data.url, deleteUrl: result.data.delete_url, provider: 'imgbb' });
 
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     logger.error('Upload failed', error);
     return handleApiError(error, 'POST /upload-image');
   }

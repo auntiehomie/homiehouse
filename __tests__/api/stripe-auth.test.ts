@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { POST as checkout } from '@/app/api/stripe/checkout/route';
 import { POST as portal } from '@/app/api/stripe/portal/route';
 import { getStripeOrThrow, getProSubscriber } from '@/lib/stripe';
+import { verifySession } from '@/lib/session';
 
 jest.mock('@noble/ed25519', () => ({
   getPublicKeyAsync: jest.fn(async () => Uint8Array.from({ length: 32 }, () => 2)),
@@ -14,7 +15,7 @@ jest.mock('@/lib/stripe', () => ({
   getProSubscriber: jest.fn(),
 }));
 
-describe('Stripe routes with real Hypersnap signer authentication', () => {
+describe('Stripe routes with scoped session authentication', () => {
   const createCheckout = jest.fn();
   const createPortal = jest.fn();
   beforeEach(() => {
@@ -30,16 +31,17 @@ describe('Stripe routes with real Hypersnap signer authentication', () => {
     createCheckout.mockResolvedValue({ id: 'cs_test', url: 'https://checkout.stripe.com/test' });
     createPortal.mockResolvedValue({ url: 'https://billing.stripe.com/test' });
     (getProSubscriber as jest.Mock).mockResolvedValue({ stripe_customer_id: 'cus_123' });
+    (verifySession as jest.Mock).mockResolvedValue({ fid: 123, scopes: ['write:shop'] });
   });
 
-  function request(path: string, fid = '123') {
+  function request(path: string, authenticated = true) {
     return new NextRequest(`https://homiehouse.app/api/stripe/${path}`, {
       method: 'POST',
-      headers: { 'x-farcaster-fid': fid, 'x-signer-key': '01'.repeat(32) },
+      headers: authenticated ? { 'x-session-token': 'valid-session' } : {},
     });
   }
 
-  it('starts checkout for a Hypersnap-only signer and binds billing to the verified FID', async () => {
+  it('starts checkout and binds billing to the session FID', async () => {
     const response = await checkout(request('checkout'));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, url: 'https://checkout.stripe.com/test' });
@@ -58,8 +60,8 @@ describe('Stripe routes with real Hypersnap signer authentication', () => {
     expect(createPortal).toHaveBeenCalledWith(expect.objectContaining({ customer: 'cus_123' }));
   });
 
-  it.each([['checkout', checkout], ['portal', portal]] as const)('rejects an FID mismatch before calling Stripe (%s)', async (path, handler) => {
-    const response = await handler(request(path, '456'));
+  it.each([['checkout', checkout], ['portal', portal]] as const)('rejects a missing session before calling Stripe (%s)', async (path, handler) => {
+    const response = await handler(request(path, false));
     expect(response.status).toBe(401);
     expect(getStripeOrThrow).not.toHaveBeenCalled();
     expect(getProSubscriber).not.toHaveBeenCalled();

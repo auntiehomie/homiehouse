@@ -11,6 +11,7 @@ import { fetchChannelParentUrl } from '@/lib/hypersnap';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { publishOptimisticCast } from '@/lib/optimistic-casts';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
+import { getAuthHeaders } from '@/lib/client-auth';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
@@ -23,9 +24,11 @@ import {
 } from '@/lib/fc-message-builder';
 
 async function submitMessage(message: Uint8Array): Promise<unknown> {
+  const auth = getAuthHeaders('write:casts');
+  if (!auth) throw new Error('Your posting session has expired. Sign in again.');
   const res = await fetch('/api/submit-cast', {
     method: 'POST',
-    headers: { 'content-type': 'application/octet-stream' },
+    headers: { 'content-type': 'application/octet-stream', ...auth },
     body: message as unknown as BodyInit,
   });
   const data = await res.json().catch(() => ({}));
@@ -111,6 +114,7 @@ export interface UseFarcasterWritesReturn {
   recast: (params: ReactionParams) => Promise<void>;
   removeRecast: (params: ReactionParams) => Promise<void>;
   reply: (params: ReplyParams) => Promise<CastSubmissionResult>;
+  deleteCast: (castHash: string) => Promise<void>;
   follow: (targetFid: number) => Promise<void>;
   unfollow: (targetFid: number) => Promise<void>;
   signerApprovalUrl: null;
@@ -287,6 +291,15 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     return { castHash, galleryFallback: published.galleryFallback };
   }, [getSigner, fid, username, displayName, pfpUrl]);
 
+  const deleteCast = useCallback(async (castHash: string): Promise<void> => {
+    const signer = await getSigner();
+    const message = await buildSignedMessage(
+      { type: MessageType.CAST_REMOVE, fid, body: { castRemoveBody: { targetHash: hexToBytes(castHash) } } },
+      signer,
+    );
+    await submitMessage(message);
+  }, [getSigner, fid]);
+
   const follow = useCallback(async (targetFid: number): Promise<void> => {
     const signer = await getSigner();
     const message = await buildSignedMessage(
@@ -325,6 +338,7 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     recast,
     removeRecast,
     reply,
+    deleteCast,
     follow,
     unfollow,
     signerApprovalUrl: null,

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 
 const DEFAULT_HYPERSNAP_URL = 'https://haatz.quilibrium.com';
 const HYPERSNAP_WRITE_BASE =
@@ -15,6 +17,66 @@ const HYPERSNAP_WRITE_FALLBACK =
 const HYPERSNAP_WRITE_TARGETS = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRITE_FALLBACK]
   .map((url) => url.replace(/\/+$/, ''))
   .filter(Boolean))];
+const MAX_SIGNED_MESSAGE_BYTES = 64 * 1024;
+
+function readVarint(bytes: Uint8Array, start: number): { value: bigint; next: number } {
+  let value = 0n;
+  let shift = 0n;
+  for (let offset = start; offset < bytes.length && offset < start + 10; offset += 1) {
+    const byte = bytes[offset];
+    value |= BigInt(byte & 0x7f) << shift;
+    if ((byte & 0x80) === 0) return { value, next: offset + 1 };
+    shift += 7n;
+  }
+  throw new Error('Malformed protobuf varint');
+}
+
+function findField(bytes: Uint8Array, target: number): { wire: number; value: bigint | Uint8Array } | null {
+  let offset = 0;
+  while (offset < bytes.length) {
+    const tag = readVarint(bytes, offset);
+    offset = tag.next;
+    const field = Number(tag.value >> 3n);
+    const wire = Number(tag.value & 7n);
+    if (wire === 0) {
+      const parsed = readVarint(bytes, offset);
+      offset = parsed.next;
+      if (field === target) return { wire, value: parsed.value };
+    } else if (wire === 2) {
+      const length = readVarint(bytes, offset);
+      offset = length.next;
+      const end = offset + Number(length.value);
+      if (!Number.isSafeInteger(end) || end > bytes.length) throw new Error('Malformed protobuf field');
+      const value = bytes.slice(offset, end);
+      offset = end;
+      if (field === target) return { wire, value };
+    } else if (wire === 1) {
+      offset += 8;
+    } else if (wire === 5) {
+      offset += 4;
+    } else {
+      throw new Error('Unsupported protobuf wire type');
+    }
+    if (offset > bytes.length) throw new Error('Malformed protobuf field');
+  }
+  return null;
+}
+
+/** Read the author FID from a Farcaster Message envelope without trusting JSON metadata. */
+export function readSignedMessageFid(message: Uint8Array): number {
+  // Hypersnap's Message envelope carries encoded MessageData in field 7.
+  const dataField = findField(message, 7);
+  if (!dataField || dataField.wire !== 2 || !(dataField.value instanceof Uint8Array)) {
+    throw new Error('Signed message data is missing');
+  }
+  const fidField = findField(dataField.value, 2);
+  if (!fidField || fidField.wire !== 0 || typeof fidField.value !== 'bigint') {
+    throw new Error('Signed message FID is missing');
+  }
+  const fid = Number(fidField.value);
+  if (!Number.isSafeInteger(fid) || fid <= 0) throw new Error('Signed message FID is invalid');
+  return fid;
+}
 
 async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
   let lastError: unknown;
@@ -58,6 +120,7 @@ async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
  */
 export async function POST(request: NextRequest) {
   try {
+    const authenticatedFid = await verifyFarcasterSignerAuth(request, 'write:casts');
 
     // Rate limit: 30 requests/minute per IP
     const forwarded = request.headers.get('x-forwarded-for');
@@ -70,6 +133,18 @@ export async function POST(request: NextRequest) {
 
     if (!messageBytes.byteLength) {
       return NextResponse.json({ ok: false, error: 'Empty message body' }, { status: 400 });
+    }
+    if (messageBytes.byteLength > MAX_SIGNED_MESSAGE_BYTES) {
+      return NextResponse.json({ ok: false, error: 'Signed message is too large' }, { status: 413 });
+    }
+    let messageFid: number;
+    try {
+      messageFid = readSignedMessageFid(new Uint8Array(messageBytes));
+    } catch {
+      return NextResponse.json({ ok: false, error: 'Invalid signed message' }, { status: 400 });
+    }
+    if (messageFid !== authenticatedFid) {
+      return NextResponse.json({ ok: false, error: 'Signed message FID does not match session' }, { status: 403 });
     }
 
     const hubRes = await submitMessage(messageBytes);
@@ -99,6 +174,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ...data, ok: true });
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
+    }
     console.error('[submit-cast] proxy error:', error);
     return NextResponse.json(
       { ok: false, error: error?.message || 'Failed to submit message to hub' },

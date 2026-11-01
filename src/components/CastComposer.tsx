@@ -43,6 +43,7 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { searchUsers } from '@/lib/hypersnap';
 import { MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
@@ -393,7 +394,9 @@ export default function CastComposer({
           const form = new FormData();
           form.append('file', file);
           if (userFid) form.append('fid', String(userFid));
-          const res = await fetch('/api/upload-image', { method: 'POST', body: form });
+          const auth = getAuthHeaders('write:casts');
+          if (!auth) throw new Error('Your posting session has expired. Sign in again.');
+          const res = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: form });
           const data = await res.json();
           if (res.ok && data?.ok && data?.url) uploaded.push(data.url);
         }

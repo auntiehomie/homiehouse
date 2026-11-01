@@ -46,7 +46,7 @@ function splitIntoThread(text: string, limit: number): string[] {
 
 export default function ComposeModal() {
   const { fid: userFid } = useFarcasterAuth();
-  const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, reply, getPrivateKeyHex } = useFarcasterWrites();
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -379,7 +379,9 @@ export default function ComposeModal() {
         const formData = new FormData();
         formData.append('file', file);
         if (userFid) formData.append('fid', String(userFid));
-        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const auth = getAuthHeaders('write:casts');
+        if (!auth) throw new Error('Your posting session has expired. Sign in again.');
+        const response = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: formData });
         const data = await response.json();
         if (!response.ok || !data.ok || !data.url) {
           setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
@@ -455,10 +457,16 @@ export default function ComposeModal() {
 
         body.scheduled_time = scheduledDate.toISOString();
         
-        const authHeaders = getAuthHeaders();
+        const authHeaders = getAuthHeaders('write:casts');
+        const signerKey = getPrivateKeyHex();
+        if (!authHeaders || !signerKey) {
+          setStatus('Posting permissions required to schedule this cast.');
+          setLoading(false);
+          return;
+        }
         const res = await fetch("/api/schedule-cast", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
+          headers: { "Content-Type": "application/json", ...authHeaders, 'x-signer-key': signerKey },
           body: JSON.stringify(body),
         });
 

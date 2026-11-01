@@ -290,7 +290,9 @@ function ComposePageInner() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const auth = getAuthHeaders('write:casts');
+        if (!auth) throw new Error('Your posting session has expired. Sign in again.');
+        const response = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: formData });
         const data = await response.json();
         if (data.ok && data.url) { uploaded.push(data.url); }
         else { setStatus(`Upload failed: ${data.error || 'Unknown error'}`); }
@@ -387,7 +389,11 @@ function ComposePageInner() {
 
        const res = await fetch("/api/schedule-cast", {
          method: "POST",
-          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          headers: {
+            "Content-Type": "application/json",
+            ...(getAuthHeaders('write:casts') ?? {}),
+            'x-signer-key': signerPrivateKey,
+          },
          body: JSON.stringify(body),
        });
 

@@ -249,20 +249,12 @@ export function useSessionAuth() {
   }, [state.token]);
 
   /**
-   * Get auth headers for API calls.
-   * Prefers session token; falls back to signer key for legacy compat.
+   * Get the session header for API calls.
    */
-  const getAuthHeaders = useCallback((
-    legacyFid?: number,
-    legacySignerKey?: string,
-  ): Record<string, string> => {
+  const getAuthHeaders = useCallback((): Record<string, string> => {
     const headers: Record<string, string> = {};
     if (state.token) {
       headers['x-session-token'] = state.token;
-    }
-    if (legacyFid && legacySignerKey) {
-      headers['x-farcaster-fid'] = String(legacyFid);
-      headers['x-signer-key'] = legacySignerKey;
     }
     return headers;
   }, [state.token]);
