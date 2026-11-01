@@ -38,7 +38,7 @@
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .note { color: var(--muted-on-dark); font-size: 12px; line-height: 1.5; }
 
-.summary { cursor: pointer; padding: 3px 0 10px; font-size: 15px; }
+.summary { cursor: pointer; display: flex; align-items: center; min-height: 44px; padding: 3px 0 10px; font-size: 15px; }
 .summary h3 { display: inline; }
 
 @media (max-width: 640px) {
