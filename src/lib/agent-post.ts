@@ -46,7 +46,6 @@ export async function writeAgentPost(
       const res = await anthropic.messages.create({
         model,
         max_tokens: 800,
-        temperature: 0.85,
         system,
         messages: [{ role: 'user', content: instruction }],
       });
