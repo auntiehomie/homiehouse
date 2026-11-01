@@ -18,6 +18,7 @@ export const maxDuration = 30;
 interface LearningModule {
   id: string;
   title: string;
+  sourceUrl?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];
@@ -1234,6 +1235,7 @@ export async function POST(req: NextRequest) {
       if (kbModules.length > 0) {
         kbContext = '\n\nKnowledge Base articles for this track (source material):\n' + kbModules.map((m) => [
           '- Article: "' + m.title + '"',
+          '  Source URL: ' + (m.sourceUrl || 'not provided'),
           '  Summary: ' + m.description,
           '  Why it matters: ' + m.whyItMatters,
           '  Learning points: ' + m.objectives.join('; '),
@@ -1320,6 +1322,7 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation. Match th
     {
       "id": "slug-style-id",
       "title": "Module Title",
+      "sourceUrl": "exact source URL from the provided Knowledge Base context, when relevant",
       "description": "1-2 sentences describing what the module covers",
       "whyItMatters": "1 sentence explaining the practical importance",
       "objectives": ["bullet 1", "bullet 2", "bullet 3", "bullet 4"],
@@ -1337,6 +1340,7 @@ Requirements:
 - If a source cast is provided, begin with the ideas needed to understand that cast, then build toward practical context. Do not simply restate the cast or present its claims as verified facts.
 - When a source cast is provided, make the first module a cast breakdown: identify its central idea and terms, explain the concepts needed to understand it, and distinguish the author's claims from supported facts.
 - Mix theory and practical skills
+- If a module is based on a Knowledge Base article, include that article's exact source URL in sourceUrl. Omit sourceUrl for modules that do not use a listed article; never invent a URL.
 - Difficulty values must be exactly: beginner, intermediate, or advanced
 - estimatedMinutes should be realistic (15-45 min per module)
 - ids must be lowercase kebab-case slugs`;
@@ -1382,10 +1386,15 @@ Requirements:
     // Keep reward plans bounded and well-formed. The IDs are generated on the
     // server and saved server-side; client-supplied progress never defines rewards.
     if (!Array.isArray(plan.modules)) plan.modules = [];
+    const verifiedSourceUrls = new Set(kbModules.map((module) => module.sourceUrl).filter((url): url is string => Boolean(url)));
     plan.modules = plan.modules
       .filter((module) => module && typeof module.id === 'string' &&
         /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(module.id) &&
         typeof module.title === 'string' && module.title.length <= 160)
+      .map((module) => ({
+        ...module,
+        sourceUrl: typeof module.sourceUrl === 'string' && verifiedSourceUrls.has(module.sourceUrl) ? module.sourceUrl : undefined,
+      }))
       .slice(0, 8);
     if (plan.modules.length < 1) plan = withKBModules(fallbackForTrack(normalizedTrack, level));
 

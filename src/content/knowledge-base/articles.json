@@ -1,0 +1,608 @@
+{
+  "version": 1,
+  "description": "Homiehouse learning corpus. Source summaries and takeaways migrated from the Homiehouse-curated portion of Rufus Vault; do not add personal notes or secrets.",
+  "articles": [
+    {
+      "id": "uniswap-v4-whitepaper",
+      "title": "Uniswap v4 Whitepaper",
+      "url": "https://app.uniswap.org/whitepaper-v4.pdf",
+      "source": "app.uniswap.org",
+      "tags": [
+        "crypto",
+        "defi",
+        "uniswap"
+      ],
+      "summary": "The Uniswap v4 whitepaper introduces a major architectural evolution of the protocol centered on \"hooks\" — custom smart contract plugins that execute at specific points in the pool lifecycle (before/after swaps, LP deposits/withdrawals, etc.). This allows developers to build custom pool types (oracle-integrated, limit orders, dynamic fees, TWAMM, range orders, and more) without forking the core protocol. v4 also introduces a singleton contract architecture where all pools live inside one contract, reducing gas costs for multi-pool operations and simplifying deployment. The design separates the core swap logic from customization, letting developers compose new AMM features as hook contracts while inheriting Uniswap's security and liquidity.",
+      "learningPoints": [
+        "Hooks are the core innovation of Uniswap v4 — they're custom contracts that intercept pool lifecycle events (before/after swap, before/after LP position changes), enabling features like dynamic fees, on-chain oracles, limit orders, and custom swap routing without modifying the core protocol",
+        "The singleton architecture (all pools in one contract) reduces gas costs for multi-hop swaps because tokens don't need to be transferred between separate pool contracts — a multi-pool route is just internal accounting within a single contract",
+        "v4's design philosophy is \"incremental customization without forking\" — instead of launching new AMM variants as separate protocols, developers build hooks that compose with Uniswap's core, inheriting its liquidity network and audit surface while adding custom logic"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-whitepaper",
+      "title": "Ethereum Whitepaper",
+      "url": "https://ethereum.org/whitepaper/",
+      "source": "ethereum.org",
+      "tags": [
+        "crypto",
+        "ethereum",
+        "blockchain"
+      ],
+      "summary": "Vitalik Buterin's 2014 whitepaper introduces Ethereum as a next-generation smart contract and decentralized application platform — a blockchain with a built-in Turing-complete programming language that can encode arbitrary state transition functions. The paper traces the history of decentralized digital currency from Chaumian e-cash through b-money and Bitcoin, then frames Bitcoin as a state transition system where UTXOs are the state and transactions trigger transitions. Ethereum's key innovation is generalizing this: instead of Bitcoin's limited scripting language, Ethereum's contracts can implement any computational logic, enabling custom currencies (colored coins), smart property, name registration (Namecoin), DAOs, and arbitrary financial instruments — all on one chain. The paper covers mining, GHOST-based consensus, gas/fees, and applications like financial derivatives, identity systems, and decentralized file storage.",
+      "learningPoints": [
+        "Ethereum's core insight was treating the blockchain as a general-purpose state transition machine rather than a specialized ledger — by making the state transition function fully programmable, a single chain can support currencies, property registries, DAOs, and any arbitrary contract logic without hardcoding each use case",
+        "The \"Turing-complete\" distinction matters practically: Bitcoin's Script is intentionally limited (no loops, limited conditionals) to keep verification simple and predictable, while Ethereum's EVM allows arbitrary computation — this enables far more complex applications but introduces the gas system to bound execution and prevent infinite loops from halting the chain",
+        "The whitepaper's framing of DAOs as \"blockchain-based organizations operating by code\" was prescient in 2014 — it described exactly what emerged as The DAO (2016), MakerDAO, and the entire DeFi governance ecosystem, validating the thesis that programmable state transitions on a blockchain can encode organizational governance"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "bitcoin-whitepaper",
+      "title": "Bitcoin Whitepaper",
+      "url": "https://bitcoin.org/bitcoin.pdf",
+      "source": "bitcoin.org",
+      "tags": [
+        "crypto",
+        "bitcoin",
+        "blockchain"
+      ],
+      "summary": "Satoshi Nakamoto's 2008 whitepaper proposes a peer-to-peer electronic cash system that solves the double-spending problem without requiring a trusted third party. The core innovation is a proof-of-work-based distributed timestamp server that chains blocks of transactions together using cryptographic hashes, creating a public ledger (the blockchain) where the computational cost of rewriting history exceeds the cost of honest participation. The paper defines the mechanics: transactions are digitally signed, nodes form a peer-to-peer network, transactions are broadcast and grouped into blocks, miners compete to find a nonce producing a SHA-256 hash below the difficulty target, and the longest chain (most accumulated proof-of-work) is accepted as truth. The system is designed so that attacking the network requires controlling more than 50% of the network's compute power — making it economically irrational to attack rather than participate honestly.",
+      "learningPoints": [
+        "The double-spending problem is THE fundamental challenge of digital currency — without a central authority, how do you know someone hasn't spent the same coin twice? Satoshi's solution (proof-of-work + longest chain rule) was the first practical implementation that didn't rely on a trusted third party, solving a problem that had stumped cryptographers for decades",
+        "The \"longest chain = truth\" rule is really \"most accumulated proof-of-work = truth\" — this means consensus is probabilistic: a transaction isn't truly final until enough subsequent blocks have been mined that an attacker would need impossibly large compute to rewrite history, which is why Bitcoin has a recommended 6-confirmation wait",
+        "The economic incentives are the real security mechanism: miners are rewarded for honest participation (block rewards + transaction fees) and would lose that revenue stream by attacking the network, making honest behavior the dominant strategy — game theory, not cryptography alone, is what secures Bitcoin"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-theory-of-bankless-dao",
+      "title": "The Theory of Bankless DAO",
+      "url": "https://www.bankless.com/the-theory-of-bankless-dao",
+      "source": "bankless.com",
+      "tags": [
+        "crypto",
+        "dao",
+        "governance",
+        "philosophy"
+      ],
+      "summary": "David Hoffman, co-founder of Bankless, lays out the theoretical foundation for why Bankless transitioned from a centralized LLC to a DAO structure. The core argument is that the Bankless revolution — a cultural movement toward crypto-native, decentralized finance — cannot be scaled through a traditional C-corp without becoming the very thing it opposes. Hoffman argues that \"capitalism is only evil at scale\" — at local scale, economic participants can see and regulate each other, but at corporate scale, hierarchies calcify, incentives misalign, and harm is externalized to people who have no governance voice. The DAO structure offers a flatter topology where leadership and laborers work in the same Discord channels, coordination is emergent rather than top-down, and the movement can scale to a global population without concentrating power in a single entity.",
+      "learningPoints": [
+        "The \"capitalism is only evil at scale\" framework (attributed to Kevin Owocki of Gitcoin) is a useful lens: local economies self-regulate through visibility and shared interest, but at corporate scale, hierarchies disconnect decision-makers from consequences — DAOs attempt to fix this by keeping the organization flat and transparent",
+        "A \"headless brand\" — a brand that no single entity can own or co-opt — is a uniquely crypto-native concept that's impossible under traditional corporate structures. The Wells Fargo April Fools joke about acquiring Bankless resonated precisely because the community instinctively understands that acquisition should be structurally impossible for a genuine movement",
+        "The transition from LLC to DAO is not just a legal restructuring but a bet that emergent, distributed coordination will outperform hierarchical management at scale — Discord vs. Slack as organizational primitives matters: Discord's channel-based, open-participation model enables flat coordination that Slack's permissioned, enterprise-oriented model cannot"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "welcome-to-x402",
+      "title": "Welcome to x402",
+      "url": "https://docs.x402.org/introduction",
+      "source": "docs.x402.org",
+      "tags": [
+        "ai",
+        "agents",
+        "crypto",
+        "payments",
+        "web3",
+        "api"
+      ],
+      "summary": "x402 is an open standard for charging for APIs and content through HTTP, using the `402 Payment Required` response. Buyers, including AI agents, can pay programmatically without service accounts or manual checkout. The server supplies payment instructions, then verifies and settles the submitted payment itself or through a facilitator before providing the resource. The introduction highlights per-request APIs, digital content, and microtransaction-based tools as use cases.",
+      "learningPoints": [
+        "HTTP 402 can communicate payment requirements within a normal resource request.",
+        "A facilitator can provide payment verification and settlement endpoints.",
+        "x402 supports machine-to-machine payments and micropayments; the standard itself has no built-in fees."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "builder-code-erc-8021",
+      "title": "Builder Code (ERC-8021)",
+      "url": "https://docs.x402.org/extensions/builder-code",
+      "source": "docs.x402.org",
+      "tags": [
+        "crypto",
+        "x402",
+        "payments",
+        "attribution",
+        "developer docs"
+      ],
+      "summary": "The x402 builder-code extension adds on-chain attribution to payments by appending an ERC-8021 Schema 2 suffix to settlement transaction calldata. Resource servers, clients, and facilitators can each contribute codes identifying the app, participating services, and payment facilitator. The extension documents implementations for TypeScript, Go, and Python, plus tools to encode and parse the suffix. Codes are limited to lowercase letters, digits, and underscores, and each participant has a reserved capacity so one party cannot crowd out another.",
+      "learningPoints": [
+        "The attribution fields distinguish the app (`a`), facilitator (`w`), and service codes (`s`).",
+        "ERC-8021 encodes attribution in a CBOR suffix appended to settlement calldata, where off-chain tools can inspect it.",
+        "x402 provides code examples across TypeScript, Go, and Python, with separate code limits for clients, servers, and facilitators."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "let-a-thousand-societies-bloom-section-9",
+      "title": "Let a thousand societies bloom (section 9)",
+      "url": "https://vitalik.eth.limo/general/2025/12/17/societies.html#9",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "philosophy",
+        "decentralization",
+        "network states",
+        "governance"
+      ],
+      "summary": "Vitalik Buterin explores how people might voluntarily form new communities, cultures, cities, and jurisdictions instead of inheriting a single fixed set of social institutions. He discusses “tribes,” physical hubs, and special zones as different settings for cultural and governance experiments, while emphasizing that culture is shaped by lived habits and practices rather than mission statements alone. The essay favors small, pluralistic experiments that can generate real feedback while limiting the risks of imposing one model on everyone. It treats these ideas as varied experiments with tradeoffs, not as a single proven blueprint.",
+      "learningPoints": [
+        "Communities can range from online groups to cities and jurisdictions, with different degrees of autonomy and connection to existing institutions.",
+        "Physical hubs can make a community’s values tangible through shared spaces, routines, and services.",
+        "Voluntary, limited-scale experiments can test governance ideas while containing risks better than imposing a model at national scale."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "all-property-becomes-cryptography",
+      "title": "All Property Becomes Cryptography",
+      "url": "https://open.substack.com/pub/balajis/p/all-property-becomes-cryptography?r=8v1yo4&utm_medium=ios",
+      "source": "open.substack.com",
+      "tags": [
+        "crypto",
+        "tokenization",
+        "property",
+        "smart contracts"
+      ],
+      "summary": "Balaji Srinivasan argues that cryptographic systems could increasingly secure and control valuable assets, beginning with digital currency and potentially extending to financial instruments, doors, vehicles, and electronically controlled equipment. He points to stablecoins and smart locks as examples of how on-chain records and signatures could connect digital ownership with access to physical assets. The essay’s “99%+” claim is the author’s projection, not an established measurement, and the piece acknowledges that everyday consumables are an exception. It concludes with a broader vision of blockchain infrastructure enabling a code-based economic order across the internet.",
+      "learningPoints": [
+        "The argument moves from recording digital assets on-chain toward using cryptographic credentials to control access to physical property.",
+        "Smart contracts and digital signatures can act as access-control components when connected to electronic locks and equipment.",
+        "The essay is a forecast about technical and legal adoption, so its claims should be treated as a thesis rather than a description of current universal practice."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "optimism-documentation-for-ai-agents",
+      "title": "Optimism Documentation for AI Agents",
+      "url": "https://docs.optimism.io/llms.txt",
+      "source": "docs.optimism.io",
+      "tags": [
+        "crypto",
+        "optimism",
+        "OP Stack",
+        "AI agents",
+        "documentation"
+      ],
+      "summary": "Optimism publishes an `llms.txt` index that maps its entire documentation set as Markdown pages optimized for AI agent consumption, covering app development, chain operations, protocol concepts, interoperability, security, and component references. The companion \"Use the Docs with AI\" guide describes how to pair the index with per-page Markdown and an Optimism-hosted MCP server for agent-assisted research. This index serves as a discovery map — follow its links to the specific official page needed for a question, then read that page's Markdown as the primary source.",
+      "learningPoints": [
+        "The `llms.txt` standard provides a structured entry point for agents to navigate large documentation sets without crawling — Optimism's index spans the full OP Stack, Superchain, and OP Mainnet reference material",
+        "Optimism hosts an MCP server that agents can connect to for live documentation access; check the AI guide for current connection details and prompt instructions before configuring an agent",
+        "Always verify the linked page's network, component, version, and review date — documentation indexes can change, and time-sensitive implementation details should be rechecked against current official pages"
+      ],
+      "addedAt": "2026-10-10",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-network-state-in-one-thousand-words",
+      "title": "The Network State in One Thousand Words",
+      "url": "https://thenetworkstate.com/the-network-state-in-one-thousand-words",
+      "source": "thenetworkstate.com",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Balaji proposes seven stages: form a startup society, organize collective action, build offline trust and an online economy, fund physical locations, connect them, audit membership and resources, and seek recognition. This is an advocated pathway, not evidence that scale guarantees sovereignty.",
+      "learningPoints": [
+        "An online group is an early stage, not automatically a state.",
+        "Physical community is part of the proposal.",
+        "Recognition remains a political objective rather than a technical feature."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-network-state-in-one-essay",
+      "title": "The Network State in One Essay",
+      "url": "https://thenetworkstate.com/the-network-state-in-one-essay",
+      "source": "thenetworkstate.com",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Balaji contrasts conventional and speculative routes to new countries with a digitally organized, geographically dispersed community. His case is that existing internet tools make gradual community-building plausible. The proposed transition from organizational success to political recognition remains an argument to evaluate.",
+      "learningPoints": [
+        "The essay supplies the rationale behind the shorter roadmap.",
+        "Distributed locations can belong to one social project.",
+        "Measured membership or wealth should not be confused with governing authority."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "what-do-i-think-about-network-states",
+      "title": "What do I think about network states?",
+      "url": "https://vitalik.eth.limo/general/2022/07/13/networkstates.html",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Vitalik Buterin's July 13, 2022 review supports experimentation while challenging founder dominance, exclusion of people without resources, reliance on exit, and harms that cross community borders. He favors participatory governance, constraints on wealth-based voting, and representation for surrounding communities.",
+      "learningPoints": [
+        "Support for experiments does not require accepting Balaji's political worldview.",
+        "A right to leave does not replace accountable leadership.",
+        "His alternative combines local experimentation with democracy and wider cooperation."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "overthrowing-the-network-state-an-initial-critique-and-alternatives",
+      "title": "Overthrowing The Network State: An Initial Critique and Alternatives",
+      "url": "https://theblockchainsocialist.com/overthrowing-the-network-state-an-initial-critique-and-alternatives/",
+      "source": "theblockchainsocialist.com",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "The January 29, 2023 episode page introduces a critical series co-hosted by The Blockchain Socialist and Primavera De Filippi. Its written framing contrasts exit-based autonomy with commons-based governance that acknowledges interdependence. This summary covers the accessible written introduction only; the audio was not transcribed or reviewed.",
+      "learningPoints": [
+        "This is an explicitly critical perspective, not neutral reporting.",
+        "Its alternative emphasizes shared governance and interdependence.",
+        "Specific spoken arguments require transcript or audio verification before teaching them."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "modular-politics-toward-a-governance-layer-for-online-communities",
+      "title": "Modular Politics: Toward a Governance Layer for Online Communities",
+      "url": "https://arxiv.org/abs/2005.13701",
+      "source": "arxiv.org",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Nathan Schneider, Primavera De Filippi, Seth Frey, Joshua Z. Tan and Amy X. Zhang propose composable online governance mechanisms. The accessible abstract highlights missing institutions such as juries, term limits and formal debate. This earlier work is an alternative design framework, not a direct review of Balaji's later book; abstract reviewed, not full paper.",
+      "learningPoints": [
+        "Governance tools can offer more than platform-owner discretion.",
+        "Communities could combine portable participatory mechanisms.",
+        "A proposed framework is not proof that a particular implementation works."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-meaning-of-decentralization",
+      "title": "The Meaning of Decentralization",
+      "url": "https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274",
+      "source": "medium.com",
+      "tags": [
+        "decentralization",
+        "governance",
+        "web3"
+      ],
+      "summary": "Separates architectural, political, and logical decentralization. These describe failure tolerance, controlling actors, and whether a system maintains one shared state. A large computer count is insufficient to establish independent control. Use the framework to ask narrower questions rather than treating decentralization as an absolute label.",
+      "learningPoints": [
+        "Computer count and control differ.",
+        "Shared state is another dimension.",
+        "Specify the property being evaluated."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "daos-are-not-corporations-where-decentralization-in-autonomous-organizations-matters",
+      "title": "DAOs are not corporations: where decentralization in autonomous organizations matters",
+      "url": "https://vitalik.eth.limo/general/2022/09/20/daos.html",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "dao",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Argues for decentralized decision-making where compromise, durable censorship resistance, or credible fairness matters. Focused execution teams can coexist with broader accountability. The institutional setting matters: an organization providing basic infrastructure faces different demands from a company. This is a normative design argument, not a comparative performance study.",
+      "learningPoints": [
+        "Decentralization has multiple purposes.",
+        "Teams may retain operational focus.",
+        "Fairness requires credible safeguards."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "moving-beyond-coin-voting-governance",
+      "title": "Moving beyond coin voting governance",
+      "url": "https://vitalik.eth.limo/general/2021/08/16/voting3.html",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "dao",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Examines wealthy-holder dominance, excluded non-holder interests, and vote buying. Delegation addresses some participation problems without removing all incentive failures. Proposed alternatives include limiting governance powers and non-coin participation. These mechanisms have their own identity and collusion challenges; the essay does not establish a universal solution.",
+      "learningPoints": [
+        "Token ownership can concentrate influence.",
+        "Delegation has limited scope.",
+        "Alternatives also need attack analysis."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "building-effective-agents",
+      "title": "Building effective agents",
+      "url": "https://www.anthropic.com/research/building-effective-agents",
+      "source": "anthropic.com",
+      "tags": [
+        "ai",
+        "agents",
+        "agentic-economy"
+      ],
+      "summary": "Distinguishes predetermined workflows from agents choosing steps and tools. Recommends starting simply, adding complexity when evaluation demonstrates value, and designing clear tool interfaces. Agent loops use environmental feedback and stopping conditions. Flexibility can introduce extra latency, costs, and accumulated errors. Treat the patterns separately from changing framework recommendations.",
+      "learningPoints": [
+        "Workflows prescribe their paths.",
+        "Agents choose tools and steps.",
+        "Evaluate added complexity against results."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "non-fungible-tokens-nft",
+      "title": "Non-fungible tokens (NFT)",
+      "url": "https://ethereum.org/nft/",
+      "source": "ethereum.org",
+      "tags": [
+        "nft",
+        "creator",
+        "creator-economy",
+        "ethereum"
+      ],
+      "summary": "Describes unique token identities, smart-contract ownership records, metadata, and uses such as art, tickets, and course credentials. The page advocates NFT benefits. Teaching should distinguish the token mechanism from an issuer’s additional promises and avoid treating every possible integration as universally supported.",
+      "learningPoints": [
+        "Contracts track distinguishable tokens.",
+        "Credentials are one possible use.",
+        "Inspect each additional promise separately."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "zora-coins-protocol",
+      "title": "Zora Coins Protocol",
+      "url": "https://docs.zora.co/coins",
+      "source": "docs.zora.co",
+      "tags": [
+        "creator",
+        "creator-economy",
+        "creator-coins",
+        "zora"
+      ],
+      "summary": "Distinguishes profile Creator Coins, post Content Coins and Trend Coins. Creator supply includes a five-year vesting allocation. Do not confuse these tokens with ZORA or the Base network.",
+      "learningPoints": [
+        "A profile token differs from a post token.",
+        "Allocations vary by coin type.",
+        "A token purchase alone does not establish copyright or equity."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "about-bankless",
+      "title": "About Bankless",
+      "url": "https://www.bankless.com/about",
+      "source": "bankless.com",
+      "tags": [
+        "bankless",
+        "finance",
+        "media-literacy"
+      ],
+      "summary": "Presents crypto as coordination technology and a path toward greater sovereignty. Useful as the publisher’s own statement of perspective, rather than independent evidence for its economic conclusions. Pair substantive arguments with original evidence and the publisher’s disclosures.",
+      "learningPoints": [
+        "A publisher has a thesis.",
+        "A thesis is not outcome evidence.",
+        "Compare interpretations with original sources."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "bankless-disclosures",
+      "title": "Bankless Disclosures",
+      "url": "https://www.bankless.com/disclosures",
+      "source": "bankless.com",
+      "tags": [
+        "bankless",
+        "finance",
+        "media-literacy"
+      ],
+      "summary": "Describes material contributor holdings, advisory interests, and venture investments covered by disclosures. This frames potential conflicts; it does not prove a particular argument true or false. The linked spreadsheet was not inspected, so this note makes no claim about current individual positions.",
+      "learningPoints": [
+        "Holdings can shape incentives.",
+        "Disclosure is not a verdict.",
+        "Actual positions require separate verification."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-side-hustle-economys-crypto-moment",
+      "title": "The Side Hustle Economy's Crypto Moment",
+      "url": "https://www.bankless.com/read/the-side-hustle-economys-crypto-moment",
+      "source": "bankless.com",
+      "tags": [
+        "creator",
+        "creator-economy",
+        "bankless",
+        "finance"
+      ],
+      "summary": "Uses Whop to argue that crypto infrastructure can serve existing creator businesses instead of requiring creators to begin with tokens. Critiques earlier token-first approaches and acknowledges marketplace abuse concerns. Platform growth and product descriptions are attributed claims, not independently verified findings. Use it as a counterpoint to coin-based creator funding.",
+      "learningPoints": [
+        "Start with the service customers need.",
+        "Trading and creator revenue differ.",
+        "Product claims need original evidence."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "monero-faq-privacy-and-limitations",
+      "title": "Monero FAQ: privacy and limitations",
+      "url": "https://www.getmonero.org/get-started/faq/",
+      "source": "getmonero.org",
+      "tags": [
+        "privacy",
+        "monero",
+        "crypto"
+      ],
+      "summary": "Explains transaction-privacy mechanisms while explicitly rejecting complete-anonymity guarantees. Identity disclosures, exposed keys, compromised endpoints, and remote-node observations remain relevant. A privacy claim must name its observer and assumptions. This project reference is not an independent audit or a guarantee against future analysis.",
+      "learningPoints": [
+        "Transaction privacy has boundaries.",
+        "Endpoint compromise remains important.",
+        "Remote nodes add trust considerations."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "what-is-the-difference-between-shielded-and-transparent-zcash",
+      "title": "What is the difference between shielded and transparent Zcash?",
+      "url": "https://z.cash/learn/what-is-the-difference-between-shielded-and-transparent-zcash/",
+      "source": "z.cash",
+      "tags": [
+        "privacy",
+        "zcash",
+        "crypto"
+      ],
+      "summary": "Contrasts public transparent activity with shielded activity intended to protect financial details. The privacy mode matters; an asset name alone does not identify what observers can see. This short page does not establish the security properties of every wallet or operational path.",
+      "learningPoints": [
+        "Transparent activity exposes financial data.",
+        "Shielded activity has different visibility.",
+        "Check the actual transaction path."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "an-empirical-analysis-of-anonymity-in-zcash",
+      "title": "An Empirical Analysis of Anonymity in Zcash",
+      "url": "https://arxiv.org/abs/1805.03180",
+      "source": "arxiv.org",
+      "tags": [
+        "privacy",
+        "zcash",
+        "research"
+      ],
+      "summary": "The abstract reports that identifiable usage patterns can reduce anonymity sets in the then-deployed Zcash system. It supports examining behavior alongside cryptography. Historical results must not be presented as a current exploit, a modern-pool benchmark, or proof that private use is impossible.",
+      "learningPoints": [
+        "Usage patterns affect practical privacy.",
+        "The findings concern historical deployment.",
+        "Modern claims need newer evidence."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "legacy-zora-nft-documentation",
+      "title": "Legacy Zora NFT documentation",
+      "url": "https://nft-docs.zora.co/",
+      "source": "nft-docs.zora.co",
+      "tags": [
+        "creator",
+        "nft",
+        "zora"
+      ],
+      "summary": "Explicitly legacy documentation pointing readers to the modern Coins docs. Use it to explain the earlier NFT protocol rather than current coin mechanics.",
+      "learningPoints": [
+        "NFT collecting and fungible coins are distinct.",
+        "The documentation marks its historical scope.",
+        "Current coins need modern references."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "zora-coin-rewards",
+      "title": "Zora Coin Rewards",
+      "url": "https://docs.zora.co/coins/contracts/rewards",
+      "source": "docs.zora.co",
+      "tags": [
+        "creator",
+        "zora",
+        "content-coins"
+      ],
+      "summary": "The protocol splits trading fees among multiple recipients. Date and version matter; older help material can describe different rewards.",
+      "learningPoints": [
+        "Total fee is not all creator income.",
+        "Creator income is separate from holder returns.",
+        "Check deployed version and fee recipients."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "base-app-launch-vision",
+      "title": "Base App launch vision",
+      "url": "https://www.base.org/blog/a-new-day-one",
+      "source": "base.org",
+      "tags": [
+        "creator",
+        "base-app",
+        "content-coins"
+      ],
+      "summary": "Historical 2025 launch announcement describes social distribution, Zora-powered posts and separate weekly creator rewards. It does not establish present availability.",
+      "learningPoints": [
+        "Distribution shaped the experiment.",
+        "Weekly platform incentives differ from trading fees.",
+        "Launch promises require comparison with later outcomes."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "zora-and-base-app-integration-case-study",
+      "title": "Zora and Base App integration case study",
+      "url": "https://0x.org/case-studies/zora",
+      "source": "0x.org",
+      "tags": [
+        "creator",
+        "base-app",
+        "zora"
+      ],
+      "summary": "Integration provider describes routing between post coins, creator coins and ZORA. It is a promotional technical account, not independent evidence of durable earnings.",
+      "learningPoints": [
+        "Token pairs can require multi-hop routing.",
+        "Integration mechanics do not prove creator profitability.",
+        "Treat provider framing as interested evidence."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "creator-coin-retreat-reporting-and-analysis",
+      "title": "Creator coin retreat: reporting and analysis",
+      "url": "https://www.galaxy.com/insights/research/coinbase-capitulates-on-creator-coins-in-base-team-shakeup",
+      "source": "galaxy.com",
+      "tags": [
+        "creator",
+        "creator-economy",
+        "content-coins"
+      ],
+      "summary": "July 17, 2026 reporting and analysis describes the retreat from content coins and critiques fragmented attention and speculative cycles. Attribute the assessment to Galaxy; do not infer that every creator coin or creator business failed.",
+      "learningPoints": [
+        "Historical launch features may later change.",
+        "Attention, volume and sustainable income differ.",
+        "Separate reported events from causal interpretation."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    }
+  ]
+}
