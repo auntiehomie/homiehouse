@@ -1155,7 +1155,7 @@ export async function GET(req: NextRequest) {
 
   let fallback = fallbackForTrack(normalizedTrack, level);
 
-  // Enrich with KB modules
+  // Append KB modules to the curated fallback path without replacing its lessons.
   try {
     const kbModules = await getKBModulesForTrack(normalizedTrack, level);
     if (kbModules.length > 0) {
@@ -1226,8 +1226,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(safetyPlan);
     }
 
-    // Keep the synced KB available both as grounding context for the AI and
-    // as source-derived modules if the model returns malformed JSON.
+    // Keep the repository KB available as grounding context for AI-generated
+    // modules and as supplemental, source-derived lessons in the path.
     let kbModules: KBLearningModule[] = [];
     let kbContext = '';
     try {
@@ -1250,8 +1250,7 @@ export async function POST(req: NextRequest) {
       if (!kbModules.length) return basePlan;
       const additional = deduplicateModules(basePlan.modules, kbModules).slice(0, 3);
       if (!additional.length) return basePlan;
-      const retained = basePlan.modules.slice(0, Math.max(0, 8 - additional.length));
-      return { ...basePlan, modules: [...retained, ...additional] };
+      return { ...basePlan, modules: [...basePlan.modules, ...additional] };
     };
 
     const trackDescriptions: Record<string, string> = {
@@ -1335,6 +1334,7 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation. Match th
 
 Requirements:
 - Include 6-8 modules ordered from foundational to advanced
+- Keep this AI-generated interactive curriculum complete; repository Knowledge Base lessons are supplemental additions and do not replace AI-generated modules
 - Tailor content specifically to the "${normalizedTrack}" track and "${level}" level
 - If specific goals are provided, weave them into the module selection and summary
 - If a source cast is provided, begin with the ideas needed to understand that cast, then build toward practical context. Do not simply restate the cast or present its claims as verified facts.

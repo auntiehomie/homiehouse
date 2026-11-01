@@ -95,6 +95,43 @@ describe('/api/learning-plan source context', () => {
       .toBe('https://www.anthropic.com/research/building-effective-agents');
   });
 
+  it('keeps all eight AI-generated interactive modules and appends KB lessons as supplements', async () => {
+    const kbModules = ['A', 'B', 'C'].map((suffix) => ({
+      id: `kb-source-${suffix.toLowerCase()}`,
+      title: `KB Source ${suffix}`,
+      sourceUrl: `https://example.com/${suffix.toLowerCase()}`,
+      description: `Source ${suffix} summary.`,
+      whyItMatters: 'It adds source-backed depth.',
+      objectives: ['Apply the source takeaway'],
+      estimatedMinutes: 20,
+      difficulty: 'beginner' as const,
+      tags: ['ai'],
+    }));
+    jest.mocked(getKBModulesForTrack).mockResolvedValue(kbModules);
+    const generatedModules = Array.from({ length: 8 }, (_, index) => ({
+      id: `ai-path-module-${index + 1}`,
+      title: `AI Path Module ${index + 1}`,
+      description: 'An AI-generated interactive lesson.',
+      whyItMatters: 'It advances the learning path.',
+      objectives: ['Practice a skill'],
+      estimatedMinutes: 20,
+      difficulty: 'beginner',
+      tags: ['ai'],
+    }));
+    mockLlmChat.mockResolvedValueOnce({ message: { content: JSON.stringify({
+      track: 'ai', level: 'beginner', summary: 'A complete generated path.', modules: generatedModules,
+    }) } } as any);
+
+    const response = await POST(request({ track: 'ai', level: 'beginner' }));
+    const plan = await response.json();
+    expect(plan.modules.slice(0, 8).map((module: any) => module.id))
+      .toEqual(generatedModules.map((module) => module.id));
+    expect(plan.modules.slice(8).map((module: any) => module.id))
+      .toEqual(kbModules.map((module) => module.id));
+    expect(mockLlmChat.mock.calls[0][0].messages[1].content)
+      .toContain('repository Knowledge Base lessons are supplemental additions');
+  });
+
   it('keeps the first lesson tied to the cast when plan generation fails', async () => {
     mockLlmChat.mockRejectedValueOnce(new Error('provider unavailable'));
     const response = await POST(request({
