@@ -416,26 +416,70 @@ export async function fetchChannelList(limit = 50): Promise<any> {
   return { channels: [] };
 }
 
-/** Resolve a channel's canonical parent URL from Hypersnap's channel registry. */
-export async function fetchChannelParentUrl(channelId: string): Promise<string> {
-  const endpoint = `/v2/farcaster/channel?id=${encodeURIComponent(channelId)}&type=id`;
+/** Search the channel registry instead of limiting composer search to the first page. */
+export async function searchChannels(query: string, limit = 20): Promise<any> {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return { channels: [] };
+
+  const qs = new URLSearchParams({ q: normalizedQuery, limit: String(limit) });
+  const endpoint = `/v2/farcaster/channel/search?${qs.toString()}`;
+  let primaryResult: any = null;
   let primaryError: unknown;
 
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
-    const channel = data?.channel ?? data?.result?.channel ?? data?.data?.channel;
-    const parentUrl = channel?.parent_url ?? channel?.parentUrl;
-    if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+    const channels = normalizeChannelListResponse(data);
+    if (channels?.length) return { ...data, channels };
+    if (channels) primaryResult = { ...data, channels };
   } catch (error) {
     primaryError = error;
   }
 
   const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
-  const channel = fallback?.channel ?? fallback?.result?.channel ?? fallback?.data?.channel;
-  const parentUrl = channel?.parent_url ?? channel?.parentUrl;
-  if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+  const fallbackChannels = normalizeChannelListResponse(fallback);
+  if (fallbackChannels?.length) return { ...fallback, channels: fallbackChannels };
+  if (primaryResult) return primaryResult;
   if (primaryError) throw primaryError;
-  throw new Error(`Hypersnap did not return a parent_url for channel ${channelId}`);
+  return { channels: [] };
+}
+
+/** Resolve a channel's canonical parent URL from Hypersnap's channel registry. */
+export async function fetchChannelParentUrl(channelId: string): Promise<string> {
+  const normalizedId = channelId.trim();
+  if (/^(https?:\/\/|chain:\/\/)/i.test(normalizedId)) return normalizedId;
+
+  const endpoint = `/v2/farcaster/channel?id=${encodeURIComponent(normalizedId)}&type=id`;
+  let primaryError: unknown;
+
+  const parentUrlFrom = (data: any): string | null => {
+    const channel = data?.channel ?? data?.result?.channel ?? data?.data?.channel;
+    const candidates = [channel?.parent_url, channel?.parentUrl, channel?.url];
+    const parentUrl = candidates.find((value) =>
+      typeof value === 'string' && /^(https?:\/\/|chain:\/\/)/i.test(value.trim())
+    );
+    return typeof parentUrl === 'string' ? parentUrl.trim() : null;
+  };
+
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    const parentUrl = parentUrlFrom(data);
+    if (parentUrl) return parentUrl;
+  } catch (error) {
+    primaryError = error;
+  }
+
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
+  const fallbackParentUrl = parentUrlFrom(fallback);
+  if (fallbackParentUrl) return fallbackParentUrl;
+
+  // Match Hypersnap's /feed/channels resolver: ordinary channel IDs map to
+  // this canonical parent URL even when the channel registry is unavailable.
+  if (/^[a-z0-9][a-z0-9_-]{0,127}$/i.test(normalizedId)) {
+    return `https://warpcast.com/~/channel/${encodeURIComponent(normalizedId)}`;
+  }
+
+  if (primaryError) throw primaryError;
+  throw new Error(`Hypersnap did not return a parent URL for channel ${channelId}`);
 }
 
 /**

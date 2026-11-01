@@ -66,6 +66,9 @@ export default function ComposeModal() {
   const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [channels, setChannels] = useState<any[]>([]);
   const [channelSearch, setChannelSearch] = useState<string>('');
+  const [channelSearchResults, setChannelSearchResults] = useState<any[] | null>(null);
+  const [channelSearchLoading, setChannelSearchLoading] = useState(false);
+  const [channelSearchError, setChannelSearchError] = useState<string | null>(null);
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [channelsError, setChannelsError] = useState<string | null>(null);
@@ -208,6 +211,47 @@ export default function ComposeModal() {
 
     return () => { active = false; };
   }, [open, channelReload]);
+
+  // Search the node's channel registry so channels outside the initial page
+  // remain selectable from the composer.
+  useEffect(() => {
+    const query = channelSearch.trim();
+    if (!open || !showChannelSuggestions || !query) {
+      setChannelSearchResults(null);
+      setChannelSearchError(null);
+      setChannelSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setChannelSearchLoading(true);
+      setChannelSearchError(null);
+      try {
+        const params = new URLSearchParams({ q: query, limit: '20' });
+        const response = await fetch(`/api/channels?${params}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok || !data?.ok || !Array.isArray(data?.channels)) {
+          throw new Error(data?.error || `Channel search failed (${response.status}).`);
+        }
+        const results = data.channels.filter((channel: any) =>
+          typeof channel?.id === 'string' && channel.id.trim().length > 0
+        );
+        if (active) setChannelSearchResults(results);
+      } catch (error: any) {
+        if (!active) return;
+        setChannelSearchResults([]);
+        setChannelSearchError(error?.message || 'Could not search Hypersnap channels.');
+      } finally {
+        if (active) setChannelSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [open, showChannelSuggestions, channelSearch, channelReload]);
 
   // Search for users when typing @mentions
   useEffect(() => {
@@ -741,11 +785,11 @@ export default function ComposeModal() {
                 <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
                   <input type="text" value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…" autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
                 </div>
-                {channelsLoading ? (
+                {channelsLoading && !channelSearch.trim() ? (
                   <div role="status" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
                     Loading channels from Hypersnap…
                   </div>
-                ) : channelsError ? (
+                ) : channelsError && !channelSearch.trim() ? (
                   <div role="alert" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
                     <div>{channelsError}</div>
                     <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>
@@ -753,20 +797,34 @@ export default function ComposeModal() {
                     </button>
                   </div>
                 ) : (() => {
-                  const matches = channels.filter(ch =>
-                    !channelSearch ||
-                    ch.id.toLowerCase().includes(channelSearch.toLowerCase()) ||
-                    ch.name?.toLowerCase?.().includes(channelSearch.toLowerCase())
+                  if (channelSearchLoading) {
+                    return <div role="status" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>Searching Hypersnap channels…</div>;
+                  }
+                  if (channelSearchError) {
+                    return (
+                      <div role="alert" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                        <div>{channelSearchError}</div>
+                        <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>
+                          Retry search
+                        </button>
+                      </div>
+                    );
+                  }
+                  const source = channelSearch.trim() ? channelSearchResults ?? [] : channels;
+                  const matches = source.filter(ch =>
+                    !channelSearch.trim() ||
+                    ch.id.toLowerCase().includes(channelSearch.trim().toLowerCase()) ||
+                    ch.name?.toLowerCase?.().includes(channelSearch.trim().toLowerCase())
                   ).slice(0, 8);
                   if (!matches.length) {
                     return (
                       <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
-                        {channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}
+                        {channelSearch.trim() ? 'No matching channels.' : channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}
                       </div>
                     );
                   }
                   return matches.map(ch => (
-                    <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                    <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setChannelSearchResults(null); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                       <span style={{ color: 'var(--muted-on-dark)' }}>/</span>{ch.id}{ch.name && <span style={{ color: 'var(--muted-on-dark)', marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
                     </button>
                   ));
