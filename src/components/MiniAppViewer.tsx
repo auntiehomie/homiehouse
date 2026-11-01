@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { getMiniAppIdentity } from '@/lib/miniapp-auth';
 import { signInToMiniApp } from '@/lib/miniapp-auth';
+import { profileHref } from '@/lib/profile-links';
 import { requestMiniAppComposeCast } from '@/lib/compose-modal-events';
 import { MiniAppEmbed } from './MiniAppEmbed';
 import styles from './MiniAppViewer.module.css';
@@ -206,7 +207,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
         },
         viewProfile: async ({ fid: profileFid }: { fid: number }) => {
           close();
-          router.push(`/profile?user=${profileFid}`);
+          router.push(profileHref({ fid: profileFid }));
         },
         composeCast: (async (options: {
           text?: string;

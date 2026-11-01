@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import SidebarNav from '@/components/SidebarNav';
 import AppIcon, { type AppIconName } from '@/components/AppIcon';
+import { profileHref } from '@/lib/profile-links';
 
 interface Actor {
   fid: number;
@@ -312,7 +313,7 @@ export default function NotificationsPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem', marginBottom: 4, fontWeight: 600 }}>
                           <Link
-                            href={`/profile?user=${actor?.username || actor?.fid}`}
+                            href={profileHref({ username: actor?.username, fid: actor?.fid })}
                             style={{ fontWeight: 700, color: 'var(--text-on-dark)', textDecoration: 'none' }}
                           >
                             {actor?.display_name || actor?.username || 'Someone'}

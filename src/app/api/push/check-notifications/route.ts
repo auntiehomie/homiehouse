@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
+import { profileHref } from '@/lib/profile-links';
 import webpush from 'web-push';
 
 // VAPID keys must be set as env vars:
@@ -55,7 +56,7 @@ function describeNotification(notif: any): { title: string; body: string; url: s
       return {
         title: `${name} followed you`,
         body: '@' + (actor.username || ''),
-        url: `/profile?user=${actor.username || actor.fid}`,
+        url: profileHref({ username: actor.username, fid: actor.fid }),
       };
     default:
       return { title: 'New notification', body: '', url: '/notifications' };

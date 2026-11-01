@@ -8,6 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
 import HH2Badge from '@/components/HH2Badge';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import { profileApiUrl } from '@/lib/profile-links';
 
 interface UserProfile {
   fid: number;
@@ -320,23 +321,14 @@ function ProfileContent() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const requestedFid = searchParams.get('fid');
-        const username = searchParams.get('user');
-
-        let url: string;
-        if (requestedFid) {
-          // Profile links from feeds and the signed-in summary may identify
-          // accounts by FID. Honor that route parameter instead of silently
-          // replacing it with the viewer's local profile.
-          url = `/api/profile?fid=${encodeURIComponent(requestedFid)}&casts=true`;
-        } else if (username) {
-          url = `/api/profile?username=${encodeURIComponent(username)}&casts=true`;
-        } else {
+        let url = profileApiUrl({ fid: searchParams.get('fid'), user: searchParams.get('user') });
+        if (!url) {
           const storedProfile = localStorage.getItem('hh_profile');
           if (!storedProfile) { router.push('/'); return; }
           const { fid } = JSON.parse(storedProfile);
-          url = `/api/profile?fid=${encodeURIComponent(String(fid))}&casts=true`;
+          url = profileApiUrl({ fid: String(fid ?? ''), user: null });
         }
+        if (!url) throw new Error('A valid profile FID or username is required');
 
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to fetch profile');
