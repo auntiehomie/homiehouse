@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useCallback, useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -8,6 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import AppShell from '@/components/AppShell';
 import HH2Badge from '@/components/HH2Badge';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { profileApiUrl } from '@/lib/profile-links';
 
 interface UserProfile {
@@ -268,8 +269,10 @@ function ProfileContent() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('casts');
   const [pendingCastReturn, setPendingCastReturn] = useState<ProfileCastReturn | null>(null);
-  const [viewerFid, setViewerFid] = useState<number | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const { fid: viewerFid } = useFarcasterAuth();
+  const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
+  const [followStatusLoading, setFollowStatusLoading] = useState(false);
+  const [followStatusError, setFollowStatusError] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [followingOpen, setFollowingOpen] = useState(false);
   const [followingUsers, setFollowingUsers] = useState<any[]>([]);
@@ -296,16 +299,6 @@ function ProfileContent() {
       sessionStorage.setItem(CAST_RETURN_KEY, JSON.stringify(state));
     } catch {}
   };
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('hh_profile');
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p?.fid) setViewerFid(p.fid);
-      }
-    } catch {}
-  }, []);
 
   // Load owned HH2 shop badges for the displayed profile (public data)
   useEffect(() => {
@@ -438,14 +431,50 @@ function ProfileContent() {
     return () => cancelAnimationFrame(frame);
   }, [activeTab, castsLoading, loading, pendingCastReturn]);
 
-  // Check follow status once profile and viewerFid are both known
+  const refreshFollowStatus = useCallback(async () => {
+    const targetFid = profile?.fid;
+    if (!viewerFid || !targetFid || viewerFid === targetFid) return;
+
+    setFollowStatusLoading(true);
+    setFollowStatusError(false);
+    try {
+      const query = new URLSearchParams({ fid: String(viewerFid), target_fid: String(targetFid) });
+      const response = await fetch(`/api/follow-status?${query}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok || typeof data?.following !== 'boolean') {
+        throw new Error(data?.error || 'Follow status unavailable');
+      }
+      setIsFollowing(data.following);
+    } catch {
+      // Preserve a previously confirmed state; an unavailable node is not an
+      // authoritative "not following" result.
+      setFollowStatusError(true);
+    } finally {
+      setFollowStatusLoading(false);
+    }
+  }, [profile?.fid, viewerFid]);
+
   useEffect(() => {
-    if (!profile || !viewerFid || viewerFid === profile.fid) return;
-    fetch(`/api/follow-status?fid=${viewerFid}&target_fid=${profile.fid}`)
-      .then((r) => r.json())
-      .then((d) => setIsFollowing(!!d.following))
-      .catch(() => {});
-  }, [profile, viewerFid]);
+    if (!profile || !viewerFid || viewerFid === profile.fid) {
+      setIsFollowing(null);
+      return;
+    }
+
+    setIsFollowing(null);
+    setFollowStatusError(false);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshFollowStatus();
+    };
+    void refreshFollowStatus();
+    window.addEventListener('focus', refreshFollowStatus);
+    window.addEventListener('hh:miniapp:resume', refreshFollowStatus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', refreshFollowStatus);
+      window.removeEventListener('hh:miniapp:resume', refreshFollowStatus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [profile, refreshFollowStatus, viewerFid]);
 
   // Fetch trades when trades tab selected and we have ETH addresses
   useEffect(() => {
@@ -535,6 +564,10 @@ function ProfileContent() {
             {viewerFid && viewerFid !== profile.fid && (
               <button
                 onClick={async () => {
+                  if (isFollowing === null || followStatusError) {
+                    await refreshFollowStatus();
+                    return;
+                  }
                   setFollowLoading(true);
                   try {
                     if (isFollowing) {
@@ -544,30 +577,32 @@ function ProfileContent() {
                       await follow(profile.fid);
                       setIsFollowing(true);
                     }
+                    setFollowStatusError(false);
                   } catch (err: any) {
                     alert(err?.message || 'Follow failed — make sure your Hypersnap signer is active.');
                   } finally {
                     setFollowLoading(false);
                   }
                 }}
-                disabled={followLoading}
+                disabled={followLoading || followStatusLoading}
+                title={followStatusError ? 'Follow status could not be refreshed. Tap to retry.' : undefined}
                 style={{
                   flexShrink: 0,
                   marginTop: '0.35rem',
                   padding: '8px 18px',
                   borderRadius: 20,
                   border: '1.5px solid color-mix(in srgb, var(--text-on-dark) 35%, var(--surface))',
-                  background: isFollowing ? 'var(--surface)' : 'var(--btn-primary-bg)',
-                  color: isFollowing ? 'var(--text-on-dark)' : 'var(--btn-primary-color)',
+                  background: isFollowing === true ? 'var(--surface)' : 'var(--btn-primary-bg)',
+                  color: isFollowing === true ? 'var(--text-on-dark)' : 'var(--btn-primary-color)',
                   fontWeight: 600,
                   fontSize: '0.9rem',
-                  cursor: followLoading ? 'not-allowed' : 'pointer',
-                  opacity: followLoading ? 0.6 : 1,
+                  cursor: followLoading || followStatusLoading ? 'not-allowed' : 'pointer',
+                  opacity: followLoading || followStatusLoading ? 0.6 : 1,
                   transition: 'all 0.15s',
                   whiteSpace: 'nowrap',
                 }}
               >
-                {followLoading ? '…' : isFollowing ? 'Following' : 'Follow'}
+                {followLoading ? '…' : followStatusLoading ? 'Checking…' : isFollowing === null || followStatusError ? 'Retry status' : isFollowing ? 'Following' : 'Follow'}
               </button>
             )}
           </div>

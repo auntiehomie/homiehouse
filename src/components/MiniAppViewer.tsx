@@ -59,16 +59,19 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
   const { connector, isConnected, address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const [app, setApp] = useState<OpenMiniAppDetail | null>(null);
+  const [minimized, setMinimized] = useState(false);
   const [ethProvider, setEthProvider] = useState<unknown>(null);
 
   const close = useCallback(() => {
     setApp(null);
+    setMinimized(false);
   }, []);
 
   const navigateToMiniApp = useCallback((url: string, title?: string) => {
     const safeUrl = safeMiniAppUrl(url);
     if (!safeUrl) return;
     setApp({ url: safeUrl, title });
+    setMinimized(false);
   }, []);
 
   useEffect(() => {
@@ -81,7 +84,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
   }, [navigateToMiniApp]);
 
   useEffect(() => {
-    if (!app) return;
+    if (!app || minimized) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
@@ -92,7 +95,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [app, close]);
+  }, [app, close, minimized]);
 
   useEffect(() => {
     let active = true;
@@ -202,11 +205,13 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
         ready: () => undefined,
         openUrl: openExternalUrl,
         viewCast: async ({ hash }: { hash: string }) => {
-          close();
+          setMinimized(true);
           router.push(`/cast/${hash}`);
         },
         viewProfile: async ({ fid: profileFid }: { fid: number }) => {
-          close();
+          // Keep the iframe and its host bridge mounted while the user acts on
+          // the profile. Mini Apps commonly return here to re-check a follow.
+          setMinimized(true);
           router.push(profileHref({ fid: profileFid }));
         },
         composeCast: (async (options: {
@@ -263,6 +268,45 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
   try {
     domain = new URL(app.url).hostname;
   } catch {}
+
+  if (minimized) {
+    return (
+      <>
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: -10000,
+            top: 0,
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+        >
+          <MiniAppEmbed
+            key={app.url}
+            snapUrl={app.url}
+            title={app.title || `Mini App from ${domain}`}
+            hostConfig={hostConfig}
+            className="min-h-0 flex-1"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setMinimized(false);
+            window.dispatchEvent(new Event('hh:miniapp:resume'));
+          }}
+          className="fixed left-1/2 z-[10001] -translate-x-1/2 rounded-full border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm font-semibold text-white shadow-lg"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}
+        >
+          Return to {app.title || 'Mini App'}
+        </button>
+      </>
+    );
+  }
 
   return (
     <div
