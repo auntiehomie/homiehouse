@@ -192,6 +192,39 @@ export async function fetchFollowing(fid: number, limit = 100, cursor?: string |
   throw new Error('Following list unavailable on both nodes');
 }
 
+/** Check one follow edge without loading the user's entire following list. */
+export async function fetchFollowStatus(fid: number, targetFid: number): Promise<boolean> {
+  if (!Number.isSafeInteger(fid) || fid <= 0 || !Number.isSafeInteger(targetFid) || targetFid <= 0) {
+    throw new Error('Valid viewer and target FIDs are required');
+  }
+  if (fid === targetFid) return false;
+
+  const endpoint = `/v1/linkById?${new URLSearchParams({
+    fid: String(fid),
+    target_fid: String(targetFid),
+    link_type: 'follow',
+  })}`;
+  const nodes = [...new Set([HYPERSNAP_BASE, HYPERSNAP_FALLBACK].filter(Boolean))];
+  let lastError: unknown;
+
+  for (const base of nodes) {
+    try {
+      const response = await fetch(`${base}${endpoint}`, {
+        cache: 'no-store',
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (response.status === 404) return false;
+      if (response.ok) return true;
+      lastError = new Error(`Hypersnap link lookup failed (${response.status})`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Hypersnap follow status is unavailable');
+}
+
 /**
  * Fetch a feed (following / trending).
  * feed_type=following       → GET /v2/farcaster/feed/following?fid=:fid&limit=:limit
