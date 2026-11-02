@@ -34,7 +34,8 @@ interface Cast {
   text: string;
   timestamp: string;
   parent_hash?: string;
-  parent_author?: { fid: number; username: string };
+  parent_author?: { fid?: number; username?: string; display_name?: string };
+  parent_author_fid?: number;
   replies: { count: number };
   reactions: { likes_count: number; recasts_count: number };
   embeds?: any[];
@@ -199,9 +200,13 @@ function CastCard({ cast, onOpen }: { cast: Cast; onOpen?: () => void }) {
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
     >
-      {cast.parent_author && (
+      {(cast.parent_author || cast.parent_author_fid) && (
         <p style={{ fontSize: '0.75rem', color: 'var(--muted-on-dark)', marginBottom: '0.5rem' }}>
-          ↩ replying to @{cast.parent_author.username}
+          ↩ replying to {cast.parent_author?.username
+            ? `@${cast.parent_author.username}`
+            : cast.parent_author?.display_name || (cast.parent_author?.fid || cast.parent_author_fid)
+              ? cast.parent_author?.display_name || `FID ${cast.parent_author?.fid || cast.parent_author_fid}`
+              : 'a cast'}
         </p>
       )}
       <p style={{ marginBottom: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>
