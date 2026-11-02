@@ -71,6 +71,41 @@ export async function GET(request: NextRequest) {
         logger.info('Fetching user casts', { fid: userFid });
         const page = await fetchUserCastsPage(userFid, 25, searchParams.get('cursor') || undefined);
         casts = page.casts;
+        if (Array.isArray(casts)) {
+          // Author feeds can include only the parent author's FID, which leaves
+          // profile cards rendering the incomplete label "replying to @".
+          // Resolve each distinct parent FID once before returning the page.
+          const parentFids = [...new Set(casts.flatMap((cast: any) => {
+            const parentAuthor = cast?.parent_author;
+            const fid = Number(parentAuthor?.fid ?? cast?.parent_author_fid);
+            return Number.isSafeInteger(fid) && fid > 0 && !parentAuthor?.username
+              ? [fid]
+              : [];
+          }))];
+          const parentUsers = new Map<number, any>();
+          await Promise.all(parentFids.map(async (fid) => {
+            try {
+              const result = await fetchUserByFid(fid);
+              if (result?.user) parentUsers.set(fid, result.user);
+            } catch {
+              // Keep the reply and its parent FID available if lookup fails.
+            }
+          }));
+          casts = casts.map((cast: any) => {
+            const fid = Number(cast?.parent_author?.fid ?? cast?.parent_author_fid);
+            const parentUser = parentUsers.get(fid);
+            if (!parentUser) return cast;
+            return {
+              ...cast,
+              parent_author: {
+                ...cast.parent_author,
+                fid,
+                username: cast.parent_author?.username || parentUser.username,
+                display_name: cast.parent_author?.display_name || parentUser.display_name,
+              },
+            };
+          });
+        }
         next = page.next ?? null;
         castHistoryReadNode = getHypersnapReadDiagnostics(page);
         logger.info('Casts fetched', { count: casts.length });
