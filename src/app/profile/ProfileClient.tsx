@@ -280,8 +280,13 @@ function ProfileContent() {
   const [followingLoading, setFollowingLoading] = useState(false);
   const [followingError, setFollowingError] = useState(false);
   const [badges, setBadges] = useState<{ id: string; name: string; emoji: string }[]>([]);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadedProfileKey, setLoadedProfileKey] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const requestedFid = searchParams.get('fid');
+  const requestedUser = searchParams.get('user');
+  const profileRequestKey = `${requestedFid ?? ''}:${requestedUser ?? ''}`;
   const { follow, unfollow } = useFarcasterWrites();
 
   const saveCastReturn = (castHash: string, tab: Tab) => {
@@ -312,9 +317,20 @@ function ProfileContent() {
   }, [profile]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    setLoading(true);
+    setError(null);
+    setProfile(null);
+    setCasts([]);
+    setCastsLoading(true);
+    setCastsUnavailable(false);
+    setCastsCursor(null);
+    setLoadedProfileKey(null);
+
     const loadProfile = async () => {
       try {
-        let url = profileApiUrl({ fid: searchParams.get('fid'), user: searchParams.get('user') });
+        let url = profileApiUrl({ fid: requestedFid, user: requestedUser });
         if (!url) {
           const storedProfile = localStorage.getItem('hh_profile');
           if (!storedProfile) { router.push('/'); return; }
@@ -323,13 +339,18 @@ function ProfileContent() {
         }
         if (!url) throw new Error('A valid profile FID or username is required');
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch profile');
+        const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) {
+          const failure = await response.json().catch(() => null);
+          throw new Error(failure?.error || `Profile request failed (${response.status}).`);
+        }
 
         const data = await response.json();
         const payload = data?.data ?? data;
         const user = payload.user ?? payload;
         const castsResp = payload.casts ?? (payload.user?.casts ?? null);
+
+        if (!user?.fid) throw new Error('The profile response did not include a valid FID.');
 
         const normalizedUser = {
           ...user,
@@ -337,21 +358,30 @@ function ProfileContent() {
           following_count: typeof user?.following_count === 'number' ? user.following_count : Number(user?.following_count) || 0,
         };
 
+        if (!active) return;
         setProfile(normalizedUser as UserProfile);
         if (Array.isArray(castsResp)) setCasts(castsResp);
         setCastsUnavailable(payload.castsUnavailable === true);
         setCastsCursor(payload.next?.cursor ?? null);
         setCastsLoading(false);
       } catch (err) {
+        if (!active || controller.signal.aborted) return;
         setError(err instanceof Error ? err.message : 'Failed to load profile');
         setCastsLoading(false);
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+          setLoadedProfileKey(profileRequestKey);
+        }
       }
     };
 
     loadProfile();
-  }, [router, searchParams]);
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [router, requestedFid, requestedUser, loadAttempt, profileRequestKey]);
 
   const loadMoreCasts = async () => {
     if (!profile || !castsCursor || loadingMoreCasts) return;
@@ -490,7 +520,7 @@ function ProfileContent() {
       .finally(() => setTradesLoading(false));
   }, [activeTab, profile, trades.length]);
 
-  if (loading) {
+  if (loading || loadedProfileKey !== profileRequestKey) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem' }}>
         <span style={{ color: 'var(--muted-on-dark)' }}>Loading profile...</span>
@@ -502,7 +532,17 @@ function ProfileContent() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', flexDirection: 'column', gap: '1rem' }}>
         <p style={{ color: '#f87171' }}>{error || 'Profile not found'}</p>
-        <Link href="/" style={{ color: 'var(--accent)' }}>Go back home</Link>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            setLoadedProfileKey(null);
+            setLoadAttempt(attempt => attempt + 1);
+          }}
+        >
+          Try again
+        </button>
+        <Link href="/feed" style={{ color: 'var(--accent)' }}>Back to feed</Link>
       </div>
     );
   }

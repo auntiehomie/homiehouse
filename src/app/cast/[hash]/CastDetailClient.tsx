@@ -11,6 +11,7 @@ import EmbedRenderer from "@/components/EmbedRenderer";
 import { previousRoute, readCastNavigation, scrollPageTo, visitRoute, writeCastNavigation } from "@/lib/cast-navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { buildReplyTree } from "@/lib/cast-thread";
+import { profileHref } from '@/lib/profile-links';
 
 function ActionBtn({
   onClick, icon, label, active = false, disabled = false,
@@ -352,7 +353,7 @@ export default function CastDetailClient() {
     const rName = rAuthor?.display_name || rAuthor?.username || 'Unknown';
     const rRawUsername = rAuthor?.username || '';
     const rUsername = /^fid:\d+$/i.test(rRawUsername) ? '' : rRawUsername;
-    const rProfileHref = rUsername ? `/profile?user=${rUsername}` : rAuthor?.fid ? `/profile?fid=${rAuthor.fid}` : '/feed';
+    const rProfileHref = profileHref({ fid: rAuthor?.fid, username: rUsername || undefined });
     const rFid = rAuthor?.fid ?? 0;
     const rPfp = rAuthor?.pfp_url;
     const rText = reply.text || '';
@@ -470,7 +471,7 @@ export default function CastDetailClient() {
               const pName = pAuthor?.display_name || pAuthor?.username || 'Unknown';
               const pRawUsername = pAuthor?.username || '';
               const pUsername = /^fid:\d+$/i.test(pRawUsername) ? '' : pRawUsername;
-              const pProfileHref = pUsername ? `/profile?user=${pUsername}` : pAuthor?.fid ? `/profile?fid=${pAuthor.fid}` : '/feed';
+              const pProfileHref = profileHref({ fid: pAuthor?.fid, username: pUsername || undefined });
               const pPfp = pAuthor?.pfp_url;
               const pText = p.text || '';
               let pTime = '';
@@ -513,12 +514,12 @@ export default function CastDetailClient() {
         <article style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             {authorPfp && (
-              <Link href={`/profile?user=${authorUsername}`}>
+              <Link href={profileHref({ fid: authorFid, username: authorUsername })}>
                 <Image src={authorPfp} alt={authorName} width={44} height={44} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
               </Link>
             )}
             <div>
-              <Link href={`/profile?user=${authorUsername}`} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <Link href={profileHref({ fid: authorFid, username: authorUsername })} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 {authorName}
               </Link>
               <div style={{ fontSize: 13, color: 'var(--muted-on-dark, #999)' }}>@{authorUsername}</div>

@@ -5,8 +5,11 @@ describe('profile links', () => {
     expect(profileHref({ fid: 3103 })).toBe('/profile?fid=3103');
   });
 
-  it('keeps username profile links readable and encoded', () => {
-    expect(profileHref({ username: '@alice.eth', fid: 3103 })).toBe('/profile?user=alice.eth');
+  it('prefers a stable FID when it is available', () => {
+    expect(profileHref({ username: '@alice.eth', fid: 3103 })).toBe('/profile?fid=3103');
+  });
+
+  it('keeps username-only profile links readable and encoded', () => {
     expect(profileHref({ username: 'alice smith' })).toBe('/profile?user=alice%20smith');
   });
 
