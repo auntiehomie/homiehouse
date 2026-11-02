@@ -4,7 +4,7 @@ export type AppIconName =
   | 'home' | 'feed' | 'messages' | 'learn' | 'apps' | 'community' | 'token'
   | 'wallet' | 'knowledge' | 'cast' | 'notifications' | 'ask' | 'shop'
   | 'studio' | 'pro' | 'settings' | 'refresh' | 'back' | 'heart' | 'recast'
-  | 'user' | 'mention' | 'reply' | 'warning' | 'image' | 'close' | 'spinner' | 'quote';
+  | 'user' | 'mention' | 'reply' | 'warning' | 'image' | 'close' | 'spinner' | 'quote' | 'channels';
 
 const paths: Record<AppIconName, ReactNode> = {
   home: <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
@@ -35,6 +35,7 @@ const paths: Record<AppIconName, ReactNode> = {
   close: <path d="m6 6 12 12M18 6 6 18" />,
   spinner: <><path d="M20 12a8 8 0 0 1-13.7 5.7" /><path d="M4 12a8 8 0 0 1 13.7-5.7" /><path d="M6 17.7H6v-4M18 6.3V10" /></>,
   quote: <><path d="M10 11H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5c0 3-1 5-4 7M21 11h-5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5c0 3-1 5-4 7" /></>,
+  channels: <><path d="M4 7h16M4 12h16M4 17h16" /><path d="M8 4v16M16 4v16" /></>,
 };
 
 type Props = SVGProps<SVGSVGElement> & { name: AppIconName };
