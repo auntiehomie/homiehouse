@@ -12,11 +12,13 @@ export function profileHref({
   fid?: ProfileIdentifier;
   username?: string | null;
 }): string {
+  const normalizedFid = normalizeFid(fid);
+  if (normalizedFid) return `/profile?fid=${encodeURIComponent(normalizedFid)}`;
+
   const normalizedUsername = username?.trim().replace(/^@/, '');
   if (normalizedUsername) return `/profile?user=${encodeURIComponent(normalizedUsername)}`;
 
-  const normalizedFid = normalizeFid(fid);
-  return normalizedFid ? `/profile?fid=${encodeURIComponent(normalizedFid)}` : '/profile';
+  return '/profile';
 }
 
 export function profileApiUrl({
