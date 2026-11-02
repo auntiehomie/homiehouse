@@ -5,7 +5,7 @@
  */
 
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { injectedWallet, metaMaskWallet, rainbowWallet, safeWallet } from '@rainbow-me/rainbowkit/wallets';
+import { base as baseAccountWallet, injectedWallet, metaMaskWallet, rainbowWallet, safeWallet } from '@rainbow-me/rainbowkit/wallets';
 import { phoneWallet } from './phoneWallet';
 import { http } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, base } from 'wagmi/chains';
@@ -18,7 +18,17 @@ export const wagmiConfig = getDefaultConfig({
   appDescription: 'Learn and connect on decentralized social networks',
   appUrl: 'https://homiehouse.app',
   appIcon: 'https://homiehouse.app/logo.png',
-  wallets: [{ groupName: 'Connect a wallet', wallets: [injectedWallet, rainbowWallet, metaMaskWallet, phoneWallet, safeWallet] }],
+  wallets: [{
+    groupName: 'Connect a wallet',
+    wallets: [
+      baseAccountWallet,
+      injectedWallet,
+      rainbowWallet,
+      metaMaskWallet,
+      phoneWallet,
+      safeWallet,
+    ],
+  }],
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '',
   ssr: true,
   chains: [mainnet, polygon, optimism, arbitrum, base],
