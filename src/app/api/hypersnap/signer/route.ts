@@ -4,13 +4,8 @@ import { createPublicClient, decodeAbiParameters, encodeAbiParameters, http, par
 import { optimism } from 'viem/chains';
 import { ed25519 } from '@noble/curves/ed25519';
 import { rateLimit } from '@/lib/ratelimit';
-import {
-  blake3_20,
-  encodeMessageData,
-  encodeMessageEnvelope,
-  FarcasterNetwork,
-  MessageType,
-} from '@/lib/fc-message-builder';
+import { encodeMessageEnvelope } from '@/lib/fc-message-builder';
+import { encodeKeyAddSignedMessage, isValidKeyAddTimestamp } from '@/lib/hypersnap-key-add-message';
 
 export const dynamic = 'force-dynamic';
 
@@ -109,7 +104,10 @@ async function createMetadata(fid: number, publicKey: `0x${string}`, deadline: n
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   const { success } = rateLimit(`hypersnap-signer:${ip}`, 10, 60);
-  if (!success) return jsonError('Too many signer requests. Try again shortly.', 429);
+  if (!success) return NextResponse.json(
+    { ok: false, error: 'Too many signer requests. Wait at least 60 seconds before trying again.' },
+    { status: 429, headers: { 'Retry-After': '60' } },
+  );
   const origin = req.headers.get('origin');
   if (!origin || origin !== new URL(req.url).origin) return jsonError('Cross-origin signer requests are not allowed.', 403);
 
@@ -150,6 +148,10 @@ export async function POST(req: NextRequest) {
       return jsonError('Signer authorization is expired or requests unsupported permissions.', 400);
     }
 
+    if (!isValidKeyAddTimestamp(body.timestamp)) {
+      return jsonError('Signer proof timestamp is invalid or expired. Check your device clock and retry.', 400);
+    }
+
     const [custodyAddress, currentNonce] = await Promise.all([
       custodyOf(fid), getUserNonce(fid, !!body.registrationTxHash),
     ]);
@@ -186,20 +188,20 @@ export async function POST(req: NextRequest) {
       return jsonError('HomieHouse signer metadata could not be verified.', 400);
     }
 
-    const dataBytes = encodeMessageData({
-      type: MessageType.KEY_ADD,
+    const { dataBytes, hash } = encodeKeyAddSignedMessage({
+      timestamp: body.timestamp,
       fid,
-      network: FarcasterNetwork.MAINNET,
-      body: { keyAddBody: {
-        signerPublicKey: Buffer.from(body.publicKey.slice(2), 'hex'),
-        custodySignature: Buffer.from(body.custodySignature.slice(2), 'hex'),
-        deadline, nonce,
-        metadata: Buffer.from(body.metadata.slice(2), 'hex'),
-        registrationTxHash: body.registrationTxHash ? Buffer.from(body.registrationTxHash.slice(2), 'hex') : undefined,
-        scopes: submittedScopes, ttl,
-      } },
+      signerPublicKey: Buffer.from(body.publicKey.slice(2), 'hex'),
+      custodySignature: Buffer.from(body.custodySignature.slice(2), 'hex'),
+      deadline,
+      nonce,
+      metadata: Buffer.from(body.metadata.slice(2), 'hex'),
+      registrationTxHash: body.registrationTxHash
+        ? Buffer.from(body.registrationTxHash.slice(2), 'hex')
+        : undefined,
+      scopes: submittedScopes,
+      ttl,
     });
-    const hash = blake3_20(dataBytes);
     const publicKeyBytes = Buffer.from(body.publicKey.slice(2), 'hex');
     const signatureBytes = Buffer.from(body.messageSignature.slice(2), 'hex');
     if (!ed25519.verify(signatureBytes, hash, publicKeyBytes)) return jsonError('Ed25519 signer proof is invalid.', 400);
