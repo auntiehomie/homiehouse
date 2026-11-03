@@ -3,12 +3,15 @@ import { validateImageFile } from '@/lib/validation';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { rateLimit } from '@/lib/ratelimit';
+import { getQStorageConfig, uploadImageToQStorage } from '@/lib/qstorage';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/upload-image');
   logger.start();
 
   try {
+    const verifiedFid = await verifyFarcasterSignerAuth(request, 'write:casts');
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
     const { success: rlOk } = rateLimit(`upload-image:${ip}`, 20, 3600);
     if (!rlOk) {
@@ -17,8 +20,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const fid = formData.get('fid');
-    logger.info('Upload request', { fid: fid ? Number(fid) : 'unknown' });
+    logger.info('Upload request', { fid: verifiedFid });
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -28,7 +30,22 @@ export async function POST(request: NextRequest) {
 
     logger.info('Uploading image', { fileName: file.name, fileType: file.type, fileSize: file.size });
 
-    // ── 1. Try Pinata IPFS ───────────────────────────────────────────────────
+    // QStorage is the preferred image store when configured. Do not silently
+    // send media to a different provider if a configured QStorage upload fails.
+    const qstorageConfig = getQStorageConfig();
+    if (qstorageConfig) {
+      try {
+        const uploaded = await uploadImageToQStorage(file, String(verifiedFid));
+        logger.success('Uploaded image to QStorage', { key: uploaded.key, url: uploaded.url });
+        logger.end();
+        return NextResponse.json({ ok: true, url: uploaded.url, key: uploaded.key, provider: 'qstorage' });
+      } catch (error: any) {
+        logger.error('QStorage upload failed', { message: error?.message });
+        return NextResponse.json({ error: 'Failed to upload image to QStorage.' }, { status: 502 });
+      }
+    }
+
+    // ── 1. Try Pinata IPFS when QStorage is not configured ──────────────────
     const pinataJwt = process.env.PINATA_JWT;
     if (pinataJwt) {
       try {
@@ -37,7 +54,7 @@ export async function POST(request: NextRequest) {
         // Add metadata so the file is easily identifiable in Pinata dashboard
         pinataForm.append('pinataMetadata', JSON.stringify({
           name: `homiehouse-cast-${Date.now()}-${file.name}`,
-          keyvalues: { source: 'homiehouse', fid: fid ? String(fid) : '' },
+          keyvalues: { source: 'homiehouse', fid: String(verifiedFid) },
         }));
         pinataForm.append('pinataOptions', JSON.stringify({ cidVersion: 1 }));
 

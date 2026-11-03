@@ -12,12 +12,14 @@
     "check:hypersnap-coverage": "npx tsx scripts/check-hypersnap-coverage.ts",
     "setup-agent-signer": "npx tsx scripts/setup-agent-signer.ts",
     "migrate-db": "npx tsx scripts/migrate-db.ts",
+    "test:qstorage:live": "node --import tsx scripts/test-qstorage-live.ts",
     "test": "jest --passWithNoTests",
     "prepare": "husky install",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
+    "@aws-sdk/client-s3": "^3.1161.0",
     "@draft-js-plugins/editor": "^4.1.4",
     "@draft-js-plugins/emoji": "^4.6.7",
     "@draft-js-plugins/linkify": "^4.2.2",
@@ -102,6 +104,7 @@
     "lint-staged": "^17.5.1",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.13",
+    "tsx": "^4.23.15",
     "typescript": "5.9.3"
   },
   "lint-staged": {

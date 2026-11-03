@@ -110,6 +110,7 @@ export interface UseFarcasterWritesReturn {
   unlikeCast: (params: ReactionParams) => Promise<void>;
   recast: (params: ReactionParams) => Promise<void>;
   removeRecast: (params: ReactionParams) => Promise<void>;
+  removeCast: (castHash: string) => Promise<void>;
   reply: (params: ReplyParams) => Promise<CastSubmissionResult>;
   follow: (targetFid: number) => Promise<void>;
   unfollow: (targetFid: number) => Promise<void>;
@@ -254,6 +255,23 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     await submitMessage(message);
   }, [getSigner, fid]);
 
+  const removeCast = useCallback(async (castHash: string): Promise<void> => {
+    const normalizedHash = castHash.trim().replace(/^0x/i, '');
+    if (!/^[0-9a-f]{40}$/i.test(normalizedHash)) {
+      throw new Error('This cast has an invalid hash and cannot be deleted.');
+    }
+    const signer = await getSigner();
+    const message = await buildSignedMessage(
+      {
+        type: MessageType.CAST_REMOVE,
+        fid,
+        body: { castRemoveBody: { targetHash: hexToBytes(normalizedHash) } },
+      },
+      signer,
+    );
+    await submitMessage(message);
+  }, [getSigner, fid]);
+
   const reply = useCallback(async (params: ReplyParams): Promise<CastSubmissionResult> => {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
@@ -324,6 +342,7 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     unlikeCast,
     recast,
     removeRecast,
+    removeCast,
     reply,
     follow,
     unfollow,
