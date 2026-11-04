@@ -221,13 +221,49 @@ function parseLessonJson(raw: string): LessonContent | null {
   for (const c of candidates) {
     try {
       const obj = JSON.parse(c);
-      if (
-        obj && typeof obj === 'object' &&
-        Array.isArray(obj.concepts) && obj.concepts.length > 0 &&
-        Array.isArray(obj.quiz) && obj.quiz.length > 0 &&
-        typeof obj.intro === 'string'
-      ) {
-        return obj as LessonContent;
+      if (!obj || typeof obj !== 'object' ||
+          !Array.isArray(obj.concepts) ||
+          !Array.isArray(obj.quiz) ||
+          typeof obj.intro !== 'string') continue;
+
+      // Treat model output as untrusted input. Some providers omit a concept
+      // explanation while still returning otherwise valid JSON; accepting that
+      // shape caused the client card builder to call `.replace()` on undefined.
+      const concepts = obj.concepts
+        .filter((concept: any) => concept && typeof concept === 'object')
+        .map((concept: any) => ({
+          title: typeof concept.title === 'string' && concept.title.trim()
+            ? concept.title.trim()
+            : 'Key concept',
+          explanation: typeof concept.explanation === 'string' ? concept.explanation.trim() : '',
+          ...(typeof concept.analogy === 'string' && concept.analogy.trim()
+            ? { analogy: concept.analogy.trim() }
+            : {}),
+        }))
+        .filter((concept: LessonContent['concepts'][number]) => concept.explanation.length > 0);
+      const quiz = obj.quiz
+        .filter((question: any) => question && typeof question === 'object')
+        .map((question: any) => ({
+          question: typeof question.question === 'string' ? question.question.trim() : '',
+          options: Array.isArray(question.options)
+            ? question.options.filter((option: unknown): option is string => typeof option === 'string').map((option: string) => option.trim())
+            : [],
+          correctIndex: Number.isInteger(question.correctIndex) ? question.correctIndex : 0,
+          explanation: typeof question.explanation === 'string' ? question.explanation.trim() : '',
+        }))
+        .filter((question: QuizQuestion) => question.question && question.options.length >= 2 && question.correctIndex >= 0 && question.correctIndex < question.options.length);
+
+      if (concepts.length > 0 && quiz.length > 0) {
+        return {
+          intro: obj.intro.trim(),
+          concepts,
+          practicalExample: typeof obj.practicalExample === 'string' ? obj.practicalExample.trim() : '',
+          quickActions: Array.isArray(obj.quickActions)
+            ? obj.quickActions.filter((action: unknown): action is string => typeof action === 'string').map((action: string) => action.trim()).filter(Boolean)
+            : [],
+          summary: typeof obj.summary === 'string' ? obj.summary.trim() : '',
+          quiz,
+        };
       }
     } catch {}
   }
@@ -705,36 +741,36 @@ Cast to explain:
 Return ONLY valid JSON — no markdown, no code fences. Use this exact structure:
 
 {
-  "intro": "2-3 short sentences (max ~45 words total) that hook the reader, state what they'll learn, and why it matters RIGHT NOW in 2026. Keep it tight and scannable — no filler.",
+  "intro": "2 short sentences (max ~35 words total) that state what the learner will understand and why it matters. Keep it tight and scannable.",
   "concepts": [
     {
       "title": "Short, memorable concept name (3-5 words)",
-      "explanation": "5-6 sentences. (1) Define the concept clearly. (2) Explain HOW it works mechanically. (3) Describe a specific real-world example naming an actual protocol, token, or event. (4) Explain why it matters and what changes when you understand it. Write each point as its own short sentence so the explanation can be read one step at a time. No vague generalities — be specific and concrete.",
+      "explanation": "3-4 short sentences: define it, explain how it works, give a specific example, and say why it matters. Be concrete and accurate.",
       "analogy": "One vivid sentence comparing this to something from everyday life (banking, real estate, restaurant, sports, etc.)"
     }
   ],
-  "practicalExample": "2-3 sentences (max ~60 words) walking through ONE specific, named real-world scenario — e.g. 'When Alice swaps ETH for USDC on Uniswap v3...' or 'When the MakerDAO DAO voted in 2023 to...' Concrete enough to verify, but bite-sized — no scrolling required.",
+  "practicalExample": "1-2 sentences (max ~45 words) walking through one specific, named real-world scenario. Make it concrete and bite-sized.",
   "quickActions": [
     "Specific action with a named tool or site the learner can do in 5-10 minutes",
     "A second concrete action — explore something, try a transaction, read a specific page",
     "A third action that deepens understanding or connects to the broader Web3 world"
   ],
-  "summary": "2 short sentences (max ~35 words). The single core insight + how it connects to the bigger decentralization picture. Punchy and memorable.",
+  "summary": "2 short sentences (max ~30 words) with the core insight and how it connects to decentralization.",
   "quiz": [
     {
       "question": "A specific, knowledge-testing question (not 'what is the purpose of this module')",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 2,
-      "explanation": "2-3 sentences: why the correct answer is right AND why each wrong answer is wrong or misleading."
+      "explanation": "1-2 sentences explaining why the correct answer is right."
     }
   ]
 }
 
 Requirements:
-- 3-4 concepts, each with a REAL example (name actual protocols, tokens, events, or companies)
+- 3 concepts, each with a REAL example (name actual protocols, tokens, events, or companies)
 - Concepts should build on each other — start with the foundation, end with the implications
 - 3 quick actions (each must name a specific website, tool, or resource)
-- 6 quiz questions, each testing a different concept or detail from the lesson
+- 4 quiz questions, each testing a different concept or detail from the lesson
 - Quiz questions must have exactly 4 options
 - Authoritative but accessible tone — treat the reader as smart, not as a beginner who needs hand-holding
 - NEVER use placeholder text or generic statements. Every sentence must teach something specific.
@@ -797,7 +833,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
     try {
       const { message, provider } = await llmChat({
         messages: [{ role: 'user', content: enrichedPrompt }],
-        maxTokens: 5500,
+        maxTokens: 3500,
         temperature: 0.7,
         timeoutMs: 35000,
         providerOrder: lessonProviderOrder,
@@ -828,7 +864,7 @@ QUIZ ACCURACY — THIS IS CRITICAL, ERRORS HERE BREAK TRUST:
             role: 'user',
             content: prompt + '\n\nIMPORTANT: Reply with ONLY the JSON object described above — start with { and end with }. No prose, no markdown, no code fences.',
           }],
-          maxTokens: 5500,
+          maxTokens: 3500,
           temperature: 0.4,
           timeoutMs: 35000,
           providerOrder: [

@@ -6,7 +6,7 @@ import { getEli5Mode } from '@/lib/eli5';
 import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
-import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import { ensureAuthHeaders, getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
@@ -35,7 +35,8 @@ type CardDef =
   | { type: 'complete'; label: string };
 
 function splitIntoSentences(text: string): string[] {
-  return text.replace(/([.!?])\s+/g, '$1|||').split('|||').map(s => s.trim()).filter(Boolean);
+  const safeText = typeof text === 'string' ? text : '';
+  return safeText.replace(/([.!?])\s+/g, '$1|||').split('|||').map(s => s.trim()).filter(Boolean);
 }
 
 function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
@@ -315,13 +316,14 @@ function QuizCard({
 
 type ClaimStatus = 'idle' | 'sending' | 'success' | 'failed' | 'not-connected' | 'wrong-chain' | 'already-claimed';
 
-function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, rewardError, onRetryVerification, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
+function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, rewardError, retryingVerification, onRetryVerification, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
   mod: LearningModule;
   onShare: () => void;
   onBack: () => void;
   rewardEarned: boolean;
   rewardVerificationDone: boolean;
   rewardError: string | null;
+  retryingVerification: boolean;
   onRetryVerification: () => void;
   claimStatus: ClaimStatus;
   claimTxHash: string | null;
@@ -345,10 +347,12 @@ function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDo
           </p>
         </div>
 
-        {rewardVerificationDone && !rewardEarned && (
+        {(rewardVerificationDone || retryingVerification) && !rewardEarned && (
           <div role="alert" style={{ maxWidth: 360, width: '100%', padding: 14, borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
-            <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-on-dark)' }}>{rewardError || 'Verification is unavailable. Your lesson progress is saved.'}</p>
-            <button type="button" onClick={onRetryVerification} className="btn primary">Retry HH2 verification</button>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-on-dark)' }}>{retryingVerification ? 'Retrying HH2 verification…' : rewardError || 'Verification is unavailable. Your lesson progress is saved.'}</p>
+            <button type="button" onClick={onRetryVerification} disabled={retryingVerification} className="btn primary">
+              {retryingVerification ? 'Retrying verification…' : 'Retry HH2 verification'}
+            </button>
           </div>
         )}
 
@@ -559,6 +563,7 @@ function ModuleLessonContent() {
   const [rewardVerificationDone, setRewardVerificationDone] = useState(false);
   const [rewardError, setRewardError] = useState<string | null>(null);
   const [rewardAttemptMissing, setRewardAttemptMissing] = useState(false);
+  const [retryingVerification, setRetryingVerification] = useState(false);
 
   // HH2 auto-claim state
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
@@ -581,21 +586,26 @@ function ModuleLessonContent() {
       setAlreadyDone(progress.includes(moduleId));
 
       const eli5 = getEli5Mode();
-      const cached = getAuthHeaders() ? null : getCachedLesson(found, eli5);
+      const cached = getCachedLesson(found, eli5);
       if (cached) {
         setLessonContent(cached);
         setCards(buildCards(cached, found));
         setLoading(false);
-        return;
       }
 
+      // Render a valid local lesson immediately, including for signed-in
+      // learners. The request still starts on open so the server can register
+      // the reward attempt; its cached/generated response refreshes the view.
       loadLesson(found, eli5)
         .then(data => {
           setLessonContent(data);
           setCards(buildCards(data, found));
           setLoading(false);
         })
-        .catch((loadError) => { setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.'); setLoading(false); });
+        .catch((loadError) => {
+          if (!cached) setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.');
+          setLoading(false);
+        });
     } catch { setError('Could not load module.'); setLoading(false); }
   }, [moduleId, router]);
 
@@ -645,7 +655,7 @@ function ModuleLessonContent() {
   const handleComplete = useCallback(async () => {
     if (!moduleId) return;
     // The server starts the attempt when it serves this lesson and enforces this time gate.
-    const authHeaders = getAuthHeaders();
+    const authHeaders = await ensureAuthHeaders('write:learn');
     let verified = false;
     setRewardVerificationDone(false);
     setRewardError(null);
@@ -672,7 +682,9 @@ function ModuleLessonContent() {
         setRewardError('Network error during reward verification. Please try again.');
       }
     } else {
-      setRewardAttemptMissing(false);
+      // A retry can restore a signed-in attempt by reopening the lesson after
+      // the learner's signer session becomes available.
+      setRewardAttemptMissing(true);
       setRewardError('Sign in to verify this reward. Your learning progress is saved.');
     }
     setRewardEarned(verified);
@@ -714,55 +726,63 @@ function ModuleLessonContent() {
   }, [moduleId, mod, cards, quizAnswers]);
 
   const handleRetryVerification = useCallback(async () => {
-    if (!rewardAttemptMissing) {
-      void handleComplete();
-      return;
-    }
-
-    if (!mod || !getAuthHeaders()) {
-      setRewardError('Your social session is not available to this lesson yet. Refresh the page while signed in, then retry.');
-      return;
-    }
-
+    if (retryingVerification) return;
+    setRetryingVerification(true);
+    setRewardError(null);
     try {
-      // Re-open the lesson through the authenticated API so the server records
-      // an attempt for this FID. The server still enforces its 45-second window.
-      const lesson = await loadLesson(mod, getEli5Mode());
-      setLessonContent(lesson);
-      const refreshedCards = buildCards(lesson, mod);
-      const currentQuiz = cards
-        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
-        .map(card => card.question);
-      const refreshedQuiz = refreshedCards
-        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
-        .map(card => card.question);
-      const sameQuiz = JSON.stringify(currentQuiz) === JSON.stringify(refreshedQuiz);
-
-      setRewardAttemptMissing(false);
-      if (sameQuiz) {
-        setRewardError('Your signed-in lesson attempt is now registered. Keep this page open for 45 seconds, then tap Retry HH2 verification. Your course progress is saved.');
-        setRewardVerificationDone(true);
+      if (!rewardAttemptMissing) {
+        await handleComplete();
         return;
       }
 
-      // If the server returns a different quiz, use the verified version and
-      // have the learner redo only the quiz, not the lesson content.
-      setCards(refreshedCards);
-      setQuizAnswers({});
-      setQuizChecked({});
-      setQuizFailed(false);
-      setAlreadyDone(false);
-      const firstQuizIndex = refreshedCards.findIndex(card => card.type === 'quiz');
-      if (firstQuizIndex >= 0) {
-        setDir('back');
-        setCardIndex(firstQuizIndex);
-        setAnimating(true);
-        setTimeout(() => setAnimating(false), 260);
+      const authHeaders = await ensureAuthHeaders('write:learn');
+      if (!mod || !authHeaders) {
+        setRewardError('Sign in with your approved Hypersnap signer, then retry HH2 verification. Your lesson progress is saved.');
+        return;
       }
-    } catch {
-      setRewardError('Could not reconnect this lesson to your signed-in account. Please retry HH2 verification.');
+
+      try {
+        // Reopen the lesson through the authenticated API so the server registers
+        // an attempt for this FID. The server enforces its 45-second window.
+        const lesson = await loadLesson(mod, getEli5Mode());
+        setLessonContent(lesson);
+        const refreshedCards = buildCards(lesson, mod);
+        const currentQuiz = cards
+          .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+          .map(card => card.question);
+        const refreshedQuiz = refreshedCards
+          .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+          .map(card => card.question);
+        const sameQuiz = JSON.stringify(currentQuiz) === JSON.stringify(refreshedQuiz);
+
+        setRewardAttemptMissing(false);
+        if (sameQuiz) {
+          setRewardError('Your signed-in lesson attempt is now registered. Keep this page open for 45 seconds, then tap Retry HH2 verification. Your course progress is saved.');
+          setRewardVerificationDone(true);
+          return;
+        }
+
+        // If the server returns a different quiz, use the verified version and
+        // have the learner redo only the quiz, not the lesson content.
+        setCards(refreshedCards);
+        setQuizAnswers({});
+        setQuizChecked({});
+        setQuizFailed(false);
+        setAlreadyDone(false);
+        const firstQuizIndex = refreshedCards.findIndex(card => card.type === 'quiz');
+        if (firstQuizIndex >= 0) {
+          setDir('back');
+          setCardIndex(firstQuizIndex);
+          setAnimating(true);
+          setTimeout(() => setAnimating(false), 260);
+        }
+      } catch {
+        setRewardError('Could not reconnect this lesson to your signed-in account. Please retry HH2 verification.');
+      }
+    } finally {
+      setRetryingVerification(false);
     }
-  }, [rewardAttemptMissing, mod, cards, handleComplete]);
+  }, [retryingVerification, rewardAttemptMissing, mod, cards, handleComplete]);
 
   // Mark complete when reaching the complete card — retries after the time gate clears
   // Only awards HH2 if quiz score is 75%+ (quizPassed). If quiz not passed, the
@@ -878,7 +898,7 @@ function ModuleLessonContent() {
   const handleShare = () => {
     if (!mod) return;
     const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nBuilding my Web3 knowledge one module at a time. 🏡\n\nhomiehouse.lol`;
-    router.push(`/compose?text=${encodeURIComponent(text)}`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=%2Flearn`);
   };
 
   const handleShareTakeaway = () => {
@@ -887,7 +907,7 @@ function ModuleLessonContent() {
       ? `${currentCard.content.slice(0, 177).trimEnd()}…`
       : currentCard.content;
     const text = `One thing I learned in “${mod.title}”:\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
-    router.push(`/compose?text=${encodeURIComponent(text)}`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=%2Flearn`);
   };
 
   const handleBack = () => {
@@ -1063,6 +1083,7 @@ function ModuleLessonContent() {
                   rewardEarned={rewardEarned}
                   rewardVerificationDone={rewardVerificationDone}
                   rewardError={rewardError}
+                  retryingVerification={retryingVerification}
                   onRetryVerification={() => { void handleRetryVerification(); }}
                   claimStatus={claimStatus}
                   claimTxHash={claimTxHash}
