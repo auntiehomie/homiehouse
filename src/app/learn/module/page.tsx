@@ -21,6 +21,7 @@ const LS_PLAN_KEY = 'hh_learning_plan';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
 const LS_COMPLETIONS_KEY = 'hh_learning_completions';
 const LS_CARD_POSITION_PREFIX = 'hh_lesson_position:';
+const LEARNING_PATH_RETURN_TO = '/learn?tab=plan';
 
 // ─── Card types ───────────────────────────────────────────────────────────────
 
@@ -878,7 +879,7 @@ function ModuleLessonContent() {
   const handleShare = () => {
     if (!mod) return;
     const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nBuilding my Web3 knowledge one module at a time. 🏡\n\nhomiehouse.lol`;
-    router.push(`/compose?text=${encodeURIComponent(text)}`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=${encodeURIComponent(LEARNING_PATH_RETURN_TO)}`);
   };
 
   const handleShareTakeaway = () => {
@@ -1059,7 +1060,7 @@ function ModuleLessonContent() {
                 <CompleteCard
                   mod={mod}
                   onShare={handleShare}
-                  onBack={() => router.push('/learn')}
+                  onBack={() => router.push(LEARNING_PATH_RETURN_TO)}
                   rewardEarned={rewardEarned}
                   rewardVerificationDone={rewardVerificationDone}
                   rewardError={rewardError}

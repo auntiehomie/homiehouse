@@ -20,7 +20,9 @@ function ComposePageInner() {
   const [text, setText] = useState(searchParams.get('text') || "");
   const returnTo = searchParams.get('returnTo');
   const fromAskHomie = returnTo === '/ask-homie' || returnTo?.startsWith('/ask-homie?');
-  const closeComposer = () => fromAskHomie ? router.replace(returnTo!, { scroll: false }) : router.back();
+  const fromLearningPath = returnTo === '/learn?tab=plan';
+  const hasReturnDestination = fromAskHomie || fromLearningPath;
+  const closeComposer = () => hasReturnDestination ? router.replace(returnTo!, { scroll: false }) : router.back();
   const parts = splitCastText(text);
   const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
   const [loading, setLoading] = useState(false);
@@ -32,11 +34,11 @@ function ComposePageInner() {
     // Dismiss the keyboard so the confirmation stays visible on iOS.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const timer = window.setTimeout(() => {
-      if (fromAskHomie) router.replace(returnTo!, { scroll: false });
+      if (hasReturnDestination) router.replace(returnTo!, { scroll: false });
       else router.back();
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [successMessage, fromAskHomie, returnTo, router]);
+  }, [successMessage, hasReturnDestination, returnTo, router]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
