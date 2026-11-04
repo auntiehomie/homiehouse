@@ -1,4 +1,4 @@
-import { buildQStorageImageUrl, getQStorageConfig } from '@/lib/qstorage';
+import { buildQStorageImageUrl, createQStorageS3Client, getQStorageConfig } from '@/lib/qstorage';
 
 describe('QStorage configuration and media URLs', () => {
   it('disables QStorage when no credentials are configured', () => {
@@ -30,6 +30,21 @@ describe('QStorage configuration and media URLs', () => {
       QSTORAGE_BUCKET: 'homiehouse-media',
       QSTORAGE_REGION: 'custom-region',
     } as NodeJS.ProcessEnv)?.region).toBe('custom-region');
+  });
+
+  it('uses path-style addressing for signed QStorage API requests', () => {
+    const config = getQStorageConfig({
+      QSTORAGE_ACCESS_KEY_ID: 'access-key',
+      QSTORAGE_SECRET_ACCESS_KEY: 'secret-key',
+      QSTORAGE_BUCKET: 'homiehouse-media',
+    } as NodeJS.ProcessEnv)!;
+    const client = createQStorageS3Client(config);
+
+    try {
+      expect(client.config.forcePathStyle).toBe(true);
+    } finally {
+      client.destroy();
+    }
   });
 
   it('encodes each object-key path segment while preserving folder separators', () => {

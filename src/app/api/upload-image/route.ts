@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
 
     logger.info('Uploading image', { fileName: file.name, fileType: file.type, fileSize: file.size });
 
-    // QStorage is the preferred image store when configured. Do not silently
-    // send media to a different provider if a configured QStorage upload fails.
+    // QStorage is the preferred image store when configured. If it is
+    // temporarily unavailable or rejects the upload, continue to IPFS below.
     const qstorageConfig = getQStorageConfig();
     if (qstorageConfig) {
       try {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
             extendedRequestId?: string;
           };
         };
-        logger.error('QStorage upload failed', {
+        logger.warn('QStorage upload failed; trying IPFS fallback', {
           bucket: qstorageConfig.bucket,
           region: qstorageConfig.region,
           name: qstorageError?.name,
@@ -61,11 +61,10 @@ export async function POST(request: NextRequest) {
           requestId: qstorageError?.$metadata?.requestId,
           extendedRequestId: qstorageError?.$metadata?.extendedRequestId,
         });
-        return NextResponse.json({ error: 'Failed to upload image to QStorage.' }, { status: 502 });
       }
     }
 
-    // ── 1. Try Pinata IPFS when QStorage is not configured ──────────────────
+    // ── 1. Fall back to Pinata IPFS when QStorage is unavailable ────────────
     const pinataJwt = process.env.PINATA_JWT;
     if (pinataJwt) {
       try {
@@ -109,7 +108,7 @@ export async function POST(request: NextRequest) {
     const imgbbApiKey = process.env.IMGBB_API_KEY;
     if (!imgbbApiKey) {
       return NextResponse.json(
-        { error: 'Image upload not configured. Add PINATA_JWT or IMGBB_API_KEY.' },
+        { error: 'No image upload provider succeeded. Configure QStorage, PINATA_JWT, or IMGBB_API_KEY.' },
         { status: 500 }
       );
     }

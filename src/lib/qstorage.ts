@@ -41,15 +41,21 @@ function getClient(config: QStorageConfig): S3Client {
   const key = `${config.accessKeyId}\n${config.secretAccessKey}\n${config.endpoint}\n${config.region}`;
   if (!client || key !== clientConfigKey) {
     client?.destroy();
-    client = new S3Client({
-      region: config.region,
-      endpoint: config.endpoint,
-      forcePathStyle: false,
-      credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-    });
+    client = createQStorageS3Client(config);
     clientConfigKey = key;
   }
   return client;
+}
+
+export function createQStorageS3Client(config: QStorageConfig): S3Client {
+  return new S3Client({
+    region: config.region,
+    endpoint: config.endpoint,
+    // Match Quilibrium's own qtools client: bucket names belong in the path
+    // (`/bucket/key`) for signed API requests to the shared QStorage endpoint.
+    forcePathStyle: true,
+    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+  });
 }
 
 function extensionForImage(file: File): string {

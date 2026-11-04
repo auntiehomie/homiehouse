@@ -1,6 +1,6 @@
-import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
-import { buildQStorageImageUrl, getQStorageConfig } from '../src/lib/qstorage';
+import { buildQStorageImageUrl, createQStorageS3Client, getQStorageConfig } from '../src/lib/qstorage';
 
 async function main() {
   const config = getQStorageConfig();
@@ -10,12 +10,7 @@ async function main() {
     return;
   }
 
-  const client = new S3Client({
-    region: config.region,
-    endpoint: config.endpoint,
-    forcePathStyle: false,
-    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-  });
+  const client = createQStorageS3Client(config);
   const key = `homiehouse-live-test/${randomUUID()}.png`;
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=', 'base64');
   let uploaded = false;
