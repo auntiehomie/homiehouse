@@ -888,7 +888,7 @@ function ModuleLessonContent() {
       ? `${currentCard.content.slice(0, 177).trimEnd()}…`
       : currentCard.content;
     const text = `One thing I learned in “${mod.title}”:\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
-    router.push(`/compose?text=${encodeURIComponent(text)}`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=${encodeURIComponent(LEARNING_PATH_RETURN_TO)}`);
   };
 
   const handleBack = () => {
