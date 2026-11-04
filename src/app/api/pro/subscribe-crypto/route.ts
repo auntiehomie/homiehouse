@@ -5,7 +5,7 @@
  * No Stripe, no KYC — just on-chain verification.
  *
  * Body: { txHash: string, walletAddress: string }
- * Headers: x-farcaster-fid, x-signer-key (Farcaster auth)
+ * Headers: x-session-token (scoped HomieHouse session)
  */
 
 import { NextRequest, NextResponse } from 'next/server';

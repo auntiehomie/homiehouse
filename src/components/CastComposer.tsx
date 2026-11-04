@@ -41,9 +41,9 @@ import createMentionPlugin, {
 import createLinkifyPlugin from '@draft-js-plugins/linkify';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
-import { getAuthHeaders } from '@/lib/client-auth';
 import { searchUsers } from '@/lib/hypersnap';
 import { MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
+import { getAuthHeaders } from '@/lib/client-auth';
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
@@ -393,11 +393,10 @@ export default function CastComposer({
         for (const file of files) {
           const form = new FormData();
           form.append('file', file);
-          const res = await fetch('/api/upload-image', {
-            method: 'POST',
-            headers: { ...(getAuthHeaders('write:casts') ?? {}) },
-            body: form,
-          });
+          if (userFid) form.append('fid', String(userFid));
+          const auth = getAuthHeaders('write:casts');
+          if (!auth) throw new Error('Your posting session has expired. Sign in again.');
+          const res = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: form });
           const data = await res.json();
           if (res.ok && data?.ok && data?.url) uploaded.push(data.url);
         }

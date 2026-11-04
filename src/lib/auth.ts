@@ -1,10 +1,9 @@
 /**
  * Authentication and authorization utilities
  *
- * Auth model: the client sends `x-farcaster-fid` and `x-signer-key` headers.
- * The server derives the Ed25519 public key from the private key and verifies
- * it against the local `user_signers` table, which is populated when signers
- * are verified as active with Hypersnap or recovered from the onchain key registry.
+ * Authenticated API requests use short-lived, scoped session tokens. Raw
+ * signer credentials are accepted only at the session issuance boundary and
+ * by features that explicitly need signer custody, such as scheduled casts.
  *
  * This provides real Farcaster-native signer-key auth with server-side
  * verification — not just trusting client-supplied headers.
@@ -168,18 +167,7 @@ async function recoverApprovedSigner(
 // ── Request-level auth ────────────────────────────────────────────────────────
 
 /**
- * Verify Farcaster signer auth from request headers.
- *
- * Preferred (P1 security):
- *   x-session-token:  JWT from POST /api/auth/session (post-challenge verify)
- *
- * Legacy (deprecated, P1 migration in progress):
- *   x-farcaster-fid:  the user's FID
- *   x-signer-key:    the Ed25519 signer private key hex
- *
- * The session-token path is checked first. If present, the JWT is verified
- * and the embedded FID is returned. Otherwise falls back to the legacy
- * x-signer-key raw private-key derivation path.
+ * Verify a scoped session token from request headers.
  *
  * Returns the verified FID.
  *
@@ -189,108 +177,35 @@ export async function verifyFarcasterSignerAuth(
   request: NextRequest,
   requiredScope?: SessionScope,
 ): Promise<number> {
-  // ── P1: Prefer session token (nonce-signed challenge → short-lived JWT) ──
   const sessionToken = request.headers.get('x-session-token');
-  if (sessionToken) {
-    try {
-      const scope = requiredScope ?? requiredSessionScope(request);
-      if (!scope) {
-        throw new AuthError(
-          'Session permissions are not configured for this write route',
-          403,
-          'SESSION_SCOPE_UNCONFIGURED',
-        );
-      }
-      const claims = await verifySession(sessionToken, scope);
-      return claims.fid;
-    } catch (err: any) {
-      if (err instanceof AuthError) throw err;
-      if (err instanceof SessionError) {
-        throw new AuthError(err.message, err.status, err.code);
-      }
-      console.error('[auth] session verification error:', err?.message ?? err);
-      throw new AuthError(
-        'Session verification failed',
-        500,
-        'SESSION_VERIFICATION_FAILED',
-      );
-    }
-  }
-
-  // ── Legacy: x-signer-key raw private-key auth ──────────────────────────
-  // TODO(HH-02): Remove once all clients have migrated to session tokens
-  const fidHeader = request.headers.get('x-farcaster-fid');
-  const signerKey = request.headers.get('x-signer-key');
-
-  if (!fidHeader || !signerKey) {
-    // Check for old Bearer token format (backward compat)
-    const authHeader = request.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      throw new AuthError(
-        'Legacy Bearer auth no longer supported. Use x-session-token header (POST /api/auth/session).',
-        401,
-        'LEGACY_AUTH_UNSUPPORTED',
-      );
-    }
+  if (!sessionToken) {
     throw new AuthError(
-      'Missing auth headers. Use x-session-token from /api/auth/session, or x-farcaster-fid + x-signer-key.',
+      'Missing x-session-token header. Create a session with POST /api/auth/session.',
       401,
       'MISSING_AUTH_HEADERS',
     );
   }
-
-  const fid = Number(fidHeader);
-  if (!fid || isNaN(fid) || fid <= 0) {
-    throw new AuthError('Invalid FID', 401, 'INVALID_FID');
-  }
-
-  // Derive the public key from the provided private key
-  // This validates the key is a real Ed25519 key (not arbitrary garbage)
-  const publicKeyHex = await derivePublicKey(signerKey);
-
-  // Verify the signer exists in our cache of approved signers
   try {
-    await ensureSignersTable();
-
-    const rows = await sql`
-      SELECT id FROM user_signers
-      WHERE user_fid = ${fid}
-        AND signer_public_key = ${publicKeyHex}
-        AND status = 'approved'
-      LIMIT 1
-    `;
-
-    if (rows.length === 0) {
-      // Hypersnap gasless KEY_ADD registrations are not in the legacy
-      // Warpcast cache or Optimism Key Registry, even when posting works.
-      if (await isActiveHypersnapSigner(fid, publicKeyHex)) return fid;
-
-      // A valid legacy signer can outlive the database cache. Recover it from
-      // the onchain key registry, while still requiring an exact FID/key match.
-      const recovered = await recoverApprovedSigner(fid, publicKeyHex);
-      if (recovered) return fid;
-
+    const scope = requiredScope ?? requiredSessionScope(request);
+    if (!scope) {
       throw new AuthError(
-        'Invalid or unapproved signer key for this FID',
-        401,
-        'INVALID_SIGNER_KEY',
+        'Session permissions are not configured for this write route',
+        403,
+        'SESSION_SCOPE_UNCONFIGURED',
       );
     }
+    const claims = await verifySession(sessionToken, scope);
+    return claims.fid;
   } catch (err: any) {
-    // Fail-closed: if DB is unreachable or any error occurs, reject the request.
-    // Do NOT allow the request through on DB failure.
-    if (err instanceof AuthError) {
-      throw err;
-    }
-    console.error('[auth] signer verification DB error:', err?.message ?? err);
+    if (err instanceof AuthError) throw err;
+    if (err instanceof SessionError) throw new AuthError(err.message, err.status, err.code);
+    console.error('[auth] session verification error:', err?.message ?? err);
     throw new AuthError(
-      'Unable to verify signer key',
+      'Session verification failed',
       500,
-      'SIGNER_VERIFICATION_FAILED',
+      'SESSION_VERIFICATION_FAILED',
     );
   }
-
-  return fid;
 }
 
 /** Require an explicit capability for every session-authenticated write. */
@@ -300,7 +215,10 @@ function requiredSessionScope(request: NextRequest): SessionScope | null {
 
   const path = new URL(request.url).pathname;
   const groups: Array<[SessionScope, string[]]> = [
-    ['write:casts', ['/api/compose', '/api/schedule-cast', '/api/delete-cast']],
+    ['write:casts', [
+      '/api/compose', '/api/schedule-cast', '/api/delete-cast',
+      '/api/submit-cast', '/api/upload-image', '/api/frame/interact',
+    ]],
     ['write:lists', ['/api/curated-lists', '/api/curation/']],
     ['write:learn', [
       '/api/learning-completion', '/api/learning-progress', '/api/learning-plan',

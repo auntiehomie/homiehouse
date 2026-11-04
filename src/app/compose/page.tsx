@@ -45,12 +45,6 @@ function ComposePageInner() {
   const [channels, setChannels] = useState<any[]>([]);
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
   const [channelSearch, setChannelSearch] = useState<string>('');
-  const [channelSearchResults, setChannelSearchResults] = useState<any[] | null>(null);
-  const [channelSearchLoading, setChannelSearchLoading] = useState(false);
-  const [channelSearchError, setChannelSearchError] = useState<string | null>(null);
-  const [channelsLoading, setChannelsLoading] = useState(false);
-  const [channelsError, setChannelsError] = useState<string | null>(null);
-  const [channelReload, setChannelReload] = useState(0);
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
@@ -120,78 +114,44 @@ function ComposePageInner() {
   const [activeTrigger, setActiveTrigger] = useState<{ type: '@' | '/' | '$'; query: string; startPos: number } | null>(null);
   const [triggerResults, setTriggerResults] = useState<any[]>([]);
 
-  // Channel discovery is public data; fetch it independently from the signer.
+  // Load channels on mount
   useEffect(() => {
-    let active = true;
-    setChannelsLoading(true);
-    setChannelsError(null);
-    fetch('/api/channels?limit=50', { cache: 'no-store' })
-      .then(async response => {
-        if (!response.ok) throw new Error(`Channel request failed (${response.status}).`);
-        const data = await response.json();
-        if (!data?.ok || !Array.isArray(data?.channels)) {
-          throw new Error(data?.error || 'Hypersnap did not return a channel list.');
-        }
-        const list = data.channels.filter((channel: any) =>
-          typeof channel?.id === 'string' && channel.id.trim().length > 0
-        );
-        if (!list.length) throw new Error('Hypersnap returned no channels. Try again in a moment.');
-        return list;
-      })
-      .then(list => {
-        if (active) setChannels(list);
-      })
-      .catch((error: any) => {
-        if (!active) return;
-        setChannels([]);
-        setChannelsError(error?.message || 'Could not load channels from Hypersnap.');
-      })
-      .finally(() => {
-        if (active) setChannelsLoading(false);
-      });
-    return () => { active = false; };
-  }, [channelReload]);
+    if (userFid) fetchChannels(userFid);
+  }, [userFid]);
 
-  // Search Hypersnap's channel registry so channels outside the first page
-  // remain selectable from this dedicated composer too.
-  useEffect(() => {
-    const query = channelSearch.trim();
-    if (!showChannelSuggestions || !query) {
-      setChannelSearchResults(null);
-      setChannelSearchError(null);
-      setChannelSearchLoading(false);
-      return;
-    }
+  async function fetchChannels(fid: number) {
+    try {
+      const response = await fetch(`/api/channels?fid=${fid}&limit=100`);
+      const data = await response.json();
 
-    let active = true;
-    const timer = window.setTimeout(async () => {
-      setChannelSearchLoading(true);
-      setChannelSearchError(null);
-      try {
-        const params = new URLSearchParams({ q: query, limit: '20' });
-        const response = await fetch(`/api/channels?${params}`, { cache: 'no-store' });
-        const data = await response.json();
-        if (!response.ok || !data?.ok || !Array.isArray(data?.channels)) {
-          throw new Error(data?.error || `Channel search failed (${response.status}).`);
-        }
-        const results = data.channels.filter((channel: any) =>
-          typeof channel?.id === 'string' && channel.id.trim().length > 0
+      if (data.ok && data.channels) {
+        // Filter to human-readable channel IDs only (exclude token-gated URI channels)
+        const clean = data.channels.filter((ch: any) =>
+          ch.id && !ch.id.includes(':') && !ch.id.includes('/')
         );
-        if (active) setChannelSearchResults(results);
-      } catch (error: any) {
-        if (!active) return;
-        setChannelSearchResults([]);
-        setChannelSearchError(error?.message || 'Could not search Hypersnap channels.');
-      } finally {
-        if (active) setChannelSearchLoading(false);
+        setChannels(clean.length ? clean : data.channels.slice(0, 20));
+      } else {
+        // Fallback to popular channels
+        setChannels([
+          { id: 'base', name: 'Base' },
+          { id: 'farcaster', name: 'Social' },
+          { id: 'dev', name: 'Dev' },
+          { id: 'art', name: 'Art' },
+          { id: 'music', name: 'Music' },
+        ]);
       }
-    }, 250);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [showChannelSuggestions, channelSearch, channelReload]);
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+      // Fallback to popular channels
+      setChannels([
+        { id: 'base', name: 'Base' },
+        { id: 'farcaster', name: 'Social' },
+        { id: 'dev', name: 'Dev' },
+        { id: 'art', name: 'Art' },
+        { id: 'music', name: 'Music' },
+      ]);
+    }
+  }
 
   // Unified trigger search: @user, /channel, $token
   useEffect(() => {
@@ -330,11 +290,9 @@ function ComposePageInner() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch('/api/upload-image', {
-          method: 'POST',
-          headers: { ...(getAuthHeaders('write:casts') ?? {}) },
-          body: formData,
-        });
+        const auth = getAuthHeaders('write:casts');
+        if (!auth) throw new Error('Your posting session has expired. Sign in again.');
+        const response = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: formData });
         const data = await response.json();
         if (data.ok && data.url) { uploaded.push(data.url); }
         else { setStatus(`Upload failed: ${data.error || 'Unknown error'}`); }
@@ -431,7 +389,11 @@ function ComposePageInner() {
 
        const res = await fetch("/api/schedule-cast", {
          method: "POST",
-          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          headers: {
+            "Content-Type": "application/json",
+            ...(getAuthHeaders('write:casts') ?? {}),
+            'x-signer-key': signerPrivateKey,
+          },
          body: JSON.stringify(body),
        });
 
@@ -746,61 +708,30 @@ function ComposePageInner() {
       <div style={{
         background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        position: 'relative',
-        zIndex: 20,
       }}>
         {/* Channel picker opens upward from here */}
         {showChannelSuggestions && (
-          <div id="compose-channel-picker" role="region" aria-label="Hypersnap channels" style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, maxHeight: 240, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+          <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
             <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
               <input
                 type="text"
                 value={channelSearch}
                 onChange={e => setChannelSearch(e.target.value)}
                 placeholder="Search channels…"
-                aria-label="Search channels"
                 autoFocus
                 style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
               />
             </div>
-            {channelsLoading && !channelSearch.trim() ? (
-              <div role="status" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>Loading channels from Hypersnap…</div>
-            ) : channelsError && !channelSearch.trim() ? (
-              <div role="alert" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>
-                <div>{channelsError}</div>
-                <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>Retry</button>
-              </div>
-            ) : (() => {
-              if (channelSearchLoading) {
-                return <div role="status" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>Searching Hypersnap channels…</div>;
-              }
-              if (channelSearchError) {
-                return (
-                  <div role="alert" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>
-                    <div>{channelSearchError}</div>
-                    <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>Retry search</button>
-                  </div>
-                );
-              }
-              const source = channelSearch.trim() ? channelSearchResults ?? [] : channels;
-              const query = channelSearch.trim().toLowerCase();
-              const matches = source.filter(ch =>
-                !query || ch.id.toLowerCase().includes(query) || ch.name?.toLowerCase?.().includes(query)
-              ).slice(0, 8);
-              if (!matches.length) {
-                return <div style={{ padding: '12px 16px', fontSize: 13, ...muted }}>{query ? 'No matching channels.' : channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}</div>;
-              }
-              return matches.map(ch => (
-                <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setChannelSearchResults(null); setShowChannelSuggestions(false); }}
-                  style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                >
-                  <span style={muted}>/</span>{ch.id}
-                  {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
-                </button>
-              ));
-            })()}
+            {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
+              <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }}
+                style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={muted}>/</span>{ch.id}
+                {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
+              </button>
+            ))}
           </div>
         )}
 
@@ -824,7 +755,7 @@ function ComposePageInner() {
               <input id="image-upload-compose" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || uploadedImages.length >= maxImages} style={{ display: 'none' }} />
             </label>
 
-            <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel"
+            <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel"
               style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
               <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>

@@ -19,7 +19,7 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
   await db.query(CREATE_TABLE_SQL);
 }
 
-/** POST /api/curated-lists/:id/follow — auth via x-farcaster-fid + x-signer-key headers */
+/** POST /api/curated-lists/:id/follow — auth via scoped HomieHouse session */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const logger = createApiLogger('/curated-lists/[id]/follow POST');
   logger.start();
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-/** DELETE /api/curated-lists/:id/follow — auth via x-farcaster-fid + x-signer-key headers */
+/** DELETE /api/curated-lists/:id/follow — auth via scoped HomieHouse session */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const logger = createApiLogger('/curated-lists/[id]/follow DELETE');
   logger.start();

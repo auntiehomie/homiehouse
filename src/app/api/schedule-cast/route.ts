@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { rateLimit } from '@/lib/ratelimit';
-import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { verifyFarcasterSignerAuth, verifyFarcasterSigner, verifyFarcasterSignerKey } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 import { encryptSignerKey } from '@/lib/signer-crypto';
 
@@ -55,9 +55,8 @@ export async function POST(req: NextRequest) {
     const embedsJson = JSON.stringify(Array.isArray(embeds) ? embeds : []);
     const scheduledAt = scheduledDate.toISOString();
 
-    // Capture the signer key from the auth header and encrypt it for server-side publishing.
-    // The key is never in the request body — it's from x-signer-key header, already verified by
-    // verifyFarcasterSignerAuth above. At publish time, the cron job decrypts it to sign the cast.
+    // Scheduled publishing requires explicit signer custody. Verify the
+    // supplied key independently of the scoped session before encrypting it.
     const signerKey = req.headers.get('x-signer-key');
     if (!signerKey) {
       return NextResponse.json(
@@ -65,6 +64,7 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+    await verifyFarcasterSignerKey(userFid, signerKey);
     const encryptedKey = encryptSignerKey(signerKey);
 
     const rows = await sql`

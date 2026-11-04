@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/learning-progress
 // Body: { plan, completed_ids, completions, hh2_points }
-// Auth: x-farcaster-fid + x-signer-key headers (verified server-side)
+// Auth: scoped HomieHouse session
 export async function POST(req: NextRequest) {
   try {
     const verifiedFid = await verifyFarcasterSignerAuth(req);

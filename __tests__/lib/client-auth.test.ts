@@ -21,9 +21,9 @@ describe('checkout credential selection', () => {
     values.set('hh_session_v1', JSON.stringify({ token, fid: 123, expiresAt: Date.now() + 60000 }));
     return token;
   }
-  it('uses the approved signer when a read-only login would mask it', () => {
+  it('never falls back to a private signer key for a write', () => {
     session(['read:all']);
-    expect(getAuthHeaders('write:shop')).toEqual({ 'x-farcaster-fid': '123', 'x-signer-key': 'test-private-key' });
+    expect(getAuthHeaders('write:shop')).toBeNull();
   });
   it('prefers a session that already has shop permission', () => {
     const token = session(['read:all', 'write:shop']);
@@ -33,7 +33,7 @@ describe('checkout credential selection', () => {
     const token = session(['read:all']);
     expect(getAuthHeaders()).toEqual({ 'x-session-token': token });
   });
-  it('does not claim shop access without a capable session or signer', () => {
+  it('does not claim shop access without a capable session', () => {
     session(['read:all']);
     values.delete('signer_123');
     expect(getAuthHeaders('write:shop')).toBeNull();

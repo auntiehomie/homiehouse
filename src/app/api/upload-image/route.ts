@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateImageFile } from '@/lib/validation';
+import { validateImageFile, validateImageSignature } from '@/lib/validation';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { rateLimit } from '@/lib/ratelimit';
-import { getQStorageConfig, uploadImageToQStorage } from '@/lib/qstorage';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
+import { getQStorageConfig, uploadImageToQStorage } from '@/lib/qstorage';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/upload-image');
   logger.start();
 
   try {
-    const verifiedFid = await verifyFarcasterSignerAuth(request, 'write:casts');
+    const authenticatedFid = await verifyFarcasterSignerAuth(request, 'write:casts');
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
     const { success: rlOk } = rateLimit(`upload-image:${ip}`, 20, 3600);
     if (!rlOk) {
@@ -20,22 +21,27 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    logger.info('Upload request', { fid: verifiedFid });
+    const fid = formData.get('fid');
+    if (fid !== null && Number(fid) !== authenticatedFid) {
+      return NextResponse.json({ error: 'FID does not match authenticated user' }, { status: 403 });
+    }
+    logger.info('Upload request', { fid: authenticatedFid });
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     validateImageFile(file);
+    await validateImageSignature(file);
 
     logger.info('Uploading image', { fileName: file.name, fileType: file.type, fileSize: file.size });
 
-    // QStorage is the preferred image store when configured. Do not silently
-    // send media to a different provider if a configured QStorage upload fails.
+    // Prefer QStorage when configured. Keep the stricter authenticated upload
+    // checks above and do not silently send media elsewhere if QStorage fails.
     const qstorageConfig = getQStorageConfig();
     if (qstorageConfig) {
       try {
-        const uploaded = await uploadImageToQStorage(file, String(verifiedFid));
+        const uploaded = await uploadImageToQStorage(file, String(authenticatedFid));
         logger.success('Uploaded image to QStorage', { key: uploaded.key, url: uploaded.url });
         logger.end();
         return NextResponse.json({ ok: true, url: uploaded.url, key: uploaded.key, provider: 'qstorage' });
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 1. Try Pinata IPFS when QStorage is not configured ──────────────────
+    // ── 1. Try Pinata IPFS ───────────────────────────────────────────────────
     const pinataJwt = process.env.PINATA_JWT;
     if (pinataJwt) {
       try {
@@ -74,7 +80,7 @@ export async function POST(request: NextRequest) {
         // Add metadata so the file is easily identifiable in Pinata dashboard
         pinataForm.append('pinataMetadata', JSON.stringify({
           name: `homiehouse-cast-${Date.now()}-${file.name}`,
-          keyvalues: { source: 'homiehouse', fid: String(verifiedFid) },
+          keyvalues: { source: 'homiehouse', fid: String(authenticatedFid) },
         }));
         pinataForm.append('pinataOptions', JSON.stringify({ cidVersion: 1 }));
 
@@ -142,6 +148,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, url: result.data.url, deleteUrl: result.data.delete_url, provider: 'imgbb' });
 
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     logger.error('Upload failed', error);
     return handleApiError(error, 'POST /upload-image');
   }

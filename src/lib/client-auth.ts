@@ -1,8 +1,8 @@
 /**
  * client-auth — helper for client-side auth headers.
  *
- * HH-02: Now supports session-token auth (P1) as the preferred path.
- * Falls back to legacy x-signer-key for backward compatibility during migration.
+ * API requests use short-lived session tokens. Signer private keys are never
+ * returned by this general-purpose helper.
  *
  * Usage in client components:
  *   const headers = getAuthHeaders(); // or null if not authenticated
@@ -10,58 +10,32 @@
  */
 
 export interface FarcasterAuthHeaders {
-  'x-farcaster-fid'?: string;
-  'x-signer-key'?: string;
   'x-session-token'?: string;
 }
 
 /**
- * Read the FID and signer key from localStorage.
- * Returns null if not authenticated.
- *
- * HH-02: Prefers a session token (sessionStorage) when available.
- * Falls back to legacy x-signer-key (localStorage) during migration.
+ * Return a capable, unexpired session token, or null.
  */
 export function getAuthHeaders(requiredScope?: string): FarcasterAuthHeaders | null {
   if (typeof window === 'undefined') return null;
 
   try {
-    // ── P1: Session token (preferred) ──
     const sessionRaw = sessionStorage.getItem('hh_session_v1');
     if (sessionRaw) {
       const session = JSON.parse(sessionRaw);
       if (session.token && session.expiresAt > Date.now()) {
-        // A wallet login creates a read-only session. For a write, use the
-        // approved signer if that session lacks the requested capability.
-        // Decoding here only selects credentials; the server verifies them.
         let hasScope = !requiredScope;
         if (requiredScope) {
           try {
             const payload = session.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
             const claims = JSON.parse(atob(payload));
             hasScope = Array.isArray(claims.scopes) && claims.scopes.includes(requiredScope);
-          } catch { /* try the approved signer below */ }
+          } catch { return null; }
         }
         if (hasScope) return { 'x-session-token': session.token };
       }
     }
-
-    // ── Legacy: x-signer-key fallback ──
-    const profileRaw = localStorage.getItem('hh_profile');
-    if (!profileRaw) return null;
-    const profile = JSON.parse(profileRaw);
-    const fid = profile?.fid;
-    if (!fid || typeof fid !== 'number') return null;
-
-    const signerRaw = localStorage.getItem(`signer_${fid}`);
-    if (!signerRaw) return null;
-    const signer = JSON.parse(signerRaw);
-    if (signer.status !== 'approved' || !signer.private_key) return null;
-
-    return {
-      'x-farcaster-fid': String(fid),
-      'x-signer-key': signer.private_key,
-    };
+    return null;
   } catch {
     return null;
   }

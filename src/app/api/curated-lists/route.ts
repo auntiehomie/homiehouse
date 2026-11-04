@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/curated-lists
  * Body: { id, isPublic } — toggle an existing list's visibility.
- * Auth: x-farcaster-fid + x-signer-key headers (verified server-side).
+ * Auth: scoped HomieHouse session.
  */
 export async function PATCH(request: NextRequest) {
   const logger = createApiLogger('/curated-lists PATCH');

@@ -8,6 +8,8 @@ test('long Ask Homie share posts as a thread and Back restores the search', asyn
     Reflect.deleteProperty(Navigator.prototype, 'serviceWorker');
     localStorage.setItem('hh_profile', JSON.stringify({ fid: 321, username: 'fixture' }));
     localStorage.setItem('signer_321', JSON.stringify({ status: 'approved', private_key: '01'.repeat(32) }));
+    const token = `header.${btoa(JSON.stringify({ scopes: ['read:all', 'write:casts'] }))}.signature`;
+    sessionStorage.setItem('hh_session_v1', JSON.stringify({ fid: 321, token, expiresAt: Date.now() + 3600000 }));
   });
   const answer = 'Research results from the fixture. ' + 'é🏠 '.repeat(250);
   const submitted: Buffer[] = [];
@@ -17,6 +19,9 @@ test('long Ask Homie share posts as a thread and Back restores the search', asyn
     if (url.pathname === '/api/ask-homie') return route.fulfill({ json: route.request().method() === 'POST' ? { response: answer, agentRole: 'researcher' } : { profile: null, stats: {} } });
     if (url.pathname === '/api/submit-cast') {
       submitted.push(route.request().postDataBuffer()!);
+      if (!route.request().headers()['x-session-token']) {
+        return route.fulfill({ status: 401, json: { ok: false, error: 'Missing session token' } });
+      }
       return route.fulfill({ json: { ok: true, hash: '0x' + String(submitted.length).repeat(40) } });
     }
     if (url.pathname.startsWith('/api/')) return route.fulfill({ json: { data: [], channels: [], notifications: [] } });
