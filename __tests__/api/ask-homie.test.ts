@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { POST, GET, PATCH } from '@/app/api/ask-homie/route';
 
+jest.mock('@/lib/auth', () => ({ verifyFarcasterSignerAuth: jest.fn(async () => 0) }));
 var generateLearning = jest.fn();
 jest.mock('@/lib/ai/conversation-learning', () => ({ generateConversationLearning: (...args: unknown[]) => generateLearning(...args) }));
 
