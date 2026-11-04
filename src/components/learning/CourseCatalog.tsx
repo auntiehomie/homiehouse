@@ -9,7 +9,7 @@ export interface CourseCatalogItem {
   estimatedMinutes: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
-  section?: 'safety' | 'network' | 'premium';
+  section?: 'ai' | 'safety' | 'network' | 'premium';
   href?: string;
 }
 
@@ -33,7 +33,8 @@ export default function CourseCatalog({
   courses: CourseCatalogItem[];
   onSelectPath?: (track: CatalogTrack, level: CatalogLevel) => void;
 }) {
-  const safetyCourses = courses.filter(course => (course.section ?? (course.tags.includes('network-states') ? 'network' : 'safety')) === 'safety');
+  const aiCourses = courses.filter(course => course.section === 'ai' || course.tags.includes('ai'));
+  const safetyCourses = courses.filter(course => !aiCourses.includes(course) && (course.section ?? (course.tags.includes('network-states') ? 'network' : 'safety')) === 'safety');
   const networkCourses = courses.filter(course => (course.section ?? (course.tags.includes('network-states') ? 'network' : 'safety')) === 'network');
   const premiumCourses = courses.filter(course => course.section === 'premium');
 
@@ -113,6 +114,7 @@ export default function CourseCatalog({
         </div>
       </section>
 
+      {renderCourses('AI and agentic economy', aiCourses)}
       {renderCourses('Crypto safety', safetyCourses)}
       {renderCourses('Network States: proposal and counterpoints', networkCourses)}
       {renderCourses('Premium courses', premiumCourses)}

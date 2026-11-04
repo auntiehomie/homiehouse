@@ -42,6 +42,10 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
   const { slug } = await params;
   const lesson = getCuratedLesson(slug);
   if (!lesson) notFound();
+  const relatedLessons = (lesson.relatedLessons ?? []).flatMap((id) => {
+    const related = getCuratedLesson(id);
+    return related ? [related] : [];
+  });
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -105,6 +109,21 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
             {lesson.sources.map((source) => <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] underline underline-offset-4">{source.label} ↗</a></li>)}
           </ul>
         </section>
+
+        {relatedLessons.length > 0 && (
+          <section className="mt-10" aria-labelledby="related-lessons-heading">
+            <h2 id="related-lessons-heading" className="text-xl font-bold">Related lessons</h2>
+            <ul className="mt-4 space-y-2">
+              {relatedLessons.map((related) => (
+                <li key={related.module.id}>
+                  <Link href={`/learn/library/${related.module.id}`} className="text-[var(--accent)] underline underline-offset-4">
+                    {related.module.title} · {related.module.difficulty}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <footer className="mt-12 border-t border-[var(--border)] pt-8">
           <p className="font-semibold">{lesson.summary}</p>
