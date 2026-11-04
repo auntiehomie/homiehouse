@@ -1,10 +1,14 @@
-import { getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders, getAuthHeaders } from '@/lib/client-auth';
 
 describe('checkout credential selection', () => {
   const values = new Map<string, string>();
   beforeEach(() => {
     values.clear();
-    const storage = { getItem: (key: string) => values.get(key) ?? null };
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    };
     Object.defineProperty(global, 'window', { value: {}, configurable: true });
     Object.defineProperty(global, 'localStorage', { value: storage, configurable: true });
     Object.defineProperty(global, 'sessionStorage', { value: storage, configurable: true });
@@ -37,5 +41,32 @@ describe('checkout credential selection', () => {
     session(['read:all']);
     values.delete('signer_123');
     expect(getAuthHeaders('write:shop')).toBeNull();
+  });
+
+  it('creates a write-capable session from an approved signer when the current session is read-only', async () => {
+    session(['read:all']);
+    const dispatchEvent = jest.fn();
+    Object.defineProperty(global, 'window', { value: { dispatchEvent }, configurable: true });
+    const token = `header.${Buffer.from(JSON.stringify({ scopes: ['read:all', 'write:casts'] })).toString('base64url')}.signature`;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, token, fid: 123, expiresAt: Date.now() + 60000 }),
+    }) as jest.Mock;
+
+    await expect(ensureAuthHeaders('write:casts')).resolves.toEqual({ 'x-session-token': token });
+    expect(global.fetch).toHaveBeenCalledWith('/api/auth/session', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ 'x-farcaster-fid': '123', 'x-signer-key': 'test-private-key' }),
+    }));
+    expect(JSON.parse(values.get('hh_session_v1')!).token).toBe(token);
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not make an unauthenticated schedule request when no approved signer is stored', async () => {
+    values.delete('hh_session_v1');
+    values.delete('signer_123');
+    global.fetch = jest.fn() as jest.Mock;
+    await expect(ensureAuthHeaders('write:casts')).resolves.toBeNull();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
