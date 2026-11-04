@@ -576,6 +576,7 @@ function ModuleLessonContent() {
     if (!moduleId) { router.replace('/learn'); return; }
     setCardPositionRestored(false);
     setCards([]);
+    setCardIndex(0);
     try {
       const raw = localStorage.getItem(LS_PLAN_KEY);
       if (!raw) { router.replace('/learn'); return; }
