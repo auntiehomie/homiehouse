@@ -9,7 +9,7 @@ export interface CourseCatalogItem {
   estimatedMinutes: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   tags: string[];
-  section?: 'safety' | 'network' | 'premium';
+  section?: 'ai' | 'safety' | 'network' | 'premium';
   href?: string;
 }
 
