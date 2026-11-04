@@ -114,6 +114,7 @@ export default function CourseCatalog({
         </div>
       </section>
 
+      {renderCourses('AI and agentic economy', aiCourses)}
       {renderCourses('Crypto safety', safetyCourses)}
       {renderCourses('Network States: proposal and counterpoints', networkCourses)}
       {renderCourses('Premium courses', premiumCourses)}
