@@ -42,6 +42,10 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
   const { slug } = await params;
   const lesson = getCuratedLesson(slug);
   if (!lesson) notFound();
+  const relatedLessons = (lesson.relatedLessons ?? []).flatMap((id) => {
+    const related = getCuratedLesson(id);
+    return related ? [related] : [];
+  });
 
   const jsonLd = {
     '@context': 'https://schema.org',
