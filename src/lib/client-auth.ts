@@ -41,6 +41,57 @@ export function getAuthHeaders(requiredScope?: string): FarcasterAuthHeaders | n
   }
 }
 
+const sessionRequests = new Map<number, Promise<FarcasterAuthHeaders | null>>();
+
+/**
+ * Return a session header with the requested capability, creating a fresh
+ * session from the user's already-approved signer when the current session
+ * is missing, expired, or read-only. This is needed after wallet-only login,
+ * which intentionally creates a read-only session.
+ */
+export async function ensureAuthHeaders(requiredScope: string): Promise<FarcasterAuthHeaders | null> {
+  const existing = getAuthHeaders(requiredScope);
+  if (existing) return existing;
+
+  const fid = getStoredFid();
+  const signerKey = getStoredSignerKey();
+  if (!fid || !signerKey || typeof window === 'undefined') return null;
+
+  const inFlight = sessionRequests.get(fid);
+  if (inFlight) return inFlight;
+
+  const request = (async (): Promise<FarcasterAuthHeaders | null> => {
+    try {
+      const response = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-farcaster-fid': String(fid),
+          'x-signer-key': signerKey,
+        },
+        body: JSON.stringify({ fid }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.ok || typeof data.token !== 'string' || Number(data.fid) !== fid) {
+        return null;
+      }
+
+      const session = { token: data.token, fid, expiresAt: Number(data.expiresAt) };
+      if (!Number.isFinite(session.expiresAt) || session.expiresAt <= Date.now()) return null;
+      sessionStorage.setItem('hh_session_v1', JSON.stringify(session));
+      window.dispatchEvent(new Event('hh:auth:changed'));
+      return getAuthHeaders(requiredScope);
+    } catch {
+      return null;
+    } finally {
+      sessionRequests.delete(fid);
+    }
+  })();
+
+  sessionRequests.set(fid, request);
+  return request;
+}
+
 /**
  * Get the FID from localStorage only (doesn't require a signer).
  */
