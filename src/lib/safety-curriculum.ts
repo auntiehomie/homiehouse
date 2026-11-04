@@ -11,6 +11,7 @@ export interface CuratedLearningModule {
 
 export interface CuratedLesson {
   module: CuratedLearningModule;
+  relatedLessons?: string[];
   intro: string;
   concepts: Array<{ title: string; explanation: string; analogy?: string }>;
   practicalExample: string;
