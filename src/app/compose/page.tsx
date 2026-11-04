@@ -7,7 +7,7 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import CharacterMeter from '@/components/CharacterMeter';
 import ComposeInspiration from '@/components/ComposeInspiration';
 import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
-import { getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders, getAuthHeaders } from '@/lib/client-auth';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 
@@ -382,8 +382,9 @@ function ComposePageInner() {
 
         // Pass the user's signer private key so the server can sign the cast at publish time
         const signerPrivateKey = getPrivateKeyHex();
-        if (!signerPrivateKey) {
-          setStatus("Posting permissions required to schedule. Tap 'Enable Posting', authorize the Hypersnap signer, then try again.");
+        const authHeaders = await ensureAuthHeaders('write:casts');
+        if (!signerPrivateKey || !authHeaders) {
+          setStatus("Your posting session could not be verified. Tap 'Enable Posting' to authorize the Hypersnap signer, then try again.");
           setLoading(false);
           return;
         }
@@ -393,7 +394,7 @@ function ComposePageInner() {
          method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(getAuthHeaders('write:casts') ?? {}),
+            ...authHeaders,
             'x-signer-key': signerPrivateKey,
           },
          body: JSON.stringify(body),
