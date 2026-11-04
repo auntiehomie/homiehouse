@@ -63,7 +63,6 @@ export async function explainXPost(
       const res = await anthropic.messages.create({
         model: process.env.X_EXPLAIN_MODEL || 'claude-haiku-4-5-20251001',
         max_tokens: 160,
-        temperature: 0.5,
         system: EXPLAIN_SYSTEM,
         messages: [{ role: 'user', content: user }],
       });
