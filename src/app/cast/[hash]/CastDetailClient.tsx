@@ -11,6 +11,8 @@ import EmbedRenderer from "@/components/EmbedRenderer";
 import { previousRoute, readCastNavigation, scrollPageTo, visitRoute, writeCastNavigation } from "@/lib/cast-navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { buildReplyTree } from "@/lib/cast-thread";
+import { profileHref } from '@/lib/profile-links';
+import { getStoredFid } from '@/lib/client-auth';
 
 function ActionBtn({
   onClick, icon, label, active = false, disabled = false,
@@ -65,7 +67,7 @@ export default function CastDetailClient() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const { hasActiveSigner, requestSigner, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn, submitCast } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, likeCast, unlikeCast, recast: recastFn, removeRecast, removeCast, reply: replyFn, submitCast } = useFarcasterWrites();
 
   useEffect(() => {
     writeCastNavigation(visitRoute(readCastNavigation(), window.location.pathname + window.location.search));
@@ -302,6 +304,14 @@ export default function CastDetailClient() {
         icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>}
         label="Ask Homie"
       />
+      {Number(authorFid) === Number(viewerFid) && (
+        <ActionBtn
+          disabled={actionLoading === `delete-${castHash}`}
+          onClick={() => void handleDeleteCast(castHash, authorFid)}
+          icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>}
+          label={actionLoading === `delete-${castHash}` ? 'Deleting…' : 'Delete'}
+        />
+      )}
     </div>
   );
 
@@ -333,11 +343,24 @@ export default function CastDetailClient() {
   const authorName = author?.display_name || author?.username || 'Unknown';
   const authorUsername = author?.username || '';
   const authorFid = author?.fid ?? 0;
+  const viewerFid = getStoredFid();
   const authorPfp = author?.pfp_url;
   const text = cast.text || '';
   const embeds = castEmbedUrls(cast.text || '', cast.embeds);
   const replies = cast.replies?.casts || cast.direct_replies || [];
   const parentChain: any[] = cast.parent_chain || [];
+
+  const handleDeleteCast = async (targetHash: string, targetAuthorFid: number) => {
+    if (Number(targetAuthorFid) !== Number(viewerFid) || !window.confirm('Delete this cast? This action cannot be undone.')) return;
+    setActionLoading(`delete-${targetHash}`);
+    try {
+      await removeCast(targetHash);
+      router.replace('/feed', { scroll: false });
+    } catch (err: any) {
+      setActionLoading(null);
+      showToast(err?.message || 'Could not delete this cast.', false);
+    }
+  };
 
   let timeLabel = '';
   if (cast.timestamp) {
@@ -352,7 +375,7 @@ export default function CastDetailClient() {
     const rName = rAuthor?.display_name || rAuthor?.username || 'Unknown';
     const rRawUsername = rAuthor?.username || '';
     const rUsername = /^fid:\d+$/i.test(rRawUsername) ? '' : rRawUsername;
-    const rProfileHref = rUsername ? `/profile?user=${rUsername}` : rAuthor?.fid ? `/profile?fid=${rAuthor.fid}` : '/feed';
+    const rProfileHref = profileHref({ fid: rAuthor?.fid, username: rUsername || undefined });
     const rFid = rAuthor?.fid ?? 0;
     const rPfp = rAuthor?.pfp_url;
     const rText = reply.text || '';
@@ -470,7 +493,7 @@ export default function CastDetailClient() {
               const pName = pAuthor?.display_name || pAuthor?.username || 'Unknown';
               const pRawUsername = pAuthor?.username || '';
               const pUsername = /^fid:\d+$/i.test(pRawUsername) ? '' : pRawUsername;
-              const pProfileHref = pUsername ? `/profile?user=${pUsername}` : pAuthor?.fid ? `/profile?fid=${pAuthor.fid}` : '/feed';
+              const pProfileHref = profileHref({ fid: pAuthor?.fid, username: pUsername || undefined });
               const pPfp = pAuthor?.pfp_url;
               const pText = p.text || '';
               let pTime = '';
@@ -513,12 +536,12 @@ export default function CastDetailClient() {
         <article style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             {authorPfp && (
-              <Link href={`/profile?user=${authorUsername}`}>
+              <Link href={profileHref({ fid: authorFid, username: authorUsername })}>
                 <Image src={authorPfp} alt={authorName} width={44} height={44} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
               </Link>
             )}
             <div>
-              <Link href={`/profile?user=${authorUsername}`} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <Link href={profileHref({ fid: authorFid, username: authorUsername })} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 {authorName}
               </Link>
               <div style={{ fontSize: 13, color: 'var(--muted-on-dark, #999)' }}>@{authorUsername}</div>

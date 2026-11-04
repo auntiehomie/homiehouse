@@ -102,7 +102,13 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
   }
 
   // Image
-  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(embedUrl) ||
+  let isQStorageObject = false;
+  try {
+    const host = new URL(embedUrl).hostname.toLowerCase();
+    isQStorageObject = host.endsWith('.qstorage.quilibrium.com');
+  } catch {}
+
+  const isImage = isQStorageObject || /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(embedUrl) ||
     embedUrl.includes('imagedelivery.net') ||
     embedUrl.includes('imgur.com') ||
     embedUrl.includes('imgbb.com') ||

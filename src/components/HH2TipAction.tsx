@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount, useChainId, useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useChainId, useConnect, useSwitchChain, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { isAddress, parseUnits } from 'viem';
 import { HH2_TOKEN_ABI, HH2_TOKEN_ADDRESS } from '@/lib/hh2-contracts';
@@ -10,7 +10,8 @@ type Props = { recipientFid?: number | null; recipientUsername?: string | null }
 
 /** User initiated HH2 transfer to a profile's verified Ethereum address. */
 export default function HH2TipAction({ recipientFid, recipientUsername }: Props) {
-  const { address, isConnected } = useAccount();
+  const { address, connector, isConnected } = useAccount();
+  const { connect, connectors, isPending: connectingBaseAccount, error: connectError } = useConnect();
   const chainId = useChainId();
   const { switchChain, isPending: switching } = useSwitchChain();
   const { writeContract, data: txHash, isPending: sending, isError, error, reset } = useWriteContract();
@@ -20,6 +21,12 @@ export default function HH2TipAction({ recipientFid, recipientUsername }: Props)
   const [amount, setAmount] = useState('5');
   const [customAmount, setCustomAmount] = useState('');
   const [lookupError, setLookupError] = useState('');
+  const baseAccountConnector = connectors.find(item => item.id === 'base');
+
+  const connectBaseAccount = () => {
+    if (!baseAccountConnector) return;
+    connect({ connector: baseAccountConnector, chainId: base.id });
+  };
 
   const openTip = async () => {
     setOpen(true);
@@ -75,10 +82,21 @@ export default function HH2TipAction({ recipientFid, recipientUsername }: Props)
             <button type="button" aria-label="Close tip" onClick={() => setOpen(false)} style={{ background: 'transparent', border: 0, color: 'var(--muted-on-dark)', fontSize: 24, cursor: 'pointer' }}>×</button>
           </div>
           <p style={{ margin: '10px 0 16px', fontSize: 13, lineHeight: 1.5, color: 'var(--muted-on-dark)' }}>
-            {recipientUsername ? `Send HH2 directly to @${recipientUsername}` : 'Send HH2 directly to this cast author'} on Base. Your wallet will ask you to confirm the transfer.
+            {recipientUsername ? `Send HH2 directly to @${recipientUsername}` : 'Send HH2 directly to this cast author'} on Base. Choose a passkey Base Account to approve in HomieHouse, or use your connected wallet.
           </p>
 
-          {!isConnected ? <p style={{ color: '#fbbf24', fontSize: 13 }}>Connect an EVM wallet from the app header to send a tip.</p> : null}
+          {!isConnected && <p style={{ color: '#fbbf24', fontSize: 13 }}>Connect a wallet to send a tip. For in-app passkey approval, use a Base Account.</p>}
+          {baseAccountConnector && connector?.id !== 'base' && (
+            <div style={{ marginBottom: 14 }}>
+              <button type="button" onClick={connectBaseAccount} disabled={connectingBaseAccount} style={{ width: '100%', padding: 10, border: '1px solid var(--border)', borderRadius: 9, background: 'var(--bg-dark)', color: 'var(--text-on-dark)', fontWeight: 700, cursor: connectingBaseAccount ? 'wait' : 'pointer', opacity: connectingBaseAccount ? .65 : 1 }}>
+                {connectingBaseAccount ? 'Opening Base Account…' : 'Use Base Account (passkey)'}
+              </button>
+              <p style={{ margin: '7px 0 0', fontSize: 11, lineHeight: 1.45, color: 'var(--muted-on-dark)' }}>
+                Base Account is a separate self-custody address. It needs HH2 and Base ETH for network fees. Existing wallets remain available and may open their own app to approve.
+              </p>
+            </div>
+          )}
+          {connectError && <p role="alert" style={{ color: '#fca5a5', fontSize: 12 }}>{connectError.message || 'Could not connect a Base Account.'}</p>}
           {loadingRecipient ? <p role="status" style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>Checking the profile’s verified wallet…</p> : null}
           {lookupError ? <p role="alert" style={{ fontSize: 13, color: '#fca5a5' }}>{lookupError}</p> : null}
           {recipient && <p style={{ margin: '0 0 12px', fontSize: 11, color: 'var(--muted-on-dark)', overflowWrap: 'anywhere' }}>Verified recipient: {recipient}</p>}
@@ -95,7 +113,7 @@ export default function HH2TipAction({ recipientFid, recipientUsername }: Props)
           )}
 
           {chainId !== base.id && isConnected && <button type="button" onClick={() => switchChain({ chainId: base.id })} disabled={switching} style={{ width: '100%', padding: 11, border: 0, borderRadius: 9, background: '#fbbf24', color: '#111', fontWeight: 700, cursor: 'pointer' }}>{switching ? 'Switching…' : 'Switch to Base'}</button>}
-          {chainId === base.id && isConnected && recipient && !txHash && <button type="button" onClick={() => sendTip(amount === 'custom' ? customAmount : amount)} disabled={sending || !/^\d+(\.\d{1,18})?$/.test(amount === 'custom' ? customAmount : amount) || Number(amount === 'custom' ? customAmount : amount) <= 0} style={{ width: '100%', padding: 10, border: 0, borderRadius: 9, background: '#fbbf24', color: '#111', fontWeight: 700, cursor: sending ? 'wait' : 'pointer', opacity: sending ? .6 : 1 }}>{sending ? 'Confirm in your wallet…' : `Send ${amount === 'custom' ? customAmount || '0' : amount} HH2`}</button>}
+          {chainId === base.id && isConnected && recipient && !txHash && <button type="button" onClick={() => sendTip(amount === 'custom' ? customAmount : amount)} disabled={sending || !/^\d+(\.\d{1,18})?$/.test(amount === 'custom' ? customAmount : amount) || Number(amount === 'custom' ? customAmount : amount) <= 0} style={{ width: '100%', padding: 10, border: 0, borderRadius: 9, background: '#fbbf24', color: '#111', fontWeight: 700, cursor: sending ? 'wait' : 'pointer', opacity: sending ? .6 : 1 }}>{sending ? connector?.id === 'base' ? 'Waiting for passkey approval…' : 'Confirm in your wallet…' : `Send ${amount === 'custom' ? customAmount || '0' : amount} HH2`}</button>}
           {isError && <p role="alert" style={{ margin: '10px 0 0', fontSize: 12, color: '#fca5a5' }}>{error?.message?.slice(0, 220) || 'The transfer failed.'}</p>}
           {txHash && <p role="status" style={{ margin: '12px 0 0', fontSize: 13, color: '#86efac' }}>Tip transaction submitted. <a href={`https://basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer" style={{ color: '#86efac' }}>View on Basescan ↗</a></p>}
         </section>

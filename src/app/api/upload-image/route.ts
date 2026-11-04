@@ -5,6 +5,7 @@ import { createApiLogger } from '@/lib/logger';
 import { rateLimit } from '@/lib/ratelimit';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
+import { getQStorageConfig, uploadImageToQStorage } from '@/lib/qstorage';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/upload-image');
@@ -35,6 +36,41 @@ export async function POST(request: NextRequest) {
 
     logger.info('Uploading image', { fileName: file.name, fileType: file.type, fileSize: file.size });
 
+    // Prefer QStorage when configured. Keep the stricter authenticated upload
+    // checks above and do not silently send media elsewhere if QStorage fails.
+    const qstorageConfig = getQStorageConfig();
+    if (qstorageConfig) {
+      try {
+        const uploaded = await uploadImageToQStorage(file, String(authenticatedFid));
+        logger.success('Uploaded image to QStorage', { key: uploaded.key, url: uploaded.url });
+        logger.end();
+        return NextResponse.json({ ok: true, url: uploaded.url, key: uploaded.key, provider: 'qstorage' });
+      } catch (error: unknown) {
+        const qstorageError = error as {
+          name?: string;
+          message?: string;
+          code?: string;
+          Code?: string;
+          $metadata?: {
+            httpStatusCode?: number;
+            requestId?: string;
+            extendedRequestId?: string;
+          };
+        };
+        logger.error('QStorage upload failed', {
+          bucket: qstorageConfig.bucket,
+          region: qstorageConfig.region,
+          name: qstorageError?.name,
+          message: qstorageError?.message,
+          code: qstorageError?.Code || qstorageError?.code,
+          status: qstorageError?.$metadata?.httpStatusCode,
+          requestId: qstorageError?.$metadata?.requestId,
+          extendedRequestId: qstorageError?.$metadata?.extendedRequestId,
+        });
+        return NextResponse.json({ error: 'Failed to upload image to QStorage.' }, { status: 502 });
+      }
+    }
+
     // ── 1. Try Pinata IPFS ───────────────────────────────────────────────────
     const pinataJwt = process.env.PINATA_JWT;
     if (pinataJwt) {
@@ -44,7 +80,7 @@ export async function POST(request: NextRequest) {
         // Add metadata so the file is easily identifiable in Pinata dashboard
         pinataForm.append('pinataMetadata', JSON.stringify({
           name: `homiehouse-cast-${Date.now()}-${file.name}`,
-          keyvalues: { source: 'homiehouse', fid: fid ? String(fid) : '' },
+          keyvalues: { source: 'homiehouse', fid: String(authenticatedFid) },
         }));
         pinataForm.append('pinataOptions', JSON.stringify({ cidVersion: 1 }));
 
