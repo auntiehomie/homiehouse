@@ -10,16 +10,26 @@ describe('QStorage configuration and media URLs', () => {
       .toThrow('QStorage requires');
   });
 
-  it('builds the default public object URL from the bucket', () => {
+  it('uses QStorage global region by default', () => {
     expect(getQStorageConfig({
       QSTORAGE_ACCESS_KEY_ID: 'access-key',
       QSTORAGE_SECRET_ACCESS_KEY: 'secret-key',
       QSTORAGE_BUCKET: 'homiehouse-media',
     } as NodeJS.ProcessEnv)).toMatchObject({
       endpoint: 'https://qstorage.quilibrium.com',
+      region: 'q-world-1',
       publicBaseUrl: 'https://homiehouse-media.qstorage.quilibrium.com',
       bucket: 'homiehouse-media',
     });
+  });
+
+  it('allows an explicit QStorage region override', () => {
+    expect(getQStorageConfig({
+      QSTORAGE_ACCESS_KEY_ID: 'access-key',
+      QSTORAGE_SECRET_ACCESS_KEY: 'secret-key',
+      QSTORAGE_BUCKET: 'homiehouse-media',
+      QSTORAGE_REGION: 'custom-region',
+    } as NodeJS.ProcessEnv)?.region).toBe('custom-region');
   });
 
   it('encodes each object-key path segment while preserving folder separators', () => {
