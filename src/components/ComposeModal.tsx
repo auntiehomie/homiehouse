@@ -378,8 +378,11 @@ export default function ComposeModal() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        if (userFid) formData.append('fid', String(userFid));
-        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: { ...(getAuthHeaders('write:casts') ?? {}) },
+          body: formData,
+        });
         const data = await response.json();
         if (!response.ok || !data.ok || !data.url) {
           setStatus(`Upload failed: ${data.error || 'Unknown error'}`);

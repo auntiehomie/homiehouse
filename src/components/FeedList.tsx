@@ -225,7 +225,25 @@ export default function FeedList({
   const manualRefreshRef = useRef(false);
 
   const router = useRouter();
-  const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn, follow } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, removeCast, reply: replyFn, follow } = useFarcasterWrites();
+
+  const handleDeleteCast = async (castHash: string) => {
+    if (!viewerFid || !window.confirm('Delete this cast? This action cannot be undone.')) return;
+    setActionLoading(`delete-${castHash}`);
+    try {
+      await removeCast(castHash);
+      setItems(previous => previous?.filter(item => String(item.hash || item.id) !== castHash) ?? previous);
+      setPendingCasts(previous => previous.filter(item => item.hash !== castHash));
+      setShowActions(null);
+      setToast({ msg: 'Cast deleted.', ok: true });
+      setTimeout(() => setToast(null), 3000);
+    } catch (error: any) {
+      setToast({ msg: error?.message || 'Could not delete this cast.', ok: false });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleFollowAuthor = async (targetFid: number) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
@@ -935,6 +953,20 @@ export default function FeedList({
                 zIndex: 10,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
               }}>
+                {viewerFid && Number(authorFid) === viewerFid && !it.optimistic && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteCast(String(it.hash || it.id || key))}
+                    disabled={actionLoading === `delete-${key}`}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px',
+                      background: 'transparent', border: 'none', color: '#ef4444',
+                      cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {actionLoading === `delete-${key}` ? 'Deleting…' : 'Delete cast'}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onHideCast(key);

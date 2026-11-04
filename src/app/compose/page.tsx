@@ -330,7 +330,11 @@ function ComposePageInner() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: { ...(getAuthHeaders('write:casts') ?? {}) },
+          body: formData,
+        });
         const data = await response.json();
         if (data.ok && data.url) { uploaded.push(data.url); }
         else { setStatus(`Upload failed: ${data.error || 'Unknown error'}`); }
