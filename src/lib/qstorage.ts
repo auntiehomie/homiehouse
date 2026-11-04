@@ -31,7 +31,7 @@ export function getQStorageConfig(env: NodeJS.ProcessEnv = process.env): QStorag
     throw new Error('QStorage endpoint and public URL must use HTTPS.');
   }
 
-  return { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey!, bucket: bucket!, endpoint, region, publicBaseUrl: publicBaseUrl.replace(/\\/+$/, '') };
+  return { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey!, bucket: bucket!, endpoint, region, publicBaseUrl: publicBaseUrl.replace(/\/+$/, '') };
 }
 
 let client: S3Client | null = null;
@@ -65,7 +65,7 @@ function extensionForImage(file: File): string {
 }
 
 export function buildQStorageImageUrl(key: string, publicBaseUrl: string): string {
-  const base = publicBaseUrl.replace(/\\/+$/, '');
+  const base = publicBaseUrl.replace(/\/+$/, '');
   return `${base}/${key.split('/').map(encodeURIComponent).join('/')}`;
 }
 
@@ -73,7 +73,7 @@ export async function uploadImageToQStorage(file: File, fid?: string | null): Pr
   const config = getQStorageConfig();
   if (!config) throw new Error('QStorage is not configured.');
 
-  const key = `casts/${fid && /^\\d+$/.test(fid) ? fid : 'unknown'}/${crypto.randomUUID()}.${extensionForImage(file)}`;
+  const key = `casts/${fid && /^\d+$/.test(fid) ? fid : 'unknown'}/${crypto.randomUUID()}.${extensionForImage(file)}`;
   await getClient(config).send(new PutObjectCommand({
     Bucket: config.bucket,
     Key: key,
