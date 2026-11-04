@@ -5,6 +5,7 @@ export interface QStorageConfig {
   secretAccessKey: string;
   bucket: string;
   endpoint: string;
+  region: string;
   publicBaseUrl: string;
 }
 
@@ -22,6 +23,7 @@ export function getQStorageConfig(env: NodeJS.ProcessEnv = process.env): QStorag
   }
 
   const endpoint = env.QSTORAGE_ENDPOINT?.trim() || 'https://qstorage.quilibrium.com';
+  const region = env.QSTORAGE_REGION?.trim() || 'q-world-1';
   const publicBaseUrl = env.QSTORAGE_PUBLIC_BASE_URL?.trim() || `https://${bucket}.qstorage.quilibrium.com`;
   const parsedEndpoint = new URL(endpoint);
   const parsedPublicBaseUrl = new URL(publicBaseUrl);
@@ -29,18 +31,18 @@ export function getQStorageConfig(env: NodeJS.ProcessEnv = process.env): QStorag
     throw new Error('QStorage endpoint and public URL must use HTTPS.');
   }
 
-  return { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey!, bucket: bucket!, endpoint, publicBaseUrl: publicBaseUrl.replace(/\/+$/, '') };
+  return { accessKeyId: accessKeyId!, secretAccessKey: secretAccessKey!, bucket: bucket!, endpoint, region, publicBaseUrl: publicBaseUrl.replace(/\/+$/, '') };
 }
 
 let client: S3Client | null = null;
 let clientConfigKey = '';
 
 function getClient(config: QStorageConfig): S3Client {
-  const key = `${config.accessKeyId}\n${config.secretAccessKey}\n${config.endpoint}`;
+  const key = `${config.accessKeyId}\n${config.secretAccessKey}\n${config.endpoint}\n${config.region}`;
   if (!client || key !== clientConfigKey) {
     client?.destroy();
     client = new S3Client({
-      region: 'us-east-1',
+      region: config.region,
       endpoint: config.endpoint,
       forcePathStyle: false,
       credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
