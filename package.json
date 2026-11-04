@@ -10,6 +10,7 @@
     "lint": "eslint",
     "smoke-test": "npx tsx scripts/smoke-test.ts",
     "check:hypersnap-coverage": "npx tsx scripts/check-hypersnap-coverage.ts",
+    "experiment:community-poll": "npx tsx scripts/poll-community-ranking.ts",
     "setup-agent-signer": "npx tsx scripts/setup-agent-signer.ts",
     "migrate-db": "npx tsx scripts/migrate-db.ts",
     "test:qstorage:live": "node --import tsx scripts/test-qstorage-live.ts",
