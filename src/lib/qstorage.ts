@@ -38,7 +38,7 @@ let client: S3Client | null = null;
 let clientConfigKey = '';
 
 function getClient(config: QStorageConfig): S3Client {
-  const key = `${config.accessKeyId}\\n${config.secretAccessKey}\\n${config.endpoint}\\n${config.region}`;
+  const key = `${config.accessKeyId}\n${config.secretAccessKey}\n${config.endpoint}\n${config.region}`;
   if (!client || key !== clientConfigKey) {
     client?.destroy();
     client = new S3Client({
