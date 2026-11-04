@@ -7,7 +7,7 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import CharacterMeter from '@/components/CharacterMeter';
 import ComposeInspiration from '@/components/ComposeInspiration';
 import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
-import { ensureAuthHeaders, getAuthHeaders } from '@/lib/client-auth';
+import { getAuthHeaders } from '@/lib/client-auth';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 
@@ -20,7 +20,9 @@ function ComposePageInner() {
   const [text, setText] = useState(searchParams.get('text') || "");
   const returnTo = searchParams.get('returnTo');
   const fromAskHomie = returnTo === '/ask-homie' || returnTo?.startsWith('/ask-homie?');
-  const closeComposer = () => fromAskHomie ? router.replace(returnTo!, { scroll: false }) : router.back();
+  const fromLearningPlan = returnTo === '/learn';
+  const destination = fromLearningPlan ? '/learn' : fromAskHomie ? returnTo : null;
+  const closeComposer = () => destination ? router.replace(destination, { scroll: false }) : router.back();
   const parts = splitCastText(text);
   const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
   const [loading, setLoading] = useState(false);
@@ -32,11 +34,11 @@ function ComposePageInner() {
     // Dismiss the keyboard so the confirmation stays visible on iOS.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const timer = window.setTimeout(() => {
-      if (fromAskHomie) router.replace(returnTo!, { scroll: false });
+      if (destination) router.replace(destination, { scroll: false });
       else router.back();
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [successMessage, fromAskHomie, returnTo, router]);
+  }, [successMessage, destination, router]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
@@ -380,9 +382,8 @@ function ComposePageInner() {
 
         // Pass the user's signer private key so the server can sign the cast at publish time
         const signerPrivateKey = getPrivateKeyHex();
-        const authHeaders = await ensureAuthHeaders('write:casts');
-        if (!signerPrivateKey || !authHeaders) {
-          setStatus("Your posting session could not be verified. Tap 'Enable Posting' to authorize the Hypersnap signer, then try again.");
+        if (!signerPrivateKey) {
+          setStatus("Posting permissions required to schedule. Tap 'Enable Posting', authorize the Hypersnap signer, then try again.");
           setLoading(false);
           return;
         }
@@ -392,7 +393,7 @@ function ComposePageInner() {
          method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...authHeaders,
+            ...(getAuthHeaders('write:casts') ?? {}),
             'x-signer-key': signerPrivateKey,
           },
          body: JSON.stringify(body),
@@ -483,8 +484,8 @@ function ComposePageInner() {
         </div>
       )}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
-        <button aria-label={fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
-          {fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button aria-label={fromLearningPlan ? "Back to Learning Plan" : fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
+          {fromLearningPlan ? '← Back to Learning Plan' : fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>}
         </button>
