@@ -520,6 +520,7 @@ function ModuleLessonContent() {
   const [mod, setMod] = useState<LearningModule | null>(null);
   const [lessonContent, setLessonContent] = useState<LessonContent | null>(null);
   const [cards, setCards] = useState<CardDef[]>([]);
+  const [cardPositionRestored, setCardPositionRestored] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCorrectionReport, setShowCorrectionReport] = useState(false);
@@ -573,6 +574,8 @@ function ModuleLessonContent() {
 
   useEffect(() => {
     if (!moduleId) { router.replace('/learn'); return; }
+    setCardPositionRestored(false);
+    setCards([]);
     try {
       const raw = localStorage.getItem(LS_PLAN_KEY);
       if (!raw) { router.replace('/learn'); return; }
@@ -583,7 +586,19 @@ function ModuleLessonContent() {
 
       const progRaw = localStorage.getItem(LS_PROGRESS_KEY);
       const progress: string[] = progRaw ? JSON.parse(progRaw) : [];
-      setAlreadyDone(progress.includes(moduleId));
+      const moduleAlreadyDone = progress.includes(moduleId);
+      setAlreadyDone(moduleAlreadyDone);
+      if (moduleAlreadyDone) {
+        setRewardVerificationDone(true);
+        try {
+          const completions = JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) ?? '{}');
+          const rewardEarned = completions?.[moduleId]?.rewardEarned === true;
+          setRewardEarned(rewardEarned);
+          if (!rewardEarned) setRewardError('Your lesson progress is saved. HH2 verification is still available to retry.');
+        } catch {
+          setRewardError('Your lesson progress is saved. HH2 verification is still available to retry.');
+        }
+      }
 
       const eli5 = getEli5Mode();
       const cached = getCachedLesson(found, eli5);
@@ -610,17 +625,24 @@ function ModuleLessonContent() {
   }, [moduleId, router]);
 
   useEffect(() => {
-    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    if (!moduleId || cards.length === 0) return;
     try {
-      const saved = Number(localStorage.getItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`));
-      if (Number.isInteger(saved) && saved > 0 && saved < cards.length - 1) setCardIndex(saved);
+      if (alreadyDone) {
+        setCardIndex(cards.length - 1);
+      } else {
+        const savedValue = localStorage.getItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`);
+        const saved = savedValue === null ? Number.NaN : Number(savedValue);
+        if (Number.isInteger(saved) && saved >= 0 && saved < cards.length - 1) setCardIndex(saved);
+        else setCardIndex(0);
+      }
     } catch {}
+    setCardPositionRestored(true);
   }, [moduleId, cards.length, alreadyDone]);
 
   useEffect(() => {
-    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    if (!moduleId || cards.length === 0 || !cardPositionRestored) return;
     try { localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cardIndex)); } catch {}
-  }, [moduleId, cards.length, cardIndex, alreadyDone]);
+  }, [moduleId, cards.length, cardIndex, cardPositionRestored]);
 
   const currentCard = cards[cardIndex];
   const totalCards = cards.length;
@@ -695,10 +717,12 @@ function ModuleLessonContent() {
       const progress: string[] = raw ? JSON.parse(raw) : [];
       const updatedProgress = progress.includes(moduleId) ? progress : [...progress, moduleId];
       if (!progress.includes(moduleId)) localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(updatedProgress));
-      localStorage.removeItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`);
+      if (cards.length > 0) {
+        localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cards.length - 1));
+      }
       if (mod) {
         const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
-        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number }> =
+        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number; rewardEarned?: boolean }> =
           compRaw ? JSON.parse(compRaw) : {};
         if (!completions[moduleId]) {
           completions[moduleId] = {
@@ -707,9 +731,11 @@ function ModuleLessonContent() {
             description: mod.description,
             difficulty: mod.difficulty,
             estimatedMinutes: mod.estimatedMinutes,
+            rewardEarned: verified,
           };
-          localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
         }
+        completions[moduleId].rewardEarned = verified;
+        localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
         const fid = getStoredFid();
         if (fid && authHeaders) {
           const plan = (() => {
@@ -790,6 +816,7 @@ function ModuleLessonContent() {
   // only fires when the user has already passed.
   useEffect(() => {
     if (currentCard?.type !== 'complete') return;
+    if (alreadyDone) return;
     if (!quizPassed) return; // safety guard — should never reach here without passing
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
     const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
@@ -797,7 +824,7 @@ function ModuleLessonContent() {
       void handleComplete();
     }, remaining * 1000);
     return () => clearTimeout(timer);
-  }, [currentCard, handleComplete]);
+  }, [currentCard, alreadyDone, handleComplete]);
 
   // ── HH2 auto-claim ──────────────────────────────────────────────────────
   const doClaim = useCallback(async () => {
