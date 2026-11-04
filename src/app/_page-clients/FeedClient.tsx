@@ -120,7 +120,20 @@ export default function FeedClient() {
             <SidebarNav />
           </aside>
           <div className="flex-1 min-w-0 hh-feed-column">
-            {isAuthenticated && null /* LearningHeroCard moved to home page */}
+            <section
+              aria-labelledby="feed-learning-title"
+              style={{ marginBottom: 18, padding: '14px 16px', borderRadius: 14, background: 'linear-gradient(120deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}
+            >
+              <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+                <h2 id="feed-learning-title" style={{ margin: 0, fontSize: 15, fontWeight: 750, color: 'var(--text-on-dark)' }}>Turn your feed into a learning path</h2>
+                <p style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--muted-on-dark)' }}>
+                  Build a lesson from any cast. Eligible signed-in learners can earn 100 HH2 by passing the quiz.
+                </p>
+              </div>
+              <Link href="/learn" style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 9, background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                Explore Learn & Earn →
+              </Link>
+            </section>
             <div className="flex items-center mb-3">
               <h3 className="text-lg font-semibold">Explore</h3>
             </div>

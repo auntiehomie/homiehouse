@@ -1,19 +1,19 @@
 /**
  * KB-to-Curriculum Pipeline
  *
- * Queries the `kb_articles` table for articles relevant to each learning track
- * and maps them to LearningModule objects that can be merged into fallback plans.
+ * Reads repository-owned article summaries relevant to each learning track
+ * and maps them to source-linked LearningModule objects.
  *
  * This allows learning plans to grow organically as Amanda's knowledge base grows,
  * without requiring manual edits to the hardcoded fallback modules.
  */
 
-import { sql } from '@/lib/db';
+import knowledgeBase from '@/content/knowledge-base/articles.json';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface KBArticle {
-  id: number;
+  id: string;
   title: string;
   url: string | null;
   source: string | null;
@@ -22,9 +22,21 @@ interface KBArticle {
   learning_points: string[] | null;
 }
 
+interface RepositoryKBArticle {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  tags: string[];
+  summary: string;
+  learningPoints: string[];
+  addedAt: string | null;
+}
+
 export interface LearningModule {
   id: string;
   title: string;
+  sourceUrl?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];
@@ -39,7 +51,8 @@ const TRACK_TAGS: Record<string, string[]> = {
   ai: ['ai', 'llm', 'machine-learning', 'agents', 'prompt-injection', 'venice', 'openai', 'claude', 'gpt'],
   finance: ['defi', 'tokens', 'trading', 'crypto', 'finance', 'tokenomics', 'hyperliquid', 'portfolio'],
   creator: ['creator', 'nft', 'gaming', 'content', 'music', 'creator-economy', 'creator-coins', 'content-coins', 'zora', 'base-app'],
-  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security'],
+  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security', 'decentralization', 'privacy', 'network states', 'bitcoin', 'cryptography'],
+  all: ['ai', 'agents', 'creator', 'crypto', 'web3', 'dao', 'governance', 'ethereum', 'privacy', 'network states', 'bitcoin', 'cryptography', 'defi'],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -51,14 +64,7 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-function inferDifficulty(_tags: string[], index: number): 'beginner' | 'intermediate' | 'advanced' {
-  // Simple heuristic: first article is beginner-accessible, later ones get harder
-  if (index < 2) return 'beginner';
-  if (index < 5) return 'intermediate';
-  return 'advanced';
-}
-
-function articleToModule(article: KBArticle, index: number): LearningModule {
+function articleToModule(article: KBArticle, level: string): LearningModule {
   const cleanObjectives = (article.learning_points || [])
     .filter((p) => p.trim().length > 0)
     .slice(0, 4)
@@ -67,6 +73,7 @@ function articleToModule(article: KBArticle, index: number): LearningModule {
   return {
     id: `kb-${article.id}-${slugify(article.title)}`,
     title: article.title,
+    sourceUrl: article.url ?? undefined,
     description:
       (article.summary?.slice(0, 800) || `Learn about ${article.title}`) +
       (article.summary && article.summary.length > 800 ? '…' : ''),
@@ -75,73 +82,47 @@ function articleToModule(article: KBArticle, index: number): LearningModule {
       ? cleanObjectives
       : ['Understand key concepts from this article', 'Apply the lessons to real-world scenarios'],
     estimatedMinutes: 15 + (article.learning_points?.length || 3) * 5,
-    difficulty: inferDifficulty(article.tags, index),
+    difficulty: level === 'beginner' || level === 'advanced' ? level : 'intermediate',
     tags: article.tags.slice(0, 5),
   };
-}
-
-// ─── DB helpers ───────────────────────────────────────────────────────────────
-
-async function ensureTable(): Promise<void> {
-  try {
-    await sql.query(`
-      CREATE TABLE IF NOT EXISTS kb_articles (
-        id               SERIAL PRIMARY KEY,
-        title            TEXT NOT NULL,
-        url              TEXT,
-        source           TEXT,
-        tags             TEXT[] NOT NULL DEFAULT '{}',
-        summary          TEXT,
-        learning_points  TEXT[] NOT NULL DEFAULT '{}',
-        title_lower      TEXT GENERATED ALWAYS AS (LOWER(title)) STORED,
-        synced_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE(title)
-      )
-    `);
-    await sql.query(`CREATE INDEX IF NOT EXISTS kb_articles_tags ON kb_articles USING GIN (tags)`);
-  } catch (error) {
-    console.warn('[kb-curriculum] Schema initialization failed:', (error as Error).message);
-    throw error;
-  }
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Fetch KB articles relevant to a learning track and level, and convert them
- * to LearningModule objects. Returns an empty array gracefully if the DB is
- * unavailable or empty (e.g. in local dev without Neon).
+ * Select relevant articles from the repository corpus and convert them to
+ * source-backed modules. This works during plan generation even before the
+ * hourly Neon cache sync has run or when the database is unavailable.
  */
 export async function getKBModulesForTrack(
   track: string,
-  _level: string,
+  level: string,
   limit = 6
 ): Promise<LearningModule[]> {
   const tags = TRACK_TAGS[track] ?? [];
   if (!tags.length) return [];
 
-  try {
-    await ensureTable();
+  const articles = knowledgeBase.articles as RepositoryKBArticle[];
+  const matching = articles
+    .filter((article) => Boolean(article.summary?.trim()) && article.learningPoints.length > 0)
+    .map((article) => {
+      const articleTags = article.tags.map((tag) => tag.toLowerCase());
+      const score = tags.reduce((total, tag) => total + (articleTags.some((articleTag) => articleTag.includes(tag)) ? 1 : 0), 0);
+      return { article, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || String(b.article.addedAt ?? '').localeCompare(String(a.article.addedAt ?? '')))
+    .slice(0, limit);
 
-    // Build a tag-pattern query that matches any of the track's tags
-    const tagPattern = tags.map((t) => t.replace(/'/g, "''")).join('|');
-
-    const rows = await sql`
-      SELECT id, title, url, source, tags, summary, learning_points
-      FROM kb_articles
-      WHERE array_to_string(tags, ' ') ~* ${tagPattern}
-        AND (NULLIF(BTRIM(summary), '') IS NOT NULL
-          OR COALESCE(array_length(learning_points, 1), 0) > 0)
-      ORDER BY synced_at DESC
-      LIMIT ${limit}
-    `;
-
-    const articles = rows as unknown as KBArticle[];
-    return articles.map((a, i) => articleToModule(a, i));
-  } catch (err) {
-    console.warn('[kb-curriculum] getKBModulesForTrack failed:', (err as Error).message);
-    return [];
-  }
+  return matching.map(({ article }) => articleToModule({
+    id: article.id,
+    title: article.title,
+    url: article.url,
+    source: article.source,
+    tags: article.tags,
+    summary: article.summary,
+    learning_points: article.learningPoints,
+  }, level));
 }
 
 /**

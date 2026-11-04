@@ -1,128 +1,84 @@
 const mockSql = Object.assign(jest.fn(), { query: jest.fn(), unsafe: jest.fn() });
 jest.mock('@/lib/db', () => ({ sql: mockSql }));
 jest.mock('@/lib/agent-context', () => ({ indexKnowledgeBaseArticles: jest.fn().mockResolvedValue(0) }));
-import { syncKnowledgeBase, pickFreshKBArticle, pickKBArticleForPosting, getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
 
-const entries = '| [Wallets](https://example.com/wallets) | Docs | 2026-10-12 | wallets |';
-const summaries = '1. [Wallets](https://example.com/wallets) — wallets\n\n**Summary:** Wallet keys authorize transactions.\n\n**3 Things I Learned:**\n- Protect your seed phrase.\n';
-const article = { title: 'Wallets', summary: 'Wallet keys authorize transactions.', learning_points: [] };
+import knowledgeBase from '@/content/knowledge-base/articles.json';
+import { syncKnowledgeBase, pickFreshKBArticle, pickKBArticleForPosting, getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockSql.query.mockResolvedValue([]);
   mockSql.mockResolvedValue([]);
-  global.fetch = jest.fn(async (url) => new Response(String(url).includes('Knowledge%20Base%20Article%20Context.md') ? summaries : entries)) as typeof fetch;
 });
 
-it('executes schema DDL before inserts, and reports usable content', async () => {
-  mockSql.mockImplementation(async (parts: TemplateStringsArray) => parts.join('').includes('COUNT(*)') ? [{ usable: 1 }] : []);
-  const result = await syncKnowledgeBase({ skipIndex: true });
-  expect(mockSql.query).toHaveBeenCalledTimes(3);
-  expect(mockSql.query.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS kb_articles');
-  expect(mockSql.unsafe).not.toHaveBeenCalled();
-  expect(mockSql.query.mock.invocationCallOrder[2]).toBeLessThan(mockSql.mock.invocationCallOrder[0]);
-  expect(result).toMatchObject({ upserted: 1, usable: 1, errors: [] });
-});
-
-it('does not write or execute DDL in a sync preview', async () => {
-  expect(await syncKnowledgeBase({ dryRun: true })).toMatchObject({ wouldUpsert: 1, upserted: 0 });
+it('validates the repository corpus in a dry run without database or network access', async () => {
+  const result = await syncKnowledgeBase({ dryRun: true });
+  expect(result).toMatchObject({ fetched: knowledgeBase.articles.length, wouldUpsert: knowledgeBase.articles.length, upserted: 0, errors: [] });
   expect(mockSql).not.toHaveBeenCalled();
   expect(mockSql.query).not.toHaveBeenCalled();
 });
 
-it('reports source failures while preserving an existing enriched row', async () => {
-  global.fetch = jest.fn(async (url) => String(url).includes('Knowledge%20Base%20Article%20Context.md') ? new Response('', { status: 503 }) : new Response(entries)) as typeof fetch;
-  mockSql.mockImplementation(async (parts: TemplateStringsArray) => parts.join('').includes('COUNT(*)') ? [{ usable: 1 }] : []);
+it('syncs repository articles and reconciles the cache after creating its schema', async () => {
+  mockSql.mockImplementation(async (parts: TemplateStringsArray) =>
+    parts.join('').includes('COUNT(*)') ? [{ usable: knowledgeBase.articles.length }] : []
+  );
+
   const result = await syncKnowledgeBase({ skipIndex: true });
-  expect(result.errors[0]).toContain('article context:');
-  const upsert = mockSql.mock.calls[0][0].join('');
-  expect(upsert).toContain('ELSE kb_articles.summary END');
-  expect(upsert).toContain('ELSE kb_articles.learning_points END');
+  expect(mockSql.query).toHaveBeenCalledTimes(3);
+  expect(mockSql.query.mock.calls[0][0]).toContain('CREATE TABLE IF NOT EXISTS kb_articles');
+  expect(mockSql.unsafe).not.toHaveBeenCalled();
+  const insertCalls = mockSql.mock.calls.filter((call) => call[0].join('').includes('INSERT INTO kb_articles'));
+  expect(insertCalls).toHaveLength(knowledgeBase.articles.length);
+  const first = knowledgeBase.articles[0];
+  expect(insertCalls[0][1]).toBe(first.title);
+  expect(insertCalls[0][2]).toBe(first.url);
+  expect(insertCalls[0][5]).toBe(first.summary);
+  expect(insertCalls[0][6]).toEqual(first.learningPoints);
+
+  const reconcile = mockSql.mock.calls.find((call) => call[0].join('').includes('DELETE FROM kb_articles'));
+  expect(reconcile?.[0].join('')).toContain('LOWER(BTRIM(title))');
+  expect(reconcile?.[1]).toEqual(knowledgeBase.articles.map((article) => article.title.toLowerCase()));
+  expect(result).toMatchObject({ fetched: knowledgeBase.articles.length, upserted: knowledgeBase.articles.length, usable: knowledgeBase.articles.length, errors: [] });
 });
 
-it('clears cached article context when it is absent from a successfully loaded Rufus context file', async () => {
-  global.fetch = jest.fn(async (url) => new Response(
-    String(url).includes('Knowledge%20Base%20Article%20Context.md')
-      ? '1. [Different article](https://example.com/different) — test\n\n**Summary:** An unrelated article summary.\n\n**3 Things I Learned:**\n- One explicit takeaway.'
-      : entries,
-  )) as typeof fetch;
-  mockSql.mockImplementation(async (parts: TemplateStringsArray) => parts.join('').includes('COUNT(*)') ? [{ usable: 0 }] : []);
-
-  const result = await syncKnowledgeBase({ skipIndex: true });
-  const upsert = mockSql.mock.calls.find((call) => call[0].join('').includes('INSERT INTO kb_articles'));
-  const query = upsert?.[0].join('') ?? '';
-  expect(query).toContain('CASE WHEN');
-  expect(query).toContain('THEN EXCLUDED.summary ELSE kb_articles.summary END');
-  expect(query).toContain('THEN EXCLUDED.learning_points ELSE kb_articles.learning_points END');
-  expect(upsert?.[1]).toBe('Wallets');
-  expect(upsert?.[5]).toBeNull();
-  expect(upsert?.[6]).toEqual([]);
-  expect(result.errors).toContain('No content-bearing knowledge-base articles available');
-});
-
-it('keeps personalized notes out of lesson and bot context while syncing article takeaways', async () => {
-  const title = 'The Network State: How to Start a New Country';
-  const entry = `| [${title}](https://thenetworkstate.com/book/tns.pdf) | thenetworkstate.com | 2026-10-18 | philosophy, crypto, decentralization, governance, network states |`;
-  const summary = `1. [${title}](https://thenetworkstate.com/book/tns.pdf) — philosophy, crypto, decentralization, governance, network states\n\n**Summary:** A book proposing a staged path for building an online-first community that can grow into a network state.\n\n**3 Things I Learned:**\n- A startup society can be valuable before it becomes a network state.\n- Online alignment and trust precede the growth of physical communities.\n- A DAO or online group alone does not meet the book's full definition.\n\n**Why it matters to this reader:** This is a private personal annotation.\n\n74. [Context without a Rufus index entry](https://example.com/unlisted) — test\n\n**Summary:** This must not enter the canonical KB cache.\n\n**3 Things I Learned:**\n- This context is not indexed.`;
-  global.fetch = jest.fn(async (url) => new Response(String(url).includes('Knowledge%20Base%20Article%20Context.md') ? summary : entry)) as typeof fetch;
-  mockSql.mockImplementation(async (parts: TemplateStringsArray) => parts.join('').includes('COUNT(*)') ? [{ usable: 1 }] : []);
-
-  const result = await syncKnowledgeBase({ skipIndex: true });
-  const sourceUrls = (global.fetch as jest.Mock).mock.calls.map(([url]) => String(url));
-  expect(sourceUrls).toHaveLength(2);
-  expect(sourceUrls.every((url) => url.includes('auntiehomie/rufus-vault/'))).toBe(true);
-  expect(sourceUrls.some((url) => url.includes('homie-knowledge'))).toBe(false);
-  const insertCall = mockSql.mock.calls.find((call) => call[0].join('').includes('INSERT INTO kb_articles'));
-  expect(mockSql.mock.calls.filter((call) => call[0].join('').includes('INSERT INTO kb_articles'))).toHaveLength(1);
-  const reconcileCall = mockSql.mock.calls.find((call) => call[0].join('').includes('DELETE FROM kb_articles'));
-  expect(reconcileCall?.[0].join('')).toContain('LOWER(BTRIM(title))');
-  expect(reconcileCall?.[1]).toEqual([title.toLowerCase()]);
-  expect(result).toMatchObject({ upserted: 1, usable: 1, errors: [] });
-  expect(insertCall?.[1]).toBe(title);
-  expect(insertCall?.[5]).toContain('A book proposing a staged path');
-  expect(insertCall?.[6]).toEqual([
-    'A startup society can be valuable before it becomes a network state.',
-    'Online alignment and trust precede the growth of physical communities.',
-    "A DAO or online group alone does not meet the book's full definition.",
-  ]);
-  expect(JSON.stringify(insertCall?.slice(1))).not.toContain('Why it matters to this reader');
-
+it('uses the selected article summaries as grounded Ask Homie context', async () => {
+  const source = knowledgeBase.articles.find((article) => article.title === 'The Meaning of Decentralization')!;
   mockSql.mockResolvedValue([{
     id: 73,
-    title,
-    url: 'https://thenetworkstate.com/book/tns.pdf',
-    source: 'thenetworkstate.com',
-    tags: ['philosophy', 'crypto', 'decentralization', 'governance', 'network states'],
-    summary: insertCall?.[5],
-    learning_points: insertCall?.[6],
+    title: source.title,
+    url: source.url,
+    source: source.source,
+    tags: source.tags,
+    summary: source.summary,
+    learning_points: source.learningPoints,
   }]);
-  const context = formatKBContext(await getRelevantKBArticles('network state governance'));
-  expect(context).toContain(title);
-  expect(context).toContain('Source URL: https://thenetworkstate.com/book/tns.pdf');
-  expect(context).toContain('A startup society can be valuable before it becomes a network state.');
-  expect(context).not.toContain('Why it matters to this reader');
+  const context = formatKBContext(await getRelevantKBArticles('decentralization governance'));
+  expect(context).toContain(source.title);
+  expect(context).toContain(`Source URL: ${source.url}`);
+  expect(context).toContain(source.learningPoints[0]);
+  expect(context).not.toContain('personal note');
 });
 
 it('uses exact exclusions for titles containing regex syntax', async () => {
-  mockSql.mockResolvedValue([article]);
+  mockSql.mockResolvedValue([{ id: 1, title: 'Wallets', learning_points: [] }]);
   await pickFreshKBArticle(['Wallets (v2) [draft]']);
   expect(mockSql.mock.calls[0][0].join('')).toContain('ANY(');
   expect(mockSql.mock.calls[0][1]).toEqual(['wallets (v2) [draft]']);
 });
 
-it('recovers an empty posting cache without requiring embeddings', async () => {
+it('recovers an empty posting cache from the repository corpus without requiring embeddings', async () => {
   mockSql.mockImplementation(async (parts: TemplateStringsArray) => {
     const query = parts.join('');
-    if (query.includes('COUNT(*)')) return [{ usable: 1 }];
-    if (query.includes('ORDER BY RANDOM')) return mockSql.mock.calls.length === 1 ? [] : [article];
+    if (query.includes('COUNT(*)')) return [{ usable: knowledgeBase.articles.length }];
+    if (query.includes('ORDER BY RANDOM')) return mockSql.mock.calls.length === 1 ? [] : [{
+      id: 1,
+      title: knowledgeBase.articles[0].title,
+      summary: knowledgeBase.articles[0].summary,
+      learning_points: knowledgeBase.articles[0].learningPoints,
+    }];
     return [];
   });
-  expect(await pickKBArticleForPosting()).toEqual(article);
+  expect(await pickKBArticleForPosting()).toMatchObject({ title: knowledgeBase.articles[0].title });
   const { indexKnowledgeBaseArticles } = await import('@/lib/agent-context');
   expect(indexKnowledgeBaseArticles).not.toHaveBeenCalled();
-});
-
-it('fails visibly when neither cache nor source content is available', async () => {
-  global.fetch = jest.fn().mockResolvedValue(new Response('', { status: 503 }));
-  await expect(pickKBArticleForPosting()).rejects.toThrow('Knowledge-base recovery failed');
 });

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/learning-plan/route';
 import { llmChat } from '@/lib/llm';
+import { getKBModulesForTrack } from '@/lib/kb-curriculum';
 
 jest.mock('@/lib/auth', () => ({ verifyFarcasterSignerAuth: jest.fn(async () => { throw new Error('no signer'); }) }));
 jest.mock('@/lib/db', () => ({ getDb: jest.fn() }));
@@ -62,6 +63,73 @@ describe('/api/learning-plan source context', () => {
     expect(plan.modules[0].id).toMatch(/^cast-/);
     expect(plan.modules[0].title).toContain('Cast Breakdown');
     expect(plan.modules[0].sourceCast).toEqual({ author: 'example-user', text: 'A cast about portable identity.' });
+  });
+
+  it('passes repository article sources into the LLM prompt and retains verified module citations', async () => {
+    jest.mocked(getKBModulesForTrack).mockResolvedValue([{
+      id: 'kb-building-effective-agents',
+      title: 'Building effective agents',
+      sourceUrl: 'https://www.anthropic.com/research/building-effective-agents',
+      description: 'Start with workflows before adding agent autonomy.',
+      whyItMatters: 'Simple systems are easier to test.',
+      objectives: ['Compare workflows and agents'],
+      estimatedMinutes: 30,
+      difficulty: 'beginner',
+      tags: ['ai', 'agents'],
+    }]);
+    mockLlmChat.mockResolvedValueOnce({
+      message: { content: JSON.stringify({
+        track: 'ai', level: 'beginner', summary: 'A grounded path.',
+        modules: [{ id: 'agent-basics', title: 'Agent basics', description: 'Learn agent design.', whyItMatters: 'Useful.', objectives: ['Compare systems'], estimatedMinutes: 20, difficulty: 'beginner', tags: ['ai'], sourceUrl: 'https://attacker.example/fake' }],
+      }) },
+    } as any);
+
+    const response = await POST(request({ track: 'ai', level: 'beginner' }));
+    expect(response.status).toBe(200);
+    const prompt = mockLlmChat.mock.calls[0][0].messages[1].content;
+    expect(prompt).toContain('https://www.anthropic.com/research/building-effective-agents');
+    expect(prompt).toContain('Start with workflows before adding agent autonomy.');
+    const plan = await response.json();
+    expect(plan.modules[0].sourceUrl).toBeUndefined();
+    expect(plan.modules.find((module: any) => module.title === 'Building effective agents').sourceUrl)
+      .toBe('https://www.anthropic.com/research/building-effective-agents');
+  });
+
+  it('keeps all eight AI-generated interactive modules and appends KB lessons as supplements', async () => {
+    const kbModules = ['A', 'B', 'C'].map((suffix) => ({
+      id: `kb-source-${suffix.toLowerCase()}`,
+      title: `KB Source ${suffix}`,
+      sourceUrl: `https://example.com/${suffix.toLowerCase()}`,
+      description: `Source ${suffix} summary.`,
+      whyItMatters: 'It adds source-backed depth.',
+      objectives: ['Apply the source takeaway'],
+      estimatedMinutes: 20,
+      difficulty: 'beginner' as const,
+      tags: ['ai'],
+    }));
+    jest.mocked(getKBModulesForTrack).mockResolvedValue(kbModules);
+    const generatedModules = Array.from({ length: 8 }, (_, index) => ({
+      id: `ai-path-module-${index + 1}`,
+      title: `AI Path Module ${index + 1}`,
+      description: 'An AI-generated interactive lesson.',
+      whyItMatters: 'It advances the learning path.',
+      objectives: ['Practice a skill'],
+      estimatedMinutes: 20,
+      difficulty: 'beginner',
+      tags: ['ai'],
+    }));
+    mockLlmChat.mockResolvedValueOnce({ message: { content: JSON.stringify({
+      track: 'ai', level: 'beginner', summary: 'A complete generated path.', modules: generatedModules,
+    }) } } as any);
+
+    const response = await POST(request({ track: 'ai', level: 'beginner' }));
+    const plan = await response.json();
+    expect(plan.modules.slice(0, 8).map((module: any) => module.id))
+      .toEqual(generatedModules.map((module) => module.id));
+    expect(plan.modules.slice(8).map((module: any) => module.id))
+      .toEqual(kbModules.map((module) => module.id));
+    expect(mockLlmChat.mock.calls[0][0].messages[1].content)
+      .toContain('repository Knowledge Base lessons are supplemental additions');
   });
 
   it('keeps the first lesson tied to the cast when plan generation fails', async () => {

@@ -25,6 +25,7 @@ import CourseCatalog, { type CatalogLevel, type CatalogTrack, type CourseCatalog
 interface LearningModule {
   id: string;
   title: string;
+  sourceUrl?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];
@@ -622,6 +623,16 @@ function ModuleCard({ module, index, completed, onToggle, onNavigate }: {
               <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, border: '1px solid var(--border)', color: 'var(--muted-on-dark)' }}>{tag}</span>
             ))}
           </div>
+          {module.sourceUrl && /^https:\/\//i.test(module.sourceUrl) && (
+            <a
+              href={module.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginTop: 10, color: 'var(--accent)', fontSize: 12, textUnderlineOffset: 3 }}
+            >
+              Read source ↗
+            </a>
+          )}
           <button
             onClick={() => onNavigate(module.id)}
             style={{
