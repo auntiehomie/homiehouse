@@ -11,7 +11,7 @@ async function main() {
   }
 
   const client = new S3Client({
-    region: 'us-east-1',
+    region: config.region,
     endpoint: config.endpoint,
     forcePathStyle: false,
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
