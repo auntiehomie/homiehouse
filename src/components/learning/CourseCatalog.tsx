@@ -33,7 +33,8 @@ export default function CourseCatalog({
   courses: CourseCatalogItem[];
   onSelectPath?: (track: CatalogTrack, level: CatalogLevel) => void;
 }) {
-  const safetyCourses = courses.filter(course => (course.section ?? (course.tags.includes('network-states') ? 'network' : 'safety')) === 'safety');
+  const aiCourses = courses.filter(course => course.section === 'ai' || course.tags.includes('ai'));
+  const safetyCourses = courses.filter(course => !aiCourses.includes(course) && (course.section ?? (course.tags.includes('network-states') ? 'network' : 'safety')) === 'safety');
   const networkCourses = courses.filter(course => (course.section ?? (course.tags.includes('network-states') ? 'network' : 'safety')) === 'network');
   const premiumCourses = courses.filter(course => course.section === 'premium');
 
