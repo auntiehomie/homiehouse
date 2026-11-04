@@ -39,8 +39,28 @@ export async function POST(request: NextRequest) {
         logger.success('Uploaded image to QStorage', { key: uploaded.key, url: uploaded.url });
         logger.end();
         return NextResponse.json({ ok: true, url: uploaded.url, key: uploaded.key, provider: 'qstorage' });
-      } catch (error: any) {
-        logger.error('QStorage upload failed', { message: error?.message });
+      } catch (error: unknown) {
+        const qstorageError = error as {
+          name?: string;
+          message?: string;
+          code?: string;
+          Code?: string;
+          $metadata?: {
+            httpStatusCode?: number;
+            requestId?: string;
+            extendedRequestId?: string;
+          };
+        };
+        logger.error('QStorage upload failed', {
+          bucket: qstorageConfig.bucket,
+          region: qstorageConfig.region,
+          name: qstorageError?.name,
+          message: qstorageError?.message,
+          code: qstorageError?.Code || qstorageError?.code,
+          status: qstorageError?.$metadata?.httpStatusCode,
+          requestId: qstorageError?.$metadata?.requestId,
+          extendedRequestId: qstorageError?.$metadata?.extendedRequestId,
+        });
         return NextResponse.json({ error: 'Failed to upload image to QStorage.' }, { status: 502 });
       }
     }
