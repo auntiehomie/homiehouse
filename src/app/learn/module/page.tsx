@@ -962,9 +962,26 @@ function ModuleLessonContent() {
   }, [canContinue, navigate, cardIndex]);
 
   if (error) {
+    const retryLesson = async () => {
+      if (!mod) return;
+      setError(null);
+      setLoading(true);
+      try {
+        const lesson = await loadLesson(mod, getEli5Mode());
+        setLessonContent(lesson);
+        setCards(buildCards(lesson, mod));
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.');
+      } finally {
+        setLoading(false);
+      }
+    };
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24 }}>
         <p style={{ color: 'var(--muted-on-dark)' }}>{error}</p>
+        <button onClick={retryLesson} disabled={!mod || loading} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
+          Try again
+        </button>
         <button onClick={() => router.push('/learn')} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
           ← Back to plan
         </button>

@@ -27,7 +27,7 @@ function getLessonCacheKey(moduleId: string | undefined, eli5: boolean, context:
   for (let index = 0; index < serialized.length; index += 1) {
     hash = Math.imul(hash ^ serialized.charCodeAt(index), 16777619);
   }
-  return `lesson:v12:${moduleId}:${(hash >>> 0).toString(36)}${eli5 ? ':eli5' : ''}`;
+  return `lesson:v13:${moduleId}:${(hash >>> 0).toString(36)}${eli5 ? ':eli5' : ''}`;
 }
 
 // Claude (primary writer) can take ~50s on a content-heavy lesson; give web
@@ -53,6 +53,23 @@ interface LessonContent {
   quickActions: string[];
   summary: string;
   quiz: QuizQuestion[];
+}
+
+/** Cached lessons are untrusted input too: older cache entries may predate the
+ * current lesson schema or have been written before generation was complete. */
+function isCompleteLesson(value: unknown): value is LessonContent {
+  if (!value || typeof value !== 'object') return false;
+  const lesson = value as Partial<LessonContent>;
+  const hasConcept = Array.isArray(lesson.concepts) && lesson.concepts.some((concept) =>
+    concept && typeof concept.title === 'string' && typeof concept.explanation === 'string' && concept.explanation.trim().length > 0
+  );
+  const hasQuizQuestion = Array.isArray(lesson.quiz) && lesson.quiz.some((question) =>
+    question && typeof question.question === 'string' && question.question.trim().length > 0 &&
+    Array.isArray(question.options) && question.options.length >= 2 &&
+    question.options.every((option) => typeof option === 'string' && option.trim().length > 0) &&
+    Number.isInteger(question.correctIndex) && question.correctIndex >= 0 && question.correctIndex < question.options.length
+  );
+  return typeof lesson.intro === 'string' && lesson.intro.trim().length > 0 && hasConcept && hasQuizQuestion;
 }
 
 /**
@@ -506,9 +523,13 @@ export async function POST(req: NextRequest) {
     if (redis && cacheKey) {
       try {
         const cached = await redis.get<LessonContent>(cacheKey);
-        if (cached) {
+        if (cached && isCompleteLesson(cached)) {
           logger.info(`cache hit: ${moduleId}`);
           return rewardTrackedLessonResponse(rewardFid, rewardModuleId, cached);
+        }
+        if (cached) {
+          logger.warn(`discarding incomplete cached lesson: ${moduleId}`);
+          try { await redis.del(cacheKey); } catch {}
         }
       } catch {}
     }
