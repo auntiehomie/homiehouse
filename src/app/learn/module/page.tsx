@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getEli5Mode } from '@/lib/eli5';
+import { buildLearningModuleReturnTo } from '@/lib/learning-navigation';
 import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
@@ -926,7 +927,7 @@ function ModuleLessonContent() {
   const handleShare = () => {
     if (!mod) return;
     const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nBuilding my Web3 knowledge one module at a time. 🏡\n\nhomiehouse.lol`;
-    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=%2Flearn`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=${encodeURIComponent(buildLearningModuleReturnTo(moduleId || mod.id))}`);
   };
 
   const handleShareTakeaway = () => {
@@ -935,7 +936,7 @@ function ModuleLessonContent() {
       ? `${currentCard.content.slice(0, 177).trimEnd()}…`
       : currentCard.content;
     const text = `One thing I learned in “${mod.title}”:\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
-    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=%2Flearn`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=${encodeURIComponent(buildLearningModuleReturnTo(moduleId || mod.id))}`);
   };
 
   const handleBack = () => {
