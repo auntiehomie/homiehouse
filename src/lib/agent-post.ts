@@ -26,6 +26,26 @@ export function cleanPost(text: string, maxLen = 280): string {
   return text.trim().replace(/^['"]|['"]$/g, '').slice(0, maxLen).trim();
 }
 
+/**
+ * Fail closed when a model mixes private reasoning or drafting notes into cast text.
+ * Callers must skip publishing when this returns true.
+ */
+export function containsInternalReasoning(text: string): boolean {
+  const patterns = [
+    new RegExp("(?:^|\\n)\\s*(?:analysis|reasoning|chain[- ]of[- ]thought|internal reasoning|scratchpad|thought process|draft notes|planning notes)\\s*:", "i"),
+    new RegExp("(?:^|\\n)\\s*(?:here(?:'s| is) my (?:analysis|reasoning|thought process)|let me (?:think|reason) (?:through|about)|i(?:'ll| will) (?:analyze|reason through|think through)|we need to (?:write|craft|generate) (?:a )?(?:cast|post)|step[- ]by[- ]step reasoning)\\b", "i"),
+    new RegExp("<\\s*\\/?\\s*(?:analysis|thinking|reasoning)\\s*>", "i"),
+  ];
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+/** Return only a final cast string, or an empty string when output is unsafe to publish. */
+export function finalCastOnly(text: string, maxLen = 280): string {
+  if (!text.trim() || containsInternalReasoning(text)) return '';
+  const withoutLabel = text.trim().replace(/^(?:final\s+)?cast\s*:\s*/i, '');
+  return cleanPost(withoutLabel, maxLen);
+}
+
 export function splitThreadCasts(content: string): string[] {
   const parts = content.split(/\n?\n?---\n?\n?/);
   if (parts.length < 2) return [content];
@@ -51,7 +71,11 @@ export async function writeAgentPost(
         messages: [{ role: 'user', content: instruction }],
       });
       const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, maxLen);
+      if (block?.type === 'text' && block.text.trim()) {
+        const finalCast = finalCastOnly(block.text, maxLen);
+        if (finalCast) return finalCast;
+        throw new Error('Anthropic response was not final cast text');
+      }
       throw new Error('empty Anthropic response');
     } catch (err: any) {
       logger.warn('Anthropic post failed, using free providers', err);
@@ -66,7 +90,7 @@ export async function writeAgentPost(
     maxTokens: 800,
     temperature: 0.85,
   });
-  return cleanPost(message.content || '', maxLen);
+  return finalCastOnly(message.content || '', maxLen);
 }
 
 export type { PostMode };
