@@ -13,7 +13,9 @@ export default function PageTransition({ children }: { children: React.ReactNode
       exit="hh-route-exit"
       default="none"
     >
-      {children}
+      <div className="hh-route-content">
+        {children}
+      </div>
     </ViewTransition>
   );
 }
