@@ -10,6 +10,7 @@ import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type Th
 import { ensureAuthHeaders, getAuthHeaders } from '@/lib/client-auth';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
+import { resolveComposeReturnDestination } from '@/lib/learning-navigation';
 
 function ComposePageInner() {
   const router = useRouter();
@@ -19,9 +20,7 @@ function ComposePageInner() {
 
   const [text, setText] = useState(searchParams.get('text') || "");
   const returnTo = searchParams.get('returnTo');
-  const fromAskHomie = returnTo === '/ask-homie' || returnTo?.startsWith('/ask-homie?');
-  const fromLearningPlan = returnTo === '/learn';
-  const destination = fromLearningPlan ? '/learn' : fromAskHomie ? returnTo : null;
+  const destination = resolveComposeReturnDestination(returnTo);
   const closeComposer = () => destination ? router.replace(destination, { scroll: false }) : router.back();
   const parts = splitCastText(text);
   const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
