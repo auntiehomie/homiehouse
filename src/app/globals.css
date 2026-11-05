@@ -965,6 +965,10 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 ::view-transition-new(.hh-route-enter) {
   animation: 140ms ease-out both hhRouteFadeIn;
 }
+.hh-route-content {
+  /* Keep route changes animated when native View Transitions are unavailable. */
+  animation: 160ms ease-out both hhRouteFadeIn;
+}
 ::view-transition-old(.hh-feed-exit) {
   animation: 110ms ease-out both hhRouteFadeOut;
 }
@@ -1007,6 +1011,7 @@ nav a:not(.no-underline):hover { color: var(--accent); }
     animation-duration: 0s !important;
     animation-delay: 0s !important;
   }
+  .hh-route-content { animation: none !important; }
   .btn { transition: none; }
 }
 
