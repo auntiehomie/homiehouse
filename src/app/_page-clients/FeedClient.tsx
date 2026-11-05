@@ -122,7 +122,7 @@ export default function FeedClient() {
           <div className="flex-1 min-w-0 hh-feed-column">
             <section
               aria-labelledby="feed-learning-title"
-              style={{ marginBottom: 18, padding: '14px 16px', borderRadius: 14, background: 'linear-gradient(120deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}
+              style={{ marginBottom: 10, padding: '14px 16px 8px', borderRadius: 14, background: 'linear-gradient(120deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}
             >
               <div style={{ minWidth: 0, flex: '1 1 240px' }}>
                 <h2 id="feed-learning-title" style={{ margin: 0, fontSize: 15, fontWeight: 750, color: 'var(--text-on-dark)' }}>Turn your feed into a learning path</h2>
