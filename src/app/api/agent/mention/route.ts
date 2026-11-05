@@ -11,6 +11,7 @@ import { buildFullMemoryContext, savePost } from '@/lib/agent-memory';
 import { isSaveCastCommand, resolveParentCastHash, saveReplyTargetCast } from '@/lib/agent-cast-save';
 import { recordMention, buildUserMemoryContext, learnFromInteraction } from '@/lib/agent-user-memory';
 import { llmChat } from '@/lib/llm';
+import { isInternalReasoningOutput } from '@/lib/agent-post';
 import { buildReplySystem } from '@/lib/ai/persona';
 import { getRelevantKBArticles, formatKBContext } from '@/lib/kb-sync';
 import {
@@ -160,6 +161,10 @@ async function generateReply(
         // Don't hard-slice — publishCast auto-selects LONG_CAST for text > 320 chars (up to 10,000).
         // Just trim whitespace and return.
         const text = (msg.content || '').trim();
+        if (isInternalReasoningOutput(text)) {
+          console.error('[agent/mention] Suppressed internal reasoning from public reply');
+          return 'there’s nothing on my mind today, what’s on yours';
+        }
         return text || 'there’s nothing on my mind today, what’s on yours';
       }
 
