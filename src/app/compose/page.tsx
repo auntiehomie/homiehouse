@@ -20,7 +20,9 @@ function ComposePageInner() {
   const [text, setText] = useState(searchParams.get('text') || "");
   const returnTo = searchParams.get('returnTo');
   const fromAskHomie = returnTo === '/ask-homie' || returnTo?.startsWith('/ask-homie?');
-  const closeComposer = () => fromAskHomie ? router.replace(returnTo!, { scroll: false }) : router.back();
+  const fromLearningPlan = returnTo === '/learn';
+  const destination = fromLearningPlan ? '/learn' : fromAskHomie ? returnTo : null;
+  const closeComposer = () => destination ? router.replace(destination, { scroll: false }) : router.back();
   const parts = splitCastText(text);
   const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
   const [loading, setLoading] = useState(false);
@@ -32,11 +34,11 @@ function ComposePageInner() {
     // Dismiss the keyboard so the confirmation stays visible on iOS.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const timer = window.setTimeout(() => {
-      if (fromAskHomie) router.replace(returnTo!, { scroll: false });
+      if (destination) router.replace(destination, { scroll: false });
       else router.back();
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [successMessage, fromAskHomie, returnTo, router]);
+  }, [successMessage, destination, router]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
@@ -483,8 +485,8 @@ function ComposePageInner() {
         </div>
       )}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
-        <button aria-label={fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
-          {fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button aria-label={fromLearningPlan ? "Back to Learning Plan" : fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
+          {fromLearningPlan ? '← Back to Learning Plan' : fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>}
         </button>
