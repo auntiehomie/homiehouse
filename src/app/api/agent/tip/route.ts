@@ -7,7 +7,7 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { buildFullMemoryContext, savePost, getRecentPostsStrict } from '@/lib/agent-memory';
 import { llmChat } from '@/lib/llm';
-import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
+import { isInternalReasoningOutput, splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import {
   buildPostSystem,
@@ -226,6 +226,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (!content) throw new Error('LLM returned an empty post');
+
+    // Final fail-closed gate immediately before any dry-run or Farcaster publish path.
+    if (isInternalReasoningOutput(content)) {
+      logger.error('Skipping autonomous post — private reasoning detected in generated text');
+      return NextResponse.json({ ok: true, skipped: 'private-reasoning-detected' });
+    }
 
     // Still a near-duplicate? Skip this run rather than post a repeat.
     if (tooSimilar(content, recentTexts)) {

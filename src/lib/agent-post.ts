@@ -22,6 +22,23 @@ export function tooSimilar(text: string, recentTexts: string[], threshold = 0.4)
   return recentTexts.some((r) => similarity(text, r) >= threshold);
 }
 
+/**
+ * Detect common chain-of-thought / drafting artifacts before text can reach a
+ * public feed. This intentionally targets explicit reasoning headers and
+ * first-person drafting notes rather than ordinary explanatory language.
+ */
+export function isInternalReasoningOutput(text: string): boolean {
+  const value = text.trim();
+  if (!value) return false;
+
+  return [
+    /^\s*(?:<\/?(?:think|analysis|reasoning)>|\*\*(?:analysis|reasoning)\*\*)/i,
+    /^\s*(?:analysis|reasoning|chain of thought|internal reasoning|private notes)\s*[:—-]/i,
+    /^\s*(?:let me think(?: this through)?|let's think(?: this through)?|i need to (?:answer|respond|write|draft)|we need to (?:answer|respond|write|draft)|the user (?:asks|wants|is asking)|the prompt asks)\b/i,
+    /<\/?(?:think|analysis|reasoning)>/i,
+  ].some((pattern) => pattern.test(value));
+}
+
 export function cleanPost(text: string, maxLen = 280): string {
   return text.trim().replace(/^['"]|['"]$/g, '').slice(0, maxLen).trim();
 }
@@ -47,11 +64,16 @@ export async function writeAgentPost(
         model,
         max_tokens: 800,
         temperature: 0.85,
-        system,
-        messages: [{ role: 'user', content: instruction }],
+        system: `${system}\n\nDo any needed reasoning privately. Return only the final publish-ready post. Never include chain-of-thought, analysis, planning notes, draft labels, or a preface.`,
+        messages: [{ role: 'user', content: `${instruction}\n\nOutput only the final post text; do not show reasoning or drafting notes.` }],
       });
       const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, maxLen);
+      if (block?.type === 'text' && block.text.trim()) {
+        if (isInternalReasoningOutput(block.text)) {
+          throw new Error('model returned internal reasoning instead of a publishable post');
+        }
+        return cleanPost(block.text, maxLen);
+      }
       throw new Error('empty Anthropic response');
     } catch (err: any) {
       logger.warn('Anthropic post failed, using free providers', err);
@@ -60,13 +82,17 @@ export async function writeAgentPost(
 
   const { message } = await llmChat({
     messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: instruction },
+      { role: 'system', content: `${system}\n\nDo any needed reasoning privately. Return only the final publish-ready post. Never include chain-of-thought, analysis, planning notes, draft labels, or a preface.` },
+      { role: 'user', content: `${instruction}\n\nOutput only the final post text; do not show reasoning or drafting notes.` },
     ],
     maxTokens: 800,
     temperature: 0.85,
   });
-  return cleanPost(message.content || '', maxLen);
+  const content = message.content || '';
+  if (isInternalReasoningOutput(content)) {
+    throw new Error('model returned internal reasoning instead of a publishable post');
+  }
+  return cleanPost(content, maxLen);
 }
 
 export type { PostMode };
