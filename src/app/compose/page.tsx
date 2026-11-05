@@ -21,6 +21,9 @@ function ComposePageInner() {
   const [text, setText] = useState(searchParams.get('text') || "");
   const returnTo = searchParams.get('returnTo');
   const destination = resolveComposeReturnDestination(returnTo);
+  const fromLearningPlan = destination === '/learn';
+  const fromLearningModule = destination?.startsWith('/learn/module?') ?? false;
+  const fromAskHomie = destination?.startsWith('/ask-homie') ?? false;
   const closeComposer = () => destination ? router.replace(destination, { scroll: false }) : router.back();
   const parts = splitCastText(text);
   const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
@@ -484,8 +487,8 @@ function ComposePageInner() {
         </div>
       )}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
-        <button aria-label={fromLearningPlan ? "Back to Learning Plan" : fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
-          {fromLearningPlan ? '← Back to Learning Plan' : fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button aria-label={fromLearningModule ? "Back to Lesson" : fromLearningPlan ? "Back to Learning Plan" : fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
+          {fromLearningModule ? '← Back to Lesson' : fromLearningPlan ? '← Back to Learning Plan' : fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>}
         </button>
