@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
-import { getAuthHeaders } from "@/lib/client-auth";
+import { ensureAuthHeaders, getAuthHeaders } from "@/lib/client-auth";
 import {
   OPEN_COMPOSE_MODAL_EVENT,
   type ComposeCastResult,
@@ -457,10 +457,10 @@ export default function ComposeModal() {
 
         body.scheduled_time = scheduledDate.toISOString();
         
-        const authHeaders = getAuthHeaders('write:casts');
+        const authHeaders = await ensureAuthHeaders('write:casts');
         const signerKey = getPrivateKeyHex();
         if (!authHeaders || !signerKey) {
-          setStatus('Posting permissions required to schedule this cast.');
+          setStatus('Your posting session could not be verified. Reconnect or enable posting, then try again.');
           setLoading(false);
           return;
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getAuthHeaders, getStoredFid } from "@/lib/client-auth";
+import { ensureAuthHeaders, getStoredFid } from "@/lib/client-auth";
 
 interface ScheduledCast {
   id: string;
@@ -49,9 +49,10 @@ export default function ScheduledCastsModal() {
 
     setLoading(true);
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = await ensureAuthHeaders('read:all');
+      if (!authHeaders) return;
       const res = await fetch(`/api/schedule-cast?fid=${userFid}`, {
-        headers: authHeaders ? { ...authHeaders } : {},
+        headers: { ...authHeaders },
       });
       const data = await res.json();
 
@@ -69,10 +70,11 @@ export default function ScheduledCastsModal() {
     if (!userFid) return;
 
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = await ensureAuthHeaders('write:casts');
+      if (!authHeaders) return;
       const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
         method: 'DELETE',
-        headers: authHeaders ? { ...authHeaders } : {},
+        headers: { ...authHeaders },
       });
 
       const data = await res.json();

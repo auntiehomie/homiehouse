@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
-import { getAuthHeaders } from "@/lib/client-auth";
+import { ensureAuthHeaders } from "@/lib/client-auth";
 
 interface ScheduledCast {
   id: string;
@@ -49,9 +49,10 @@ export default function ScheduledPage() {
     if (!userFid) return;
     if (showLoading) setLoading(true);
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = await ensureAuthHeaders('read:all');
+      if (!authHeaders) return;
       const res = await fetch(`/api/schedule-cast?fid=${userFid}`, {
-        headers: authHeaders ? { ...authHeaders } : {},
+        headers: { ...authHeaders },
       });
       const data = await res.json();
       if (data.ok) setCasts(data.scheduled_casts || []);
@@ -71,10 +72,11 @@ export default function ScheduledPage() {
     setCancelling(id);
     setCancelError(prev => ({ ...prev, [id]: '' }));
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = await ensureAuthHeaders('write:casts');
+      if (!authHeaders) throw new Error('Your posting session could not be verified. Sign in again.');
       const res = await fetch(`/api/schedule-cast?id=${id}&fid=${userFid}`, {
         method: 'DELETE',
-        headers: authHeaders ? { ...authHeaders } : {},
+        headers: { ...authHeaders },
       });
       const data = await res.json();
       if (data.ok) {
@@ -93,10 +95,11 @@ export default function ScheduledPage() {
     if (!userFid) return;
     setCancellingAll(true);
     try {
-      const authHeaders = getAuthHeaders();
+      const authHeaders = await ensureAuthHeaders('write:casts');
+      if (!authHeaders) return;
       const res = await fetch(`/api/schedule-cast?fid=${userFid}&cancelAll=true`, {
         method: 'DELETE',
-        headers: authHeaders ? { ...authHeaders } : {},
+        headers: { ...authHeaders },
       });
       const data = await res.json();
       if (data.ok) {
@@ -124,7 +127,8 @@ export default function ScheduledPage() {
       });
 
       // Mark as published in DB
-      const authHeaders = getAuthHeaders();
+      const authHeaders = await ensureAuthHeaders('write:casts');
+      if (!authHeaders) throw new Error('Your posting session could not be verified. Sign in again.');
       await fetch('/api/schedule-cast', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
