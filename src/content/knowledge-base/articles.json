@@ -603,6 +603,90 @@
       ],
       "addedAt": "2026-10-25",
       "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "digicert-customer-data-and-identity-document-breach",
+      "title": "DigiCert data breach exposes customer information and identity documents",
+      "url": "https://www.bleepingcomputer.com/news/security/digicert-data-breach-exposes-customer-information-identity-documents/",
+      "source": "bleepingcomputer.com",
+      "tags": [
+        "cybersecurity",
+        "data breach",
+        "identity",
+        "access control",
+        "certificate authorities"
+      ],
+      "summary": "BleepingComputer reports that a February 2025 server migration exposed an internal DigiCert business system that had previously required VPN access. An external self-registration path and an authorization flaw later allowed read-only access to archived customer records, including business contact information and, for some people, identity documents. DigiCert said the affected account could not alter records, approve validations, or issue certificates, and that CertCentral, DigiCert ONE, customer credentials, and issued certificates were not compromised. The number of affected people was not stated in the reviewed report.",
+      "learningPoints": [
+        "A migration can change a system's trust boundary: an internal service exposed to the internet needs a fresh review of registration, authorization, and archived-data access.",
+        "Authentication and authorization are different controls; creating an account should not grant access to data unless every object-level permission is verified.",
+        "Incident scope should distinguish exposed identity records from unaffected certificate issuance, credentials, and production services rather than treating every part of a provider as compromised."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "microsoft-email-threat-landscape-q3-2026",
+      "title": "Email threat landscape: Q3 2026 trends and insights",
+      "url": "https://www.microsoft.com/en-us/security/blog/2026/11/05/email-threat-landscape-q3-2026-trends-and-insights/",
+      "source": "microsoft.com",
+      "tags": [
+        "cybersecurity",
+        "phishing",
+        "email security",
+        "social engineering",
+        "credential theft"
+      ],
+      "summary": "Microsoft Threat Intelligence and Defender researchers report detecting about 7.3 billion email-based phishing threats from July through September 2026, including nearly 3 billion in September. Credential theft remained the dominant objective. Microsoft also observed roughly 129 million malicious messages spoofing tracked business-service domains and found that broad tenant or user exceptions frequently overrode protections even after authentication failures and malicious classification. The figures describe Microsoft's detections and do not establish that recipients opened the messages or that accounts were compromised.",
+      "learningPoints": [
+        "Security exceptions can undo otherwise successful detection, so allowlists and overrides need narrow scope, ownership, expiration, and regular review.",
+        "Familiar brands and routine requests such as invoices, signatures, payroll, or salary reviews are social-engineering tools, not proof that a sender is authentic.",
+        "Detection volume measures observed threats, not confirmed victim impact; distinguish blocked or classified messages from opened messages and compromised accounts."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "openssh-10-6p2-password-authentication-bypass",
+      "title": "OpenSSH 10.6p2 password authentication bypass workaround",
+      "url": "https://www.openssh.org/releasenotes.html",
+      "source": "openssh.org",
+      "tags": [
+        "cybersecurity",
+        "openssh",
+        "linux",
+        "authentication",
+        "patching"
+      ],
+      "summary": "OpenSSH 10.6p2, released November 5, 2026, includes a critical workaround for a password-authentication bypass affecting some Linux systems that use musl libc and run OpenSSH with PAM support disabled. The OpenSSH team says the root cause is outside sshd but can be exploited through sshd and avoided there. The condition is configuration-specific rather than a claim that every OpenSSH installation is vulnerable.",
+      "learningPoints": [
+        "Assess exposure using the complete condition set—Linux, musl libc, and PAM disabled—rather than assuming every OpenSSH server is affected.",
+        "A component can provide a defensive workaround even when the underlying defect originates elsewhere in the operating-system stack.",
+        "Patch decisions should use the official release notes and the distribution's fixed package guidance, followed by a verification of the running version and configuration."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "post-quantum-questions-to-ask-your-vendors",
+      "title": "Post-quantum questions to ask your vendors",
+      "url": "https://www.cyber.gov.au/publication/post-quantum-questions-to-ask-your-vendors",
+      "source": "cyber.gov.au",
+      "tags": [
+        "cybersecurity",
+        "post-quantum cryptography",
+        "cryptography",
+        "vendor risk",
+        "supply chain"
+      ],
+      "summary": "Guidance jointly authored by Australia's ACSC with CISA and the NSA provides vendor-neutral questions for evaluating post-quantum cryptography readiness during procurement, contract renewal, and ongoing assurance. It focuses on identifying cryptographic dependencies, understanding vendor risk assessments and transition plans, evaluating implementation approaches, and maintaining supplier communication. The document is planning guidance for a phased migration; it does not claim that every organization should replace all cryptography immediately.",
+      "learningPoints": [
+        "An organization cannot plan its own post-quantum transition without knowing which vendor products, managed services, and cloud systems choose or depend on public-key cryptography.",
+        "Procurement and renewal reviews should ask for a cryptographic inventory, accountable migration milestones, testing plans, update paths, and clear communication about dependencies and delays.",
+        "Post-quantum readiness is a supply-chain and lifecycle-management problem as well as an algorithm choice, so early vendor engagement reduces later migration risk."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
     }
   ]
 }
