@@ -121,6 +121,7 @@ export default function FeedClient() {
           </aside>
           <div className="flex-1 min-w-0 hh-feed-column">
             <section
+              className="hh-feed-learning-banner"
               aria-labelledby="feed-learning-title"
               style={{ marginBottom: 10, padding: '14px 16px 8px', borderRadius: 14, background: 'linear-gradient(120deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}
             >
@@ -130,7 +131,7 @@ export default function FeedClient() {
                   Build a lesson from any cast. Eligible signed-in learners can earn 100 HH2 by passing the quiz.
                 </p>
               </div>
-              <Link href="/learn" style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 9, background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+              <Link href="/learn" className="hh-feed-learning-link" style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 9, background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 700, lineHeight: 1.2, textDecoration: 'none' }}>
                 Explore Learn & Earn →
               </Link>
             </section>
