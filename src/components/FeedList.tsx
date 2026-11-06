@@ -47,7 +47,7 @@ const LazyMarkdown = dynamic(
 );
 
 function renderCastText(text: string) {
-  const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
+  const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|@[a-zA-Z0-9][a-zA-Z0-9_.-]*|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
   const parts = text.split(tokenOrUrl);
   return parts.map((part, i) => {
     if (/^\$[A-Z][A-Z0-9]{0,9}$/.test(part)) {
@@ -56,6 +56,9 @@ function renderCastText(text: string) {
           {part}
         </Link>
       );
+    }
+    if (/^@[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(part)) {
+      return <Link key={i} href={`/profile?user=${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }} onClick={e => e.stopPropagation()}>{part}</Link>;
     }
     if (/^https?:\/\//i.test(part) || /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/.test(part)) {
       const href = part.startsWith('http') ? part : `https://${part}`;
@@ -677,8 +680,8 @@ export default function FeedList({
     if (!supportsTouch) return;
 
     try {
-      if (sessionStorage.getItem('hh-pull-refresh-hint-seen')) return;
-      sessionStorage.setItem('hh-pull-refresh-hint-seen', '1');
+      if (localStorage.getItem('hh-onboarding-hint-eligible') !== '1' || localStorage.getItem('hh-pull-refresh-hint-seen') === '1') return;
+      localStorage.setItem('hh-pull-refresh-hint-seen', '1');
     } catch {
       // Show the hint for this mount if browser storage is unavailable.
     }
