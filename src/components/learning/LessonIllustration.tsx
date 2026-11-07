@@ -1,36 +1,59 @@
 'use client';
 
-/** A small, decorative visual cue chosen from the card's subject. */
-export function lessonIllustrationTopic(text: string): 'security' | 'ai' | 'community' | 'money' | 'network' | 'ideas' {
-  if (/secur|protect|privacy|phish|hack|encrypt|reentran|wallet|key\b/i.test(text)) return 'security';
-  if (/\bai\b|artificial intelligence|agent|machine learning|model\b/i.test(text)) return 'ai';
-  if (/\bdao\b|communit|creator|social|governance|vot(e|ing)/i.test(text)) return 'community';
-  if (/defi|crypto|token|trad(e|ing)|financ|money|ethereum/i.test(text)) return 'money';
-  if (/blockchain|decentrali|network|node|storage|rollup/i.test(text)) return 'network';
-  return 'ideas';
+// Only render a scene when the card describes a concept the scene depicts.
+export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | null {
+  if (/waiter|restaurant/i.test(text) && /bill|customer/i.test(text)) return 'restaurant';
+  if (/flash[ -]?loan/i.test(text)) return 'flash-loan';
+  if (/multisig|multi.signature|multiple approvals/i.test(text)) return 'multisig';
+  if (/seed phrase|recovery phrase/i.test(text)) return 'seed';
+  if (/reentran|repeatedly calling the withdraw/i.test(text)) return 'reentrancy';
+  return null;
 }
 
 export default function LessonIllustration({ text }: { text: string }) {
-  const topic = lessonIllustrationTopic(text);
-  const symbols = { security: '🔒', ai: '✦', community: '♥', money: '◈', network: '●', ideas: '✧' };
+  const scene = lessonIllustrationTopic(text);
+  if (!scene) return null;
   return (
-    <div aria-hidden="true" className="lesson-illustration">
+    <div className="lesson-scene" aria-hidden="true">
       <style>{`
-        .lesson-illustration { display:flex; justify-content:center; padding:8px 0; }
-        .lesson-illustration svg { width:min(190px, 65%); height:auto; animation:lesson-bob 3.6s ease-in-out infinite; }
-        @keyframes lesson-bob { 50% { transform:translateY(-6px) } }
-        @media (prefers-reduced-motion:reduce) { .lesson-illustration svg { animation:none } }
-        @media (max-height:600px) { .lesson-illustration svg { width:min(140px, 50%) } }
+        .lesson-scene { display:flex; justify-content:center; padding:10px 0; }
+        .lesson-scene svg { width:min(280px, 95%); height:auto; }
+        .lesson-scene .moving { animation:lesson-scene-move 2s ease-in-out infinite alternate; }
+        @keyframes lesson-scene-move { to { transform:translateX(10px) } }
+        @media (prefers-reduced-motion:reduce) { .lesson-scene .moving { animation:none } }
+        @media (max-height:600px) { .lesson-scene svg { width:min(210px, 75%) } }
       `}</style>
-      <svg viewBox="0 0 220 150" focusable="false">
-        <circle cx="110" cy="75" r="65" fill="rgba(99,102,241,.12)" />
-        <path d="M60 101 Q56 58 75 51 L76 35 L91 48 Q110 43 129 48 L144 35 L145 51 Q164 58 160 101 Q156 124 110 126 Q64 124 60 101Z" fill="#8b83ef" />
-        <ellipse cx="91" cy="80" rx="17" ry="20" fill="#f5f3ff" /><ellipse cx="129" cy="80" rx="17" ry="20" fill="#f5f3ff" />
-        <circle cx="94" cy="81" r="6" fill="#252053" /><circle cx="126" cy="81" r="6" fill="#252053" />
-        <path d="M103 96 L117 96 L110 105Z" fill="#fbbf24" />
-        <circle cx="166" cy="43" r="23" fill="#34d399" />
-        <text x="166" y="51" textAnchor="middle" fontSize="24" fill="#064e3b">{symbols[topic]}</text>
-        <circle cx="48" cy="51" r="3" fill="#a5b4fc" /><circle cx="178" cy="108" r="4" fill="#a5b4fc" />
+      <svg viewBox="0 0 300 150" focusable="false">
+        <rect x="4" y="7" width="292" height="136" rx="24" fill="rgba(99,102,241,.10)" />
+        {(scene === 'reentrancy' || scene === 'restaurant') && <>
+          <rect x="25" y="44" width="76" height="58" rx="12" fill="#8176e8" />
+          <text x="63" y="70" textAnchor="middle" fill="white" fontSize="12">{scene === 'restaurant' ? 'BILL' : 'CONTRACT'}</text>
+          <path d="M37 81h50" stroke="#dcd8ff" strokeWidth="3" />
+          <circle cx="233" cy="73" r="30" fill="#34d399" />
+          <text x="233" y="80" textAnchor="middle" fill="#064e3b" fontSize="22">$</text>
+          <g className="moving" fill="none" stroke="#b5afff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M113 57h69m-9-8 9 8-9 8" /><path d="M182 93h-69m9-8-9 8 9 8" />
+          </g>
+          <text x="150" y="125" textAnchor="middle" fill="#d5d2fc" fontSize="11">{scene === 'restaurant' ? 'Paid before the bill is final' : 'Withdraw called again'}</text>
+        </>}
+        {scene === 'flash-loan' && <>
+          <rect x="16" y="49" width="71" height="49" rx="10" fill="#8176e8" /><text x="51" y="78" textAnchor="middle" fill="white" fontSize="12">BORROW</text>
+          <rect x="114" y="49" width="71" height="49" rx="10" fill="#34d399" /><text x="149" y="78" textAnchor="middle" fill="#064e3b" fontSize="12">SWAP</text>
+          <rect x="212" y="49" width="71" height="49" rx="10" fill="#8176e8" /><text x="247" y="78" textAnchor="middle" fill="white" fontSize="12">REPAY</text>
+          <g className="moving" fill="none" stroke="#d5d2fc" strokeWidth="3"><path d="M89 73h20m-6-6 6 6-6 6M187 73h20m-6-6 6 6-6 6" /></g>
+          <text x="150" y="122" textAnchor="middle" fill="#d5d2fc" fontSize="11">All in one transaction</text>
+        </>}
+        {(scene === 'multisig' || scene === 'seed') && <>
+          <rect x="108" y="35" width="84" height="78" rx="12" fill="#8176e8" />
+          <path d="M130 68V60a20 20 0 0 1 40 0v8" fill="none" stroke="#fff" strokeWidth="5" /><rect x="126" y="68" width="48" height="31" rx="6" fill="#34d399" />
+          {scene === 'multisig' ? <>
+            {[44, 70, 230, 256].map((x) => <g key={x}><circle cx={x} cy="75" r="10" fill="#34d399" /><path d={`M${x-4} 75l3 3 6-6`} fill="none" stroke="#064e3b" strokeWidth="2" /></g>)}
+            <text x="150" y="130" textAnchor="middle" fill="#d5d2fc" fontSize="11">Multiple approvals protect a transaction</text>
+          </> : <>
+            <rect x="29" y="47" width="53" height="48" rx="5" fill="#f5f3ff" /><path d="M39 60h32M39 70h32M39 80h24" stroke="#8176e8" strokeWidth="3" />
+            <text x="150" y="130" textAnchor="middle" fill="#d5d2fc" fontSize="11">Keep the recovery phrase offline</text>
+          </>}
+        </>}
       </svg>
     </div>
   );
