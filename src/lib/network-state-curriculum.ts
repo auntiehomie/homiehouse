@@ -7,6 +7,8 @@ const review = { label: 'Vitalik Buterin: What do I think about network states? 
 const commons = { label: 'De Filippi / The Blockchain Socialist: written episode introduction (audio not reviewed)', url: 'https://theblockchainsocialist.com/overthrowing-the-network-state-an-initial-critique-and-alternatives/' };
 const modular = { label: 'Schneider et al.: Modular Politics (abstract; predates the book)', url: 'https://arxiv.org/abs/2005.13701' };
 
+const civicRights = { label: 'Joint Declaration: Freedom of Peaceful Assembly and Association and Digital Technologies (2023)', url: 'https://www.ohchr.org/sites/default/files/documents/issues/trafficking/statements/20230915-jd-foaa-digital-technologies.pdf' };
+
 const grayCritique = { label: 'The Nerd Reich: critical commentary on San Francisco proposals (interview not independently reviewed)', url: 'https://www.thenerdreich.com/balaji-srinivasans-gray-vision-for-san-francisco/' };
 
 /** Authored lessons: proposals and objections stay together, including without an LLM. */
@@ -96,18 +98,19 @@ export const NETWORK_STATE_CURRICULUM: CuratedLesson[] = [
     intro: 'There are more than two positions: endorse the whole proposal or reject all experiments. Compare designs, identify assumptions, and write rules you could actually evaluate.',
     concepts: [
       { title: 'Compare mechanisms, not labels', explanation: 'Use Balaji’s online-to-offline pathway, the critical introduction’s commons framing, and Modular Politics’ governance framework as distinct starting points. They are not three proven products with comparable performance scores. [Readings: roadmap; critical introduction; Modular Politics abstract.] Original exercise: compare how each proposed design would make decisions, fund shared work, and resolve a dispute.' },
+      { title: 'Organize for accountability', explanation: 'When a proposed community concentrates control over housing, rules, or data, affected people can work together to demand published decision rules, independent appeals, privacy protections, and a meaningful voice for residents and neighbors. The 2023 Joint Declaration on digital technologies recommends meaningful public consultation and safeguards for peaceful association, privacy, and expression. It addresses digital governance generally; it does not make findings about a particular network state. [Reading: Joint Declaration.] Original exercise: identify who decides, who is affected, and who can challenge a decision; use that map to prepare questions for a public meeting or community group.' },
       { title: 'Specify a hybrid', explanation: 'A fictional community could experiment with shared services while retaining member review and cooperating with neighboring institutions. This is a classroom design option, not a claim about a current project. Write down which matters members control and which require agreement with others. Then identify a conflict the charter does not resolve. Acknowledging a limit makes the design easier to assess.' },
       { title: 'What would change your mind?', explanation: 'Before choosing a design, specify what success and failure would look like. Measure service reliability, affordability, participation, dispute resolution, and effects on outsiders. Compare results with the project’s stated baseline. A popular leader or rising asset price is not a substitute for every outcome. Distinguish your preference for a goal from evidence that a mechanism achieves it.' },
     ],
     practicalExample: 'Fictional capstone: draft a charter for the repair club. Include admission, fees, budgets, leadership succession, independent appeals, data privacy, exit, and neighboring residents’ input. Give the strongest objection to your own design and state what evidence would lead you to revise it.',
-    quickActions: ['Compare the linked proposal, critical introduction, and governance abstract', 'Write a one-page charter with a leadership transition rule', 'Ask a peer to identify an affected person your charter overlooks'],
+    quickActions: ['Compare the linked proposal, critical introduction, and governance abstract', 'Write a one-page charter with a leadership transition rule', 'Ask a peer to identify an affected person your charter overlooks', 'Draft a public question requesting transparent rules and an independent appeal'],
     summary: 'Judge a design by its mechanisms, evidence, and unresolved tradeoffs. Reasoned disagreement is a learning outcome; ideological agreement is not required.',
     quiz: [
       { question: 'Which is a testable governance safeguard?', options: ['Our founder will always be good', 'Everyone will agree forever', 'A defined appeal process with a reviewer and deadline', 'Our token must rise'], correctIndex: 2, explanation: 'A defined review procedure can be inspected and evaluated. The other statements assume outcomes.' },
       { question: 'What distinguishes a proposed framework from demonstrated results?', options: ['A framework describes mechanisms; outcomes need evidence', 'A framework guarantees success', 'A proposal is automatically a failed experiment', 'Evidence is unnecessary if the goal is good'], correctIndex: 0, explanation: 'A mechanism can be plausible without having comparative outcome evidence; testing is a separate step.' },
       { question: 'What should this course assess?', options: ['Agreement with Balaji', 'Agreement with every critic', 'A preferred political identity', 'Accurate explanations, fair objections, and evidence-based reasoning'], correctIndex: 3, explanation: 'Assessment checks understanding and reasoning, while reflection permits disagreement about values and priorities.' },
     ],
-    sources: [proposal, essay, commons, modular, review],
+    sources: [proposal, essay, commons, modular, review, civicRights],
   },
 ];
 

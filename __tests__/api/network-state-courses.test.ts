@@ -74,6 +74,15 @@ describe('balanced Network State courses', () => {
     expect(query.mock.calls.some(([sql]) => /DELETE FROM/.test(sql))).toBe(false);
   });
 
+  it('includes practical civic accountability and a sourced digital rights framework', () => {
+    const lesson = NETWORK_STATE_CURRICULUM.find(({ module }) => module.id === 'network-states-alternatives');
+    expect(lesson?.concepts.some(({ title, explanation }) =>
+      title === 'Organize for accountability' && explanation.includes('independent appeals')
+    )).toBe(true);
+    expect(lesson?.sources.some(({ url }) => url.includes('20230915-jd-foaa-digital-technologies.pdf'))).toBe(true);
+    expect(lesson?.quickActions.some((action) => action.includes('public question'))).toBe(true);
+  });
+
   it('reports a retryable failure when authenticated progress cannot be prepared', async () => {
     (verifyFarcasterSignerAuth as jest.Mock).mockResolvedValue(123);
     (getDb as jest.Mock).mockReturnValue({ query: jest.fn().mockRejectedValue(new Error('offline')) });

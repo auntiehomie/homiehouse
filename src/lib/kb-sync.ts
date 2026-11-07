@@ -166,13 +166,16 @@ export async function getRelevantKBArticles(query: string, limit = 3): Promise<K
 
     // Extract meaningful keywords from the query
     const words = (query.toLowerCase().match(/[a-z0-9]+/g) || [])
-      .filter((w) => w.length > 3)
+      .filter((w) => w.length > 3 || SHORT_TOPIC_WORDS.has(w))
       .filter((w) => !STOPWORDS.has(w));
     if (!words.length) return [];
 
     // Build a tag overlap query — match articles where any keyword is in tags
     // or where the title contains the keyword
-    const tagPattern = words.map((w) => w.replace(/'/g, "''")).join('|');
+    // Match short topic acronyms as whole words so AI does not match unrelated text.
+    const tagPattern = [...new Set(words)]
+      .map((word) => SHORT_TOPIC_WORDS.has(word) ? `\\m${word}\\M` : word)
+      .join('|');
 
     const rows = await sql`
       SELECT * FROM kb_articles
@@ -263,6 +266,8 @@ export function formatKBContext(articles: KBArticle[]): string {
 
   return `\n\n---\n# Knowledge Base Context\nUse these articles as background knowledge for your response. Synthesize, don't just repeat them.\n\n${parts.join('\n\n---\n\n')}\n---\n`;
 }
+
+const SHORT_TOPIC_WORDS = new Set(['ai', 'dao', 'daos', 'zk', 'nft', 'nfts', 'defi', 'llm', 'llms']);
 
 const STOPWORDS = new Set([
   'the', 'this', 'that', 'with', 'from', 'have', 'your', 'they', 'will',
