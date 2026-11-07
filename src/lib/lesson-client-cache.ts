@@ -158,7 +158,7 @@ function cacheLesson(module: LessonModuleRequest, eli5: boolean, lesson: LessonC
   }
 }
 
-export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<LessonContent> {
+export function loadLesson(module: LessonModuleRequest, eli5: boolean, options?: { preserveCached?: boolean }): Promise<LessonContent> {
   const authenticated = Boolean(getAuthHeaders());
   const cached = authenticated ? null : getCachedLesson(module, eli5);
   if (cached) return Promise.resolve(cached);
@@ -181,7 +181,7 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
       if (!normalized) throw new Error('The generated lesson was incomplete. Please try again.');
       const lesson = correctLessonRepositoryReferences(normalized);
       // Don't cache fallback lessons — they're temporary content from AI provider failures.
-      if (response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
+      if (!options?.preserveCached && response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
         cacheLesson(module, eli5, lesson);
       }
       return lesson;
