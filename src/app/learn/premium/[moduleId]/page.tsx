@@ -1,5 +1,7 @@
 'use client';
 
+import LessonIllustration from '@/components/learning/LessonIllustration';
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { fetchPremiumTrack } from '@/lib/pro-client';
@@ -236,6 +238,7 @@ export default function PremiumModulePage() {
               }}>
                 {concept.explanation}
               </p>
+              <LessonIllustration text={`${concept.title} ${concept.explanation}`} />
               {concept.analogy && (
                 <div style={{
                   background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',

@@ -103,6 +103,7 @@ function IntroCard({ content, lesson }: { content: string; lesson: LessonContent
       }}>
         <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      <LessonIllustration text={content} />
       {lesson && <LessonWalkthrough lesson={lesson} />}
     </CardBody>
   );

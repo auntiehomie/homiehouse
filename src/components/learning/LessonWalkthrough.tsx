@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { LessonContent } from '@/lib/lesson-client-cache';
 import styles from './LessonWalkthrough.module.css';
+import LessonIllustration from './LessonIllustration';
 
 /** Reuses lesson copy verbatim; stages indicate reading order, not causality. */
 export default function LessonWalkthrough({ lesson }: { lesson: LessonContent }) {
@@ -40,6 +41,7 @@ export default function LessonWalkthrough({ lesson }: { lesson: LessonContent })
               <span className={styles.caption}>Stage {selected + 1} of {stages.length}</span>
               <h3>{stage.title}</h3>
               <p className={styles.copy}>{stage.text}</p>
+              <LessonIllustration text={`${stage.title} ${stage.text}`} />
               {'analogy' in stage && stage.analogy && <blockquote><strong>Analogy</strong><p>{stage.analogy}</p></blockquote>}
             </div>
             <div className={styles.controls}>
