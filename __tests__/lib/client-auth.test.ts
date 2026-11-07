@@ -1,4 +1,4 @@
-import { ensureAuthHeaders, getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders, getAuthHeaders, requirePostingAuthHeaders } from '@/lib/client-auth';
 
 describe('checkout credential selection', () => {
   const values = new Map<string, string>();
@@ -60,6 +60,32 @@ describe('checkout credential selection', () => {
     }));
     expect(JSON.parse(values.get('hh_session_v1')!).token).toBe(token);
     expect(dispatchEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('force refresh discards an expired cached session and mints a fresh write session', async () => {
+    session(['read:all', 'write:casts']);
+    const dispatchEvent = jest.fn();
+    Object.defineProperty(global, 'window', { value: { dispatchEvent }, configurable: true });
+    const token = `header.${Buffer.from(JSON.stringify({ scopes: ['read:all', 'write:casts'] })).toString('base64url')}.signature`;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, token, fid: 123, expiresAt: Date.now() + 60000 }),
+    }) as jest.Mock;
+
+    await expect(ensureAuthHeaders('write:casts', { forceRefresh: true })).resolves.toEqual({ 'x-session-token': token });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(values.get('hh_session_v1')!).token).toBe(token);
+  });
+
+  it('opens the wallet sign-in flow when posting access cannot be restored', async () => {
+    values.delete('hh_profile');
+    values.delete('hh_session_v1');
+    values.delete('signer_123');
+    const dispatchEvent = jest.fn();
+    Object.defineProperty(global, 'window', { value: { dispatchEvent }, configurable: true });
+
+    await expect(requirePostingAuthHeaders()).rejects.toMatchObject({ code: 'POSTING_AUTHORIZATION_REQUIRED' });
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'hh:auth:required' }));
   });
 
   it('does not make an unauthenticated schedule request when no approved signer is stored', async () => {

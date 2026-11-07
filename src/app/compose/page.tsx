@@ -7,7 +7,7 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import CharacterMeter from '@/components/CharacterMeter';
 import ComposeInspiration from '@/components/ComposeInspiration';
 import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
-import { ensureAuthHeaders, getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders, requirePostingAuthHeaders } from '@/lib/client-auth';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 import { resolveComposeReturnDestination } from '@/lib/learning-navigation';
@@ -294,8 +294,7 @@ function ComposePageInner() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const auth = getAuthHeaders('write:casts');
-        if (!auth) throw new Error('Your posting session has expired. Sign in again.');
+        const auth = await requirePostingAuthHeaders();
         const response = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: formData });
         const data = await response.json();
         if (data.ok && data.url) { uploaded.push(data.url); }

@@ -1054,6 +1054,7 @@ nav a:not(.no-underline):hover { color: var(--accent); }
     gap: 6px !important;
     padding: 10px 12px 8px !important;
   }
+  .hh-feed-learning-copy { flex: 0 1 auto !important; width: 100%; }
   .hh-feed-learning-link { padding: 4px 10px !important; }
 }
 

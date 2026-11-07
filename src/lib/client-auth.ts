@@ -13,6 +13,15 @@ export interface FarcasterAuthHeaders {
   'x-session-token'?: string;
 }
 
+export class PostingAuthorizationError extends Error {
+  readonly code = 'POSTING_AUTHORIZATION_REQUIRED';
+
+  constructor() {
+    super('Your posting authorization expired. Reconnect your wallet to renew it.');
+    this.name = 'PostingAuthorizationError';
+  }
+}
+
 /**
  * Return a capable, unexpired session token, or null.
  */
@@ -49,8 +58,14 @@ const sessionRequests = new Map<number, Promise<FarcasterAuthHeaders | null>>();
  * is missing, expired, or read-only. This is needed after wallet-only login,
  * which intentionally creates a read-only session.
  */
-export async function ensureAuthHeaders(requiredScope: string): Promise<FarcasterAuthHeaders | null> {
-  const existing = getAuthHeaders(requiredScope);
+export async function ensureAuthHeaders(
+  requiredScope: string,
+  options: { forceRefresh?: boolean } = {},
+): Promise<FarcasterAuthHeaders | null> {
+  if (typeof window === 'undefined') return null;
+  if (options.forceRefresh) sessionStorage.removeItem('hh_session_v1');
+
+  const existing = options.forceRefresh ? null : getAuthHeaders(requiredScope);
   if (existing) return existing;
 
   const fid = getStoredFid();
@@ -90,6 +105,25 @@ export async function ensureAuthHeaders(requiredScope: string): Promise<Farcaste
 
   sessionRequests.set(fid, request);
   return request;
+}
+
+/** Open the wallet sign-in or signer renewal flow after a write cannot authenticate. */
+export function requestPostingAuthorization(): void {
+  if (typeof window === 'undefined') return;
+  const fid = getStoredFid();
+  if (fid) {
+    window.dispatchEvent(new CustomEvent('hh:request:signer', { detail: { fid, force: true } }));
+  } else {
+    window.dispatchEvent(new Event('hh:auth:required'));
+  }
+}
+
+/** Obtain write scope, or open the available sign-in/renewal flow before failing. */
+export async function requirePostingAuthHeaders(): Promise<FarcasterAuthHeaders> {
+  const headers = await ensureAuthHeaders('write:casts');
+  if (headers) return headers;
+  requestPostingAuthorization();
+  throw new PostingAuthorizationError();
 }
 
 /**

@@ -125,7 +125,7 @@ export default function FeedClient() {
               aria-labelledby="feed-learning-title"
               style={{ marginBottom: 10, padding: '14px 16px 8px', borderRadius: 14, background: 'linear-gradient(120deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), var(--surface))', border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}
             >
-              <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+              <div className="hh-feed-learning-copy" style={{ minWidth: 0, flex: '1 1 240px' }}>
                 <h2 id="feed-learning-title" style={{ margin: 0, fontSize: 15, fontWeight: 750, color: 'var(--text-on-dark)' }}>Turn your feed into a learning path</h2>
                 <p style={{ margin: '4px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--muted-on-dark)' }}>
                   Build a lesson from any cast. Eligible signed-in learners can earn 100 HH2 by passing the quiz.
