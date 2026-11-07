@@ -603,6 +603,27 @@
       ],
       "addedAt": "2026-10-25",
       "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "joint-declaration-peaceful-assembly-digital-technologies-2023",
+      "title": "Joint Declaration on Freedom of Peaceful Assembly and Association and Digital Technologies",
+      "url": "https://www.ohchr.org/sites/default/files/documents/issues/trafficking/statements/20230915-jd-foaa-digital-technologies.pdf",
+      "source": "ohchr.org",
+      "tags": [
+        "network states",
+        "governance",
+        "privacy",
+        "digital rights",
+        "community"
+      ],
+      "summary": "The 2023 joint declaration sets out recommendations for protecting peaceful assembly and association when digital technologies are designed and used. It calls for meaningful public consultation, privacy and data protection safeguards, accountability, and protections for expression and association. It addresses states and companies generally; it does not assess a particular network-state project.",
+      "learningPoints": [
+        "Meaningful public participation and transparent governance can help affected people scrutinize technology decisions.",
+        "Privacy safeguards and oversight matter when surveillance can affect peaceful association and expression.",
+        "Apply these general recommendations as questions for evaluating a project, not as evidence that a specific project committed an abuse."
+      ],
+      "addedAt": "2026-11-07",
+      "reviewStatus": "curated-summary"
     }
   ]
 }
