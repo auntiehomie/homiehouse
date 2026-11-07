@@ -267,7 +267,9 @@ export function formatKBContext(articles: KBArticle[]): string {
   return `\n\n---\n# Knowledge Base Context\nUse these articles as background knowledge for your response. Synthesize, don't just repeat them.\n\n${parts.join('\n\n---\n\n')}\n---\n`;
 }
 
-const SHORT_TOPIC_WORDS = new Set(['ai', 'dao', 'daos', 'zk', 'nft', 'nfts', 'defi', 'llm', 'llms']);\n\nconst STOPWORDS = new Set([
+const SHORT_TOPIC_WORDS = new Set(['ai', 'dao', 'daos', 'zk', 'nft', 'nfts', 'defi', 'llm', 'llms']);
+
+const STOPWORDS = new Set([
   'the', 'this', 'that', 'with', 'from', 'have', 'your', 'they', 'will',
   'what', 'when', 'where', 'which', 'there', 'their', 'would', 'could',
   'should', 'about', 'been', 'were', 'more', 'some', 'than', 'into',
