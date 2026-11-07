@@ -1310,11 +1310,16 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
       .then(d => {
         if (d.streak) setStreak(d.streak);
         if (!d.found || !d.plan) return;
+        const localPlan = (() => { try { return JSON.parse(localStorage.getItem(LS_PLAN_KEY) || 'null'); } catch { return null; } })();
+        const samePlan = JSON.stringify(localPlan?.modules?.map((item: LearningModule) => item.id)) === JSON.stringify(d.plan.modules?.map((item: LearningModule) => item.id));
+        let localIds: string[] = [];
+        try { if (samePlan) localIds = JSON.parse(localStorage.getItem(LS_PROGRESS_KEY) || '[]'); } catch {}
+        const mergedIds = [...new Set<string>([...(d.completed_ids ?? []), ...localIds])];
         setPlan(d.plan);
-        setCompletedIds(new Set(d.completed_ids ?? []));
+        setCompletedIds(new Set(mergedIds));
         setPageState('plan');
         try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(d.plan)); } catch {}
-        try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(d.completed_ids ?? [])); } catch {}
+        try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(mergedIds)); } catch {}
         if (d.completions && Object.keys(d.completions).length > 0) {
           try { localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(d.completions)); } catch {}
         }
