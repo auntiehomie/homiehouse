@@ -1,3 +1,4 @@
+import { normalizeLessonScenes, type LessonScene } from '@/lib/lesson-scene';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { correctLessonRepositoryReferences } from '@/lib/lesson-source-corrections';
 
@@ -22,7 +23,7 @@ export interface LessonQuizQuestion {
 
 export interface LessonContent {
   intro: string;
-  concepts: Array<{ title: string; explanation: string; analogy?: string }>;
+  concepts: Array<{ title: string; explanation: string; analogy?: string; visuals?: LessonScene[] }>;
   practicalExample: string;
   quickActions: string[];
   summary: string;
@@ -46,6 +47,7 @@ function normalizeLessonContent(value: unknown): LessonContent | null {
         return [{
           title: title || 'Key concept',
           explanation,
+          visuals: normalizeLessonScenes(concept.visuals, explanation),
           ...(typeof concept.analogy === 'string' && concept.analogy.trim() ? { analogy: concept.analogy.trim() } : {}),
         }];
       })

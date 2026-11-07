@@ -10,6 +10,7 @@ import { base as baseChain } from 'wagmi/chains';
 import { ensureAuthHeaders, getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
 import LessonIllustration from '@/components/learning/LessonIllustration';
+import { sceneForText, type LessonScene } from '@/lib/lesson-scene';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
@@ -29,7 +30,7 @@ const LS_CARD_POSITION_PREFIX = 'hh_lesson_position:';
 type CardDef =
   | { type: 'intro'; label: string; content: string }
   | { type: 'why'; label: string; content: string }
-  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }
+  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean; visual?: LessonScene }
   | { type: 'example'; label: string; content: string }
   | { type: 'actions'; label: string; items: string[] }
   | { type: 'summary'; label: string; content: string }
@@ -59,7 +60,7 @@ function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
 
     const total = textChunks.length + (c.analogy ? 1 : 0);
     textChunks.forEach((text, idx) => {
-      cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false });
+      cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false, visual: sceneForText(c.visuals, text) });
     });
     if (c.analogy) cards.push({ type: 'concept', label: `${base} · ${total}/${total}`, title: c.title, explanation: '', analogy: c.analogy, part: total, isAnalogy: true });
   });
@@ -125,7 +126,7 @@ function WhyCard({ content }: { content: string }) {
   );
 }
 
-function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }) {
+function ConceptCard({ title, explanation, analogy, part, isAnalogy, visual }: { title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean; visual?: LessonScene }) {
   if (isAnalogy) {
     return (
       <CardBody>
@@ -152,7 +153,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
         <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {explanation}
         </p>
-        <LessonIllustration text={`${title} ${explanation}`} />
+        <LessonIllustration text={`${title} ${explanation}`} visual={visual} />
       </CardBody>
     );
   }
@@ -165,7 +166,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
       <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
         {explanation}
       </p>
-      <LessonIllustration text={`${title} ${explanation}`} />
+      <LessonIllustration text={`${title} ${explanation}`} visual={visual} />
     </CardBody>
   );
 }
@@ -1121,7 +1122,7 @@ function ModuleLessonContent() {
               {currentCard.type === 'intro' && <IntroCard content={currentCard.content} lesson={lessonContent} />}
               {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
               {currentCard.type === 'concept' && (
-                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} />
+                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} visual={currentCard.visual} />
               )}
               {currentCard.type === 'example' && <ExampleCard content={currentCard.content} />}
               {currentCard.type === 'actions' && <ActionsCard items={currentCard.items} />}

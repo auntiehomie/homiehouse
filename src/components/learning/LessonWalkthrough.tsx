@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { LessonContent } from '@/lib/lesson-client-cache';
 import styles from './LessonWalkthrough.module.css';
 import LessonIllustration from './LessonIllustration';
+import { sceneForText } from '@/lib/lesson-scene';
 
 /** Reuses lesson copy verbatim; stages indicate reading order, not causality. */
 export default function LessonWalkthrough({ lesson }: { lesson: LessonContent }) {
@@ -12,7 +13,7 @@ export default function LessonWalkthrough({ lesson }: { lesson: LessonContent })
   const [replay, setReplay] = useState(0);
   const stages = [
     { title: 'Start here', text: lesson.intro },
-    ...lesson.concepts.map(concept => ({ title: concept.title, text: concept.explanation, analogy: concept.analogy })),
+    ...lesson.concepts.map(concept => ({ title: concept.title, text: concept.explanation, analogy: concept.analogy, visuals: concept.visuals })),
     { title: 'In practice', text: lesson.practicalExample },
     { title: 'Try it', text: lesson.quickActions.join('\n\n') },
     { title: 'Takeaway', text: lesson.summary },
@@ -41,7 +42,7 @@ export default function LessonWalkthrough({ lesson }: { lesson: LessonContent })
               <span className={styles.caption}>Stage {selected + 1} of {stages.length}</span>
               <h3>{stage.title}</h3>
               <p className={styles.copy}>{stage.text}</p>
-              <LessonIllustration text={`${stage.title} ${stage.text}`} />
+              <LessonIllustration text={`${stage.title} ${stage.text}`} visual={'visuals' in stage ? sceneForText(stage.visuals, stage.text) : undefined} />
               {'analogy' in stage && stage.analogy && <blockquote><strong>Analogy</strong><p>{stage.analogy}</p></blockquote>}
             </div>
             <div className={styles.controls}>

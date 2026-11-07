@@ -56,6 +56,17 @@ describe('/api/lesson cache validation', () => {
     else process.env.UPSTASH_REDIS_REST_TOKEN = originalRedisToken;
   });
 
+
+  it('keeps a validated animation plan alongside a generated concept', async () => {
+    const sentence = 'Independent nodes share control.';
+    const visual = { source: sentence, layout: 'network', labels: ['Independent nodes', 'control'] };
+    mockLlmChat.mockResolvedValue({ message: { content: JSON.stringify({ ...lesson, concepts: [{ title: 'Decentralization', explanation: sentence, visuals: [visual] }] }) }, provider: 'mock' });
+    const response = await POST(request());
+    const result = await response.json();
+    expect(result.concepts[0].visuals).toEqual([visual]);
+    expect(mockRedisSet).toHaveBeenCalledWith(expect.stringMatching(/^lesson:v14:/), expect.objectContaining({ concepts: [expect.objectContaining({ visuals: [visual] })] }), expect.anything());
+  });
+
   it('discards an incomplete cached lesson and regenerates usable content', async () => {
     const response = await POST(request());
     const result = await response.json();
@@ -64,7 +75,7 @@ describe('/api/lesson cache validation', () => {
     expect(result).toMatchObject({ intro: lesson.intro, concepts: lesson.concepts });
     expect(result.quiz).toHaveLength(1);
     expect(result.quiz[0].options[result.quiz[0].correctIndex]).toBe('Correct');
-    expect(mockRedisDel).toHaveBeenCalledWith(expect.stringMatching(/^lesson:v13:/));
+    expect(mockRedisDel).toHaveBeenCalledWith(expect.stringMatching(/^lesson:v14:/));
     expect(mockLlmChat).toHaveBeenCalled();
   });
 });
