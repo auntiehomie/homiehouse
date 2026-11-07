@@ -5,7 +5,10 @@ import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
 import { normalizeLessonScenes, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 
 // Select a concrete scene only when the card describes its subject.
-export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | 'agent-loop' | 'trader' | 'menu' | null {
+export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | 'agent-loop' | 'trader' | 'menu' | 'censorship' | 'permissionless' | 'park' | null {
+  if (/public park/i.test(text) && /gated community/i.test(text)) return 'park';
+  if (/censorship.resistan/i.test(text) && /block|erase|exclude|censor/i.test(text)) return 'censorship';
+  if (/permissionless/i.test(text) && /anyone|without (?:kyc|approval|permission)/i.test(text)) return 'permissionless';
   if (/restaurant menu|menu with|page menu/i.test(text)) return 'menu';
   if (/trader/i.test(text) && /market|price/i.test(text)) return 'trader';
   if (/perceive.decide.act|agent/i.test(text) && /observ|perceiv/i.test(text) && /decid|evaluat/i.test(text) && /execut|act/i.test(text)) return 'agent-loop';
@@ -64,6 +67,26 @@ export default function LessonIllustration({ text, visual }: { text: string; vis
             </g>)}
             {plan.layout === 'sequence' && <path className="moving" d={plan.labels.length === 2 ? 'M151 76h27m-6-6 6 6-6 6' : 'M102 76h9m-4-4 4 4-4 4M193 76h9m-4-4 4 4-4 4'} fill="none" stroke="#ddd6fe" strokeWidth="2" />}
           </>}
+        </>}
+        {scene === 'censorship' && <>
+          <path d="M68 77 L150 55 L232 77 M68 77 L150 107 L232 77" fill="none" stroke="#a5b4fc" strokeWidth="3" />
+          {[68,150,232].map((x, i) => <g key={x}><circle cx={x} cy={i === 1 ? 55 : 77} r="13" fill="#34d399" /><circle cx={x} cy={i === 1 ? 55 : 77} r="4" fill="#064e3b" /></g>)}
+          <rect className="moving" x="116" y="88" width="24" height="14" rx="4" fill="#fbbf24" />
+          <text x="150" y="132" textAnchor="middle" fill="#d5d2fc" fontSize="10">No single actor blocks transactions</text>
+        </>}
+        {scene === 'permissionless' && <>
+          <circle cx="90" cy="72" r="12" fill="#34d399" /><circle cx="150" cy="72" r="12" fill="#34d399" /><circle cx="210" cy="72" r="12" fill="#34d399" />
+          <path d="M90 84v15m60-15v15m60-15v15" stroke="#34d399" strokeWidth="6" strokeLinecap="round" />
+          <path d="M75 55h150" stroke="#a5b4fc" strokeWidth="3" strokeDasharray="5 5" />
+          <text x="150" y="124" textAnchor="middle" fill="#d5d2fc" fontSize="11">Anyone can participate</text>
+        </>}
+        {scene === 'park' && <>
+          <circle cx="75" cy="66" r="18" fill="#34d399" /><path d="M75 83v25" stroke="#b48a70" strokeWidth="6" />
+          <path d="M189 99h62M195 66v33m48-33v33M219 68v31" stroke="#a5b4fc" strokeWidth="4" />
+          <path d="M189 65h62" stroke="#a5b4fc" strokeWidth="3" />
+          <circle className="moving" cx="155" cy="94" r="7" fill="#fbbf24" />
+          <text x="75" y="127" textAnchor="middle" fill="#d5d2fc" fontSize="10">Public park</text>
+          <text x="220" y="127" textAnchor="middle" fill="#d5d2fc" fontSize="10">Gated community</text>
         </>}
         {(scene === 'agent-loop'  || scene === 'trader') && <>
           <rect x="14" y="51" width="79" height="45" rx="10" fill="#8176e8" />
