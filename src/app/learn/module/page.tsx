@@ -9,8 +9,9 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { ensureAuthHeaders, getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
-import LessonIllustration from '@/components/learning/LessonIllustration';
-import { sceneForText, type LessonScene } from '@/lib/lesson-scene';
+import LessonIllustration, { lessonIllustrationTopic } from '@/components/learning/LessonIllustration';
+import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
+import { sceneForText, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
@@ -223,6 +224,7 @@ function SummaryCard({ content, onShare, isNetworkState = false }: { content: st
           {content}
         </p>
       </div>
+      <LessonIllustration text={content} />
       <button
         onClick={onShare}
         style={{
@@ -656,6 +658,18 @@ function ModuleLessonContent() {
     if (!moduleId || cards.length === 0 || !cardPositionRestored) return;
     try { localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cardIndex)); } catch {}
   }, [moduleId, cards.length, cardIndex, cardPositionRestored]);
+
+  // Prepare only the next visible card, so its animation can arrive before the
+  // learner advances. Existing plans and built-in scenes need no network call.
+  useEffect(() => {
+    const next = cards[cardIndex + 1];
+    if (!next) return;
+    let text = '';
+    if (next.type === 'concept' && !next.visual) text = `${next.title} ${next.isAnalogy ? next.analogy ?? '' : next.explanation}`;
+    else if (next.type === 'why' || next.type === 'example' || next.type === 'summary') text = next.content;
+    if (!text || sceneForExistingText(text) || lessonIllustrationTopic(text)) return;
+    void loadExistingLessonScene(text);
+  }, [cards, cardIndex]);
 
   const currentCard = cards[cardIndex];
   const totalCards = cards.length;

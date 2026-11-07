@@ -15,6 +15,14 @@ describe('animation-only backfill', () => {
     const result = await POST(request(sentence));
     expect(await result.json()).toEqual({ plan });
   });
+  it('accepts grounded labels when the model omits the redundant source', async () => {
+    (llmChat as jest.Mock).mockResolvedValueOnce({ message: { content: JSON.stringify({ layout: 'network', labels: [' Independent nodes ', 'control'] }) } });
+    expect(await (await POST(request(sentence))).json()).toEqual({ plan: { source: sentence, layout: 'network', labels: ['Independent nodes', 'control'] } });
+  });
+  it('does not replace an incorrect supplied source', async () => {
+    (llmChat as jest.Mock).mockResolvedValueOnce({ message: { content: JSON.stringify({ source: 'A different source sentence.', layout: 'network', labels: ['Independent nodes', 'control'] }) } });
+    expect(await (await POST(request(sentence))).json()).toEqual({ plan: null });
+  });
   it('rejects labels that are not in the lesson text', async () => {
     (llmChat as jest.Mock).mockResolvedValueOnce({ message: { content: JSON.stringify({ source: sentence, layout: 'network', labels: ['Independent nodes', 'central owner'] }) } });
     expect(await (await POST(request(sentence))).json()).toEqual({ plan: null });
