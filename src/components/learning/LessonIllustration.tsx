@@ -1,8 +1,11 @@
 'use client';
 
 // Select a concrete scene only when the card describes its subject.
-export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | null {
-  if (/waiter|restaurant/i.test(text) && /bill|customer/i.test(text)) return 'restaurant';
+export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | 'agent-loop' | 'trader' | 'menu' | null {
+  if (/restaurant menu|menu with|page menu/i.test(text)) return 'menu';
+  if (/trader/i.test(text) && /market|price/i.test(text)) return 'trader';
+  if (/perceive.decide.act|agent/i.test(text) && /observ|perceiv/i.test(text) && /decid|evaluat/i.test(text) && /execut|act/i.test(text)) return 'agent-loop';
+  if (/waiter|restaurant/i.test(text) && /bill/i.test(text)) return 'restaurant';
   if (/flash[ -]?loan/i.test(text)) return 'flash-loan';
   if (/multisig|multi.signature|multiple approvals/i.test(text)) return 'multisig';
   if (/seed phrase|recovery phrase/i.test(text)) return 'seed';
@@ -12,16 +15,7 @@ export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restauran
 
 export default function LessonIllustration({ text }: { text: string }) {
   const scene = lessonIllustrationTopic(text);
-  if (!text.trim()) return null;
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  for (const word of words) {
-    const last = lines.length - 1;
-    if (last < 0 || (lines[last] + ' ' + word).length > 25) {
-      if (lines.length === 3) break;
-      lines.push(word);
-    } else lines[last] += ' ' + word;
-  }
+  if (!scene) return null;
   return (
     <div className="lesson-scene" aria-hidden="true">
       <style>{`
@@ -42,9 +36,26 @@ export default function LessonIllustration({ text }: { text: string }) {
           <circle cx="25" cy="23" r="3" fill="#252053"/><circle cx="38" cy="23" r="3" fill="#252053"/>
           <path d="M28 29h7l-3.5 5Z" fill="#fbbf24" />
         </g>
-        {!scene && <>
-          <rect x="74" y="35" width="192" height="77" rx="12" fill="#8176e8" />
-          {lines.map((line, index) => <text key={index} x="85" y={56 + index * 19} fill="#fff" fontSize="11">{line}</text>)}
+        {(scene === 'agent-loop' || scene === 'trader') && <>
+          <rect x="14" y="51" width="79" height="45" rx="10" fill="#8176e8" />
+          <text x="54" y="70" textAnchor="middle" fill="white" fontSize="10">{scene === 'trader' ? 'MARKET' : 'OBSERVE'}</text>
+          <text x="54" y="85" textAnchor="middle" fill="white" fontSize="9">{scene === 'trader' ? 'PRICES' : 'CHAIN DATA'}</text>
+          <rect x="111" y="51" width="78" height="45" rx="10" fill="#34d399" />
+          <text x="150" y="77" textAnchor="middle" fill="#064e3b" fontSize="11">DECIDE</text>
+          <rect x="207" y="51" width="79" height="45" rx="10" fill="#8176e8" />
+          <text x="246" y="70" textAnchor="middle" fill="white" fontSize="10">{scene === 'trader' ? 'TRADE' : 'ACT'}</text>
+          <text x="246" y="85" textAnchor="middle" fill="white" fontSize="9">{scene === 'trader' ? 'BUY / SELL' : 'TRANSACT'}</text>
+          <g className="moving" fill="none" stroke="#ddd6fe" strokeWidth="3"><path d="M95 73h13m-5-5 5 5-5 5M191 73h13m-5-5 5 5-5 5" /></g>
+          <text x="150" y="123" textAnchor="middle" fill="#d5d2fc" fontSize="10">{scene === 'trader' ? 'Watch prices, decide, trade' : 'Observe, decide, then act'}</text>
+        </>}
+        {scene === 'menu' && <>
+          <rect x="54" y="48" width="66" height="57" rx="6" fill="#34d399" />
+          <path d="M65 62h44M65 73h35M65 84h41" stroke="#064e3b" strokeWidth="3" />
+          <rect x="180" y="34" width="66" height="78" rx="6" fill="#8176e8" />
+          <path d="M190 47h46M190 57h46M190 67h46M190 77h46M190 87h46M190 97h46" stroke="#eeeaff" strokeWidth="3" />
+          <text x="87" y="126" textAnchor="middle" fill="#d5d2fc" fontSize="10">Simple menu</text>
+          <text x="213" y="126" textAnchor="middle" fill="#d5d2fc" fontSize="10">Complex menu</text>
+          <path className="moving" d="M128 75h37m-7-7 7 7-7 7" fill="none" stroke="#ddd6fe" strokeWidth="3" />
         </>}
         {(scene === 'reentrancy' || scene === 'restaurant') && <>
           <rect x="25" y="44" width="76" height="58" rx="12" fill="#8176e8" />
