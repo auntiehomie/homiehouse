@@ -7,6 +7,7 @@ for (const viewport of [{ width: 393, height: 851 }, { width: 851, height: 393 }
       Reflect.deleteProperty(Navigator.prototype, 'serviceWorker');
       localStorage.setItem('hh_profile', JSON.stringify({ fid: 321, username: 'fixture' }));
       localStorage.setItem('signer_321', JSON.stringify({ status: 'approved', private_key: '01'.repeat(32) }));
+      localStorage.setItem('hh-onboarding-hint-eligible', '1');
     });
     const page = await context.newPage();
     await page.clock.install();
