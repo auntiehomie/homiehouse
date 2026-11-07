@@ -1,12 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import FarcasterLogin from './FarcasterLogin';
 
 export default function SignInButton() {
   const { isAuthenticated } = useFarcasterAuth();
   const [showLogin, setShowLogin] = useState(false);
+
+  useEffect(() => {
+    const onAuthRequired = () => setShowLogin(true);
+    window.addEventListener('hh:auth:required', onAuthRequired);
+    return () => window.removeEventListener('hh:auth:required', onAuthRequired);
+  }, []);
 
   // The signed-in identity, account FID, learning totals, and sign-out action
   // live together in the navigation menu to keep the mobile header uncluttered.

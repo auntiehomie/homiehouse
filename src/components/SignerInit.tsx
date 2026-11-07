@@ -17,6 +17,10 @@ export default function SignerInit() {
       const detail = (event as CustomEvent).detail;
       const requestedFid = Number(detail?.fid || fid);
       if (!requestedFid) return;
+      if (detail?.force) {
+        window.dispatchEvent(new CustomEvent('showWelcomeModal', { detail: { mode: 'hypersnap', force: true } }));
+        return;
+      }
       const stored = localStorage.getItem(`signer_${requestedFid}`);
       if (stored) {
         try {
