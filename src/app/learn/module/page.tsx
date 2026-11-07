@@ -103,35 +103,13 @@ function IntroCard({ content, lesson }: { content: string; lesson: LessonContent
       }}>
         <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      <LessonIllustration text={content} />
       {lesson && <LessonWalkthrough lesson={lesson} />}
     </CardBody>
   );
 }
 
-function SecurityIllustration({ analogy = false }: { analogy?: boolean }) {
-  return (
-    <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'center', padding: '12px 0', minHeight: 120 }}>
-      <style>{`@keyframes hhSecurityFloat { 50% { transform: translateY(-7px) } } @media (prefers-reduced-motion: reduce) { .hh-security-art { animation: none !important } }`}</style>
-      <svg className="hh-security-art" viewBox="0 0 240 150" width="220" style={{ maxWidth: '80%', height: 'auto', animation: 'hhSecurityFloat 3s ease-in-out infinite' }}>
-        <circle cx="120" cy="75" r="65" fill="rgba(99,102,241,.12)" />
-        {analogy ? <>
-          <rect x="65" y="38" width="62" height="78" rx="9" fill="#818cf8" />
-          <path d="M78 57h36M78 71h28M78 85h32" stroke="#eef2ff" strokeWidth="5" strokeLinecap="round" />
-          <circle cx="159" cy="83" r="25" fill="#34d399" />
-          <path d="M159 66v34m-9-26c0-9 18-9 18 0s-18 5-18 14 18 9 18 0" fill="none" stroke="#064e3b" strokeWidth="4" strokeLinecap="round" />
-          <path d="M143 46c14-8 31-4 38 8m-2-12 3 14-14-2" fill="none" stroke="#a5b4fc" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-        </> : <>
-          <path d="M120 25 168 43v32c0 28-18 43-48 54-30-11-48-26-48-54V43z" fill="#34d399" />
-          <path d="M101 72V61a19 19 0 0 1 38 0v11" fill="none" stroke="#064e3b" strokeWidth="7" />
-          <rect x="95" y="70" width="50" height="38" rx="8" fill="#064e3b" />
-          <circle cx="120" cy="87" r="5" fill="#d1fae5" />
-        </>}
-      </svg>
-    </div>
-  );
-}
-
-function WhyCard({ content, security }: { content: string; security: boolean }) {
+function WhyCard({ content }: { content: string }) {
   return (
     <CardBody>
       <div style={{
@@ -142,7 +120,7 @@ function WhyCard({ content, security }: { content: string; security: boolean }) 
           💡 {content}
         </p>
       </div>
-      {security ? <SecurityIllustration /> : <LessonIllustration text={content} />}
+      <LessonIllustration text={content} />
     </CardBody>
   );
 }
@@ -160,7 +138,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
             🔁 {analogy ?? 'No analogy provided.'}
           </p>
         </div>
-        {/reentran/i.test(title) && /waiter|bill|customer/i.test(analogy ?? '') ? <SecurityIllustration analogy /> : <LessonIllustration text={`${title} ${analogy ?? ''}`} />}
+        <LessonIllustration text={`${title} ${analogy ?? ''}`} />
       </CardBody>
     );
   }
@@ -1141,7 +1119,7 @@ function ModuleLessonContent() {
           ) : currentCard ? (
             <>
               {currentCard.type === 'intro' && <IntroCard content={currentCard.content} lesson={lessonContent} />}
-              {currentCard.type === 'why' && <WhyCard content={currentCard.content} security={/security/i.test(mod?.title ?? '')} />}
+              {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
               {currentCard.type === 'concept' && (
                 <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} />
               )}

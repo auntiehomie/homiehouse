@@ -1,14 +1,17 @@
 import { lessonIllustrationTopic } from '@/components/learning/LessonIllustration';
 
-describe('lesson illustration topic', () => {
+describe('lesson illustration selection', () => {
   it.each([
-    ['Prevent a reentrancy attack', 'security'],
-    ['AI agents and machine learning', 'ai'],
-    ['DAO voting and community', 'community'],
-    ['Ethereum tokens', 'money'],
-    ['Decentralized storage nodes', 'network'],
-    ['A new idea', 'ideas'],
-  ] as const)('chooses a cue for %s', (text, expected) => {
+    ['A waiter takes money before the customer bill is final', 'restaurant'],
+    ['Reentrancy repeatedly calls withdraw', 'reentrancy'],
+    ['A flash loan borrows, swaps and repays', 'flash-loan'],
+    ['A multisig wallet needs multiple approvals', 'multisig'],
+    ['Keep your seed phrase offline', 'seed'],
+    ['An agent observes chain data, evaluates it, and executes transactions', 'agent-loop'],
+    ['A trader watches market prices and decides whether to buy or sell', 'trader'],
+    ['A restaurant menu with five dishes is simpler than a 50-page menu for customers', 'menu'],
+    ['An unrelated AI concept', null],
+  ] as const)('selects a matching scene for %s', (text, expected) => {
     expect(lessonIllustrationTopic(text)).toBe(expected);
   });
 });

@@ -1,3 +1,4 @@
+import LessonIllustration from '@/components/learning/LessonIllustration';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -90,6 +91,7 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
             <section key={concept.title}>
               <h2 className="text-2xl font-bold">{concept.title}</h2>
               <p className="mt-4 text-base leading-8 text-[var(--muted-on-dark)]">{concept.explanation}</p>
+              <LessonIllustration text={`${concept.title} ${concept.explanation}`} />
               {concept.analogy && <p className="mt-4 rounded-xl border-l-4 border-[var(--accent)] bg-[var(--surface)] p-4 italic leading-7 text-[var(--muted-on-dark)]">{concept.analogy}</p>}
             </section>
           ))}
@@ -98,6 +100,7 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
         <section className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
           <h2 className="text-xl font-bold">Put it into practice</h2>
           <p className="mt-3 leading-7 text-[var(--muted-on-dark)]">{lesson.practicalExample}</p>
+          <LessonIllustration text={lesson.practicalExample} />
           <ol className="mt-5 space-y-3 text-[var(--muted-on-dark)]">
             {lesson.quickActions.map((action, index) => <li key={action} className="flex gap-3"><span className="font-bold text-[var(--accent)]">{index + 1}.</span><span>{action}</span></li>)}
           </ol>
