@@ -32,25 +32,43 @@ export default function LessonIllustration({ text, visual }: { text: string; vis
   }, [text, knownScene, Boolean(knownPlan)]);
   const plan = knownPlan ?? (generated?.text === text ? generated.plan : undefined);
   const scene = plan ? null : knownScene;
+  const steps = plan?.layout === 'sequence' ? plan.labels
+    : scene === 'agent-loop' ? ['Observe chain data', 'Decide', 'Act']
+    : scene === 'trader' ? ['Watch prices', 'Decide', 'Trade']
+    : scene === 'flash-loan' ? ['Borrow', 'Swap', 'Repay'] : [];
+  // Remember the active step only for the card that created it.
+  const [selection, setSelection] = useState({ text: '', index: 0 });
+  const activeStep = selection.text === text && selection.index < steps.length ? selection.index : 0;
   if (!scene && !plan) return null;
   return (
-    <div className="lesson-scene" aria-hidden="true">
+    <section className="lesson-scene" aria-label={steps.length ? "Interactive lesson visual" : undefined} aria-hidden={steps.length ? undefined : true}>
       <style>{`
-        .lesson-scene { display:flex; justify-content:center; padding:10px 0; }
-        .lesson-scene svg { width:min(280px, 95%); height:auto; }
+        .lesson-scene { display:flex; flex-direction:column; align-items:center; gap:8px; padding:10px 0; }
+        .lesson-scene svg { width:min(360px, 100%); height:auto; }
+        .lesson-scene .steps { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; width:100%; }
+        .lesson-scene .step { min-height:44px; max-width:100%; padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:var(--surface); color:var(--text-on-dark); font:inherit; font-size:13px; overflow-wrap:anywhere; cursor:pointer; }
+        .lesson-scene .step[aria-pressed="true"] { border-color:var(--accent); background:rgba(52,211,153,.14); font-weight:700; }
+        .lesson-scene .step:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+        .lesson-scene .hint { margin:0; color:var(--muted-on-dark); font-size:12px; line-height:1.4; }
+        .lesson-scene .active-node { stroke:#fef3c7; stroke-width:3; animation:hhScenePulse 1.6s ease-in-out infinite alternate; }
+        @keyframes hhScenePulse { to { stroke-width:5; } }
         .lesson-scene .moving { animation:lesson-scene-move 2s ease-in-out infinite alternate; }
         .lesson-scene .owl { animation:lesson-owl-bob 2.8s ease-in-out infinite alternate; transform-origin:center; }
+        .lesson-scene .owl-eyes { transform-box:fill-box; transform-origin:center; animation:hhOwlBlink 5s ease-in-out infinite; }
+        @keyframes hhOwlBlink { 0%, 44%, 48%, 100% { transform:scaleY(1); } 46% { transform:scaleY(.12); } }
         @keyframes lesson-owl-bob { to { transform:translateY(-5px) } }
         @keyframes lesson-scene-move { to { transform:translateX(10px) } }
-        @media (prefers-reduced-motion:reduce) { .lesson-scene .moving, .lesson-scene .owl { animation:none } }
+        @media (prefers-reduced-motion:reduce) { .lesson-scene .moving, .lesson-scene .owl, .lesson-scene .owl-eyes, .lesson-scene .active-node { animation:none } }
         @media (max-height:600px) { .lesson-scene svg { width:min(210px, 75%) } }
       `}</style>
-      <svg viewBox="0 0 300 150" focusable="false">
+      <svg viewBox="0 0 300 150" focusable="false" aria-hidden="true">
         <rect x="4" y="7" width="292" height="136" rx="24" fill="rgba(99,102,241,.10)" />
         <g className="owl" transform="translate(7 7)">
           <path d="M7 22 Q8 8 17 10 L18 4 L25 10 Q32 8 39 10 L45 4 L46 10 Q56 13 56 26 Q54 43 32 43 Q9 43 7 29Z" fill="#8b83ef" />
-          <circle cx="23" cy="23" r="8" fill="white"/><circle cx="40" cy="23" r="8" fill="white"/>
-          <circle cx="25" cy="23" r="3" fill="#252053"/><circle cx="38" cy="23" r="3" fill="#252053"/>
+          <g className="owl-eyes">
+            <circle cx="23" cy="23" r="8" fill="white"/><circle cx="40" cy="23" r="8" fill="white"/>
+            <circle cx="25" cy="23" r="3" fill="#252053"/><circle cx="38" cy="23" r="3" fill="#252053"/>
+          </g>
           <path d="M28 29h7l-3.5 5Z" fill="#fbbf24" />
         </g>
         {plan && <>
@@ -62,8 +80,8 @@ export default function LessonIllustration({ text, visual }: { text: string; vis
             </g>)}
           </> : <>
             {plan.labels.map((label, i) => <g key={i}>
-              <rect x={plan.labels.length === 2 ? 48 + i * 135 : 22 + i * 91} y="55" width={plan.labels.length === 2 ? 100 : 78} height="42" rx="9" fill={i === 1 ? '#34d399' : '#8176e8'} />
-              <text x={plan.labels.length === 2 ? 98 + i * 135 : 61 + i * 91} y="80" textAnchor="middle" fill={i === 1 ? '#064e3b' : 'white'} fontSize="9">{label}</text>
+              <rect className={plan.layout === 'sequence' && i === activeStep ? 'active-node' : undefined} x={plan.labels.length === 2 ? 48 + i * 135 : 22 + i * 91} y="55" width={plan.labels.length === 2 ? 100 : 78} height="42" rx="9" fill={i === 1 ? '#34d399' : '#8176e8'} />
+              <text x={plan.labels.length === 2 ? 98 + i * 135 : 61 + i * 91} y="80" textAnchor="middle" fill={i === 1 ? '#064e3b' : 'white'} fontSize="9" textLength={label.length > 12 ? (plan.labels.length === 2 ? 90 : 68) : undefined} lengthAdjust="spacingAndGlyphs">{label}</text>
             </g>)}
             {plan.layout === 'sequence' && <path className="moving" d={plan.labels.length === 2 ? 'M151 76h27m-6-6 6 6-6 6' : 'M102 76h9m-4-4 4 4-4 4M193 76h9m-4-4 4 4-4 4'} fill="none" stroke="#ddd6fe" strokeWidth="2" />}
           </>}
@@ -89,12 +107,12 @@ export default function LessonIllustration({ text, visual }: { text: string; vis
           <text x="220" y="127" textAnchor="middle" fill="#d5d2fc" fontSize="10">Gated community</text>
         </>}
         {(scene === 'agent-loop'  || scene === 'trader') && <>
-          <rect x="14" y="51" width="79" height="45" rx="10" fill="#8176e8" />
+          <rect className={activeStep === 0 ? 'active-node' : undefined} x="14" y="51" width="79" height="45" rx="10" fill="#8176e8" />
           <text x="54" y="70" textAnchor="middle" fill="white" fontSize="10">{scene === 'trader' ? 'MARKET' : 'OBSERVE'}</text>
           <text x="54" y="85" textAnchor="middle" fill="white" fontSize="9">{scene === 'trader' ? 'PRICES' : 'CHAIN DATA'}</text>
-          <rect x="111" y="51" width="78" height="45" rx="10" fill="#34d399" />
+          <rect className={activeStep === 1 ? 'active-node' : undefined} x="111" y="51" width="78" height="45" rx="10" fill="#34d399" />
           <text x="150" y="77" textAnchor="middle" fill="#064e3b" fontSize="11">DECIDE</text>
-          <rect x="207" y="51" width="79" height="45" rx="10" fill="#8176e8" />
+          <rect className={activeStep === 2 ? 'active-node' : undefined} x="207" y="51" width="79" height="45" rx="10" fill="#8176e8" />
           <text x="246" y="70" textAnchor="middle" fill="white" fontSize="10">{scene === 'trader' ? 'TRADE' : 'ACT'}</text>
           <text x="246" y="85" textAnchor="middle" fill="white" fontSize="9">{scene === 'trader' ? 'BUY / SELL' : 'TRANSACT'}</text>
           <g className="moving" fill="none" stroke="#ddd6fe" strokeWidth="3"><path d="M95 73h13m-5-5 5 5-5 5M191 73h13m-5-5 5 5-5 5" /></g>
@@ -121,9 +139,9 @@ export default function LessonIllustration({ text, visual }: { text: string; vis
           <text x="150" y="125" textAnchor="middle" fill="#d5d2fc" fontSize="11">{scene === 'restaurant' ? 'Paid before the bill is final' : 'Withdraw called again'}</text>
         </>}
         {scene === 'flash-loan' && <>
-          <rect x="16" y="49" width="71" height="49" rx="10" fill="#8176e8" /><text x="51" y="78" textAnchor="middle" fill="white" fontSize="12">BORROW</text>
-          <rect x="114" y="49" width="71" height="49" rx="10" fill="#34d399" /><text x="149" y="78" textAnchor="middle" fill="#064e3b" fontSize="12">SWAP</text>
-          <rect x="212" y="49" width="71" height="49" rx="10" fill="#8176e8" /><text x="247" y="78" textAnchor="middle" fill="white" fontSize="12">REPAY</text>
+          <rect className={activeStep === 0 ? 'active-node' : undefined} x="16" y="49" width="71" height="49" rx="10" fill="#8176e8" /><text x="51" y="78" textAnchor="middle" fill="white" fontSize="12">BORROW</text>
+          <rect className={activeStep === 1 ? 'active-node' : undefined} x="114" y="49" width="71" height="49" rx="10" fill="#34d399" /><text x="149" y="78" textAnchor="middle" fill="#064e3b" fontSize="12">SWAP</text>
+          <rect className={activeStep === 2 ? 'active-node' : undefined} x="212" y="49" width="71" height="49" rx="10" fill="#8176e8" /><text x="247" y="78" textAnchor="middle" fill="white" fontSize="12">REPAY</text>
           <g className="moving" fill="none" stroke="#d5d2fc" strokeWidth="3"><path d="M89 73h20m-6-6 6 6-6 6M187 73h20m-6-6 6 6-6 6" /></g>
           <text x="150" y="122" textAnchor="middle" fill="#d5d2fc" fontSize="11">All in one transaction</text>
         </>}
@@ -139,6 +157,14 @@ export default function LessonIllustration({ text, visual }: { text: string; vis
           </>}
         </>}
       </svg>
-    </div>
+      {steps.length > 0 && <>
+        <p className="hint">Explore the steps</p>
+        <div className="steps" role="group" aria-label="Explore visual steps">
+          {steps.map((label, index) => <button key={index} type="button" className="step" aria-pressed={index === activeStep} onClick={() => setSelection({ text, index })}>
+            {index + 1}. {label}
+          </button>)}
+        </div>
+      </>}
+    </section>
   );
 }
