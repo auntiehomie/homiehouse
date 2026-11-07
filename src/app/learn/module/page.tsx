@@ -9,6 +9,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { ensureAuthHeaders, getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
+import LessonIllustration from '@/components/learning/LessonIllustration';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
@@ -141,7 +142,7 @@ function WhyCard({ content, security }: { content: string; security: boolean }) 
           💡 {content}
         </p>
       </div>
-      {security && <SecurityIllustration />}
+      {security ? <SecurityIllustration /> : <LessonIllustration text={content} />}
     </CardBody>
   );
 }
@@ -159,7 +160,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
             🔁 {analogy ?? 'No analogy provided.'}
           </p>
         </div>
-        {/reentran/i.test(title) && /waiter|bill|customer/i.test(analogy ?? '') && <SecurityIllustration analogy />}
+        {/reentran/i.test(title) && /waiter|bill|customer/i.test(analogy ?? '') ? <SecurityIllustration analogy /> : <LessonIllustration text={`${title} ${analogy ?? ''}`} />}
       </CardBody>
     );
   }
@@ -173,6 +174,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
         <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {explanation}
         </p>
+        <LessonIllustration text={`${title} ${explanation}`} />
       </CardBody>
     );
   }
@@ -185,6 +187,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
       <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
         {explanation}
       </p>
+      <LessonIllustration text={`${title} ${explanation}`} />
     </CardBody>
   );
 }
@@ -198,6 +201,7 @@ function ExampleCard({ content }: { content: string }) {
       }}>
         <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      <LessonIllustration text={content} />
     </CardBody>
   );
 }
