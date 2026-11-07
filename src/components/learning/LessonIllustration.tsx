@@ -1,5 +1,7 @@
 'use client';
 
+import { normalizeLessonScenes, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
+
 // Select a concrete scene only when the card describes its subject.
 export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | 'agent-loop' | 'trader' | 'menu' | null {
   if (/restaurant menu|menu with|page menu/i.test(text)) return 'menu';
@@ -13,9 +15,10 @@ export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restauran
   return null;
 }
 
-export default function LessonIllustration({ text }: { text: string }) {
-  const scene = lessonIllustrationTopic(text);
-  if (!scene) return null;
+export default function LessonIllustration({ text, visual }: { text: string; visual?: LessonScene }) {
+  const plan = normalizeLessonScenes([visual], text)[0] ?? sceneForExistingText(text);
+  const scene = plan ? null : lessonIllustrationTopic(text);
+  if (!scene && !plan) return null;
   return (
     <div className="lesson-scene" aria-hidden="true">
       <style>{`
@@ -36,7 +39,22 @@ export default function LessonIllustration({ text }: { text: string }) {
           <circle cx="25" cy="23" r="3" fill="#252053"/><circle cx="38" cy="23" r="3" fill="#252053"/>
           <path d="M28 29h7l-3.5 5Z" fill="#fbbf24" />
         </g>
-        {(scene === 'agent-loop' || scene === 'trader') && <>
+        {plan && <>
+          {plan.layout === 'network' ? <>
+            <path d="M80 75 L150 105 L220 75 L80 75" fill="none" stroke="#a5b4fc" strokeWidth="3" />
+            {[[80,75], [150,105], [220,75]].map(([x,y], i) => <g key={i}>
+              <circle className={i === 1 ? 'moving' : undefined} cx={x} cy={y} r="12" fill="#34d399" />
+              <text x={x} y={y + (i === 1 ? 25 : -18)} textAnchor="middle" fill="#d5d2fc" fontSize="8">{plan.labels[i % plan.labels.length]}</text>
+            </g>)}
+          </> : <>
+            {plan.labels.map((label, i) => <g key={i}>
+              <rect x={plan.labels.length === 2 ? 48 + i * 135 : 22 + i * 91} y="55" width={plan.labels.length === 2 ? 100 : 78} height="42" rx="9" fill={i === 1 ? '#34d399' : '#8176e8'} />
+              <text x={plan.labels.length === 2 ? 98 + i * 135 : 61 + i * 91} y="80" textAnchor="middle" fill={i === 1 ? '#064e3b' : 'white'} fontSize="9">{label}</text>
+            </g>)}
+            {plan.layout === 'sequence' && <path className="moving" d={plan.labels.length === 2 ? 'M151 76h27m-6-6 6 6-6 6' : 'M102 76h9m-4-4 4 4-4 4M193 76h9m-4-4 4 4-4 4'} fill="none" stroke="#ddd6fe" strokeWidth="2" />}
+          </>}
+        </>}
+        {(scene === 'agent-loop'  || scene === 'trader') && <>
           <rect x="14" y="51" width="79" height="45" rx="10" fill="#8176e8" />
           <text x="54" y="70" textAnchor="middle" fill="white" fontSize="10">{scene === 'trader' ? 'MARKET' : 'OBSERVE'}</text>
           <text x="54" y="85" textAnchor="middle" fill="white" fontSize="9">{scene === 'trader' ? 'PRICES' : 'CHAIN DATA'}</text>
