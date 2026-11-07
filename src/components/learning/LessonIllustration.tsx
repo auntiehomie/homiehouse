@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
 import { normalizeLessonScenes, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 
 // Select a concrete scene only when the card describes its subject.
@@ -16,8 +18,17 @@ export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restauran
 }
 
 export default function LessonIllustration({ text, visual }: { text: string; visual?: LessonScene }) {
-  const plan = normalizeLessonScenes([visual], text)[0] ?? sceneForExistingText(text);
-  const scene = plan ? null : lessonIllustrationTopic(text);
+  const knownPlan = normalizeLessonScenes([visual], text)[0] ?? sceneForExistingText(text);
+  const knownScene = knownPlan ? null : lessonIllustrationTopic(text);
+  const [generated, setGenerated] = useState<{ text: string; plan: LessonScene } | null>(null);
+  useEffect(() => {
+    if (knownPlan || knownScene || !text.trim()) return;
+    let cancelled = false;
+    void loadExistingLessonScene(text).then(plan => { if (!cancelled && plan) setGenerated({ text, plan }); });
+    return () => { cancelled = true; };
+  }, [text, knownScene, Boolean(knownPlan)]);
+  const plan = knownPlan ?? (generated?.text === text ? generated.plan : undefined);
+  const scene = plan ? null : knownScene;
   if (!scene && !plan) return null;
   return (
     <div className="lesson-scene" aria-hidden="true">

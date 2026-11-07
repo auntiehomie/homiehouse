@@ -1,9 +1,13 @@
 import {
   buildLearningModuleReturnTo,
+  LEARNING_PATH_ROUTE,
   resolveComposeReturnDestination,
 } from '@/lib/learning-navigation';
 
 describe('learning share navigation', () => {
+  it('opens the learning path tab when leaving a completed module', () => {
+    expect(LEARNING_PATH_ROUTE).toBe('/learn?tab=plan');
+  });
   it('builds a return route to the exact lesson module', () => {
     expect(buildLearningModuleReturnTo('zk-rollups')).toBe('/learn/module?id=zk-rollups');
     expect(buildLearningModuleReturnTo('topic / crypto')).toBe('/learn/module?id=topic%20%2F%20crypto');

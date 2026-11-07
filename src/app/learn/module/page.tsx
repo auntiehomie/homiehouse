@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getEli5Mode } from '@/lib/eli5';
-import { buildLearningModuleReturnTo } from '@/lib/learning-navigation';
+import { buildLearningModuleReturnTo, LEARNING_PATH_ROUTE } from '@/lib/learning-navigation';
 import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
@@ -621,10 +621,13 @@ function ModuleLessonContent() {
       // Render a valid local lesson immediately, including for signed-in
       // learners. The request still starts on open so the server can register
       // the reward attempt; its cached/generated response refreshes the view.
-      loadLesson(found, eli5)
+      loadLesson(found, eli5, { preserveCached: Boolean(cached) })
         .then(data => {
-          setLessonContent(data);
-          setCards(buildCards(data, found));
+          // Keep the lesson the learner was already working through; the request
+          // may register a reward attempt, but must not replace cached content.
+          const displayedLesson = cached ?? data;
+          setLessonContent(displayedLesson);
+          setCards(buildCards(displayedLesson, found));
           setLoading(false);
         })
         .catch((loadError) => {
@@ -961,7 +964,7 @@ function ModuleLessonContent() {
 
   const handleBack = () => {
     if (cardIndex > 0) navigate('back');
-    else router.push('/learn');
+    else router.push(LEARNING_PATH_ROUTE);
   };
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1003,7 +1006,7 @@ function ModuleLessonContent() {
         <button onClick={retryLesson} disabled={!mod || loading} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
           Try again
         </button>
-        <button onClick={() => router.push('/learn')} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
+        <button onClick={() => router.push(LEARNING_PATH_ROUTE)} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
           ← Back to plan
         </button>
       </div>
@@ -1145,7 +1148,7 @@ function ModuleLessonContent() {
                 <CompleteCard
                   mod={mod}
                   onShare={handleShare}
-                  onBack={() => router.push('/learn')}
+                  onBack={() => router.push(LEARNING_PATH_ROUTE)}
                   rewardEarned={rewardEarned}
                   rewardVerificationDone={rewardVerificationDone}
                   rewardError={rewardError}
