@@ -16,12 +16,18 @@ describe('final cast output guard', () => {
     },
   );
 
-  it('strips the draft label from a thread without removing real hashtags', () => {
-    const first = 'Cryptographic keys can unlock a smart lock. #Cryptography';
+  it('strips the draft label and hashtags from a thread', () => {
+    const first = 'Cryptographic keys can unlock a smart lock.';
     const second = 'Keep a recovery method.';
-    expect(finalCastOnly(`${first}\n---\n# Standalone Educational Post\n${second}`, 640)).toBe(
+    expect(finalCastOnly(`${first} #Cryptography\n---\n# Standalone Educational Post\n${second} #Recovery`, 640)).toBe(
       `${first}\n---\n\n${second}`,
     );
+  });
+
+  it('strips hashtags before applying the limit and preserves URL fragments', () => {
+    const body = 'Read https://example.org/docs#recovery for details.';
+    expect(finalCastOnly(`#Crypto Read https://example.org/docs#recovery #安全 for details. ＃Web3`, body.length)).toBe(body);
+    expect(finalCastOnly('#Crypto #Web3')).toBe('');
   });
 
   it.each([

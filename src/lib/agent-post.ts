@@ -45,7 +45,12 @@ export function finalCastOnly(text: string, maxLen = 280): string {
   const withoutLabel = text.trim()
     .replace(/^(?:final\s+)?cast\s*:\s*/i, '')
     .replace(/^[ \t]*(?:#+[ \t]*)?(?:standalone[ \t]+educational[ \t]+post|#standaloneeducationalpost)[ \t]*[:#]*[ \t]*\r?$/gim, '');
-  return cleanPost(withoutLabel, maxLen);
+  // Keep URL fragments intact while stripping social hashtags.
+  const withoutHashtags = withoutLabel.replace(
+    /(https?:\/\/[^\s<>"`]+)|[ \t]*(?<![\p{L}\p{M}\p{N}_])[#＃]+[\p{L}\p{M}\p{N}_]+/giu,
+    (_match, url?: string) => url ?? '',
+  );
+  return cleanPost(withoutHashtags, maxLen);
 }
 
 export function splitThreadCasts(content: string): string[] {
