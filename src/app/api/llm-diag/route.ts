@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyCronSecret } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 import { getLLMProviders } from '@/lib/llm';
 
 export const maxDuration = 30;
 
-export async function GET(_req: NextRequest) {
+export async function GET(request: NextRequest) {
+  try {
+    verifyCronSecret(request, process.env.CRON_SECRET);
+  } catch (error) {
+    if (!(error instanceof AuthError)) throw error;
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
   const providers = getLLMProviders();
   const results: Record<string, string> = {
     configured: providers.map(p => p.name).join(',') || 'none',
@@ -37,5 +45,5 @@ export async function GET(_req: NextRequest) {
     results[name] = status;
   }
 
-  return NextResponse.json(results);
+  return NextResponse.json(results, { headers: { 'Cache-Control': 'no-store' } });
 }

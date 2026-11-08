@@ -61,21 +61,22 @@ async function publishWithStoredKey(cast: any): Promise<string> {
   return result.hash ?? result.cast?.hash ?? result.data?.hash ?? '';
 }
 
+function scheduledCastAuthorization(req: NextRequest): NextResponse | undefined {
+  const authHeader = req.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret || cronSecret.length < 32) {
+    return NextResponse.json({ ok: false, error: 'Service unavailable' }, { status: 503 });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  }
+}
+
 async function handlePublishScheduledCasts(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-    const isVercelCron = req.headers.get('x-vercel-cron') === '1';
-
-    if (cronSecret && cronSecret.length >= 32) {
-      const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-      if (authHeader !== `Bearer ${cronSecret}` && !isVercelCron) {
-        console.warn('❌ Unauthorized cron request from:', ip);
-        return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-      }
-    } else if (!isVercelCron) {
-      console.warn('⚠️ CRON_SECRET not set; add it to Vercel env vars');
-    }
+    const denied = scheduledCastAuthorization(req);
+    if (denied) return denied;
 
     console.log('✅ Cron job running');
 
@@ -142,15 +143,8 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret || cronSecret.length < 32) {
-      return NextResponse.json({ ok: false, error: 'Service unavailable' }, { status: 503 });
-    }
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const denied = scheduledCastAuthorization(req);
+    if (denied) return denied;
 
     const body = await req.json();
     const { id, fid } = body;

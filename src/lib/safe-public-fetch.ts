@@ -126,6 +126,7 @@ function requestPinned(
     const headers = new Headers(options.headers);
     const request = transport.request(url, {
       method: options.method ?? 'GET',
+      agent: false,
       headers: Object.fromEntries(headers.entries()),
       lookup: (_hostname, lookupOptions: any, callback: any) => {
         if (lookupOptions?.all) callback(null, [address]);
@@ -166,7 +167,8 @@ async function responseFromMessage(response: http.IncomingMessage, maxBytes: num
   }
   const status = response.statusCode ?? 502;
   if (status < 200 || status > 599) throw new Error('Unexpected remote response status');
-  return new Response(Buffer.concat(chunks), { status, statusText: response.statusMessage, headers });
+  const body = [204, 205, 304].includes(status) ? null : Buffer.concat(chunks);
+  return new Response(body, { status, statusText: response.statusMessage, headers });
 }
 
 /**

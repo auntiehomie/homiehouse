@@ -3,6 +3,9 @@ import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
 import { profileHref } from '@/lib/profile-links';
 import webpush from 'web-push';
+import { verifyCronSecret } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
+import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
 
 // VAPID keys must be set as env vars:
 //   NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -64,10 +67,11 @@ function describeNotification(notif: any): { title: string; body: string; url: s
 }
 
 export async function GET(req: NextRequest) {
-  // Protect with cron secret
-  const auth = req.headers.get('authorization');
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    verifyCronSecret(req, process.env.CRON_SECRET);
+  } catch (error) {
+    if (!(error instanceof AuthError)) throw error;
+    return NextResponse.json({ error: error.message }, { status: error.status });
   }
 
   try {
@@ -107,18 +111,33 @@ export async function GET(req: NextRequest) {
 
       const payload = describeNotification(newNotifs[0]);
 
-      await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
+      const endpoint = new URL(sub.subscription.endpoint);
+      if (endpoint.protocol !== 'https:') throw new Error('Push endpoint must use HTTPS');
+
+      const details = webpush.generateRequestDetails(sub.subscription, JSON.stringify(payload));
+      const response = await safeFetchPublicUrl(endpoint, {
+        method: 'POST',
+        headers: details.headers,
+        body: details.body,
+        maxRedirects: 0,
+        maxBytes: 16 * 1024,
+        timeoutMs: 5000,
+      });
+
+      if (response.status === 410) {
+        await db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]);
+      }
+      if (!response.ok) {
+        errors++;
+        continue;
+      }
 
       await db.query(
         'UPDATE push_subscriptions SET last_notified_at = NOW() WHERE id = $1',
         [sub.id]
       );
       sent++;
-    } catch (err: any) {
-      if (err?.statusCode === 410) {
-        // Endpoint gone — remove stale subscription
-        await db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]);
-      }
+    } catch {
       errors++;
     }
   }
