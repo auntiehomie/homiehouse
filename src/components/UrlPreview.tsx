@@ -26,10 +26,11 @@ export default function UrlPreview({ url, label }: { url: string; label?: string
   useEffect(() => {
     if (!url) return;
     const key = `urlPreview:${url}`;
-    const cached = sessionStorage.getItem(key);
-    if (cached) {
-      try { setPreview(JSON.parse(cached)); return; } catch {}
-    }
+    setPreview(null);
+    try {
+      const cached = sessionStorage.getItem(key);
+      if (cached) { setPreview(JSON.parse(cached)); setLoading(false); return; }
+    } catch {}
 
     let mounted = true;
     setLoading(true);
@@ -45,7 +46,9 @@ export default function UrlPreview({ url, label }: { url: string; label?: string
         const data = await res.json();
         if (!mounted) return;
         setPreview(data);
-        try { sessionStorage.setItem(key, JSON.stringify(data)); } catch {}
+        if (data.ok && (data.metadata?.title || data.metadata?.image)) {
+          try { sessionStorage.setItem(key, JSON.stringify(data)); } catch {}
+        }
       } catch {}
       finally { if (mounted) setLoading(false); }
     })();

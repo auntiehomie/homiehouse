@@ -109,6 +109,14 @@ function extractMetadata(html: string, url: string): OpenGraphData {
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'");
 
+  if (metadata.image) {
+    try {
+      const imageUrl = new URL(decodeHtml(metadata.image), url);
+      metadata.image = ['http:', 'https:'].includes(imageUrl.protocol) ? imageUrl.href : '';
+    } catch {
+      metadata.image = '';
+    }
+  }
   if (metadata.title) metadata.title = decodeHtml(metadata.title);
   if (metadata.description) metadata.description = decodeHtml(metadata.description);
 

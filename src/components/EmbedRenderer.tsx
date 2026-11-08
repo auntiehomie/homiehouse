@@ -64,6 +64,18 @@ export function findFarcasterCastUrls(
   return out;
 }
 
+function IpfsImagePreview({ url }: { url: string }) {
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => { setFailed(false); }, [url]);
+  if (failed) return <SmartEmbed url={url} />;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+      <img src={url} alt="Cast image" className="max-w-full h-auto rounded-lg border border-zinc-800"
+        loading="lazy" onError={() => setFailed(true)} />
+    </a>
+  );
+}
+
 export default function EmbedRenderer({ embed, index }: { embed: any; index: number }) {
   if (!embed) return null;
 
@@ -100,6 +112,17 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
       </a>
     );
   }
+
+  // IPFS CIDs have no file extension. Try the image without assuming all
+  // IPFS content is media; non-images fall back to the regular link preview.
+  try {
+    const parsed = new URL(embedUrl);
+    if (parsed.protocol === 'https:' &&
+        (parsed.hostname === 'gateway.pinata.cloud' || parsed.hostname.endsWith('.mypinata.cloud')) &&
+        parsed.pathname.startsWith('/ipfs/')) {
+      return <IpfsImagePreview url={embedUrl} />;
+    }
+  } catch {}
 
   // Image
   let isQStorageObject = false;
