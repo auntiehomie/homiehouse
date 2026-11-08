@@ -72,3 +72,22 @@ test('native Back and Forward retain the detail scroll position', async ({ page 
   await page.goForward();
   await expect(page).toHaveURL(`/cast/${quoted}`);
 });
+
+test('tapping a profile cast opens its detail and Back returns to the profile', async ({ page }) => {
+  const cast = card(parent, 'Recent profile cast');
+  await page.route('**/api/profile?**', route => route.fulfill({
+    json: { user: cast.author, casts: [cast] },
+  }));
+  await page.route('**/api/cast?**', async route => {
+    await expect(page.getByRole('status').filter({ hasText: 'Loading cast…' })).toBeVisible();
+    await route.fulfill({ json: { cast: { ...cast, text: 'Opened profile conversation' } } });
+  });
+
+  await page.goto('/profile?fid=321');
+  await page.getByRole('link', { name: /Recent profile cast/ }).click();
+  await expect(page).toHaveURL(`/cast/${parent}`);
+  await expect(page.getByText('Opened profile conversation', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '← Back', exact: true }).click();
+  await expect(page).toHaveURL('/profile?fid=321');
+  await expect(page.getByRole('link', { name: /Recent profile cast/ })).toBeVisible();
+});
