@@ -1,10 +1,107 @@
 'use client';
-import { useEffect, useState } from 'react';
-import type { Sticker, StickerPack } from '@/lib/sticker-pack';
 
-export default function StickerPicker({onSelect, disabled=false}:{onSelect:(sticker:Sticker)=>void;disabled?:boolean}) {
-  const [open,setOpen]=useState(false); const [pack,setPack]=useState<StickerPack|null>(null); const [error,setError]=useState(''); const [loading,setLoading]=useState(false); const [query,setQuery]=useState(''); const [attempt,setAttempt]=useState(0);
-  useEffect(()=>{ if(!open || pack) return; const controller=new AbortController(); setLoading(true); setError(''); fetch('/api/sticker-pack',{signal:controller.signal,credentials:'same-origin'}).then(async r=>{if(!r.ok)throw new Error();return r.json()}).then(setPack).catch(e=>{if(e.name!=='AbortError')setError('Stickers are unavailable right now.')}).finally(()=>{if(!controller.signal.aborted)setLoading(false)});return()=>controller.abort(); },[open,pack,attempt]);
-  const stickers=pack?.stickers.filter(s=>`${s.name} ${s.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase())) ?? [];
-  return <><button type="button" aria-label="Add sticker" title={disabled?'No attachment slots remaining':'Add sticker'} disabled={disabled} onClick={()=>setOpen(true)} style={{border:0,background:'transparent',color:'var(--text-on-dark)',padding:'8px',cursor:'pointer',opacity:disabled?.4:1,fontSize:13}}>✦ Stickers</button>{open && <div role="dialog" aria-modal="true" aria-label="Choose a sticker" style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,.6)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={()=>setOpen(false)}><div onClick={e=>e.stopPropagation()} style={{background:'var(--surface, #222)',color:'var(--text-on-dark, white)',border:'1px solid var(--border, #555)',borderRadius:16,padding:16,width:'min(100%, 420px)',maxHeight:'75dvh',overflow:'auto'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><strong>{pack?.name || 'Stickers'}</strong><button type="button" aria-label="Close stickers" onClick={()=>setOpen(false)} style={{background:'transparent',border:0,color:'inherit',fontSize:24}}>×</button></div><input aria-label="Search stickers" placeholder="Search stickers" value={query} onChange={e=>setQuery(e.target.value)} style={{width:'100%',margin:'12px 0',padding:10,borderRadius:8,border:'1px solid #777',background:'transparent',color:'inherit'}}/>{loading&&<p role="status">Loading stickers…</p>}{error&&<p role="alert">{error} <button type="button" onClick={()=>setAttempt(x=>x+1)}>Retry</button></p>}{pack&&!stickers.length&&<p>No matching stickers.</p>}<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>{stickers.map(s=><button type="button" key={s.id} onClick={()=>{onSelect(s);setOpen(false)}} aria-label={`Add ${s.name} sticker`} style={{background:'transparent',border:'1px solid var(--border, #555)',borderRadius:8,padding:5,color:'inherit'}}><img src={s.url} alt={s.alt} loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" style={{width:'100%',height:88,objectFit:'contain'}}/><span style={{fontSize:11}}>{s.name}</span></button>)}</div></div></div>}</>;
+import { useEffect, useId, useRef, useState } from 'react';
+import type { Sticker, StickerPack } from '@/lib/sticker-pack';
+import styles from './StickerPicker.module.css';
+
+type StickerPickerProps = {
+  onSelect: (sticker: Sticker) => void;
+  disabled?: boolean;
+};
+
+export default function StickerPicker({ onSelect, disabled = false }: StickerPickerProps) {
+  const id = useId();
+  const picker = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pack, setPack] = useState<StickerPack | null>(null);
+  const [error, setError] = useState(false);
+  const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (!open || pack || error) return;
+
+    const controller = new AbortController();
+    fetch('/api/sticker-pack', { signal: controller.signal, credentials: 'same-origin' })
+      .then(async response => {
+        if (!response.ok) throw new Error('Sticker pack request failed');
+        const stickerPack: StickerPack = await response.json();
+        if (!controller.signal.aborted) setPack(stickerPack);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      });
+
+    return () => controller.abort();
+  }, [open, pack, error]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const stickers = pack?.stickers.filter(sticker =>
+    `${sticker.name} ${sticker.tags.join(' ')}`.toLowerCase().includes(normalizedQuery)
+  ) ?? [];
+
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.trigger}
+        aria-label="Add sticker"
+        aria-haspopup="dialog"
+        title={disabled ? 'No attachment slots remaining' : 'Add sticker'}
+        disabled={disabled}
+        popoverTarget={id}
+      >
+        ✦ Stickers
+      </button>
+      <div
+        id={id}
+        ref={picker}
+        popover="auto"
+        role="dialog"
+        aria-label="Choose a sticker"
+        className={styles.popover}
+        onToggle={event => {
+          const isOpen = event.currentTarget.matches(':popover-open');
+          setOpen(isOpen);
+          if (isOpen) setError(false);
+        }}
+      >
+        <div className={styles.header}>
+          <strong>{pack?.name || 'Stickers'}</strong>
+          <button type="button" aria-label="Close stickers" popoverTarget={id} popoverTargetAction="hide">
+            ×
+          </button>
+        </div>
+        <input
+          className={styles.search}
+          aria-label="Search stickers"
+          placeholder="Search stickers"
+          value={query}
+          onChange={event => setQuery(event.target.value)}
+        />
+        {!pack && !error && <p role="status">Loading stickers…</p>}
+        {error && (
+          <p role="alert">
+            Stickers are unavailable right now. <button type="button" onClick={() => setError(false)}>Retry</button>
+          </p>
+        )}
+        {pack && !stickers.length && <p>No matching stickers.</p>}
+        <div className={styles.grid}>
+          {stickers.map(sticker => (
+            <button
+              type="button"
+              key={sticker.id}
+              aria-label={`Add ${sticker.name} sticker`}
+              onClick={() => {
+                picker.current?.hidePopover();
+                onSelect(sticker);
+              }}
+            >
+              <img src={sticker.url} alt={sticker.alt} loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" />
+              <span>{sticker.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
 }
