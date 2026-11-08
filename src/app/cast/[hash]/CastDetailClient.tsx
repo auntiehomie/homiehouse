@@ -445,7 +445,7 @@ export default function CastDetailClient() {
               onChange={e => setReplyText(e.target.value)}
               placeholder={`Replying to @${rUsername}…`}
               autoFocus
-              style={{ minHeight: 72, fontSize: 14, width: '100%' }}
+              style={{ minHeight: 72 }}
             />
             <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
             <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
@@ -588,7 +588,7 @@ export default function CastDetailClient() {
                 onChange={e => setReplyText(e.target.value)}
                 placeholder={`Replying to @${authorUsername}…`}
                 autoFocus
-                style={{ minHeight: 80, fontSize: 14, width: '100%' }}
+                style={{ minHeight: 80 }}
               />
               <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
             <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>

@@ -191,8 +191,10 @@ function CastCard({ cast, onOpen }: { cast: Cast; onOpen?: () => void }) {
   } catch {}
 
   return (
-    <Link
-      href={`/cast/${cast.hash}`}
+    // Use browser navigation so a profile card can open even if the
+    // client-side route transition stalls.
+    <a
+      href={`/cast/${encodeURIComponent(cast.hash)}`}
       data-profile-cast-hash={cast.hash}
       onClick={onOpen}
       className="surface"
@@ -218,7 +220,7 @@ function CastCard({ cast, onOpen }: { cast: Cast; onOpen?: () => void }) {
         <span>❤️ {cast.reactions?.likes_count || 0}</span>
         <span>🔄 {cast.reactions?.recasts_count || 0}</span>
       </div>
-    </Link>
+    </a>
   );
 }
 
