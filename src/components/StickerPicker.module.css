@@ -1,0 +1,122 @@
+.trigger {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-on-dark);
+  padding: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.trigger:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+.popover {
+  box-sizing: border-box;
+  width: min(288px, calc(100vw - 24px));
+  max-height: min(320px, 65dvh);
+  padding: 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border, #555);
+  border-radius: 14px;
+  background: var(--surface, #222);
+  color: var(--text-on-dark, #fff);
+  box-shadow: 0 8px 28px #0006;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 140ms ease, transform 140ms ease,
+    display 140ms allow-discrete, overlay 140ms allow-discrete;
+}
+
+.popover:popover-open {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.popover:not(:popover-open) {
+  pointer-events: none;
+}
+
+@starting-style {
+  .popover:popover-open {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@supports (position-area: block-start span-inline-end) and (position-try-fallbacks: flip-block) {
+  .popover {
+    inset: auto;
+    position-area: block-start span-inline-end;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline, --sticker-picker-centered;
+    margin: 6px 0;
+  }
+
+  @position-try --sticker-picker-centered {
+    position-area: none;
+    inset: 0;
+    margin: auto;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.header button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 22px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.search {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 4px 0 10px;
+  padding: 7px 8px;
+  border: 1px solid var(--border, #777);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.grid button {
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--border, #555);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.grid img {
+  width: 100%;
+  height: 54px;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover {
+    transition: none;
+  }
+}
