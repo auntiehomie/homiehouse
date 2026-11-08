@@ -96,7 +96,6 @@ export default function StickerPicker({ onSelect, disabled = false }: StickerPic
                 onSelect(sticker);
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={sticker.url} alt={sticker.alt} loading="lazy" crossOrigin="anonymous" referrerPolicy="no-referrer" />
               <span>{sticker.name}</span>
             </button>
