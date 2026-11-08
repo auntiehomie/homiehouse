@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test.use({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, serviceWorkers: 'block' });
 
 test.beforeEach(async ({ page }) => {
   // Isolate UI navigation: allow only the local app and deterministic API fixtures.
@@ -84,10 +84,46 @@ test('tapping a profile cast opens its detail and Back returns to the profile', 
   });
 
   await page.goto('/profile?fid=321');
-  await page.getByRole('link', { name: /Recent profile cast/ }).click();
+  const navigation = page.waitForRequest(request =>
+    request.isNavigationRequest() && new URL(request.url()).pathname === `/cast/${parent}`
+  );
+  await page.getByRole('link', { name: /Recent profile cast/ }).tap();
+  await navigation;
   await expect(page).toHaveURL(`/cast/${parent}`);
   await expect(page.getByText('Opened profile conversation', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '← Back', exact: true }).click();
   await expect(page).toHaveURL('/profile?fid=321');
   await expect(page.getByRole('link', { name: /Recent profile cast/ })).toBeVisible();
+});
+
+test('a reply sticker has a separate removal target on a phone', async ({ page }) => {
+  await page.route('**/api/cast?**', route => route.fulfill({ json: { cast: card(parent, 'Sticker conversation') } }));
+  await page.route('**/api/sticker-pack', route => route.fulfill({
+    json: {
+      name: 'Test pack',
+      stickers: [{ id: 'test', name: 'Test', alt: 'Test sticker', url: '/sticker-test.svg', tags: [] }],
+    },
+  }));
+  await page.route('**/sticker-test.svg', route => route.fulfill({
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><rect width="60" height="60"/></svg>',
+  }));
+
+  await page.goto(`/cast/${parent}`);
+  await page.getByRole('button', { name: 'Reply', exact: true }).tap();
+  const reply = page.getByPlaceholder('Replying to @navigationtest…');
+  await reply.fill('Draft reply');
+  await page.getByRole('button', { name: 'Add sticker', exact: true }).tap();
+  await page.getByRole('button', { name: 'Add Test sticker', exact: true }).tap();
+
+  const sticker = page.getByRole('img', { name: 'Selected sticker 1' });
+  const remove = page.getByRole('button', { name: 'Remove sticker 1' });
+  const stickerBox = (await sticker.boundingBox())!;
+  const removeBox = (await remove.boundingBox())!;
+  expect(removeBox.x).toBeGreaterThan(stickerBox.x + stickerBox.width);
+  expect(removeBox.width).toBeGreaterThanOrEqual(44);
+  expect(removeBox.height).toBeGreaterThanOrEqual(44);
+  await remove.tap();
+  await expect(sticker).toHaveCount(0);
+  await expect(reply).toHaveValue('Draft reply');
 });
