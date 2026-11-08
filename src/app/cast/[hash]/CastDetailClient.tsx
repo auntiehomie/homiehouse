@@ -1,5 +1,6 @@
 "use client";
 
+import CastLoading from './loading';
 import ReplyStickers from '@/components/ReplyStickers';
 import { castEmbedUrls } from '@/lib/cast-embed-urls';
 
@@ -324,11 +325,7 @@ export default function CastDetailClient() {
   const replyTree = useMemo(() => buildReplyTree(replyCasts, cast?.hash ?? ''), [replyCasts, cast?.hash]);
 
   if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', color: 'var(--muted-on-dark, #999)' }}>Loading cast…</div>
-      </div>
-    );
+    return <CastLoading />;
   }
 
   if (error || !cast) {
