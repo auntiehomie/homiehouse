@@ -10,6 +10,7 @@ import {
   type OpenComposeModalDetail,
 } from '@/lib/compose-modal-events';
 import Image from "next/image";
+import StickerPicker from '@/components/StickerPicker';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 
@@ -41,7 +42,7 @@ function splitIntoThread(text: string, limit: number): string[] {
   }
 
   if (remaining) parts.push(remaining);
-  return parts;
+  return parts.length ? parts : [''];
 }
 
 export default function ComposeModal() {
@@ -60,6 +61,8 @@ export default function ComposeModal() {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [stickerUrls, setStickerUrls] = useState<string[]>([]);
+  const hasStickers = imageUrls.some(url => stickerUrls.includes(url));
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
@@ -111,6 +114,7 @@ export default function ComposeModal() {
         typeof onComplete === 'function' ? onComplete : null;
       setText(prefilledText ?? '');
       setImageUrls([]);
+      setStickerUrls([]);
       setRequestedEmbeds(
         Array.isArray(embeds)
           ? embeds.filter((url): url is string => typeof url === 'string').slice(0, 2)
@@ -154,19 +158,20 @@ export default function ComposeModal() {
   // accidental dismissals (back swipe, app backgrounded, tap outside).
   // Debounced to avoid hammering localStorage on every keystroke.
   useEffect(() => {
-    if (!open || !text.trim()) return;
+    if (!open || (!text.trim() && !imageUrls.length)) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem('hh_compose_draft', JSON.stringify({
           text,
           imageUrls,
+          stickerUrls,
           selectedChannel,
           timestamp: Date.now(),
         }));
       } catch {}
     }, 500);
     return () => clearTimeout(t);
-  }, [open, text, imageUrls, selectedChannel]);
+  }, [open, text, imageUrls, stickerUrls, selectedChannel]);
 
   // Channel discovery is public data; do not wait for the signer/FID to load.
   // Cache successful results for the session, and let the user retry node reads.
@@ -428,13 +433,14 @@ export default function ComposeModal() {
 
       // Scheduled casts cannot retry after a node-side embed rejection, so
       // larger photo sets are scheduled as a single Homiehouse gallery link.
-      const useGalleryForSchedule = isScheduled && imageUrls.length > 2;
+      const useGalleryForSchedule = isScheduled && imageUrls.length > 2 && !hasStickers;
       const embedUrls = [
         ...(useGalleryForSchedule ? [buildCastGalleryUrl(imageUrls)] : imageUrls),
         ...requestedEmbeds,
         ...(urlPreview && detectedUrl ? [detectedUrl] : []),
       ].filter((url, index, all) => !!url && all.indexOf(url) === index);
-      const maxEmbeds = useGalleryForSchedule ? 2 : imageUrls.length > 2 ? MAX_CAST_EMBEDS : 2;
+      const maxEmbeds = useGalleryForSchedule ? 2 : hasStickers || imageUrls.length > 2 ? MAX_CAST_EMBEDS : 2;
+      if (hasStickers && embedUrls.length > MAX_CAST_EMBEDS) { setStatus("Too many attachments. Remove an image or link before posting."); return; }
       const embeds = embedUrls.slice(0, maxEmbeds).map(url => ({ url }));
       if (embeds.length) body.embeds = embeds;
 
@@ -514,7 +520,7 @@ export default function ComposeModal() {
             parentCastHash: replyParentHash,
             parentCastFid: replyParentFid,
             embeds: body.embeds,
-            galleryImages: imageUrls,
+            galleryImages: hasStickers ? undefined : imageUrls,
           });
           prevHash = result.castHash;
           firstHash = result.castHash;
@@ -523,7 +529,7 @@ export default function ComposeModal() {
           const result = await submitCast({
             text: threadParts[0],
             embeds: body.embeds,
-            galleryImages: imageUrls,
+            galleryImages: hasStickers ? undefined : imageUrls,
             channelKey: body.channelKey,
             parentUrl: body.parentUrl,
           });
@@ -598,6 +604,7 @@ export default function ComposeModal() {
       const draft = JSON.parse(raw);
       if (draft.text) setText(draft.text);
       if (Array.isArray(draft.imageUrls)) setImageUrls(draft.imageUrls.slice(0, MAX_CAST_PHOTOS));
+      if (Array.isArray(draft.stickerUrls)) setStickerUrls(draft.stickerUrls.filter((url: unknown): url is string => typeof url === "string"));
       else if (draft.imageUrl) setImageUrls([draft.imageUrl]);
       if (draft.selectedChannel) setSelectedChannel(draft.selectedChannel);
     } catch {}
@@ -733,7 +740,7 @@ export default function ComposeModal() {
               <div style={{ display: 'grid', gridTemplateColumns: imageUrls.length === 1 ? '1fr' : '1fr 1fr', gap: 8, marginTop: 10 }}>
                 {imageUrls.map((url, index) => (
                   <div key={`${url}-${index}`} style={{ position: 'relative' }}>
-                    <img src={url} alt={`Photo ${index + 1}`} style={{ width: '100%', height: imageUrls.length === 1 ? 220 : 140, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
+                    <img src={url} crossOrigin={stickerUrls.includes(url) ? "anonymous" : undefined} alt={`Photo ${index + 1}`} style={{ width: '100%', height: imageUrls.length === 1 ? 220 : 140, objectFit: stickerUrls.includes(url) ? 'contain' : 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
                     <button type="button" onClick={() => removeImage(index)} aria-label={`Remove photo ${index + 1}`} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
                   </div>
                 ))}
@@ -842,6 +849,7 @@ export default function ComposeModal() {
             <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
               {/* Left: scrollable tools */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
+                <StickerPicker disabled={new Set([...imageUrls, ...requestedEmbeds, ...(urlPreview && detectedUrl ? [detectedUrl] : [])]).size >= MAX_CAST_EMBEDS} onSelect={sticker => { if (!imageUrls.includes(sticker.url) && !requestedEmbeds.includes(sticker.url)) { setImageUrls(prev => [...prev, sticker.url]); setStickerUrls(prev => [...prev, sticker.url]); } }} />
                 <label htmlFor="image-upload" style={{ ...toolBtn, cursor: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 'not-allowed' : 'pointer', opacity: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 0.4 : 1 }} title={`Add photos (${imageUrls.length}/${MAX_CAST_PHOTOS})`}>
                   {uploadingImage
                     ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>
