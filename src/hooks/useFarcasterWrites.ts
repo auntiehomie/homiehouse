@@ -11,7 +11,7 @@ import { fetchChannelParentUrl } from '@/lib/hypersnap';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { publishOptimisticCast } from '@/lib/optimistic-casts';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
-import { getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders, PostingAuthorizationError, requestPostingAuthorization, requirePostingAuthHeaders } from '@/lib/client-auth';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
@@ -24,13 +24,26 @@ import {
 } from '@/lib/fc-message-builder';
 
 async function submitMessage(message: Uint8Array): Promise<unknown> {
-  const auth = getAuthHeaders('write:casts');
-  if (!auth) throw new Error('Your posting session has expired. Sign in again.');
-  const res = await fetch('/api/submit-cast', {
+  const send = (auth: NonNullable<Awaited<ReturnType<typeof requirePostingAuthHeaders>>>) => fetch('/api/submit-cast', {
     method: 'POST',
     headers: { 'content-type': 'application/octet-stream', ...auth },
     body: message as unknown as BodyInit,
   });
+  let auth = await requirePostingAuthHeaders();
+  let res = await send(auth);
+  if (res.status === 401) {
+    const refreshedAuth = await ensureAuthHeaders('write:casts', { forceRefresh: true });
+    if (!refreshedAuth) {
+      requestPostingAuthorization();
+      throw new PostingAuthorizationError();
+    }
+    auth = refreshedAuth;
+    res = await send(auth);
+    if (res.status === 401) {
+      requestPostingAuthorization();
+      throw new PostingAuthorizationError();
+    }
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data?.ok === false || data?.success === false) {
     const detail = data?.details || data?.hub?.error_detail || data?.error || data?.hub?.errMsg || data?.hub?.message || `hub error ${res.status}`;

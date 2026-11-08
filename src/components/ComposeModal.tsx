@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
-import { ensureAuthHeaders, getAuthHeaders } from "@/lib/client-auth";
+import { ensureAuthHeaders, requirePostingAuthHeaders } from "@/lib/client-auth";
 import {
   OPEN_COMPOSE_MODAL_EVENT,
   type ComposeCastResult,
@@ -379,8 +379,7 @@ export default function ComposeModal() {
         const formData = new FormData();
         formData.append('file', file);
         if (userFid) formData.append('fid', String(userFid));
-        const auth = getAuthHeaders('write:casts');
-        if (!auth) throw new Error('Your posting session has expired. Sign in again.');
+        const auth = await requirePostingAuthHeaders();
         const response = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: formData });
         const data = await response.json();
         if (!response.ok || !data.ok || !data.url) {

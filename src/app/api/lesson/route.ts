@@ -1,3 +1,4 @@
+import { normalizeLessonScenes, type LessonScene } from '@/lib/lesson-scene';
 import { CREATOR_ECONOMY_CONTEXT, isCreatorEconomyTopic } from '@/lib/creator-economy';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
@@ -27,7 +28,7 @@ function getLessonCacheKey(moduleId: string | undefined, eli5: boolean, context:
   for (let index = 0; index < serialized.length; index += 1) {
     hash = Math.imul(hash ^ serialized.charCodeAt(index), 16777619);
   }
-  return `lesson:v13:${moduleId}:${(hash >>> 0).toString(36)}${eli5 ? ':eli5' : ''}`;
+  return `lesson:v14:${moduleId}:${(hash >>> 0).toString(36)}${eli5 ? ':eli5' : ''}`;
 }
 
 // Claude (primary writer) can take ~50s on a content-heavy lesson; give web
@@ -48,6 +49,7 @@ interface LessonContent {
     title: string;
     explanation: string;
     analogy?: string;
+    visuals?: LessonScene[];
   }>;
   practicalExample: string;
   quickActions: string[];
@@ -253,6 +255,7 @@ function parseLessonJson(raw: string): LessonContent | null {
             ? concept.title.trim()
             : 'Key concept',
           explanation: typeof concept.explanation === 'string' ? concept.explanation.trim() : '',
+          visuals: normalizeLessonScenes(concept.visuals, typeof concept.explanation === 'string' ? concept.explanation.trim() : ''),
           ...(typeof concept.analogy === 'string' && concept.analogy.trim()
             ? { analogy: concept.analogy.trim() }
             : {}),
@@ -767,7 +770,8 @@ Return ONLY valid JSON — no markdown, no code fences. Use this exact structure
     {
       "title": "Short, memorable concept name (3-5 words)",
       "explanation": "3-4 short sentences: define it, explain how it works, give a specific example, and say why it matters. Be concrete and accurate.",
-      "analogy": "One vivid sentence comparing this to something from everyday life (banking, real estate, restaurant, sports, etc.)"
+      "analogy": "One vivid sentence comparing this to something from everyday life (banking, real estate, restaurant, sports, etc.)",
+      "visuals": [{ "source": "copy one complete sentence from explanation exactly", "layout": "network | sequence | comparison", "labels": ["exact short phrase from source", "another exact short phrase from source"] }]
     }
   ],
   "practicalExample": "1-2 sentences (max ~45 words) walking through one specific, named real-world scenario. Make it concrete and bite-sized.",
@@ -788,6 +792,7 @@ Return ONLY valid JSON — no markdown, no code fences. Use this exact structure
 }
 
 Requirements:
+- For each concept generate a separate visual for every explanation sentence that clearly fits a supported layout. The source must be a single complete sentence from explanation, including its punctuation, so it is associated with the correct card. Example: for explanation "Independent nodes share control." use {"source":"Independent nodes share control.","layout":"network","labels":["Independent nodes","control"]}. source must copy the complete sentence verbatim; layout must be network, sequence, or comparison; 2 or 3 labels must be short exact phrases copied from source (max 22 characters each). Use network for distributed peers, sequence only for ordered actions, comparison only for explicit alternatives. Do not invent actions, relationships or labels; omit a visual if none fits. Never return code or markup.
 - 3 concepts, each with a REAL example (name actual protocols, tokens, events, or companies)
 - Concepts should build on each other — start with the foundation, end with the implications
 - 3 quick actions (each must name a specific website, tool, or resource)

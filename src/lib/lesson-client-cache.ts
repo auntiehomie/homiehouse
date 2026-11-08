@@ -1,3 +1,4 @@
+import { normalizeLessonScenes, type LessonScene } from '@/lib/lesson-scene';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { correctLessonRepositoryReferences } from '@/lib/lesson-source-corrections';
 
@@ -22,7 +23,7 @@ export interface LessonQuizQuestion {
 
 export interface LessonContent {
   intro: string;
-  concepts: Array<{ title: string; explanation: string; analogy?: string }>;
+  concepts: Array<{ title: string; explanation: string; analogy?: string; visuals?: LessonScene[] }>;
   practicalExample: string;
   quickActions: string[];
   summary: string;
@@ -46,6 +47,7 @@ function normalizeLessonContent(value: unknown): LessonContent | null {
         return [{
           title: title || 'Key concept',
           explanation,
+          visuals: normalizeLessonScenes(concept.visuals, explanation),
           ...(typeof concept.analogy === 'string' && concept.analogy.trim() ? { analogy: concept.analogy.trim() } : {}),
         }];
       })
@@ -156,7 +158,7 @@ function cacheLesson(module: LessonModuleRequest, eli5: boolean, lesson: LessonC
   }
 }
 
-export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<LessonContent> {
+export function loadLesson(module: LessonModuleRequest, eli5: boolean, options?: { preserveCached?: boolean }): Promise<LessonContent> {
   const authenticated = Boolean(getAuthHeaders());
   const cached = authenticated ? null : getCachedLesson(module, eli5);
   if (cached) return Promise.resolve(cached);
@@ -179,7 +181,7 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
       if (!normalized) throw new Error('The generated lesson was incomplete. Please try again.');
       const lesson = correctLessonRepositoryReferences(normalized);
       // Don't cache fallback lessons — they're temporary content from AI provider failures.
-      if (response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
+      if (!options?.preserveCached && response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
         cacheLesson(module, eli5, lesson);
       }
       return lesson;

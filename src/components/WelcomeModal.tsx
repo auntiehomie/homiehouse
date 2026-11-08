@@ -22,6 +22,7 @@ export default function WelcomeModal() {
   const [status, setStatus] = useState<'idle' | 'pending' | 'active'>('idle');
   const [phase, setPhase] = useState<'authorizing' | 'checking' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [renewalRequested, setRenewalRequested] = useState(false);
   const requestInFlight = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +32,7 @@ export default function WelcomeModal() {
       if (detail?.mode === 'hypersnap') {
         setShow(true);
         setError(null);
+        setRenewalRequested(!!detail.force);
         const fid = getStoredFid();
         const raw = fid ? localStorage.getItem(`signer_${fid}`) : null;
         let pending = false;
@@ -192,9 +194,11 @@ export default function WelcomeModal() {
       <div ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="hypersnap-posting-title" tabIndex={-1} style={{ maxWidth: 500 }} onClick={(event) => event.stopPropagation()}>
         <div style={{ textAlign: 'center', padding: '24px 16px' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔐</div>
-          <h3 id="hypersnap-posting-title" style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Enable Hypersnap posting</h3>
+          <h3 id="hypersnap-posting-title" style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{renewalRequested ? 'Renew Hypersnap posting' : 'Enable Hypersnap posting'}</h3>
           <p style={{ color: 'var(--muted-on-dark)', marginBottom: 16, fontSize: 14, lineHeight: 1.5 }}>
-            Your wallet will authorize a HomieHouse signing key directly with Hypersnap. No recovery phrase, separate app approval, or gas transaction is used.
+            {renewalRequested
+              ? 'Your posting authorization could not be refreshed. Reconnect the wallet that controls this FID to authorize a fresh HomieHouse signing key.'
+              : 'Your wallet will authorize a HomieHouse signing key directly with Hypersnap. No recovery phrase, separate app approval, or gas transaction is used.'}
           </p>
           <div style={{ textAlign: 'left', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 12, padding: 14, marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
             <strong>Permissions:</strong> casts, cast removal, likes/recasts, and follows.
@@ -217,7 +221,7 @@ export default function WelcomeModal() {
             disabled={provisioning || status === 'active'}
             style={{ width: '100%', padding: 13 }}
           >
-            {phase === 'authorizing' ? 'Waiting for wallet approval…' : phase === 'checking' ? 'Checking Hypersnap…' : status === 'active' ? 'Posting enabled' : status === 'pending' ? 'Check activation status' : isConnected ? 'Authorize Hypersnap signer' : 'Connect wallet'}
+            {phase === 'authorizing' ? 'Waiting for wallet approval…' : phase === 'checking' ? 'Checking Hypersnap…' : status === 'active' ? 'Posting enabled' : status === 'pending' ? 'Check activation status' : isConnected ? (renewalRequested ? 'Renew posting authorization' : 'Authorize Hypersnap signer') : 'Connect wallet'}
           </button>
           <button className="btn" onClick={() => setShow(false)} style={{ width: '100%', marginTop: 8, padding: 11 }}>
             Not now

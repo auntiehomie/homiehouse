@@ -40,6 +40,7 @@ interface LearningPlan {
   level: 'beginner' | 'intermediate' | 'advanced';
   summary: string;
   modules: LearningModule[];
+  research?: { web: boolean; knowledgeBase: boolean; webProvider?: string | null; personalized?: boolean };
 }
 
 type PageState = 'quiz' | 'generating' | 'plan';
@@ -48,6 +49,7 @@ type Level = 'beginner' | 'intermediate' | 'advanced';
 type LearnTab = 'catalog' | 'plan' | 'completed' | 'premium' | 'homie' | 'feed';
 
 const LS_PLAN_KEY = 'hh_learning_plan';
+const LS_PREVIOUS_PATH_KEY = 'hh_learning_previous_path';
 const LS_PROGRESS_KEY = 'hh_learning_progress';
 const LS_COMPLETIONS_KEY = 'hh_learning_completions';
 const RELATED_BACKUP_PLAN_KEY = 'hh_related_backup_plan';
@@ -1033,6 +1035,13 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
   const [starterQuestion, setStarterQuestion] = useState('');
   const [plan, setPlan] = useState<LearningPlan | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [previousPath, setPreviousPath] = useState<{ plan: LearningPlan; completedIds: string[] } | null>(null);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_PREVIOUS_PATH_KEY) || 'null');
+      if (saved?.plan && Array.isArray(saved.completedIds)) setPreviousPath(saved);
+    } catch { /* No saved previous path. */ }
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [learnerCount, setLearnerCount] = useState(0);
   const [contentVisible, setContentVisible] = useState(false);
@@ -1045,6 +1054,8 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
   const [peerCount, setPeerCount] = useState<number | null>(null);
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pathRequestsRef = useRef(new Map<string, Promise<LearningPlan>>());
+  const pathSelectionEpoch = useRef(0);
+  const pathSetupRef = useRef(false);
 
   const HH2_PER_LESSON = 100;
   // Derive off-chain points from completedIds so it's always correct,
@@ -1088,6 +1099,9 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
     if (normalized && valid.includes(normalized as Track)) {
       setTrack(normalized as Track);
       if (searchParams.get('start') === 'path') {
+        pathSelectionEpoch.current += 1;
+        pathSetupRef.current = true;
+        if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
         const requestedLevel = searchParams.get('level');
         const selectedLevel: Level | null = requestedLevel === 'beginner' || requestedLevel === 'intermediate' || requestedLevel === 'advanced'
           ? requestedLevel
@@ -1302,19 +1316,26 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
   // Load from Neon whenever the Farcaster FID becomes available (fires after auth resolves,
   // not just at mount — this is what makes cross-device sync work reliably).
   useEffect(() => {
-    if (searchParams.get('start') === 'path') return;
+    if (searchParams.get('start') === 'path' || pathSetupRef.current) return;
+    const selectionEpoch = pathSelectionEpoch.current;
     const fid = getFid();
     if (!fid) return;
     fetch(`/api/learning-progress?fid=${fid}`)
       .then(r => r.json())
       .then(d => {
+        if (selectionEpoch !== pathSelectionEpoch.current || pathSetupRef.current) return;
         if (d.streak) setStreak(d.streak);
         if (!d.found || !d.plan) return;
+        const localPlan = (() => { try { return JSON.parse(localStorage.getItem(LS_PLAN_KEY) || 'null'); } catch { return null; } })();
+        const samePlan = JSON.stringify(localPlan?.modules?.map((item: LearningModule) => item.id)) === JSON.stringify(d.plan.modules?.map((item: LearningModule) => item.id));
+        let localIds: string[] = [];
+        try { if (samePlan) localIds = JSON.parse(localStorage.getItem(LS_PROGRESS_KEY) || '[]'); } catch {}
+        const mergedIds = [...new Set<string>([...(d.completed_ids ?? []), ...localIds])];
         setPlan(d.plan);
-        setCompletedIds(new Set(d.completed_ids ?? []));
+        setCompletedIds(new Set(mergedIds));
         setPageState('plan');
         try { localStorage.setItem(LS_PLAN_KEY, JSON.stringify(d.plan)); } catch {}
-        try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(d.completed_ids ?? [])); } catch {}
+        try { localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(mergedIds)); } catch {}
         if (d.completions && Object.keys(d.completions).length > 0) {
           try { localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(d.completions)); } catch {}
         }
@@ -1407,7 +1428,7 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
 
   // Debounced save: whenever plan or completedIds change, sync to Neon after 2s
   useEffect(() => {
-    if (!plan) return;
+    if (!plan || pathSetupRef.current) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     syncTimerRef.current = setTimeout(() => {
       const fid = farcasterFid ?? getFid();
@@ -1430,7 +1451,7 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
     }, 2000);
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, completedIds]);
+  }, [plan, completedIds, planPersonalizing]);
 
   const navigateToModule = useCallback((id: string) => {
     setNavigating(true);
@@ -1450,6 +1471,7 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
 
   const generatePlan = async () => {
     if (!track || !level) return;
+    const selectionEpoch = pathSelectionEpoch.current;
     setError(null);
 
     // Show fallback plan instantly — no spinner needed
@@ -1458,6 +1480,7 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
       const fallbackRes = await fetch(`/api/learning-plan?track=${track}&level=${level}`, { headers: { ...(getAuthHeaders() ?? {}) } });
       if (fallbackRes.ok) {
         const fallbackPlan = await fallbackRes.json() as LearningPlan;
+        if (selectionEpoch !== pathSelectionEpoch.current) return;
         setPlan(fallbackPlan);
         setCompletedIds(new Set());
         setPageState('plan');
@@ -1479,15 +1502,27 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
       });
       if (!res.ok) throw new Error('Failed to generate plan');
       const data = await res.json() as LearningPlan;
+      if (selectionEpoch !== pathSelectionEpoch.current) return;
       setPlan(data); setCompletedIds(new Set()); setPageState('plan');
+      if (track === 'ai' && data.research?.personalized === false) {
+        setError('Personalization is temporarily unavailable. Showing an AI starter path.');
+      } else if (track === 'ai' && data.research && !data.research.web) {
+        setError('Web research is currently unavailable; this path uses the available learning sources.');
+      } else if (track === 'ai' && data.research?.webProvider === 'wikipedia') {
+        setError('This path uses Wikipedia search and available knowledge-base sources. Broader web search is unavailable.');
+      }
     } catch (err: any) {
+      if (selectionEpoch !== pathSelectionEpoch.current) return;
       if (!fallbackShown) {
         setError(err?.message || 'Something went wrong. Please try again.');
         setPageState('quiz'); setStep(3);
       }
-      // silently keep fallback plan if AI personalisation fails
+      if (fallbackShown) setError('Personalization is temporarily unavailable. Showing the selected track’s starter path.');
     } finally {
-      setPlanPersonalizing(false);
+      if (selectionEpoch === pathSelectionEpoch.current) {
+        pathSetupRef.current = false;
+        setPlanPersonalizing(false);
+      }
     }
   };
 
@@ -1528,6 +1563,18 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
   const goalChips = ['Financial independence', 'Build something', 'Understand the ecosystem', 'Connect with communities'];
 
   const beginInteractivePath = (selectedTrack: CatalogTrack, selectedLevel: CatalogLevel) => {
+    pathSelectionEpoch.current += 1;
+    pathSetupRef.current = true;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    try {
+      const savedPlan = plan ?? JSON.parse(localStorage.getItem(LS_PLAN_KEY) || 'null') as LearningPlan | null;
+      const savedIds = plan ? [...completedIds] : JSON.parse(localStorage.getItem(LS_PROGRESS_KEY) || '[]');
+      if (savedPlan && Array.isArray(savedIds) && (savedPlan.track !== selectedTrack || savedPlan.level !== selectedLevel)) {
+        const previous = { plan: savedPlan, completedIds: savedIds };
+        localStorage.setItem(LS_PREVIOUS_PATH_KEY, JSON.stringify(previous));
+        setPreviousPath(previous);
+      }
+    } catch { /* Continue if storage is unavailable. */ }
     setTrack(selectedTrack);
     setLevel(selectedLevel);
     setLevelIdx(selectedLevel === 'beginner' ? 0 : selectedLevel === 'intermediate' ? 2 : 3);
@@ -1666,6 +1713,20 @@ function LearnPageContent({ catalogCourses }: { catalogCourses: CourseCatalogIte
             <span style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginLeft: 4 }}>{total} modules · ~{totalMinutes} min total</span>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 0', color: 'var(--text-on-dark)', lineHeight: 1.3 }}>Your Learning Path</h1>
+          {previousPath && (previousPath.plan.track !== plan.track || previousPath.plan.level !== plan.level) && (
+            <button type="button" onClick={() => {
+              const current = { plan, completedIds: [...completedIds] };
+              try { localStorage.setItem(LS_PREVIOUS_PATH_KEY, JSON.stringify(current)); } catch { /* Keep current state in memory. */ }
+              pathSelectionEpoch.current += 1;
+              pathSetupRef.current = false;
+              setPlan(previousPath.plan);
+              setCompletedIds(new Set(previousPath.completedIds));
+              setPreviousPath(current);
+              setError(null);
+            }} style={{ marginTop: 10, border: 0, padding: 0, color: 'var(--accent)', background: 'transparent', cursor: 'pointer', fontSize: 14 }}>
+              ← Return to previous learning path
+            </button>
+          )}
         </div>
 
         {/* Personalizing banner */}

@@ -1,3 +1,5 @@
+export const LEARNING_PATH_ROUTE = '/learn?tab=plan';
+
 export function buildLearningModuleReturnTo(moduleId: string): string {
   return `/learn/module?id=${encodeURIComponent(moduleId)}`;
 }

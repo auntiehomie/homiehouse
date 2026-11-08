@@ -605,6 +605,666 @@
       "reviewStatus": "curated-summary"
     },
     {
+      "id": "joint-declaration-peaceful-assembly-digital-technologies-2023",
+      "title": "Joint Declaration on Freedom of Peaceful Assembly and Association and Digital Technologies",
+      "url": "https://www.ohchr.org/sites/default/files/documents/issues/trafficking/statements/20230915-jd-foaa-digital-technologies.pdf",
+      "source": "ohchr.org",
+      "tags": [
+        "network states",
+        "governance",
+        "privacy",
+        "digital rights",
+        "community"
+      ],
+      "summary": "The 2023 joint declaration sets out recommendations for protecting peaceful assembly and association when digital technologies are designed and used. It calls for meaningful public consultation, privacy and data protection safeguards, accountability, and protections for expression and association. It addresses states and companies generally; it does not assess a particular network-state project.",
+      "learningPoints": [
+        "Meaningful public participation and transparent governance can help affected people scrutinize technology decisions.",
+        "Privacy safeguards and oversight matter when surveillance can affect peaceful association and expression.",
+        "Apply these general recommendations as questions for evaluating a project, not as evidence that a specific project committed an abuse."
+      ],
+      "addedAt": "2026-11-07",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-index",
+      "title": "Ethereum Improvement Proposals: Networking",
+      "url": "https://eips.ethereum.org/networking",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization"
+      ],
+      "summary": "The official Ethereum networking EIP index groups peer-to-peer networking specifications and proposals by status. Statuses can change; check the source before treating a proposal as an active network rule.",
+      "learningPoints": [
+        "Identify how discovery, peer compatibility, message exchange and synchronization relate to decentralized networks.",
+        "Distinguish final specifications from last-call, draft, stagnant and withdrawn proposals."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8",
+      "title": "EIP-8: devp2p Forward Compatibility Requirements for Homestead",
+      "url": "https://eips.ethereum.org/EIPS/eip-8",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Defines forward-compatible handling of devp2p hello, discovery packets and RLPx handshakes. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8: devp2p Forward Compatibility Requirements for Homestead.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-627",
+      "title": "EIP-627: Whisper Specification",
+      "url": "https://eips.ethereum.org/EIPS/eip-627",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Specifies Whisper, a peer-to-peer messaging protocol; this historical specification should not be assumed to describe present-day messaging deployments. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-627: Whisper Specification.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-706",
+      "title": "EIP-706: DEVp2p snappy compression",
+      "url": "https://eips.ethereum.org/EIPS/eip-706",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Specifies Snappy compression for devp2p messages to reduce network bandwidth. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-706: DEVp2p snappy compression.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-778",
+      "title": "EIP-778: Ethereum Node Records (ENR)",
+      "url": "https://eips.ethereum.org/EIPS/eip-778",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Defines signed, extensible records describing Ethereum nodes and their connection information. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-778: Ethereum Node Records (ENR).",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-868",
+      "title": "EIP-868: Node Discovery v4 ENR Extension",
+      "url": "https://eips.ethereum.org/EIPS/eip-868",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Extends discovery v4 to resolve authoritative Ethereum Node Records. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-868: Node Discovery v4 ENR Extension.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2124",
+      "title": "EIP-2124: Fork identifier for chain compatibility checks",
+      "url": "https://eips.ethereum.org/EIPS/eip-2124",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Defines a fork identifier to help peers assess chain and fork compatibility. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2124: Fork identifier for chain compatibility checks.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2364",
+      "title": "EIP-2364: eth/64: forkid-extended protocol handshake",
+      "url": "https://eips.ethereum.org/EIPS/eip-2364",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Adds the fork identifier to the eth/64 protocol handshake. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2364: eth/64: forkid-extended protocol handshake.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2464",
+      "title": "EIP-2464: eth/65: transaction announcements and retrievals",
+      "url": "https://eips.ethereum.org/EIPS/eip-2464",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Introduces transaction hash announcements and pooled transaction retrieval messages. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2464: eth/65: transaction announcements and retrievals.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2481",
+      "title": "EIP-2481: eth/66 request identifier",
+      "url": "https://eips.ethereum.org/EIPS/eip-2481",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Adds request identifiers to correlate eth protocol requests and responses. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2481: eth/66 request identifier.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2976",
+      "title": "EIP-2976: Typed Transactions over Gossip",
+      "url": "https://eips.ethereum.org/EIPS/eip-2976",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Describes how typed transactions are propagated over Ethereum's gossip protocol. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2976: Typed Transactions over Gossip.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-4938",
+      "title": "EIP-4938: eth/67 - Removal of GetNodeData",
+      "url": "https://eips.ethereum.org/EIPS/eip-4938",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Removes GetNodeData and NodeData messages from the eth wire protocol. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-4938: eth/67 - Removal of GetNodeData.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-5793",
+      "title": "EIP-5793: eth/68 - Add tx type to tx announcement",
+      "url": "https://eips.ethereum.org/EIPS/eip-5793",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Adds transaction type and size information to pooled transaction hash announcements. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-5793: eth/68 - Add tx type to tx announcement.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-6122",
+      "title": "EIP-6122: Forkid checks based on timestamps",
+      "url": "https://eips.ethereum.org/EIPS/eip-6122",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Extends fork identifier compatibility checks to account for timestamp-based forks. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-6122: Forkid checks based on timestamps.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7642",
+      "title": "EIP-7642: eth/69 - history expiry and simpler receipts",
+      "url": "https://eips.ethereum.org/EIPS/eip-7642",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Introduces block-range information and simpler receipts for the eth/69 protocol. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7642: eth/69 - history expiry and simpler receipts.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7975",
+      "title": "EIP-7975: eth/70 - Partial Block Receipt Lists",
+      "url": "https://eips.ethereum.org/EIPS/eip-7975",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes requests for partial block receipt lists in the eth peer-to-peer protocol. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7975: eth/70 - Partial Block Receipt Lists.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8070",
+      "title": "EIP-8070: eth/72 - Sparse Blobpool",
+      "url": "https://eips.ethereum.org/EIPS/eip-8070",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes a sparse blobpool design affecting how blob transactions and their data are managed and exchanged. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8070: eth/72 - Sparse Blobpool.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8136",
+      "title": "EIP-8136: Cell-Level Deltas for Data Column Broadcast",
+      "url": "https://eips.ethereum.org/EIPS/eip-8136",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes cell-level deltas for broadcasting data columns. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8136: Cell-Level Deltas for Data Column Broadcast.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8159",
+      "title": "EIP-8159: eth/71 - Block Access List Exchange",
+      "url": "https://eips.ethereum.org/EIPS/eip-8159",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes protocol messages for exchanging block access lists between peers. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8159: eth/71 - Block Access List Exchange.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8189",
+      "title": "EIP-8189: snap/2 - BAL-Based State Healing",
+      "url": "https://eips.ethereum.org/EIPS/eip-8189",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes block-access-list-based state healing in a new snap protocol version. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8189: snap/2 - BAL-Based State Healing.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-4444",
+      "title": "EIP-4444: Bound Historical Data in Execution Clients",
+      "url": "https://eips.ethereum.org/EIPS/eip-4444",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes bounds on historical data served by execution clients, with implications for syncing and historical data availability. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-4444: Bound Historical Data in Execution Clients.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7801",
+      "title": "EIP-7801: etha - Sharded Blocks Subprotocol",
+      "url": "https://eips.ethereum.org/EIPS/eip-7801",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes an etha subprotocol for sharded blocks. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7801: etha - Sharded Blocks Subprotocol.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8077",
+      "title": "EIP-8077: eth/XX - announce transactions with nonce",
+      "url": "https://eips.ethereum.org/EIPS/eip-8077",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes including sender and nonce information in transaction announcements. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8077: eth/XX - announce transactions with nonce.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8094",
+      "title": "EIP-8094: eth/vhash - Blob-Aware Mempool",
+      "url": "https://eips.ethereum.org/EIPS/eip-8094",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes a blob-aware mempool and changes to blob transaction exchange. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8094: eth/vhash - Blob-Aware Mempool.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8371",
+      "title": "EIP-8371: RowDAS - Distributed Blob Reconstruction",
+      "url": "https://eips.ethereum.org/EIPS/eip-8371",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes distributed reconstruction of blob data using row and column topics. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8371: RowDAS - Distributed Blob Reconstruction.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8383",
+      "title": "EIP-8383: Reduce CL Block Retention Window",
+      "url": "https://eips.ethereum.org/EIPS/eip-8383",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes reducing the consensus-layer block retention window and discusses checkpoint sync and weak subjectivity. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8383: Reduce CL Block Retention Window.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8408",
+      "title": "EIP-8408: eth/73 - Indexed Cell Requests",
+      "url": "https://eips.ethereum.org/EIPS/eip-8408",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes indexed requests and responses for cells in a new eth protocol version. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8408: eth/73 - Indexed Cell Requests.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8411",
+      "title": "EIP-8411: Fast Execution Payload Broadcast",
+      "url": "https://eips.ethereum.org/EIPS/eip-8411",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes a mechanism for faster broadcasting of execution payloads. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8411: Fast Execution Payload Broadcast.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-1459",
+      "title": "EIP-1459: Node Discovery via DNS",
+      "url": "https://eips.ethereum.org/EIPS/eip-1459",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "stagnant"
+      ],
+      "summary": "Describes authenticated, updateable Ethereum node lists retrievable via DNS. The networking index listed this EIP as Stagnant on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-1459: Node Discovery via DNS.",
+        "Interpret its Stagnant status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7639",
+      "title": "EIP-7639: eth/70 - Cease serving history before PoS",
+      "url": "https://eips.ethereum.org/EIPS/eip-7639",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "stagnant"
+      ],
+      "summary": "Proposes ending peer-to-peer requests and responses for block data from before the Paris upgrade. The networking index listed this EIP as Stagnant on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7639: eth/70 - Cease serving history before PoS.",
+        "Interpret its Stagnant status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7542",
+      "title": "EIP-7542: eth/70 - available-blocks-extended protocol",
+      "url": "https://eips.ethereum.org/EIPS/eip-7542",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "withdrawn"
+      ],
+      "summary": "Proposed a way for nodes to communicate the range of blocks available to peers. The networking index listed this EIP as Withdrawn on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7542: eth/70 - available-blocks-extended protocol.",
+        "Interpret its Withdrawn status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7636",
+      "title": "EIP-7636: Extension of EIP-778 for \"client\" ENR Entry",
+      "url": "https://eips.ethereum.org/EIPS/eip-7636",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "withdrawn"
+      ],
+      "summary": "Proposed a client software and version field in Ethereum Node Records. The networking index listed this EIP as Withdrawn on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7636: Extension of EIP-778 for \"client\" ENR Entry.",
+        "Interpret its Withdrawn status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
       "id": "digicert-customer-data-and-identity-document-breach",
       "title": "DigiCert data breach exposes customer information and identity documents",
       "url": "https://www.bleepingcomputer.com/news/security/digicert-data-breach-exposes-customer-information-identity-documents/",

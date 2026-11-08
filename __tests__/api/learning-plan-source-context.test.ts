@@ -6,6 +6,7 @@ import { getKBModulesForTrack } from '@/lib/kb-curriculum';
 jest.mock('@/lib/auth', () => ({ verifyFarcasterSignerAuth: jest.fn(async () => { throw new Error('no signer'); }) }));
 jest.mock('@/lib/db', () => ({ getDb: jest.fn() }));
 jest.mock('@/lib/ratelimit', () => ({ rateLimit: jest.fn(() => ({ success: true })) }));
+jest.mock('@/lib/ai-path-web-context', () => ({ getAIPathWebSources: jest.fn(async () => ({ provider: null, sources: [] })) }));
 jest.mock('@/lib/llm', () => ({ llmChat: jest.fn() }));
 jest.mock('@/lib/kb-curriculum', () => ({
   getKBModulesForTrack: jest.fn(async () => []),

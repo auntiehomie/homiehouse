@@ -36,39 +36,36 @@ export async function POST(request: NextRequest) {
 
     logger.info('Uploading image', { fileName: file.name, fileType: file.type, fileSize: file.size });
 
-    // Prefer QStorage when configured. Keep the stricter authenticated upload
-    // checks above and do not silently send media elsewhere if QStorage fails.
-    const qstorageConfig = getQStorageConfig();
-    if (qstorageConfig) {
-      try {
+    // Prefer QStorage; use the configured IPFS provider if it is unavailable.
+    // Authentication and file validation above apply to every provider.
+    try {
+      const qstorageConfig = getQStorageConfig();
+      if (qstorageConfig) {
         const uploaded = await uploadImageToQStorage(file, String(authenticatedFid));
         logger.success('Uploaded image to QStorage', { key: uploaded.key, url: uploaded.url });
         logger.end();
         return NextResponse.json({ ok: true, url: uploaded.url, key: uploaded.key, provider: 'qstorage' });
-      } catch (error: unknown) {
-        const qstorageError = error as {
-          name?: string;
-          message?: string;
-          code?: string;
-          Code?: string;
-          $metadata?: {
-            httpStatusCode?: number;
-            requestId?: string;
-            extendedRequestId?: string;
-          };
-        };
-        logger.error('QStorage upload failed', {
-          bucket: qstorageConfig.bucket,
-          region: qstorageConfig.region,
-          name: qstorageError?.name,
-          message: qstorageError?.message,
-          code: qstorageError?.Code || qstorageError?.code,
-          status: qstorageError?.$metadata?.httpStatusCode,
-          requestId: qstorageError?.$metadata?.requestId,
-          extendedRequestId: qstorageError?.$metadata?.extendedRequestId,
-        });
-        return NextResponse.json({ error: 'Failed to upload image to QStorage.' }, { status: 502 });
       }
+    } catch (error: unknown) {
+      const qstorageError = error as {
+        name?: string;
+        message?: string;
+        code?: string;
+        Code?: string;
+        $metadata?: {
+          httpStatusCode?: number;
+          requestId?: string;
+          extendedRequestId?: string;
+        };
+      };
+      logger.error('QStorage upload failed', {
+        name: qstorageError?.name,
+        message: qstorageError?.message,
+        code: qstorageError?.Code || qstorageError?.code,
+        status: qstorageError?.$metadata?.httpStatusCode,
+        requestId: qstorageError?.$metadata?.requestId,
+        extendedRequestId: qstorageError?.$metadata?.extendedRequestId,
+      });
     }
 
     // ── 1. Try Pinata IPFS ───────────────────────────────────────────────────

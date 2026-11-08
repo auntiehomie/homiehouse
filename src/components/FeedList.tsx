@@ -11,7 +11,7 @@ import FarcasterCastEmbed from './FarcasterCastEmbed';
 import ConversationLearningLinks from './ConversationLearningLinks';
 import ParentCastBadge from './ParentCastBadge';
 import AICurationSuggestions from './AICurationSuggestions';
-import { getStoredFid } from '@/lib/client-auth';
+import { getStoredFid, PostingAuthorizationError } from '@/lib/client-auth';
 import { useFeedFreshness } from '@/hooks/useFeedFreshness';
 import { FeedSkeleton } from "./Skeletons";
 import AppIcon from './AppIcon';
@@ -255,7 +255,10 @@ export default function FeedList({
       await follow(targetFid);
       setFollowedFids(previous => new Set(previous).add(targetFid));
     } catch (error: any) {
-      alert(`Failed to follow: ${error?.message ?? error}`);
+      if (error instanceof PostingAuthorizationError) {
+        setToast({ msg: 'Reconnect your wallet in the prompt to renew posting access, then try again.', ok: false });
+        setTimeout(() => setToast(null), 5000);
+      } else alert(`Failed to follow: ${error?.message ?? error}`);
     } finally {
       setFollowingLoadingFids(previous => { const next = new Set(previous); next.delete(targetFid); return next; });
     }
@@ -322,7 +325,10 @@ export default function FeedList({
       }
     } catch (error: any) {
       console.error('Like error:', error);
-      alert(`Failed to like: ${error?.message ?? error}`);
+      if (error instanceof PostingAuthorizationError) {
+        setToast({ msg: 'Reconnect your wallet in the prompt to renew posting access, then try again.', ok: false });
+        setTimeout(() => setToast(null), 5000);
+      } else alert(`Failed to like: ${error?.message ?? error}`);
     } finally {
       setActionLoading(null);
     }
@@ -347,7 +353,10 @@ export default function FeedList({
       }
     } catch (error: any) {
       console.error('Recast error:', error);
-      alert(`Failed to recast: ${error?.message ?? error}`);
+      if (error instanceof PostingAuthorizationError) {
+        setToast({ msg: 'Reconnect your wallet in the prompt to renew posting access, then try again.', ok: false });
+        setTimeout(() => setToast(null), 5000);
+      } else alert(`Failed to recast: ${error?.message ?? error}`);
     } finally {
       setActionLoading(null);
     }
@@ -373,7 +382,9 @@ export default function FeedList({
       showToast('Reply posted!', true);
     } catch (error: any) {
       console.error('Reply error:', error);
-      showToast(`Failed: ${error?.message ?? 'unknown error'}`, false);
+      showToast(error instanceof PostingAuthorizationError
+        ? 'Reconnect your wallet in the prompt to renew posting access, then retry.'
+        : `Failed: ${error?.message ?? 'unknown error'}`, false);
     }
   };
 

@@ -82,3 +82,13 @@ it('recovers an empty posting cache from the repository corpus without requiring
   const { indexKnowledgeBaseArticles } = await import('@/lib/agent-context');
   expect(indexKnowledgeBaseArticles).not.toHaveBeenCalled();
 });
+
+
+it('retrieves short topic acronyms without matching them inside unrelated words', async () => {
+  await getRelevantKBArticles('How can AI help a DAO?');
+  const query = mockSql.mock.calls.find((call) => call[0].join('').includes('SELECT * FROM kb_articles'));
+  expect(query).toBeDefined();
+  expect(query?.[1]).toContain('\\mai\\M');
+  expect(query?.[1]).toContain('\\mdao\\M');
+  expect(query?.[1]).not.toContain('how');
+});

@@ -3,12 +3,15 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getEli5Mode } from '@/lib/eli5';
-import { buildLearningModuleReturnTo } from '@/lib/learning-navigation';
+import { buildLearningModuleReturnTo, LEARNING_PATH_ROUTE } from '@/lib/learning-navigation';
 import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { ensureAuthHeaders, getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
+import LessonIllustration, { lessonIllustrationTopic } from '@/components/learning/LessonIllustration';
+import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
+import { sceneForText, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
@@ -28,7 +31,7 @@ const LS_CARD_POSITION_PREFIX = 'hh_lesson_position:';
 type CardDef =
   | { type: 'intro'; label: string; content: string }
   | { type: 'why'; label: string; content: string }
-  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }
+  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean; visual?: LessonScene }
   | { type: 'example'; label: string; content: string }
   | { type: 'actions'; label: string; items: string[] }
   | { type: 'summary'; label: string; content: string }
@@ -58,7 +61,7 @@ function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
 
     const total = textChunks.length + (c.analogy ? 1 : 0);
     textChunks.forEach((text, idx) => {
-      cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false });
+      cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false, visual: sceneForText(c.visuals, text) });
     });
     if (c.analogy) cards.push({ type: 'concept', label: `${base} · ${total}/${total}`, title: c.title, explanation: '', analogy: c.analogy, part: total, isAnalogy: true });
   });
@@ -102,6 +105,7 @@ function IntroCard({ content, lesson }: { content: string; lesson: LessonContent
       }}>
         <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      <LessonIllustration text={content} />
       {lesson && <LessonWalkthrough lesson={lesson} />}
     </CardBody>
   );
@@ -118,11 +122,12 @@ function WhyCard({ content }: { content: string }) {
           💡 {content}
         </p>
       </div>
+      <LessonIllustration text={content} />
     </CardBody>
   );
 }
 
-function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }) {
+function ConceptCard({ title, explanation, analogy, part, isAnalogy, visual }: { title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean; visual?: LessonScene }) {
   if (isAnalogy) {
     return (
       <CardBody>
@@ -135,6 +140,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
             🔁 {analogy ?? 'No analogy provided.'}
           </p>
         </div>
+        <LessonIllustration text={`${title} ${analogy ?? ''}`} />
       </CardBody>
     );
   }
@@ -148,6 +154,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
         <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {explanation}
         </p>
+        <LessonIllustration text={`${title} ${explanation}`} visual={visual} />
       </CardBody>
     );
   }
@@ -160,6 +167,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
       <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
         {explanation}
       </p>
+      <LessonIllustration text={`${title} ${explanation}`} visual={visual} />
     </CardBody>
   );
 }
@@ -173,6 +181,7 @@ function ExampleCard({ content }: { content: string }) {
       }}>
         <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      <LessonIllustration text={content} />
     </CardBody>
   );
 }
@@ -215,6 +224,7 @@ function SummaryCard({ content, onShare, isNetworkState = false }: { content: st
           {content}
         </p>
       </div>
+      <LessonIllustration text={content} />
       <button
         onClick={onShare}
         style={{
@@ -613,10 +623,13 @@ function ModuleLessonContent() {
       // Render a valid local lesson immediately, including for signed-in
       // learners. The request still starts on open so the server can register
       // the reward attempt; its cached/generated response refreshes the view.
-      loadLesson(found, eli5)
+      loadLesson(found, eli5, { preserveCached: Boolean(cached) })
         .then(data => {
-          setLessonContent(data);
-          setCards(buildCards(data, found));
+          // Keep the lesson the learner was already working through; the request
+          // may register a reward attempt, but must not replace cached content.
+          const displayedLesson = cached ?? data;
+          setLessonContent(displayedLesson);
+          setCards(buildCards(displayedLesson, found));
           setLoading(false);
         })
         .catch((loadError) => {
@@ -645,6 +658,18 @@ function ModuleLessonContent() {
     if (!moduleId || cards.length === 0 || !cardPositionRestored) return;
     try { localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cardIndex)); } catch {}
   }, [moduleId, cards.length, cardIndex, cardPositionRestored]);
+
+  // Prepare only the next visible card, so its animation can arrive before the
+  // learner advances. Existing plans and built-in scenes need no network call.
+  useEffect(() => {
+    const next = cards[cardIndex + 1];
+    if (!next) return;
+    let text = '';
+    if (next.type === 'concept' && !next.visual) text = `${next.title} ${next.isAnalogy ? next.analogy ?? '' : next.explanation}`;
+    else if (next.type === 'why' || next.type === 'example' || next.type === 'summary') text = next.content;
+    if (!text || sceneForExistingText(text) || lessonIllustrationTopic(text)) return;
+    void loadExistingLessonScene(text);
+  }, [cards, cardIndex]);
 
   const currentCard = cards[cardIndex];
   const totalCards = cards.length;
@@ -819,7 +844,19 @@ function ModuleLessonContent() {
   useEffect(() => {
     if (currentCard?.type !== 'complete') return;
     if (alreadyDone) return;
-    if (!quizPassed) return; // safety guard — should never reach here without passing
+    if (!quizPassed || !moduleId) return; // Only a passed lesson can be saved
+    // Save completion before any reward timer, authentication or network request.
+    // Leaving for the composer must not discard a passed lesson.
+    try {
+      const saved: string[] = JSON.parse(localStorage.getItem(LS_PROGRESS_KEY) || '[]');
+      if (!saved.includes(moduleId)) localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...saved, moduleId]));
+      localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cards.length - 1));
+      if (mod) {
+        const records = JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) || '{}');
+        records[moduleId] ??= { completedAt: new Date().toISOString(), title: mod.title, description: mod.description, difficulty: mod.difficulty, estimatedMinutes: mod.estimatedMinutes, rewardEarned: false };
+        localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(records));
+      }
+    } catch {}
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
     const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
     const timer = setTimeout(() => {
@@ -941,7 +978,7 @@ function ModuleLessonContent() {
 
   const handleBack = () => {
     if (cardIndex > 0) navigate('back');
-    else router.push('/learn');
+    else router.push(LEARNING_PATH_ROUTE);
   };
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -983,7 +1020,7 @@ function ModuleLessonContent() {
         <button onClick={retryLesson} disabled={!mod || loading} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
           Try again
         </button>
-        <button onClick={() => router.push('/learn')} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
+        <button onClick={() => router.push(LEARNING_PATH_ROUTE)} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
           ← Back to plan
         </button>
       </div>
@@ -1102,7 +1139,7 @@ function ModuleLessonContent() {
               {currentCard.type === 'intro' && <IntroCard content={currentCard.content} lesson={lessonContent} />}
               {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
               {currentCard.type === 'concept' && (
-                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} />
+                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} visual={currentCard.visual} />
               )}
               {currentCard.type === 'example' && <ExampleCard content={currentCard.content} />}
               {currentCard.type === 'actions' && <ActionsCard items={currentCard.items} />}
@@ -1125,7 +1162,7 @@ function ModuleLessonContent() {
                 <CompleteCard
                   mod={mod}
                   onShare={handleShare}
-                  onBack={() => router.push('/learn')}
+                  onBack={() => router.push(LEARNING_PATH_ROUTE)}
                   rewardEarned={rewardEarned}
                   rewardVerificationDone={rewardVerificationDone}
                   rewardError={rewardError}
