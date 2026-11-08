@@ -9,6 +9,12 @@ try {
 }
 
 const report = JSON.parse(output);
+const totals = report.metadata?.vulnerabilities;
+if (report.error || !report.vulnerabilities || !Number.isInteger(totals?.critical)) {
+  console.error('Production dependency audit did not return a valid advisory report.');
+  process.exit(1);
+}
+
 const acceptedCriticalAdvisories = new Set([
   // WalletConnect v1's elliptic chain has no upstream fix. Keep this explicit
   // until wallet.ts migrates to Reown WalletKit; fail CI for any new critical.
@@ -33,7 +39,6 @@ for (const [name, vulnerability] of Object.entries(report.vulnerabilities ?? {})
   if (ids.length === 0 || ids.some((id) => !acceptedCriticalAdvisories.has(id))) unexpected.push(name);
 }
 
-const totals = report.metadata?.vulnerabilities ?? {};
 console.log(`Production audit: ${totals.critical ?? 0} critical, ${totals.high ?? 0} high, ${totals.moderate ?? 0} moderate, ${totals.low ?? 0} low`);
 if (unexpected.length) {
   console.error(`New critical advisories affect: ${unexpected.join(', ')}`);

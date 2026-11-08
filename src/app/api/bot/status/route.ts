@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyCronSecret } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
 import { fetchNotifications, fetchCast, searchCasts, hypersnapFetch } from '@/lib/hypersnap';
 import { hasRepliedToAny } from '@/lib/bot-reply-storage';
 import { ed25519 } from '@noble/curves/ed25519';
@@ -9,7 +11,13 @@ const HOMIEHOUSELOL_FID = parseInt(
   10
 );
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
+  try {
+    verifyCronSecret(request, process.env.CRON_SECRET);
+  } catch (error) {
+    if (!(error instanceof AuthError)) throw error;
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
 
   const results: any = {
     botFid: BOT_FID,
@@ -130,5 +138,5 @@ export async function GET(_request: NextRequest) {
     results.signerRegistered = null;
   }
 
-  return NextResponse.json(results);
+  return NextResponse.json(results, { headers: { 'Cache-Control': 'no-store' } });
 }
