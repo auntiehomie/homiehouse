@@ -1,4 +1,6 @@
 "use client";
+
+import ReplyStickers from '@/components/ReplyStickers';
 import { castEmbedUrls } from '@/lib/cast-embed-urls';
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -62,6 +64,8 @@ export default function CastDetailClient() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [replyStickers, setReplyStickers] = useState<string[]>([]);
+  const [replySending, setReplySending] = useState(false);
   const [showQuoteModal, setShowQuoteModal] = useState<{ hash: string; authorFid: number; preview: string } | null>(null);
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -197,16 +201,17 @@ export default function CastDetailClient() {
   const handleReply = async (castHash: string, authorFid: number) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
     const text = replyText.trim();
-    if (!text) return;
-    setReplyText('');
-    setReplyingTo(null);
+    if (!text && !replyStickers.length) return;
+    if (replySending) return;
+    setReplySending(true);
     showToast('Sending reply…', true);
     try {
-      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid });
+      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid, embeds: replyStickers.map(url => ({url})) });
+      setReplyText(''); setReplyStickers([]); setReplyingTo(null);
       showToast('Reply posted!', true);
     } catch (err: any) {
       showToast(`Failed: ${err?.message ?? 'error'}`, false);
-    }
+    } finally { setReplySending(false); }
   };
 
   const handleQuoteCast = async () => {
@@ -280,7 +285,7 @@ export default function CastDetailClient() {
       {/* Reply */}
       <ActionBtn
         active={replyingTo === castHash}
-        onClick={() => setReplyingTo(replyingTo === castHash ? null : castHash)}
+        onClick={() => (setReplyStickers([]), setReplyingTo(replyingTo === castHash ? null : castHash))}
         icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
         label="Reply"
       />
@@ -445,9 +450,10 @@ export default function CastDetailClient() {
               autoFocus
               style={{ minHeight: 72, fontSize: 14, width: '100%' }}
             />
+            <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
             <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
-              <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); }}>Cancel</button>
-              <button className="btn primary" onClick={() => handleReply(reply.hash, rFid)} disabled={!replyText.trim()}>Post Reply</button>
+              <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); setReplyStickers([]); }}>Cancel</button>
+              <button className="btn primary" onClick={() => handleReply(reply.hash, rFid)} disabled={replySending || (!replyText.trim() && !replyStickers.length)}>Post Reply</button>
             </div>
           </div>
         )}
@@ -587,9 +593,10 @@ export default function CastDetailClient() {
                 autoFocus
                 style={{ minHeight: 80, fontSize: 14, width: '100%' }}
               />
-              <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
-                <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); }}>Cancel</button>
-                <button className="btn primary" onClick={() => handleReply(cast.hash, authorFid)} disabled={!replyText.trim()}>Post Reply</button>
+              <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); setReplyStickers([]); }}>Cancel</button>
+                <button className="btn primary" onClick={() => handleReply(cast.hash, authorFid)} disabled={replySending || (!replyText.trim() && !replyStickers.length)}>Post Reply</button>
               </div>
             </div>
           )}

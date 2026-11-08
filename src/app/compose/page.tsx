@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import StickerPicker from '@/components/StickerPicker';
 import CharacterMeter from '@/components/CharacterMeter';
 import ComposeInspiration from '@/components/ComposeInspiration';
 import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
@@ -43,6 +44,8 @@ function ComposePageInner() {
     return () => window.clearTimeout(timer);
   }, [successMessage, destination, router]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [stickerUrls, setStickerUrls] = useState<string[]>([]);
+  const hasStickers = uploadedImages.some(url => stickerUrls.includes(url));
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
@@ -387,12 +390,13 @@ function ComposePageInner() {
 
       // Scheduled casts cannot retry on an embed-limit response, so preserve
       // larger photo sets in a single Homiehouse gallery link.
-      const useGalleryForSchedule = isScheduled && uploadedImages.length > 2;
+      const useGalleryForSchedule = isScheduled && uploadedImages.length > 2 && !hasStickers;
       const embeds: any[] = useGalleryForSchedule
         ? [{ url: buildCastGalleryUrl(uploadedImages) }]
         : uploadedImages.slice(0, MAX_CAST_PHOTOS).map(url => ({ url }));
-      const maxEmbeds = uploadedImages.length > 2 ? MAX_CAST_EMBEDS : 2;
-      if (urlPreview && detectedUrl && embeds.length < maxEmbeds) {
+      const maxEmbeds = hasStickers || uploadedImages.length > 2 ? MAX_CAST_EMBEDS : 2;
+      if (hasStickers && new Set([...uploadedImages, ...(urlPreview && detectedUrl ? [detectedUrl] : [])]).size > MAX_CAST_EMBEDS) { setStatus("Too many attachments. Remove an image or link before posting."); return; }
+      if (urlPreview && detectedUrl && !uploadedImages.includes(detectedUrl) && embeds.length < maxEmbeds) {
         embeds.push({ url: detectedUrl });
       }
       if (embeds.length > 0) {
@@ -487,7 +491,7 @@ function ComposePageInner() {
           await publishCastParts(parts, progress, async (part, parentHash) => {
             const result = parentHash
               ? await reply({ text: part, parentCastHash: parentHash, parentCastFid: userFid })
-              : await submitCast({ text: part, embeds: body.embeds, galleryImages: uploadedImages, channelKey: body.channelKey });
+              : await submitCast({ text: part, embeds: body.embeds, galleryImages: hasStickers ? undefined : uploadedImages, channelKey: body.channelKey });
             usedGalleryFallback ||= !!result.galleryFallback;
             return result;
           });
@@ -698,7 +702,7 @@ function ComposePageInner() {
                   <div key={i} style={{ position: 'relative' }}>
                     <img
                       src={url} alt={`Image ${i + 1}`}
-                      style={{ width: '100%', height: uploadedImages.length === 1 ? 192 : 140, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }}
+                      style={{ width: '100%', height: uploadedImages.length === 1 ? 192 : 140, objectFit: stickerUrls.includes(url) ? 'contain' : 'cover', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }}
                       onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                     <button
@@ -831,6 +835,7 @@ function ComposePageInner() {
               <input id="image-upload-compose" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || uploadedImages.length >= maxImages} style={{ display: 'none' }} />
             </label>
 
+            <StickerPicker disabled={uploadedImages.length + (urlPreview && detectedUrl && !uploadedImages.includes(detectedUrl) ? 1 : 0) >= MAX_CAST_EMBEDS} onSelect={sticker => { if (!uploadedImages.includes(sticker.url)) { setUploadedImages(prev => [...prev, sticker.url]); setStickerUrls(prev => [...prev, sticker.url]); } }} />
             <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { if (!showChannelSuggestions) composeTextareaRef.current?.blur(); setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel"
               style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>

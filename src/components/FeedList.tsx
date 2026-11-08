@@ -1,5 +1,7 @@
 "use client";
 
+import ReplyStickers from '@/components/ReplyStickers';
+
 import { consumeFeedReturn, FEED_RETURN_TTL, feedSnapshotKey, readFeedReturn, readFeedSnapshot, saveFeedReturn as rememberFeedReturn, saveFeedSnapshot } from '@/lib/feed-session';
 import { feedScrollHost, restoreFeedScroll } from '@/lib/feed-scroll';
 
@@ -165,6 +167,7 @@ export default function FeedList({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [replyStickers, setReplyStickers] = useState<string[]>([]);
   const [replyLoading, setReplyLoading] = useState(false);
   const [showRecastModal, setShowRecastModal] = useState<string | null>(null);
   const [showRecastAuthorFid, setShowRecastAuthorFid] = useState<number>(0);
@@ -370,22 +373,22 @@ export default function FeedList({
   const handleReply = async (castHash: string, authorFid: number) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
     const text = replyText.trim();
-    if (!text) return;
+    if (!text && !replyStickers.length) return;
 
-    // Optimistic dismiss — close the form immediately so the user isn't waiting
-    setReplyText('');
-    setReplyingTo(null);
+    if (replyLoading) return;
+    setReplyLoading(true);
     showToast('Sending reply…', true);
 
     try {
-      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid });
+      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid, embeds: replyStickers.map(url => ({url})) });
+      setReplyText(''); setReplyStickers([]); setReplyingTo(null);
       showToast('Reply posted!', true);
     } catch (error: any) {
       console.error('Reply error:', error);
       showToast(error instanceof PostingAuthorizationError
         ? 'Reconnect your wallet in the prompt to renew posting access, then retry.'
         : `Failed: ${error?.message ?? 'unknown error'}`, false);
-    }
+    } finally { setReplyLoading(false); }
   };
 
   const handleCurateCast = async (castHash: string, castData: any) => {
@@ -1202,7 +1205,7 @@ export default function FeedList({
               {/* Reply */}
               <ActionBtn
                 active={replyingTo === key}
-                onClick={() => setReplyingTo(replyingTo === key ? null : key)}
+                onClick={() => (setReplyStickers([]), setReplyingTo(replyingTo === key ? null : key))}
                 icon={
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 }
@@ -1311,12 +1314,14 @@ export default function FeedList({
                   autoFocus
                   style={{ minHeight: '80px', fontSize: '14px' }}
                 />
+                <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
                   <button 
                     className="btn" 
                     onClick={() => {
                       setReplyingTo(null);
                       setReplyText("");
+                      setReplyStickers([]);
                     }}
                     disabled={replyLoading}
                   >
@@ -1325,7 +1330,7 @@ export default function FeedList({
                   <button
                     className="btn primary"
                     onClick={() => handleReply(key, authorObj?.fid ?? 0)}
-                    disabled={!replyText.trim()}
+                    disabled={replyLoading || (!replyText.trim() && !replyStickers.length)}
                   >
                     Post Reply
                   </button>
