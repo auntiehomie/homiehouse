@@ -5,6 +5,7 @@ for (const viewport of [{ width: 393, height: 851 }, { width: 851, height: 393 }
     const context = await browser.newContext({ viewport, serviceWorkers: 'block', hasTouch: viewport.width < 1024 });
     await context.addInitScript(() => {
       Reflect.deleteProperty(Navigator.prototype, 'serviceWorker');
+      localStorage.setItem('hh-onboarding-hint-eligible', '1');
       localStorage.setItem('hh_profile', JSON.stringify({ fid: 321, username: 'fixture' }));
       localStorage.setItem('signer_321', JSON.stringify({ status: 'approved', private_key: '01'.repeat(32) }));
     });
