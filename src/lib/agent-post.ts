@@ -42,7 +42,9 @@ export function containsInternalReasoning(text: string): boolean {
 /** Return only a final cast string, or an empty string when output is unsafe to publish. */
 export function finalCastOnly(text: string, maxLen = 280): string {
   if (!text.trim() || containsInternalReasoning(text)) return '';
-  const withoutLabel = text.trim().replace(/^(?:final\s+)?cast\s*:\s*/i, '');
+  const withoutLabel = text.trim()
+    .replace(/^(?:final\s+)?cast\s*:\s*/i, '')
+    .replace(/^[ \t]*(?:#+[ \t]*)?(?:standalone[ \t]+educational[ \t]+post|#standaloneeducationalpost)[ \t]*[:#]*[ \t]*\r?$/gim, '');
   return cleanPost(withoutLabel, maxLen);
 }
 

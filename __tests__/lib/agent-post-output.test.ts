@@ -7,6 +7,23 @@ describe('final cast output guard', () => {
     );
   });
 
+  it.each(['# Standalone Educational Post', '## standalone educational post ##', '#StandaloneEducationalPost'])(
+    'strips the draft label before applying the character limit: %s',
+    (label) => {
+      const body = 'Cryptographic keys can unlock a smart lock.';
+      expect(finalCastOnly(`${label}\r\n\r\n${body}`, body.length)).toBe(body);
+      expect(finalCastOnly(label)).toBe('');
+    },
+  );
+
+  it('strips the draft label from a thread without removing real hashtags', () => {
+    const first = 'Cryptographic keys can unlock a smart lock. #Cryptography';
+    const second = 'Keep a recovery method.';
+    expect(finalCastOnly(`${first}\n---\n# Standalone Educational Post\n${second}`, 640)).toBe(
+      `${first}\n---\n\n${second}`,
+    );
+  });
+
   it.each([
     'Reasoning: I should explain this simply.\n\nZK rollups bundle transactions.',
     'Let me think through this carefully. The user is asking for a cast.',
