@@ -11,6 +11,7 @@ import { ensureAuthHeaders, requirePostingAuthHeaders } from '@/lib/client-auth'
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 import { resolveComposeReturnDestination } from '@/lib/learning-navigation';
+import { channelDisplayName } from '@/lib/channel-display';
 
 function ComposePageInner() {
   const router = useRouter();
@@ -46,6 +47,7 @@ function ComposePageInner() {
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
+  const [selectedChannelName, setSelectedChannelName] = useState<string>('');
   const [channels, setChannels] = useState<any[]>([]);
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
   const [channelSearch, setChannelSearch] = useState<string>('');
@@ -213,8 +215,8 @@ function ComposePageInner() {
           setTriggerResults(d.users?.slice(0, 6) || []);
         } else if (type === '/') {
           const filtered = channels.filter(ch =>
-            ch.id?.toLowerCase().includes(query.toLowerCase()) ||
-            ch.name?.toLowerCase().includes(query.toLowerCase())
+            channelDisplayName(ch) && (ch.id?.toLowerCase().includes(query.toLowerCase()) ||
+            ch.name?.toLowerCase().includes(query.toLowerCase()))
           );
           setTriggerResults(filtered.slice(0, 8));
         } else if (type === '$') {
@@ -262,6 +264,7 @@ function ComposePageInner() {
       // Strip the /query from text; channel is tracked separately
       setText((before + after).replace(/^\s+/, ''));
       setSelectedChannel(result.id);
+      setSelectedChannelName(channelDisplayName(result) || result.id);
     } else if (type === '$') {
       setText(`${before}$${result.symbol} ${after}`);
     }
@@ -649,7 +652,7 @@ function ComposePageInner() {
                             : <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, ...muted }}>#</div>
                           }
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: 14 }}>/{result.id}</div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>/{channelDisplayName(result)}</div>
                             {result.name && <div style={{ fontSize: 12, ...muted }}>{result.name}</div>}
                           </div>
                         </>
@@ -790,19 +793,18 @@ function ComposePageInner() {
               const source = channelSearch.trim() ? channelSearchResults ?? [] : channels;
               const query = channelSearch.trim().toLowerCase();
               const matches = source.filter(ch =>
-                !query || ch.id.toLowerCase().includes(query) || ch.name?.toLowerCase?.().includes(query)
+                channelDisplayName(ch) && (!query || ch.id.toLowerCase().includes(query) || ch.name?.toLowerCase?.().includes(query))
               ).slice(0, 8);
               if (!matches.length) {
-                return <div style={{ padding: '12px 16px', fontSize: 13, ...muted }}>{query ? 'No matching channels.' : channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}</div>;
+                return <div style={{ padding: '12px 16px', fontSize: 13, ...muted }}>{query ? 'No matching named channels.' : 'No named channels in this list. Try searching for a channel.'}</div>;
               }
               return matches.map(ch => (
-                <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setChannelSearchResults(null); setShowChannelSuggestions(false); }}
+                <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setSelectedChannelName(channelDisplayName(ch) || ch.id); setChannelSearch(''); setChannelSearchResults(null); setShowChannelSuggestions(false); }}
                   style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                 >
-                  <span style={muted}>/</span>{ch.id}
-                  {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
+                  <span style={muted}>/</span>{channelDisplayName(ch)}
                 </button>
               ));
             })()}
@@ -832,9 +834,9 @@ function ComposePageInner() {
             <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { if (!showChannelSuggestions) composeTextareaRef.current?.blur(); setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel"
               style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
-              <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
+              <span style={{ fontSize: 13 }}>{selectedChannelName || selectedChannel || 'Channel'}</span>
               {selectedChannel && (
-                <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
+                <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setSelectedChannelName(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
               )}
             </button>
 
