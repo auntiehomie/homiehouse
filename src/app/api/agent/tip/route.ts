@@ -7,7 +7,8 @@ import { verifyCronSecret } from '@/lib/auth';
 import { handleApiError } from '@/lib/errors';
 import { buildFullMemoryContext, savePost, getRecentPostsStrict } from '@/lib/agent-memory';
 import { llmChat } from '@/lib/llm';
-import { splitThreadCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
+import { splitAgentCasts, tooSimilar, writeAgentPost } from '@/lib/agent-post';
+import { publishCastParts } from '@/lib/cast-text';
 import { fetchCryptoNews } from '@/lib/ai/news';
 import {
   buildPostSystem,
@@ -189,17 +190,11 @@ export async function GET(request: NextRequest) {
     }
 
     let topic = kbArticle.title;
-    const maxPostLength = chosen.mode === 'deep-dive'
-      ? 640
-      : chosen.mode === 'culture' || chosen.mode === 'trend-take' || chosen.mode === 'news-take'
-        ? 320
-        : 280;
     // At most one Learning Hub invitation among four recent posts.
     const promoteLearning = !recentTexts.slice(0, 3).some((text) => /homiehouse\.app\/learn|learning hub/i.test(text));
     let content = await writeAgentPost(
       system,
       postInstruction(chosen.mode, { topic, trend, news, kbArticle, promoteLearning }),
-      { maxLen: maxPostLength },
     );
 
     // Retry near-duplicates with a fresh article and an explicit variation nudge.
@@ -221,7 +216,7 @@ export async function GET(request: NextRequest) {
       }
       const retryInstruction = postInstruction(chosen.mode, { topic, trend, news, kbArticle, promoteLearning }) +
         '\n\nIMPORTANT: you very recently posted something almost identical. Say something clearly DIFFERENT — different angle, different wording, different point.';
-      const retry = await writeAgentPost(system, retryInstruction, { maxLen: maxPostLength });
+      const retry = await writeAgentPost(system, retryInstruction);
       if (retry) content = retry;
     }
 
@@ -233,94 +228,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, skipped: 'duplicate', mode: chosen.mode, content });
     }
 
-    // Dry-run: generate and return the post WITHOUT publishing. Lets you preview
-    // the voice safely (e.g. ?dry=1) before trusting the cron to post for real.
+    const casts = splitAgentCasts(content);
+    if (!casts.length) throw new Error('LLM returned no publishable casts');
     if (dryRun) {
-      return NextResponse.json({ ok: true, dryRun: true, mode: chosen.mode, content });
+      return NextResponse.json({ ok: true, dryRun: true, mode: chosen.mode, content, casts });
     }
 
     const signerKey = process.env.HOMIEHOUSELOL_SIGNER_KEY;
-
-    // Deep-dive mode: if the LLM used "---" to separate multiple casts,
-    // publish them as a threaded reply chain. Falls back to single cast if
-    // anything goes wrong or there's no separator.
-    if (chosen.mode === 'deep-dive') {
-      const casts = splitThreadCasts(content);
-      if (casts.length > 1) {
-        try {
-          const firstText = casts[0].slice(0, 640);
-          const { castHash: firstHash } = await publishCast({
-            text: firstText,
-            fid: HOMIEHOUSELOL_FID,
-            ...(signerKey ? { signerPrivateKey: signerKey } : {}),
-          });
-
-          await savePost({
-            fid: HOMIEHOUSELOL_FID,
-            castHash: firstHash,
-            text: firstText,
-            source: chosen.mode,
-            topic: kbArticle?.title?.slice(0, 80) || topic || undefined,
-          });
-
-          let parentHash = firstHash;
-          for (let i = 1; i < casts.length && i < 3; i++) {
-            const replyText = casts[i].slice(0, 640);
-            const { castHash: replyHash } = await publishCast({
-              text: replyText,
-              fid: HOMIEHOUSELOL_FID,
-              parentCastHash: parentHash,
-              parentCastFid: HOMIEHOUSELOL_FID,
-              ...(signerKey ? { signerPrivateKey: signerKey } : {}),
-            });
-            await savePost({
-              fid: HOMIEHOUSELOL_FID,
-              castHash: replyHash,
-              text: replyText,
-              source: chosen.mode,
-              topic: kbArticle?.title?.slice(0, 80) || topic || undefined,
-            });
-            parentHash = replyHash;
-          }
-
-          logger.success(`Posted thread (${chosen.mode}): ${casts.length} casts → ${firstHash}`);
-          return NextResponse.json({
-            ok: true,
-            mode: chosen.mode,
-            threaded: true,
-            casts: casts.length,
-            content: firstText,
-            castHash: firstHash,
-            timestamp: new Date().toISOString(),
-          });
-        } catch (threadErr: any) {
-          logger.warn('Thread publish failed, falling back to single cast', threadErr);
-          content = content.slice(0, 640);
-        }
-      }
+    const progress = { hashes: [] as string[] };
+    try {
+      await publishCastParts(casts, progress, async (text, parentHash) => {
+        const result = await publishCast({
+          text,
+          fid: HOMIEHOUSELOL_FID,
+          ...(parentHash ? { parentCastHash: parentHash, parentCastFid: HOMIEHOUSELOL_FID } : {}),
+          ...(signerKey ? { signerPrivateKey: signerKey } : {}),
+        });
+        await savePost({ fid: HOMIEHOUSELOL_FID, castHash: result.castHash, text, source: chosen.mode, topic });
+        return result;
+      });
+    } catch (error) {
+      if (!progress.hashes.length) throw error;
+      logger.error('Cast thread stopped after partial publication', error);
+      return NextResponse.json({
+        ok: false,
+        error: 'partial-cast-thread',
+        castHash: progress.hashes[0],
+        published: progress.hashes.length,
+        total: casts.length,
+      }, { status: 502 });
     }
-
-    const { castHash } = await publishCast({
-      text: content,
-      fid: HOMIEHOUSELOL_FID,
-      ...(signerKey ? { signerPrivateKey: signerKey } : {}),
-    });
-
-    await savePost({
-      fid: HOMIEHOUSELOL_FID,
-      castHash,
-      text: content,
-      source: chosen.mode,
-      topic: topic || trend?.text?.slice(0, 80) || news?.headline?.slice(0, 80) || kbArticle?.title?.slice(0, 80) || undefined,
-    });
-
-    logger.success(`Posted (${chosen.mode}): "${content}" → ${castHash}`);
 
     return NextResponse.json({
       ok: true,
       mode: chosen.mode,
-      content,
-      castHash,
+      ...(casts.length > 1 ? { threaded: true, casts: casts.length } : {}),
+      content: casts[0],
+      castHash: progress.hashes[0],
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
