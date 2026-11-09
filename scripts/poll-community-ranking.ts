@@ -28,6 +28,81 @@ const base = (
 ).replace(/\/$/u, "");
 const viewerFid = Number(process.env.COMMUNITY_EXPERIMENT_FID);
 const FEED_LIMIT = 50;
+const SPAM_AUDIT_PAGES = 2;
+const SPAM_THRESHOLD = 0.95;
+const SPAM_RANK_PENALTY = 10;
+const spamAuditEnabled = process.env.COMMUNITY_EXPERIMENT_SPAM_AUDIT === "1";
+const reviewPath = process.env.COMMUNITY_EXPERIMENT_SPAM_REVIEW_OUTPUT;
+const outputPath = process.env.COMMUNITY_EXPERIMENT_OUTPUT;
+
+function castHash(hash?: string): string | null {
+  return hash && /^0x[0-9a-f]{40}$/iu.test(hash) ? hash.toLowerCase() : null;
+}
+
+async function fetchSpamScores(
+  hashes: string[],
+): Promise<Record<string, unknown>> {
+  if (!hashes.length) return {};
+  const url = new URL("https://spam.quilcast.com/scores");
+  url.searchParams.set("h", hashes.join(","));
+  const response = await fetch(url, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(5_000),
+    redirect: "error",
+  });
+  if (!response.ok) throw new Error(`Quilcast returned HTTP ${response.status}`);
+  const scores: unknown = await response.json();
+  if (!scores || typeof scores !== "object" || Array.isArray(scores))
+    throw new Error("Quilcast returned an invalid score map");
+  return scores as Record<string, unknown>;
+}
+
+async function auditSpam(rows: { hash: string | null; nodeOrder: number }[]) {
+  const hashes = [...new Set(rows.flatMap(({ hash }) => (hash ? [hash] : [])))];
+  let scores: Record<string, unknown> = {};
+  let lookupError: string | null = null;
+  try {
+    scores = await fetchSpamScores(hashes);
+  } catch (error) {
+    lookupError = error instanceof Error ? error.message : "Quilcast lookup failed";
+  }
+
+  const coverage = { scored: 0, unscored: 0, lookupFailed: 0, invalidHash: 0 };
+  const casts = rows.map(({ hash, nodeOrder }) => {
+    const value = hash ? scores[hash] : undefined;
+    const spamScore =
+      typeof value === "number" && value >= 0 && value <= 1 ? value : null;
+    const status = !hash
+      ? "invalidHash"
+      : value === null
+        ? "unscored"
+        : spamScore === null
+          ? "lookupFailed"
+          : "scored";
+    coverage[status]++;
+    const penalty =
+      spamScore !== null && spamScore >= SPAM_THRESHOLD ? SPAM_RANK_PENALTY : 0;
+    return { hash, nodeOrder, spamScore, status, penalty };
+  });
+  const simulatedOrder = casts.slice().sort(
+    (a, b) =>
+      a.nodeOrder + a.penalty - (b.nodeOrder + b.penalty) ||
+      a.penalty - b.penalty ||
+      a.nodeOrder - b.nodeOrder,
+  );
+  return {
+    coverage,
+    lookupError,
+    threshold: SPAM_THRESHOLD,
+    rankPenalty: SPAM_RANK_PENALTY,
+    casts: simulatedOrder.map((cast, index) => ({
+      ...cast,
+      simulatedRank: index + 1,
+      rankChange: index + 1 - cast.nodeOrder,
+    })),
+  };
+}
+
 const FOLLOW_LIMIT = 100;
 const ACTOR_SAMPLE = 20;
 const REACTION_LIMIT = 25;
@@ -64,11 +139,11 @@ async function pages<T>(
       `${url.pathname.replace("/v2/farcaster/", "")}${url.search}`,
     );
     const batch = Array.isArray(result[key]) ? (result[key] as T[]) : [];
-    items.push(...batch);
+    items.push(...batch.slice(0, limit));
     const next = result.next as { cursor?: unknown } | undefined;
     cursor =
       typeof next?.cursor === "string" && next.cursor ? next.cursor : undefined;
-    if (!cursor || batch.length < limit) break;
+    if (!cursor || !batch.length) break;
   }
   return items;
 }
@@ -169,8 +244,11 @@ function propagateTrust(
 
 async function main() {
   assertFid(viewerFid, "COMMUNITY_EXPERIMENT_FID");
+  if (reviewPath && (!spamAuditEnabled || !outputPath || reviewPath === outputPath))
+    throw new Error("Blind review requires the spam audit and distinct review and report output paths");
+  const feedPages = spamAuditEnabled ? SPAM_AUDIT_PAGES : 1;
   const [feed, follows] = await Promise.all([
-    pages<Cast>("feed/trending", "casts", FEED_LIMIT, 1),
+    pages<Cast>("feed/trending", "casts", FEED_LIMIT, feedPages),
     pages<User>(
       `user/following?fid=${viewerFid}`,
       "users",
@@ -178,10 +256,20 @@ async function main() {
       Math.ceil(FOLLOW_LIMIT / 50),
     ),
   ]);
-  const candidates = feed.filter(
+  const eligible = feed.filter(
     (cast) =>
       Number.isSafeInteger(cast.author?.fid) && (cast.author?.fid || 0) > 0,
   );
+  const seenHashes = new Set<string>();
+  const candidates = spamAuditEnabled
+    ? eligible.filter((cast) => {
+        const hash = castHash(cast.hash);
+        if (!hash) return true;
+        if (seenHashes.has(hash)) return false;
+        seenHashes.add(hash);
+        return true;
+      })
+    : eligible;
   const followed = follows
     .map((user) => user.fid)
     .filter(
@@ -263,7 +351,7 @@ async function main() {
       2 * Math.max(0, cast.replies?.count || 0);
     return {
       nodeOrder: index + 1,
-      hash: cast.hash || null,
+      hash: spamAuditEnabled ? castHash(cast.hash) : cast.hash || null,
       authorFid: fid,
       author: cast.author?.username || null,
       authorTrust:
@@ -295,7 +383,7 @@ async function main() {
     source: base,
     viewerFid,
     limits: {
-      feedCandidates: FEED_LIMIT,
+      feedCandidates: FEED_LIMIT * feedPages,
       followsFetched: follows.length,
       followedActorsSampled: actors.length,
       reactionsPerActorAndType: REACTION_LIMIT,
@@ -310,12 +398,28 @@ async function main() {
     nodeOrder: rows,
     authorTrustOrder: trustOrder,
     castEngagementOrder: engagementOrder,
+    ...(spamAuditEnabled ? { spamAudit: await auditSpam(rows) } : {}),
   };
   const json = `${JSON.stringify(result, null, 2)}\n`;
-  const outputPath = process.env.COMMUNITY_EXPERIMENT_OUTPUT;
   if (outputPath) {
     const { writeFile } = await import("node:fs/promises");
     await writeFile(outputPath, json, { encoding: "utf8", flag: "wx" });
+    if (reviewPath) {
+      const review = {
+        capturedAt: result.capturedAt,
+        casts: rows.map(({ hash, authorFid, authorTrust }) => ({
+          hash,
+          authorFid,
+          authorTrust,
+          spamLabel: null,
+        })),
+      };
+      await writeFile(reviewPath, `${JSON.stringify(review, null, 2)}\n`, {
+        encoding: "utf8",
+        flag: "wx",
+      });
+      console.log(`Wrote blind review to ${reviewPath}`);
+    }
     console.log(`Wrote snapshot to ${outputPath}`);
   } else {
     console.log(json);
