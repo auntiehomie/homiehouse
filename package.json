@@ -90,7 +90,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
@@ -98,7 +98,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^10",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.5",
     "husky": "^9.1.7",
     "ignore-loader": "^0.1.2",
     "jest": "^30.5.2",
