@@ -1,4 +1,5 @@
-import { containsInternalReasoning, finalCastOnly } from '@/lib/agent-post';
+import { containsInternalReasoning, finalCastOnly, splitAgentCasts } from '@/lib/agent-post';
+import { castTextBytes } from '@/lib/cast-text';
 
 describe('final cast output guard', () => {
   it('returns only the finished cast text', () => {
@@ -28,6 +29,23 @@ describe('final cast output guard', () => {
     const body = 'Read https://example.org/docs#recovery for details.';
     expect(finalCastOnly(`#Crypto Read https://example.org/docs#recovery #安全 for details. ＃Web3`, body.length)).toBe(body);
     expect(finalCastOnly('#Crypto #Web3')).toBe('');
+  });
+
+  it('keeps the full reply and splits it into standard casts at word boundaries', () => {
+    const answer = 'A secure key can unlock a smart lock 🔑. '.repeat(35) + 'Keep a backup.';
+    const cleaned = finalCastOnly(answer);
+    const parts = splitAgentCasts(cleaned);
+    expect(cleaned).toBe(answer);
+    expect(parts.length).toBeGreaterThan(3);
+    expect(parts.join(' ')).toBe(answer);
+    expect(parts.every((part) => castTextBytes(part) <= 320)).toBe(true);
+  });
+
+  it('honors explicit thread breaks without treating inline dashes as separators', () => {
+    expect(splitAgentCasts('A key---or another credential.\n---\nKeep a backup.')).toEqual([
+      'A key---or another credential.',
+      'Keep a backup.',
+    ]);
   });
 
   it.each([
