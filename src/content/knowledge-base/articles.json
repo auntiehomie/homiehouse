@@ -1366,6 +1366,148 @@
       ],
       "addedAt": "2026-11-08",
       "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "attention-is-all-you-need",
+      "title": "Attention Is All You Need",
+      "url": "https://arxiv.org/abs/1706.03762",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "transformers"
+      ],
+      "summary": "The 2017 preprint introduces the Transformer, using attention in place of recurrence and convolutions in its sequence architecture. The authors evaluate machine translation. Abstract reviewed.",
+      "learningPoints": [
+        "Explain how tokens can draw on information from other positions and why positional information matters.",
+        "Change one word in a sentence and identify which surrounding words help resolve a reference."
+      ],
+      "publishedAt": "2017-06-12",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "retrieval-augmented-generation",
+      "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "url": "https://arxiv.org/abs/2005.11401",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "rag",
+        "retrieval"
+      ],
+      "summary": "The 2020 preprint combines a pretrained text generator with a retriever over an external document index and evaluates it on knowledge-intensive language tasks. Abstract reviewed.",
+      "learningPoints": [
+        "Distinguish information stored in weights from documents retrieved at answer time.",
+        "Compare answers with and without a retrieved source and highlight which claims it supports."
+      ],
+      "publishedAt": "2020-05-22",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "react-language-model-agents",
+      "title": "ReAct: Synergizing Reasoning and Acting in Language Models",
+      "url": "https://arxiv.org/abs/2210.03629",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "agents",
+        "tool-use"
+      ],
+      "summary": "The 2022 preprint interleaves model reasoning with actions and uses tool observations to inform what happens next. It evaluates the approach on tasks including question answering and interactive environments. Abstract reviewed.",
+      "learningPoints": [
+        "Identify an action and an observation in a search-tool example.",
+        "Use the search result to choose a next action, then explain the final answer using the source."
+      ],
+      "publishedAt": "2022-10-06",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "agentdojo",
+      "title": "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents",
+      "url": "https://arxiv.org/abs/2406.13352",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "agents",
+        "prompt-injection",
+        "security"
+      ],
+      "summary": "The 2024 preprint introduces a benchmark for tool-using agents exposed to untrusted content. The tested agents struggled with some ordinary tasks and adversarial cases. Abstract reviewed.",
+      "learningPoints": [
+        "Spot an injected instruction in a simulated email and identify which action the user authorized.",
+        "Score task completion and resistance to unauthorized actions separately."
+      ],
+      "publishedAt": "2024-06-19",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "federated-learning-decentralized-data",
+      "title": "Communication-Efficient Learning of Deep Networks from Decentralized Data",
+      "url": "https://arxiv.org/abs/1602.05629",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "machine-learning",
+        "federated-learning",
+        "decentralization",
+        "privacy"
+      ],
+      "summary": "The 2016 preprint studies federated learning by aggregating locally computed model updates while the training examples stay on devices. Its experiments compare communication efficiency across several models and datasets. Abstract reviewed.",
+      "learningPoints": [
+        "Simulate three devices sharing updates while keeping examples local and identify who coordinates the aggregation.",
+        "Distinguish keeping raw data local from providing privacy guarantees or distributing control."
+      ],
+      "publishedAt": "2016-02-17",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "unfaithful-chain-of-thought",
+      "title": "Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting",
+      "url": "https://arxiv.org/abs/2305.04388",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "model-evaluation",
+        "explainability"
+      ],
+      "summary": "The 2023 preprint finds that written model explanations can omit experimental cues that influenced answers, including answer ordering in few-shot prompts. Abstract reviewed.",
+      "learningPoints": [
+        "Compare answers and explanations after changing answer order in a few-shot prompt.",
+        "Check an explanation against external evidence and flag influences it may have omitted."
+      ],
+      "publishedAt": "2023-05-07",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "agentdyn",
+      "title": "AgentDyn: A Dynamic Open-Ended Benchmark for Evaluating Prompt Injection Attacks of Real-World Agent Security System",
+      "url": "https://arxiv.org/abs/2602.03117",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "agents",
+        "prompt-injection",
+        "security"
+      ],
+      "summary": "The 2026 preprint introduces a benchmark with open-ended agent tasks and both helpful and malicious third-party instructions. Its results describe the defenses and scenarios tested in that benchmark. Abstract reviewed.",
+      "learningPoints": [
+        "Identify third-party instructions that exceed the user's authorization in an open-ended task.",
+        "Evaluate whether a defense blocks unauthorized actions while still allowing legitimate work."
+      ],
+      "publishedAt": "2026-02-03",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
     }
   ]
 }
