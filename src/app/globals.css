@@ -959,15 +959,18 @@ nav a:not(.no-underline):hover { color: var(--accent); }
 /* App Router page changes use a brief native view-transition crossfade. */
 @keyframes hhRouteFadeOut { to { opacity: 0; } }
 @keyframes hhRouteFadeIn { from { opacity: 0; } to { opacity: 1; } }
-::view-transition-old(.hh-route-exit) {
-  animation: 110ms ease-out both hhRouteFadeOut;
+::view-transition-group(hh-route) {
+  animation-name: none;
 }
-::view-transition-new(.hh-route-enter) {
-  animation: 140ms ease-out both hhRouteFadeIn;
+::view-transition-old(hh-route),
+::view-transition-new(hh-route) {
+  animation-duration: 160ms;
+  animation-timing-function: ease-in-out;
 }
-.hh-route-content {
-  /* Keep route changes animated when native View Transitions are unavailable. */
-  animation: 160ms ease-out both hhRouteFadeIn;
+@supports not selector(::view-transition-group(*)) {
+  .hh-route-content {
+    animation: 160ms ease-out hhRouteFadeIn;
+  }
 }
 ::view-transition-old(.hh-feed-exit) {
   animation: 110ms ease-out both hhRouteFadeOut;

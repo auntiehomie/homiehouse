@@ -9,8 +9,10 @@ export default function PageTransition({ children }: { children: React.ReactNode
   return (
     <ViewTransition
       key={pathname}
-      enter="hh-route-enter"
-      exit="hh-route-exit"
+      name="hh-route"
+      share="auto"
+      enter="auto"
+      exit="auto"
       default="none"
     >
       <div className="hh-route-content">
