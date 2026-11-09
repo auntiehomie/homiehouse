@@ -78,4 +78,75 @@ export const AGENTIC_ECONOMY_CURRICULUM: CuratedLesson[] = [
     ],
     sources: [nistGenAiProfile, owaspAgentSecurity],
   },
+
+  {
+    module: {
+      id: 'agent-payments-with-x402',
+      title: 'How AI Agents Pay for Digital Services',
+      description: 'Learn how the x402 standard lets software pay for an API request, what happens in the payment flow, and what spending limits an agent still needs.',
+      whyItMatters: 'Agents can only complete some jobs if they can buy information or computing when needed. Per-request payments can make that possible, but automated spending still needs clear limits and review.',
+      objectives: [
+        'Explain what an HTTP 402 payment response tells a client',
+        'Describe the basic x402 request, payment, verification, and delivery flow',
+        'Distinguish a payment protocol from permission to spend',
+        'Design simple limits for a hypothetical agent purchase',
+      ],
+      estimatedMinutes: 14,
+      difficulty: 'beginner',
+      tags: ['ai', 'agents', 'agentic-economy', 'x402', 'payments', 'web3'],
+    },
+    relatedLessons: ['agent-permissions-and-oversight', 'transaction-safety'],
+    intro: 'An AI agent may need a paid data service to finish a task. The x402 standard uses the web’s HTTP request-and-response system to let a service ask for payment and let a software client respond programmatically. It can reduce checkout friction, but it does not decide whether the purchase is wise or authorized.',
+    concepts: [
+      {
+        title: 'A service can ask for payment in its response',
+        explanation: 'A client requests a resource, such as one data lookup. If payment is required, the service responds with HTTP 402 Payment Required and provides payment requirements. The client can then decide whether it is able and allowed to pay. The 402 response is an offer and instruction, not an instruction that the agent must accept.',
+        analogy: 'A parking meter can show the price before you park. Seeing the price does not mean your card should automatically be charged.',
+      },
+      {
+        title: 'Payment and delivery have several steps',
+        explanation: 'In the common x402 flow, the client requests a resource; the server returns payment requirements; the client prepares a payment payload; and the server or a facilitator verifies it and settles the payment. After successful verification, the server delivers the resource. A facilitator can help with verification and settlement, but it does not choose whether the agent should buy the resource.',
+      },
+      {
+        title: 'The protocol does not set your budget',
+        explanation: 'The x402 standard describes how payment information moves between a client and a service. The app or its operator still needs to decide which services an agent may use, which networks and assets are acceptable, how much a single request can cost, and when a person must approve. A low price per request can still add up when repeated many times.',
+      },
+      {
+        title: 'Connect payment to a useful result',
+        explanation: 'A paid request should have a clear purpose and a measurable result. Before an agent pays, it can check that the service matches the task, the requested price is within policy, and the response is useful enough to continue. Keep a record of the request, amount, service, and result so someone can review the spending.',
+      },
+    ],
+    practicalExample: 'Fictional example: a research agent needs one weather-data lookup for a travel answer. The API replies with a 402 and payment details. The app checks that the service is approved, the quoted cost is below its per-request limit, and the total daily budget is not used up. If those checks pass, it can pay and retry the request; otherwise it asks its owner or uses a free source. The data is delivered only after the service verifies payment.',
+    quickActions: [
+      'Exercise: For the fictional weather lookup, write a purchase rule with an approved service, a per-request cap, a daily cap, an allowed network, and one reason to ask a person before paying.',
+      'Name one thing the protocol handles (payment instructions or payment verification) and one thing your policy must handle (whether this agent is allowed to spend).',
+      'Next step: Before connecting any agent to a paid service, simulate five sample requests on paper and total the possible cost. Set limits before trying a live integration.',
+    ],
+    summary: 'x402 can make online services payable through a software-friendly HTTP flow. It does not provide a spending policy: the agent still needs an approved purpose, price limits, service checks, and a record of what it bought.',
+    quiz: [
+      {
+        question: 'What does HTTP 402 mean in the basic x402 flow?',
+        options: ['The client is automatically approved to spend any amount', 'The service is asking for payment and providing payment requirements', 'The requested resource has been delivered', 'The agent has signed a permanent subscription'],
+        correctIndex: 1,
+        explanation: 'The 402 response communicates that payment is required and gives the client details for a possible payment.',
+      },
+      {
+        question: 'Who decides whether an agent is allowed to spend up to a set amount?',
+        options: ['The 402 status code by itself', 'The service’s payment response', 'The application or operator policy', 'The HTTP protocol generally'],
+        correctIndex: 2,
+        explanation: 'The payment flow carries requirements, while the app or its operator must define authorization and spending limits.',
+      },
+      {
+        question: 'When does the service normally deliver the paid resource?',
+        options: ['After it verifies the payment', 'Before the client makes any request', 'As soon as the agent sees the price', 'Only after a human creates an account'],
+        correctIndex: 0,
+        explanation: 'The server delivers the resource after successful payment verification in the common flow.',
+      },
+    ],
+    sources: [
+      { label: 'x402 documentation: Welcome to x402', url: 'https://docs.x402.org/introduction' },
+      { label: 'x402 Foundation protocol repository and flow', url: 'https://github.com/x402-foundation/x402' },
+      { label: 'OWASP AI Agent Security Cheat Sheet', url: 'https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html' },
+    ],
+  },
 ];
