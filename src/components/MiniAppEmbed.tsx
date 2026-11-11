@@ -4,6 +4,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   createMiniAppHost,
   type MiniAppHostHandle,
+  type MiniAppHostConfig,
 } from '@/lib/miniapp';
 
 // ---------------------------------------------------------------------------
@@ -21,7 +22,7 @@ export interface MiniAppEmbedProps {
   title?: string;
 
   /** Optional host config overrides. */
-  hostConfig?: Parameters<typeof createMiniAppHost>[0];
+  hostConfig?: MiniAppHostConfig;
 
   /** Callback when the iframe loads successfully. */
   onLoad?: () => void;
