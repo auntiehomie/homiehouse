@@ -9,7 +9,7 @@ import { useAccount, useSignMessage } from 'wagmi';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
-import { getMiniAppIdentity } from '@/lib/miniapp-auth';
+import { getMiniAppIdentity, getMiniAppAuthMethod } from '@/lib/miniapp-auth';
 import { signInToMiniApp } from '@/lib/miniapp-auth';
 import { profileHref } from '@/lib/profile-links';
 import { requestMiniAppComposeCast } from '@/lib/compose-modal-events';
@@ -143,19 +143,13 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       error?: string;
       accounts?: Array<{
         fid: number;
-        link?: { linked: boolean; method: string };
+        link?: { linked?: boolean; method: string };
       }>;
     };
     if (!response.ok) {
       throw new Error(data.error || 'Hypersnap could not verify the connected wallet');
     }
-    const linkedAccount = data.accounts?.find(
-      account => account.fid === expectedFid && account.link?.linked,
-    );
-    const linkedMethod = linkedAccount?.link?.method;
-    const authMethod = linkedMethod === 'custody' || linkedMethod === 'authAddress'
-      ? linkedMethod
-      : undefined;
+    const authMethod = getMiniAppAuthMethod(data.accounts, expectedFid);
     if (authMethod !== 'custody' && authMethod !== 'authAddress') {
       throw new Error('The connected wallet must be the FID custody wallet or an approved Auth Address');
     }
