@@ -5,7 +5,9 @@ it('turns repository AI sources into beginner modules with source links and take
   const modules = await getKBModulesForTrack('ai', 'beginner', 6);
   expect(modules.length).toBeGreaterThan(0);
   expect(modules.length).toBeLessThanOrEqual(6);
-  const agents = modules.find((module) => module.title === 'Building effective agents');
+  // The article may fall outside the top six as the corpus grows.
+  const allAiModules = await getKBModulesForTrack('ai', 'beginner', knowledgeBase.articles.length);
+  const agents = allAiModules.find((module) => module.title === 'Building effective agents');
   expect(agents).toMatchObject({
     sourceUrl: 'https://www.anthropic.com/research/building-effective-agents',
     difficulty: 'beginner',
