@@ -31,7 +31,7 @@ Do not assume a ZeroDev passkey is automatically linked to a HomieHouse account.
 4. Copy the ZeroDev **project ID**. It is a client configuration value; do not send or commit secret API keys.
 5. Send the project ID through the authorized project configuration channel. If only chat is available, use a dedicated public/test project ID with preview origins restricted; never paste a secret.
 
-HomieHouse can then put the project ID in a client-safe environment variable and add the wallet behind a test-only route/feature flag. Keep all production origins and credentials out of the spike.
+Set `NEXT_PUBLIC_ZERODEV_PROJECT_ID=<project-id>` in local `.env.local` and in Vercel Project Settings → Environment Variables for **Preview only**. The `NEXT_PUBLIC_` prefix is required because the browser-side Wagmi configuration reads this value. The project ID is client-visible configuration, not a secret. Do not add it to Production for this spike.\n\nDo not set a ZeroDev AA host variable initially; the Wallet SDK defaults to `https://rpc.zerodev.app`. A separate Base Sepolia chain RPC variable is only needed if the Wagmi transport is configured to read one from the environment. Keep all production origins and credentials out of the spike.
 
 ## Implementation sequence
 
