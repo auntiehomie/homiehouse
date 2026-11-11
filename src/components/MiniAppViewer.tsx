@@ -363,7 +363,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
         <div className="flex items-center justify-center gap-2 border-b border-amber-800 bg-amber-950 px-3 py-2 text-sm text-amber-100">
           <span>Connect your linked wallet to sign in to Mini Apps.</span>
           {openConnectModal && (
-            <button type="button" className="shrink-0 rounded-md border border-amber-500 px-2 py-1 font-semibold" onClick={openConnectModal}>
+            <button type="button" className="shrink-0 rounded-md border border-amber-500 px-2 py-1 font-semibold" onClick={() => openConnectModal()}>
               Connect wallet
             </button>
           )}
