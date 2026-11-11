@@ -874,6 +874,21 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   color: var(--text-on-dark);
 }
 
+/* iOS can keep its focus zoom after navigating away from a small text field. */
+@media (hover: none) and (pointer: coarse) {
+  :is(
+    input:not([type]),
+    input:is([type="text"], [type="search"], [type="email"], [type="url"], [type="tel"], [type="password"], [type="number"], [type="datetime-local"]),
+    textarea,
+    select,
+    [contenteditable="true"],
+    [contenteditable="plaintext-only"]
+  ) {
+    /* Also cover components that set their font size inline. */
+    font-size: 16px !important;
+  }
+}
+
 /* Bottom Navigation Styling */
 .bottom-nav {
   position: fixed;
@@ -906,11 +921,18 @@ nav a:not(.no-underline):hover { color: var(--accent); }
   }
 }
 
-/* Prevent horizontal overflow on all screen sizes */
+/* Keep each route within the shell, including landscape safe areas. */
+.hh-route-content,
 .hh-content-offset {
-  overflow-x: hidden;
   width: 100%;
-  max-width: 100dvw;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+.hh-content-offset {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 /* ── Device-adaptive viewport ─────────────────────────────────────────────── */
