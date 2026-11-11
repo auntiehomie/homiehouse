@@ -4,6 +4,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   createMiniAppHost,
   type MiniAppHostHandle,
+  type MiniAppHostConfig,
 } from '@/lib/miniapp';
 
 // ---------------------------------------------------------------------------
@@ -21,7 +22,7 @@ export interface MiniAppEmbedProps {
   title?: string;
 
   /** Optional host config overrides. */
-  hostConfig?: Parameters<typeof createMiniAppHost>[0];
+  hostConfig?: MiniAppHostConfig;
 
   /** Callback when the iframe loads successfully. */
   onLoad?: () => void;
@@ -55,6 +56,10 @@ export function MiniAppEmbed({
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hostHandleRef = useRef<MiniAppHostHandle | null>(null);
+  const hostConfigRef = useRef(hostConfig);
+  hostConfigRef.current = hostConfig;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   // ------------------------------------------------------------------
   // Initialise the host and mount the mini app
@@ -69,7 +74,7 @@ export function MiniAppEmbed({
     setStatus('loading');
 
     try {
-      const host = createMiniAppHost(hostConfig);
+      const host = createMiniAppHost(() => hostConfigRef.current ?? {});
       hostHandleRef.current = host;
 
       if (hostRef) {
@@ -95,10 +100,13 @@ export function MiniAppEmbed({
         err instanceof Error ? err.message : 'Unknown host mount error';
       setErrorMessage(msg);
       setStatus('error');
-      onError?.(msg);
+      onErrorRef.current?.(msg);
     }
 
-  }, [hostConfig, hostRef, onError, snapUrl]);
+    // Session/FID changes must not destroy the iframe bridge mid-sign-in.
+    // The EVM provider is registered when the bridge mounts, so a provider
+    // change is the one auth-related event that requires re-exposing it.
+  }, [hostConfig?.ethProvider, hostRef, snapUrl]);
 
   // ------------------------------------------------------------------
   // Iframe event handlers
