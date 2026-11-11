@@ -63,6 +63,10 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    container:
+      # Match the Playwright version resolved in package-lock.json.
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --user 1001 --ipc=host
     defaults:
       run:
         working-directory: ./
@@ -77,8 +81,6 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
       - name: Run Playwright e2e tests
         run: npx playwright test --project=chromium
       - name: Upload Playwright report
