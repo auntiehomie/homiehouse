@@ -9,6 +9,7 @@ import CharacterMeter from '@/components/CharacterMeter';
 import ComposeInspiration from '@/components/ComposeInspiration';
 import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
 import { ensureAuthHeaders, requirePostingAuthHeaders } from '@/lib/client-auth';
+import { LEARN_QUIZ_URL } from '@/lib/learn-quiz';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 import { resolveComposeReturnDestination } from '@/lib/learning-navigation';
@@ -63,6 +64,7 @@ function ComposePageInner() {
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const embedUrl = detectedUrl && (urlPreview || detectedUrl === LEARN_QUIZ_URL) ? detectedUrl : null;
   const composeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const composeViewportHeightRef = useRef<number | null>(null);
   const [isEditingCast, setIsEditingCast] = useState(false);
@@ -395,9 +397,9 @@ function ComposePageInner() {
         ? [{ url: buildCastGalleryUrl(uploadedImages) }]
         : uploadedImages.slice(0, MAX_CAST_PHOTOS).map(url => ({ url }));
       const maxEmbeds = hasStickers || uploadedImages.length > 2 ? MAX_CAST_EMBEDS : 2;
-      if (hasStickers && new Set([...uploadedImages, ...(urlPreview && detectedUrl ? [detectedUrl] : [])]).size > MAX_CAST_EMBEDS) { setStatus("Too many attachments. Remove an image or link before posting."); return; }
-      if (urlPreview && detectedUrl && !uploadedImages.includes(detectedUrl) && embeds.length < maxEmbeds) {
-        embeds.push({ url: detectedUrl });
+      if (hasStickers && new Set([...uploadedImages, ...(embedUrl ? [embedUrl] : [])]).size > MAX_CAST_EMBEDS) { setStatus("Too many attachments. Remove an image or link before posting."); return; }
+      if (embedUrl && !uploadedImages.includes(embedUrl) && embeds.length < maxEmbeds) {
+        embeds.push({ url: embedUrl });
       }
       if (embeds.length > 0) {
         body.embeds = embeds;
@@ -835,7 +837,7 @@ function ComposePageInner() {
               <input id="image-upload-compose" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || uploadedImages.length >= maxImages} style={{ display: 'none' }} />
             </label>
 
-            <StickerPicker disabled={uploadedImages.length + (urlPreview && detectedUrl && !uploadedImages.includes(detectedUrl) ? 1 : 0) >= MAX_CAST_EMBEDS} onSelect={sticker => { if (!uploadedImages.includes(sticker.url)) { setUploadedImages(prev => [...prev, sticker.url]); setStickerUrls(prev => [...prev, sticker.url]); } }} />
+            <StickerPicker disabled={uploadedImages.length + (embedUrl && !uploadedImages.includes(embedUrl) ? 1 : 0) >= MAX_CAST_EMBEDS} onSelect={sticker => { if (!uploadedImages.includes(sticker.url)) { setUploadedImages(prev => [...prev, sticker.url]); setStickerUrls(prev => [...prev, sticker.url]); } }} />
             <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { if (!showChannelSuggestions) composeTextareaRef.current?.blur(); setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel"
               style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
