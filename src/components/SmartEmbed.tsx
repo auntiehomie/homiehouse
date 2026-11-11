@@ -10,6 +10,7 @@ import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useRouter } from 'next/navigation';
 import { openComposeModal } from '@/lib/compose-modal-events';
 import { profileHref } from '@/lib/profile-links';
+import { LEARN_QUIZ_LESSON_ID } from '@/lib/learn-quiz';
 
 type Result = 'frame' | 'snap' | 'url';
 
@@ -36,6 +37,7 @@ export default function SmartEmbed({ url, castHash }: Props) {
   useEffect(() => {
     setResult('url');
     setSnap(null);
+    setSnapUrl(url);
     setError(null);
     wonRef.current = false;
 
@@ -74,9 +76,15 @@ export default function SmartEmbed({ url, castHash }: Props) {
 
   const handleSnapAction = async (action: SnapAction, inputs: Record<string, unknown>) => {
     switch (action.action) {
-      case 'open_url':
-        if (action.params?.target) openMiniApp(action.params.target as string);
+      case 'open_url': {
+        const target = action.params?.target;
+        if (target === `${window.location.origin}/learn/library/${LEARN_QUIZ_LESSON_ID}`) {
+          router.push(`/learn/library/${LEARN_QUIZ_LESSON_ID}`);
+        } else if (typeof target === 'string') {
+          openMiniApp(target);
+        }
         return;
+      }
       case 'view_cast':
         if (action.params?.hash) router.push(`/cast/${action.params.hash}`);
         return;
@@ -92,14 +100,20 @@ export default function SmartEmbed({ url, castHash }: Props) {
         openComposeModal({ text: action.params?.text ?? '' });
         return;
       case 'open_snap': {
-        const newUrl = action.params?.url as string;
-        if (!newUrl) return;
+        const newUrl = action.params?.target ?? action.params?.url;
+        if (typeof newUrl !== 'string' || !newUrl) return;
+        setError(null);
         setSubmitting(true);
         try {
           const data = await fetch(`/api/snap?url=${encodeURIComponent(newUrl)}`).then(r => r.json());
-          if (data.isSnap && data.snap) { setSnap(data.snap); setSnapUrl(newUrl); }
-        } catch {}
-        setSubmitting(false);
+          if (!data.isSnap || !data.snap) throw new Error('Snap unavailable');
+          setSnap(data.snap);
+          setSnapUrl(newUrl);
+        } catch {
+          setError('Could not open this Snap. Try again.');
+        } finally {
+          setSubmitting(false);
+        }
         return;
       }
       case 'submit': {
