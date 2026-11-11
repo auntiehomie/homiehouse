@@ -1,6 +1,6 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit';
 import type {
   MiniAppHost,
   MiniAppHostCapability,
@@ -58,13 +58,16 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     useFarcasterAuth();
   const { connector, isConnected, address } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { openConnectModal } = useConnectModal();
   const [app, setApp] = useState<OpenMiniAppDetail | null>(null);
+  const [signInError, setSignInError] = useState<string | null>(null);
   const [minimized, setMinimized] = useState(false);
   const [ethProvider, setEthProvider] = useState<unknown>(null);
 
   const close = useCallback(() => {
     setApp(null);
     setMinimized(false);
+    setSignInError(null);
   }, []);
 
   const navigateToMiniApp = useCallback((url: string, title?: string) => {
@@ -72,6 +75,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     if (!safeUrl) return;
     setApp({ url: safeUrl, title });
     setMinimized(false);
+    setSignInError(null);
   }, []);
 
   useEffect(() => {
@@ -125,12 +129,14 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     expectedFid: number;
     options: Parameters<MiniAppHost['signIn']>[0];
   }) => {
-    if (!isAuthenticated || !fid || expectedFid !== fid) {
-      throw new Error('Sign in to HomieHouse before signing in to a Mini App');
-    }
-    if (!isConnected || !address) {
-      throw new Error('Connect the wallet linked to your social account to continue');
-    }
+    setSignInError(null);
+    try {
+      if (!isAuthenticated || !fid || expectedFid !== fid) {
+        throw new Error('Sign in to HomieHouse before signing in to this Mini App.');
+      }
+      if (!isConnected || !address) {
+        throw new Error('Connect the wallet linked to your HomieHouse FID above, then tap Sign in again.');
+      }
 
     const response = await fetch(`/api/auth/linked-accounts?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
     const data = await response.json().catch(() => ({})) as {
@@ -154,14 +160,20 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       throw new Error('The connected wallet must be the FID custody wallet or an approved Auth Address');
     }
 
-    return signInToMiniApp({
-      miniAppUrl,
-      expectedFid,
-      options,
-      address,
-      authMethod,
-      signMessage: message => signMessageAsync({ message }),
-    });
+      return await signInToMiniApp({
+        miniAppUrl,
+        expectedFid,
+        options,
+        address,
+        authMethod,
+        signMessage: message => signMessageAsync({ message }),
+      });
+    } catch (error) {
+      // Embedded apps often swallow SDK errors and reset their loading spinner.
+      // Tell the user what happened without passing session/signing keys.
+      setSignInError(error instanceof Error ? error.message : 'Mini App sign-in failed. Please try again.');
+      throw error;
+    }
   }, [address, fid, isAuthenticated, isConnected, signMessageAsync]);
 
   const hostConfig = useMemo(() => {
@@ -345,6 +357,22 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       {!isAuthenticated && (
         <div className="border-b border-amber-800 bg-amber-950 px-4 py-2 text-center text-sm text-amber-100">
           Sign in to HomieHouse to share your social identity with this Mini App.
+        </div>
+      )}
+      {isAuthenticated && !isConnected && (
+        <div className="flex items-center justify-center gap-2 border-b border-amber-800 bg-amber-950 px-3 py-2 text-sm text-amber-100">
+          <span>Connect your linked wallet to sign in to Mini Apps.</span>
+          {openConnectModal && (
+            <button type="button" className="shrink-0 rounded-md border border-amber-500 px-2 py-1 font-semibold" onClick={openConnectModal}>
+              Connect wallet
+            </button>
+          )}
+        </div>
+      )}
+      {signInError && (
+        <div role="alert" className="flex items-start gap-3 border-b border-red-800 bg-red-950 px-3 py-2 text-sm text-red-100">
+          <span className="min-w-0 flex-1">{signInError}</span>
+          <button type="button" onClick={() => setSignInError(null)} aria-label="Dismiss Mini App sign-in error" className="shrink-0 font-bold">×</button>
         </div>
       )}
 
