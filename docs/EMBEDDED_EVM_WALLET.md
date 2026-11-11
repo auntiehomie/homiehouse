@@ -1,11 +1,11 @@
 # Embedded EVM wallet implementation plan
 
-**Status:** compare MetaMask Embedded Wallets and ZeroDev; start a ZeroDev Wallet passkey spike on Base Sepolia.
+**Status:** ZeroDev passkey wallet spike implemented for Preview on Base Sepolia; manual dashboard and device testing remains.
 **Research date:** 2026-11-11
 
 ## Current HomieHouse state
 
-HomieHouse uses Next.js, Wagmi 3, Viem 2, and RainbowKit. The wallet connector configuration supports external EVM wallets and lists Ethereum, Polygon, Optimism, Arbitrum, and Base. The wallet screen reads HH2 on Base and submits HH2 transfers; its trade link opens Uniswap outside HomieHouse. No embedded-wallet SDK is currently installed.
+HomieHouse uses Next.js, Wagmi 3, Viem 2, and RainbowKit. The wallet connector configuration supports external EVM wallets and lists Ethereum, Polygon, Optimism, Arbitrum, and Base. The wallet screen reads HH2 on Base and submits HH2 transfers; its trade link opens Uniswap outside HomieHouse. A separate `/wallet/embedded` preview route uses the ZeroDev Wallet SDK on Base Sepolia.
 
 Hypersnap identity and posting authorization remain separate from EVM asset access. Hypersnap login issues a read-only HomieHouse session after verifying a wallet-signed protocol token. Posting uses a separately generated Ed25519 signer authorized by the FID custody EOA. The current signer implementation does not support smart-contract custody.
 
@@ -29,9 +29,20 @@ Do not assume a ZeroDev passkey is automatically linked to a HomieHouse account.
 2. Enable **Base Sepolia** and the **passkey** auth method for that project.
 3. Add the exact preview origin being tested and `http://localhost:3000` if local testing will be used. Do not allowlist production until the test flow is approved.
 4. Copy the ZeroDev **project ID**. It is a client configuration value; do not send or commit secret API keys.
-5. Send the project ID through the authorized project configuration channel. If only chat is available, use a dedicated public/test project ID with preview origins restricted; never paste a secret.
+5. After the Preview branch deploys, allowlist its exact origin in ZeroDev. The project ID belongs in Vercel, not in a chat message or committed file.
 
-Set `NEXT_PUBLIC_ZERODEV_PROJECT_ID=<project-id>` in local `.env.local` and in Vercel Project Settings → Environment Variables for **Preview only**. The `NEXT_PUBLIC_` prefix is required because the browser-side Wagmi configuration reads this value. The project ID is client-visible configuration, not a secret. Do not add it to Production for this spike.\n\nDo not set a ZeroDev AA host variable initially; the Wallet SDK defaults to `https://rpc.zerodev.app`. A separate Base Sepolia chain RPC variable is only needed if the Wagmi transport is configured to read one from the environment. Keep all production origins and credentials out of the spike.
+Set `NEXT_PUBLIC_ZERODEV_PROJECT_ID=<project-id>` in local `.env.local` and in Vercel Project Settings → Environment Variables for **Preview only**. The `NEXT_PUBLIC_` prefix is required because the browser-side Wagmi configuration reads this value. The project ID is client-visible configuration, not a secret. Do not add it to Production for this spike.
+
+Do not set a ZeroDev AA host variable initially; the Wallet SDK defaults to `https://rpc.zerodev.app`. A separate Base Sepolia chain RPC variable is only needed if the Wagmi transport is configured to read one from the environment. Keep all production origins and credentials out of the spike.
+
+## Implemented preview slice
+
+- `/wallet/embedded` is an isolated Base Sepolia wallet experience; it does not change the mainnet HH2 wallet or existing external wallet connectors.
+- Signed-in HomieHouse users can create a ZeroDev wallet with a passkey or log in with a previously registered passkey.
+- The route displays the test ETH balance and supports a user-entered native testnet transfer with transaction hash, confirmation, and error states.
+- The entry point appears on the HH2 wallet page only when `NEXT_PUBLIC_ZERODEV_PROJECT_ID` is configured in the build environment.
+- The wallet is not yet bound to a HomieHouse profile through a server-verified signed challenge. Do not treat it as a production account-linked wallet or use the address for mainnet HH2.
+- Manual testing still needs the configured ZeroDev project, an allowlisted Preview origin, a passkey-capable browser/device, and Base Sepolia ETH.
 
 ## Implementation sequence
 
@@ -58,7 +69,7 @@ Set `NEXT_PUBLIC_ZERODEV_PROJECT_ID=<project-id>` in local `.env.local` and in V
 ## Dependencies and open questions
 
 - ZeroDev test project ID, Base Sepolia enabled, and preview/local origins allowlisted.
-- Confirm ZeroDev Wallet SDK compatibility with the installed Wagmi 3 / Viem 2 versions before adding packages.
+- Confirm ZeroDev Wallet SDK compatibility with the installed Wagmi 3 / Viem 2 versions; the SDK and its required ZeroDev peer packages are included in the prototype branch.
 - Decide how the HomieHouse session gates first-time wallet enrollment while ZeroDev's passkey session handles wallet authentication.
 - Verify cross-device passkey recovery on iPhone/iPad and desktop. RP ID must be chosen before registration because changing it can require users to register a new passkey.
 - Confirm whether mode `7702` is supported for the enabled Base Sepolia project. If not, evaluate `4337` and document the resulting address difference.
