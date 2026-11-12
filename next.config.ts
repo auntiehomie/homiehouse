@@ -44,6 +44,7 @@ const CSP_ENFORCED = [
   SCRIPT_SRC,
   "style-src 'self' 'unsafe-inline'", // multiple components inject <style>{`@keyframes...`}</style>
   "img-src 'self' data: https:", // avatars/token logos come from arbitrary HTTPS hosts (see images.remotePatterns)
+  "media-src 'self' https:", // Cast video and audio can be hosted on external HTTPS CDNs.
   "font-src 'self' data:",
   "connect-src 'self' https: wss:", // Hypersnap, RPC endpoints, WalletConnect relay, Privy, Sentry, etc.
   "frame-src 'self' https:", // WalletConnect / Privy auth iframes

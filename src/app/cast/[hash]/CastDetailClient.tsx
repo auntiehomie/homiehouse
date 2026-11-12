@@ -255,11 +255,30 @@ export default function CastDetailClient() {
     }
   };
 
+  const handleShareCast = async (castHash: string) => {
+    const url = new URL(`/cast/${encodeURIComponent(castHash)}`, window.location.origin).href;
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ url });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Cast link copied!', true);
+    } catch {
+      showToast('Could not copy the cast link.', false);
+    }
+  };
+
   const renderActionRow = (castHash: string, authorFid: number, previewText: string, authorHandle = '') => (
     <div style={{
       display: 'flex', gap: 4, marginTop: 12, paddingTop: 12,
       borderTop: '1px solid rgba(255,255,255,0.08)',
-      flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none',
+      flexWrap: 'wrap',
     }}>
       {/* Like */}
       <ActionBtn
@@ -289,6 +308,11 @@ export default function CastDetailClient() {
         onClick={() => (setReplyStickers([]), setReplyingTo(replyingTo === castHash ? null : castHash))}
         icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
         label="Reply"
+      />
+      <ActionBtn
+        onClick={() => void handleShareCast(castHash)}
+        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2" /></svg>}
+        label="Share"
       />
       {/* Save to Notes */}
       <ActionBtn
