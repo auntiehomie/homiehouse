@@ -20,6 +20,10 @@ interface KBArticle {
   tags: string[];
   summary: string | null;
   learning_points: string[] | null;
+  author?: string;
+  publisher?: string;
+  publishedAt?: string;
+  caveats?: string;
 }
 
 interface RepositoryKBArticle {
@@ -82,10 +86,10 @@ function articleToModule(article: KBArticle, level: string): LearningModule {
     id: `kb-${article.id}-${slugify(article.title)}`,
     title: article.title,
     sourceUrl: article.url ?? undefined,
-    sourceAuthor: (article as KBArticle & { author?: string }).author,
-    sourcePublisher: (article as KBArticle & { publisher?: string }).publisher,
-    sourcePublishedAt: (article as KBArticle & { publishedAt?: string }).publishedAt,
-    sourceCaveats: (article as KBArticle & { caveats?: string }).caveats,
+    sourceAuthor: article.author,
+    sourcePublisher: article.publisher,
+    sourcePublishedAt: article.publishedAt,
+    sourceCaveats: article.caveats,
     description:
       (article.summary?.slice(0, 800) || `Learn about ${article.title}`) +
       (article.summary && article.summary.length > 800 ? '…' : ''),
@@ -134,6 +138,10 @@ export async function getKBModulesForTrack(
     tags: article.tags,
     summary: article.summary,
     learning_points: article.learningPoints,
+    author: article.author,
+    publisher: article.publisher,
+    publishedAt: article.publishedAt,
+    caveats: article.caveats,
   }, level));
 }
 
