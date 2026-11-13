@@ -22,6 +22,23 @@ npm run experiment:community-poll
 
 By default the report is printed to stdout. Set `COMMUNITY_EXPERIMENT_OUTPUT=/path/to/new-file.json` to save one snapshot; the script refuses to overwrite an existing file. The snapshot includes cast hashes and public FIDs, not cast text. Keep generated samples out of git because they reveal a particular viewer's follow-derived context.
 
+## Audit Quilcast spam scores
+
+Opt in to the read-only spam audit using the same viewer FID and node configuration:
+
+```sh
+COMMUNITY_EXPERIMENT_SPAM_AUDIT=1 \
+COMMUNITY_EXPERIMENT_OUTPUT=./spam-audit.json \
+COMMUNITY_EXPERIMENT_SPAM_REVIEW_OUTPUT=./spam-review.json \
+npm run experiment:community-poll
+```
+
+The audit samples up to 100 casts across two pages of Hypersnap trending, the network-wide discovery baseline. Eligibility checks, missing pages, and duplicate hashes can reduce the sample. A single [Quilcast lookup](https://git.borodutch.com/backmeupplz/quilcast-spam) sends only the sampled public cast hashes. The report separates numeric scores, explicit unscored results, lookup failures, and unusable hashes. A partial or failed lookup still produces the ranking snapshot.
+
+Use the optional review file to select casts across high, low, and missing author trust. Look up casts by hash and label them `spam`, `legitimate`, or `uncertain` before opening the scored report. Then match by hash to review legitimate posts flagged by Quilcast, spam below the threshold, and coverage by trust group. Keep both files out of git.
+
+The simulation adds a ten-position penalty to the baseline sort key for scores at or above 0.95. The report shows the original and simulated ranks for every cast. Missing scores get zero penalty, and all candidates stay eligible. The threshold and penalty are exploratory and apply only to this report.
+
 ## Signals under comparison
 
 The script produces three orderings for the same node-selected candidate page:
