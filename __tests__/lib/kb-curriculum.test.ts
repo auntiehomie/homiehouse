@@ -38,3 +38,20 @@ it('keeps the corpus curated and complete enough for module generation', () => {
     article.learningPoints.length >= 2
   )).toBe(true);
 });
+
+
+it('turns newly curated Hypersnap sources into source-linked beginner lessons', async () => {
+  const modules = await getKBModulesForTrack('decentralization', 'beginner', knowledgeBase.articles.length);
+  const module = modules.find((item) => item.title === 'Trending feeds follow the metrics generation');
+  expect(module).toMatchObject({
+    sourceUrl: 'https://hypersnap.org/updates',
+    sourcePublisher: 'Hypersnap',
+    sourcePublishedAt: '2026-11-06',
+    sourceCaveats: expect.stringContaining('not proof'),
+    difficulty: 'beginner',
+    tags: expect.arrayContaining(['hypersnap', 'decentralized-social']),
+  });
+  expect(module?.objectives).toEqual(expect.arrayContaining([
+    expect.stringContaining('merged source code'),
+  ]));
+});
