@@ -1,5 +1,6 @@
 'use client';
 
+import TokenizationScene from './TokenizationScene';
 import { useEffect, useState } from 'react';
 import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
 import { normalizeLessonScenes, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
@@ -21,7 +22,11 @@ export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restauran
 }
 
 export default function LessonIllustration({ text, visual }: { text: string; visual?: LessonScene }) {
-  const knownPlan = normalizeLessonScenes([visual], text)[0] ?? sceneForExistingText(text);
+  const savedPlan = normalizeLessonScenes([visual], text)[0];
+  const existingPlan = sceneForExistingText(text);
+  const knownPlan = savedPlan?.layout === 'tokenization' ? savedPlan
+    : existingPlan?.layout === 'tokenization' ? existingPlan
+    : savedPlan ?? existingPlan;
   const knownScene = knownPlan ? null : lessonIllustrationTopic(text);
   const [generated, setGenerated] = useState<{ text: string; plan: LessonScene } | null>(null);
   useEffect(() => {
@@ -39,6 +44,7 @@ export default function LessonIllustration({ text, visual }: { text: string; vis
   // Remember the active step only for the card that created it.
   const [selection, setSelection] = useState({ text: '', index: 0 });
   const activeStep = selection.text === text && selection.index < steps.length ? selection.index : 0;
+  if (plan?.layout === 'tokenization') return <TokenizationScene key={text} sample={plan.sample} />;
   if (!scene && !plan) return null;
   return (
     <section className="lesson-scene" aria-label={steps.length ? "Interactive lesson visual" : undefined} aria-hidden={steps.length ? undefined : true}>
