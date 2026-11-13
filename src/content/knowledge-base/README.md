@@ -18,7 +18,8 @@ Append one object to `articles.json` with these fields:
 - `tags`: one or more curriculum topics, such as `ai`, `creator-economy`, `privacy`, `dao`, or `network states`.
 - `summary`: a concise, source-grounded paraphrase. Note when only an abstract, excerpt, or metadata was reviewed.
 - `learningPoints`: at least two explicit learning outcomes or takeaways.
-- `addedAt`: ISO date or `null`.
+- `addedAt`: ISO date the entry was added to the corpus, or `null`.
+- `publishedAt` (optional): the source publication date as `YYYY-MM-DD`, or `YYYY` if only the year is known. @thehomie uses this field to frame posts. Leave it absent when unverified.
 - `reviewStatus`: currently `curated-summary`.
 
 Do not add credentials, personal notes, private annotations, or full copyrighted articles. Keep the entry tied to a public source, and add a focused test or update the existing corpus assertions when the schema or selection behavior changes.
