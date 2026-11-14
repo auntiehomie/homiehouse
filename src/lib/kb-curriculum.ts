@@ -20,6 +20,10 @@ interface KBArticle {
   tags: string[];
   summary: string | null;
   learning_points: string[] | null;
+  author?: string;
+  publisher?: string;
+  publishedAt?: string;
+  caveats?: string;
 }
 
 interface RepositoryKBArticle {
@@ -31,12 +35,20 @@ interface RepositoryKBArticle {
   summary: string;
   learningPoints: string[];
   addedAt: string | null;
+  author?: string;
+  publisher?: string;
+  publishedAt?: string;
+  caveats?: string;
 }
 
 export interface LearningModule {
   id: string;
   title: string;
   sourceUrl?: string;
+  sourceAuthor?: string;
+  sourcePublisher?: string;
+  sourcePublishedAt?: string;
+  sourceCaveats?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];
@@ -51,7 +63,7 @@ const TRACK_TAGS: Record<string, string[]> = {
   ai: ['ai', 'llm', 'machine-learning', 'agents', 'prompt-injection', 'venice', 'openai', 'claude', 'gpt'],
   finance: ['defi', 'tokens', 'trading', 'crypto', 'finance', 'tokenomics', 'hyperliquid', 'portfolio'],
   creator: ['creator', 'nft', 'gaming', 'content', 'music', 'creator-economy', 'creator-coins', 'content-coins', 'zora', 'base-app'],
-  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security', 'decentralization', 'privacy', 'network states', 'bitcoin', 'cryptography'],
+  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security', 'decentralization', 'privacy', 'network states', 'bitcoin', 'cryptography', 'hypersnap', 'decentralized-social', 'decentralized clients', 'rollup', 'zk-rollup', 'feeds'],
   all: ['ai', 'agents', 'creator', 'crypto', 'web3', 'dao', 'governance', 'ethereum', 'privacy', 'network states', 'bitcoin', 'cryptography', 'defi'],
 };
 
@@ -74,6 +86,10 @@ function articleToModule(article: KBArticle, level: string): LearningModule {
     id: `kb-${article.id}-${slugify(article.title)}`,
     title: article.title,
     sourceUrl: article.url ?? undefined,
+    sourceAuthor: article.author,
+    sourcePublisher: article.publisher,
+    sourcePublishedAt: article.publishedAt,
+    sourceCaveats: article.caveats,
     description:
       (article.summary?.slice(0, 800) || `Learn about ${article.title}`) +
       (article.summary && article.summary.length > 800 ? '…' : ''),
@@ -122,6 +138,10 @@ export async function getKBModulesForTrack(
     tags: article.tags,
     summary: article.summary,
     learning_points: article.learningPoints,
+    author: article.author,
+    publisher: article.publisher,
+    publishedAt: article.publishedAt,
+    caveats: article.caveats,
   }, level));
 }
 

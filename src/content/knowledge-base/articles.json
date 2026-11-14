@@ -1508,6 +1508,32 @@
       "publishedAt": "2026-02-03",
       "addedAt": "2026-11-08",
       "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "hypersnap-trending-feed-metrics",
+      "title": "Trending feeds follow the metrics generation",
+      "author": "Hypersnap project contributors (not individually attributed)",
+      "publisher": "Hypersnap",
+      "publishedAt": "2026-11-06",
+      "url": "https://hypersnap.org/updates",
+      "source": "hypersnap.org",
+      "tags": [
+        "hypersnap",
+        "decentralized-social",
+        "decentralized clients",
+        "feeds",
+        "infrastructure",
+        "ethereum"
+      ],
+      "summary": "Hypersnap's development log reports that trending-feed readers now use the same generation handle as the metrics writer and refresh cached rankings when that generation changes, or when the cache ages. This is a small but useful example of how a social client can surface an indexed ranking derived from network activity rather than displaying an exhaustive record of every cast. The log labels this as merged upstream source, while explicitly saying it is not a deployment receipt; rankings remain bounded and may continue to serve during background refresh.",
+      "learningPoints": [
+        "A trending feed is a ranked view built from activity and metrics; it is not necessarily a complete or chronological record of all posts.",
+        "A shared generation marker helps readers know when ranking inputs have changed, while an age-based cache refresh provides another path to freshness.",
+        "When reading a feature update, distinguish merged source code from a deployed feature and from an open proposal or discussion."
+      ],
+      "caveats": "The update is marked as merged source, not proof that a particular node or client has deployed it. Rankings are bounded and can remain available during background refresh; do not infer exhaustive coverage or exact real-time freshness.",
+      "addedAt": "2026-11-13",
+      "reviewStatus": "curated-summary"
     }
   ]
 }
