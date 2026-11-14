@@ -1508,6 +1508,86 @@
       "publishedAt": "2026-02-03",
       "addedAt": "2026-11-08",
       "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "osaka-metropolitan-university-data-breach",
+      "title": "Osaka Metropolitan University information systems incident: sixth update",
+      "url": "https://www.omu.ac.jp/news/12123",
+      "source": "omu.ac.jp",
+      "tags": [
+        "cybersecurity",
+        "privacy",
+        "vendor risk"
+      ],
+      "summary": "Osaka Metropolitan University reported that supplier-managed cloud storage exposed data for about 170,000 people, including particularly sensitive information for about 1,400. Many sensitive records dated to a system migration. Possible additional disclosure from university systems remained under investigation.",
+      "learningPoints": [
+        "Set retention limits and verify deletion of temporary migration data.",
+        "Review supplier and subcontractor access to sensitive records.",
+        "Distinguish confirmed exposure from potential exposure still under investigation."
+      ],
+      "publishedAt": "2026-11-13",
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ftc-fake-websites-and-impersonators",
+      "title": "How to spot fake FTC websites and FTC impersonators",
+      "url": "https://consumer.ftc.gov/consumer-alerts/2026/11/how-spot-fake-ftc-websites-and-ftc-impersonators",
+      "source": "consumer.ftc.gov",
+      "tags": [
+        "cybersecurity",
+        "privacy",
+        "phishing"
+      ],
+      "summary": "FTC consumer guidance explains that impersonators copy agency branding and contact people through calls and messages. It advises verifying the official website independently, refusing requests to transfer money for protection, and reporting scams through ReportFraud.ftc.gov.",
+      "learningPoints": [
+        "Verify the full domain before sharing personal information.",
+        "Confirm unexpected government outreach through a known official channel.",
+        "Recognize requests to move money for safekeeping as a scam warning sign."
+      ],
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "check-point-gateway-incident-defense",
+      "title": "PHP2Shell Exploitation on Check Point Gateway",
+      "url": "https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/",
+      "source": "research.checkpoint.com",
+      "tags": [
+        "cybersecurity",
+        "network security",
+        "incident response"
+      ],
+      "summary": "Check Point Research reported intrusions involving unpatched gateways and documented destructive activity on a virtualization host in one investigated incident. The case illustrates the importance of gateway patching, management-network isolation, and recoverable backups.",
+      "learningPoints": [
+        "Track patch status for internet-facing gateways.",
+        "Restrict administrative access to virtualization infrastructure.",
+        "Practice restoring critical workloads from isolated backups."
+      ],
+      "publishedAt": "2026-11-12",
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "talos-ai-enabled-penetration-testing-defense",
+      "title": "ARTEX and beyond: AI-enabled penetration testing platforms",
+      "url": "https://blog.talosintelligence.com/artex-and-beyond/",
+      "source": "blog.talosintelligence.com",
+      "tags": [
+        "ai",
+        "agents",
+        "cybersecurity",
+        "defensive monitoring"
+      ],
+      "summary": "Cisco Talos reports observing misuse of AI-enabled penetration-testing platforms in real incidents. Its observations illustrate how automation can shorten the time defenders have to detect and respond to suspicious activity.",
+      "learningPoints": [
+        "Define explicit authorization and scope for security testing.",
+        "Correlate alerts across endpoints, identities, and gateways.",
+        "Practice rapid alert triage in a defensive tabletop exercise."
+      ],
+      "publishedAt": "2026-11-13",
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
     }
   ]
 }
