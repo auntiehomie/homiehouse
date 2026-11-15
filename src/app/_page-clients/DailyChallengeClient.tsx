@@ -24,6 +24,7 @@ interface ChallengeResult {
 }
 
 interface ChallengeData {
+  challengeDate: string;
   question: ChallengeQuestion;
   completedToday: boolean;
   result: ChallengeResult | null;
@@ -76,7 +77,7 @@ export default function DailyChallengeClient() {
   useEffect(() => { fetchChallenge(); }, [fetchChallenge]);
 
   const handleAnswer = async (answerIndex: number) => {
-    if (!fid || submitting || data?.completedToday) return;
+    if (!fid || submitting || !data || data.completedToday) return;
     const authHeaders = getAuthHeaders();
     if (!authHeaders) {
       setError('Connect your social account to play the daily challenge.');
@@ -90,13 +91,14 @@ export default function DailyChallengeClient() {
       const res = await fetch('/api/daily-challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ fid, answer: answerIndex }),
+        body: JSON.stringify({ fid, answer: answerIndex, challengeDate: data.challengeDate }),
       });
       const json = await res.json();
       if (json.ok) {
         setAnswerResult(json as AnswerResult);
         fetchChallenge();
       } else {
+        if (res.status === 409) void fetchChallenge();
         setError(json.error || 'Failed to submit answer');
         setSelectedIndex(null);
       }
