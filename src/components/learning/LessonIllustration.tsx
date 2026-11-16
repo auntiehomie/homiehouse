@@ -1,5 +1,6 @@
 'use client';
 
+import LessonActivity, { lessonActivityFor } from './LessonActivity';
 import { useEffect, useState } from 'react';
 import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
 import { normalizeLessonScenes, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
@@ -21,6 +22,12 @@ export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restauran
 }
 
 export default function LessonIllustration({ text, visual }: { text: string; visual?: LessonScene }) {
+  const activity = lessonActivityFor(text);
+  if (activity) return <LessonActivity key={text} activity={activity} />;
+  return <LessonDiagram text={text} visual={visual} />;
+}
+
+function LessonDiagram({ text, visual }: { text: string; visual?: LessonScene }) {
   const knownPlan = normalizeLessonScenes([visual], text)[0] ?? sceneForExistingText(text);
   const knownScene = knownPlan ? null : lessonIllustrationTopic(text);
   const [generated, setGenerated] = useState<{ text: string; plan: LessonScene } | null>(null);
