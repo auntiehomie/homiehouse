@@ -1,3 +1,5 @@
+jest.mock('@/components/learning/LessonActivity.module.css', () => ({}));
+
 import { lessonIllustrationTopic } from '@/components/learning/LessonIllustration';
 
 describe('lesson illustration selection', () => {

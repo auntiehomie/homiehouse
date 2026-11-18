@@ -771,7 +771,7 @@ Return ONLY valid JSON — no markdown, no code fences. Use this exact structure
       "title": "Short, memorable concept name (3-5 words)",
       "explanation": "3-4 short sentences: define it, explain how it works, give a specific example, and say why it matters. Be concrete and accurate.",
       "analogy": "One vivid sentence comparing this to something from everyday life (banking, real estate, restaurant, sports, etc.)",
-      "visuals": [{ "source": "copy one complete sentence from explanation exactly", "layout": "network | sequence | comparison", "labels": ["exact short phrase from source", "another exact short phrase from source"] }]
+      "visuals": [{ "source": "copy one complete sentence from explanation exactly", "layout": "network | sequence | comparison | tokenization", "labels": ["exact short phrase from source", "another exact short phrase from source"] }]
     }
   ],
   "practicalExample": "1-2 sentences (max ~45 words) walking through one specific, named real-world scenario. Make it concrete and bite-sized.",
@@ -792,7 +792,7 @@ Return ONLY valid JSON — no markdown, no code fences. Use this exact structure
 }
 
 Requirements:
-- For each concept generate a separate visual for every explanation sentence that clearly fits a supported layout. The source must be a single complete sentence from explanation, including its punctuation, so it is associated with the correct card. Example: for explanation "Independent nodes share control." use {"source":"Independent nodes share control.","layout":"network","labels":["Independent nodes","control"]}. source must copy the complete sentence verbatim; layout must be network, sequence, or comparison; 2 or 3 labels must be short exact phrases copied from source (max 22 characters each). Use network for distributed peers, sequence only for ordered actions, comparison only for explicit alternatives. Do not invent actions, relationships or labels; omit a visual if none fits. Never return code or markup.
+- For each concept generate a separate visual for every explanation sentence that clearly fits a supported layout. The source must be a single complete sentence from explanation, including its punctuation, so it is associated with the correct card. Example: for explanation "Independent nodes share control." use {"source":"Independent nodes share control.","layout":"network","labels":["Independent nodes","control"]}. source must copy the complete sentence verbatim; for network, sequence, and comparison layouts, 2 or 3 labels must be short exact phrases copied from source (max 22 characters each). Use network for distributed peers, sequence only for ordered actions, comparison only for explicit alternatives. For a sentence explaining how a language model turns text into tokens, use layout "tokenization" with an optional sample phrase (48 characters maximum) instead of labels. Choose a short sample relevant to the lesson, with punctuation or a word learners can explore. Never supply token IDs. Do not invent actions, relationships or labels; omit a visual if none fits. Never return code or markup.
 - 3 concepts, each with a REAL example (name actual protocols, tokens, events, or companies)
 - Concepts should build on each other — start with the foundation, end with the implications
 - 3 quick actions (each must name a specific website, tool, or resource)
