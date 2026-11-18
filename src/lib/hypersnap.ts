@@ -547,14 +547,33 @@ export async function fetchUserCastsPage(fid: number, limit = 50, cursor?: strin
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
   const endpoint = `/v2/farcaster/feed/user/casts?${qs}`;
+  const options: RequestInit = { cache: 'no-store' };
   let failure = 'empty_response';
-  try {
-    const data = await hypersnapFetch(endpoint);
-    if (Array.isArray(data?.casts)) return withReadSource(data, 'configured');
-  } catch (error) { failure = classifyReadFailure(error); }
-  const fallback = await fallbackFetch(endpoint);
-  if (Array.isArray(fallback?.casts)) return withReadSource(fallback, 'fallback', failure);
-  throw new Error(`Author feed unavailable for fid=${fid}`);
+  const primaryRead = hypersnapFetch(endpoint, options).catch((error) => {
+    failure = classifyReadFailure(error);
+    return null;
+  });
+  // Compare first pages even when the primary answers successfully. A node
+  // that is behind can return valid history while missing the latest casts.
+  const readFallback = () => fallbackFetch(endpoint, options).catch(() => null);
+  const fallbackRead = cursor ? null : readFallback();
+  const primary = await primaryRead;
+  if (cursor && Array.isArray(primary?.casts)) return withReadSource(primary, 'configured');
+  const fallback = await (fallbackRead ?? readFallback());
+  if (!Array.isArray(primary?.casts)) {
+    if (Array.isArray(fallback?.casts)) return withReadSource(fallback, 'fallback', failure);
+    throw new Error(`Author feed unavailable for fid=${fid}`);
+  }
+
+  const newest = (casts: { timestamp?: string }[]) => casts.reduce(
+    (latest, cast) => Math.max(latest, Date.parse(cast.timestamp ?? '') || 0), 0,
+  );
+  if (Array.isArray(fallback?.casts) && fallback.casts.length > 0 &&
+    (!primary.casts.length || newest(fallback.casts) > newest(primary.casts))) {
+    // Keep the selected page and its cursor together.
+    return withReadSource(fallback, 'fallback', primary.casts.length ? 'newer_history' : 'empty_response');
+  }
+  return withReadSource(primary, 'configured');
 }
 
 export async function fetchCastsByFid(fid: number, limit = 50): Promise<any[]> {

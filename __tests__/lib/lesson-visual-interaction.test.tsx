@@ -1,8 +1,20 @@
+jest.mock('@/components/learning/LessonActivity.module.css', () => ({}));
+
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import LessonIllustration from '@/components/learning/LessonIllustration';
 
 describe('lesson visual interaction', () => {
+  it.each([
+    ['A sandbox verifies read-only permissions.', 'Try a read-only sandbox'],
+    ['Trace indirect prompt injection.', 'Trace the input'],
+    ['Ethereum transaction nonce ordering.', 'Order two transactions'],
+  ])('preserves the newer activity for %s', (text, heading) => {
+    const html = renderToStaticMarkup(<LessonIllustration text={text} />);
+    expect(html).toContain(heading);
+    expect(html).not.toContain('Interactive tokenizer');
+  });
+
   it('offers accessible, content-specific steps for a grounded sequence', () => {
     const text = 'Borrow tokens, swap tokens, and repay tokens.';
     const visual = { source: text, layout: 'sequence' as const, labels: ['Borrow tokens', 'swap tokens', 'repay tokens'] };

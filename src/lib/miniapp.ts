@@ -37,14 +37,11 @@ async function asyncNoop<T = void>(): Promise<T> {
 }
 
 export function createMiniAppHost(
-  config: MiniAppHostConfig = {},
+  config: MiniAppHostConfig | (() => MiniAppHostConfig) = {},
 ): MiniAppHostHandle {
-  const {
-    context,
-    overrides,
-    ethProvider,
-    authorizeSignIn,
-  } = config;
+  // Keep the bridge mounted but resolve the current session and wallet
+  // when the embedded app actually requests an operation.
+  const readConfig = typeof config === 'function' ? config : () => config;
 
   const iframeEndpoints = new WeakMap<
     HTMLIFrameElement,
@@ -54,10 +51,12 @@ export function createMiniAppHost(
   function buildSdk(
     snapOrigin: string,
   ): Omit<MiniAppHost, 'ethProviderRequestV2'> {
-    const ctx = buildDefaultContext(context);
+    const { overrides } = readConfig();
 
     return {
-      context: ctx,
+      get context() {
+        return buildDefaultContext(readConfig().context);
+      },
       close: () => overrides?.close?.() ?? noop(),
       ready: () => overrides?.ready?.() ?? asyncNoop(),
       openUrl: (url: string) => {
@@ -65,11 +64,16 @@ export function createMiniAppHost(
         window.open(url, '_blank');
       },
       signIn: (options) => {
-        if (overrides?.signIn) return overrides.signIn(options);
-        if (!authorizeSignIn) {
+        const current = readConfig();
+        if (current.overrides?.signIn) return current.overrides.signIn(options);
+        if (!current.authorizeSignIn) {
           throw new Error('Wallet-based Hypersnap sign-in is unavailable in this host');
         }
-        return authorizeSignIn({ miniAppUrl: snapOrigin, expectedFid: ctx.user.fid, options });
+        return current.authorizeSignIn({
+          miniAppUrl: snapOrigin,
+          expectedFid: buildDefaultContext(current.context).user.fid,
+          options,
+        });
       },
       signManifest: (options) => {
         if (overrides?.signManifest) return overrides.signManifest(options);
@@ -131,8 +135,9 @@ export function createMiniAppHost(
         overrides?.notificationOccurred?.(type) ?? asyncNoop(),
       selectionChanged: () => overrides?.selectionChanged?.() ?? asyncNoop(),
       getCapabilities: () =>
-        overrides?.getCapabilities?.() ?? Promise.resolve([]),
-      getChains: () => overrides?.getChains?.() ?? Promise.resolve([]),
+        readConfig().overrides?.getCapabilities?.() ?? Promise.resolve([]),
+      getChains: () =>
+        readConfig().overrides?.getChains?.() ?? Promise.resolve([]),
       updateBackState: (state) =>
         overrides?.updateBackState?.(state) ?? asyncNoop(),
     };
@@ -151,7 +156,7 @@ export function createMiniAppHost(
     const { endpoint, cleanup } = exposeToIframe({
       iframe,
       sdk,
-      ethProvider,
+      ethProvider: readConfig().ethProvider,
       miniAppOrigin: snapOrigin,
     });
 

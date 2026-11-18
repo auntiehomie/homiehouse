@@ -1,0 +1,38 @@
+{
+  "critical": [
+    "elliptic:1102901"
+  ],
+  "fixable": [
+    "@faker-js/faker:1158500",
+    "@grpc/grpc-js:1240623",
+    "@openzeppelin/contracts:1088893",
+    "@openzeppelin/contracts:1089256",
+    "@openzeppelin/contracts:1089265",
+    "@openzeppelin/contracts:1090187",
+    "@openzeppelin/contracts:1090189",
+    "@openzeppelin/contracts:1091839",
+    "@openzeppelin/contracts:1092641",
+    "@openzeppelin/contracts:1094526",
+    "@openzeppelin/contracts:1094706",
+    "@openzeppelin/contracts:1094945",
+    "@openzeppelin/contracts:1094980",
+    "@openzeppelin/contracts:1114648",
+    "@stablelib/ed25519:1116139",
+    "bn.js:1113442",
+    "decode-uri-component:1147955",
+    "decode-uri-component:1243857",
+    "fast-uri:1243098",
+    "fast-uri:1243104",
+    "file-type:1114301",
+    "follow-redirects:1244003",
+    "glob:1244013",
+    "immutable:1117066",
+    "immutable:1164795",
+    "immutable:1224657",
+    "minimatch:1244623",
+    "phin:1096967",
+    "ws:1119108",
+    "ws:1123259",
+    "zod:1243066"
+  ]
+}

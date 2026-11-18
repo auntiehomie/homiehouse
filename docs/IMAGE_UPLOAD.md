@@ -24,11 +24,11 @@ QSTORAGE_PUBLIC_BASE_URL=https://<bucket>.qstorage.quilibrium.com
 
 QStorage has a global region; the app defaults to `q-world-1`. The public base URL must serve the bucket's public objects without credentials or an expiring signature. Verify that an uploaded image opens in a private browser window before enabling QStorage for production. Never expose either credential in a `NEXT_PUBLIC_` variable or client code.
 
-If all three required QStorage variables are absent, the existing Pinata/ImgBB fallback is used. If only some QStorage values are set, configuration fails rather than silently uploading to a different provider. If QStorage is fully configured but an upload fails, the request returns an error and does not fall back.
+After uploading, the server fetches the permanent public URL without credentials and verifies its image content type and exact bytes. A successful authenticated upload alone is insufficient. AccessDenied, missing objects, invalid image responses, and network failures trigger the existing Pinata/ImgBB fallback. Partial configuration also triggers fallback. If no provider succeeds, the upload fails instead of returning the inaccessible QStorage URL.
 
 ## Existing fallback providers
 
-If QStorage is not configured, the upload route tries Pinata when `PINATA_JWT` is set and then ImgBB when `IMGBB_API_KEY` is set. Keep these credentials server-side as well.
+If QStorage is not configured or its upload/public verification fails, the upload route tries Pinata when `PINATA_JWT` is set and then ImgBB when `IMGBB_API_KEY` is set. Keep these credentials server-side as well.
 
 ## Live QStorage smoke test
 
@@ -44,5 +44,6 @@ The script uploads a tiny temporary PNG, fetches it through the public URL witho
 
 - **Image upload is not configured:** set QStorage credentials, or configure `PINATA_JWT` / `IMGBB_API_KEY`.
 - **Upload fails on QStorage:** check that the access key has `s3:PutObject` and `s3:PutObjectAcl` access to the bucket. Check the server log for the QStorage error code, HTTP status, and request ID.
+- **Existing casts show AccessDenied:** the cast already contains a permanent QStorage URL. Restore public read access to those specific objects and verify the configured public bucket proxy URL; this code change cannot rewrite signed casts. Do not use expiring signed URLs for cast embeds. See [QStorage public access documentation](https://docs.quilibrium.com/docs/api/q-storage/user-manual/working-with-buckets/edit-bucket-visibility/).
 - **Image is not visible:** open its URL in a private browser window. Confirm the object is public and the public URL base is correct.
 - **Images exceed upload limits:** use JPEG, PNG, GIF, or WebP under 10 MB; casts can contain up to four photos.

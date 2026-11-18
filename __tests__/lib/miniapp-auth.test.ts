@@ -1,4 +1,4 @@
-import { getMiniAppIdentity, signInToMiniApp } from '@/lib/miniapp-auth';
+import { getMiniAppIdentity, getMiniAppAuthMethod, signInToMiniApp } from '@/lib/miniapp-auth';
 
 describe('getMiniAppIdentity', () => {
   it('uses the Mini App host and origin for SIWF', () => {
@@ -28,6 +28,21 @@ describe('getMiniAppIdentity', () => {
       domain: 'localhost:3001',
       siweUri: 'http://localhost:3001',
     });
+  });
+});
+
+describe('getMiniAppAuthMethod', () => {
+  it('recognizes the method-only linkedAccounts response used by the wallet login', () => {
+    const accounts = [{ fid: 123, link: { method: 'custody' } }];
+    expect(getMiniAppAuthMethod(accounts, 123)).toBe('custody');
+    expect(getMiniAppAuthMethod([{ fid: 123, link: { method: 'authAddress' } }], 123)).toBe('authAddress');
+  });
+
+  it('rejects a different FID, a verified profile-only address, and an explicitly unlinked account', () => {
+    expect(getMiniAppAuthMethod([{ fid: 123, link: { method: 'custody' } }], 456)).toBeNull();
+    expect(getMiniAppAuthMethod([{ fid: 123, link: { method: 'verifiedAddress' } }], 123)).toBeNull();
+    expect(getMiniAppAuthMethod([{ fid: 123, link: { method: 'authAddress', linked: false } }], 123)).toBeNull();
+    expect(getMiniAppAuthMethod(undefined, 123)).toBeNull();
   });
 });
 

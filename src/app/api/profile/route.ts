@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
       displayName: normalizedUser.display_name
     });
 
-    return NextResponse.json({ ...normalizedUser, casts, next, castsUnavailable, ...(includeCasts ? { castHistoryReadNode } : {}) }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
+    return NextResponse.json({ ...normalizedUser, casts, next, castsUnavailable, ...(includeCasts ? { castHistoryReadNode } : {}) }, { headers: { 'Cache-Control': includeCasts ? 'no-store' : 'public, s-maxage=120, stale-while-revalidate=300' } });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');

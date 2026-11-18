@@ -153,10 +153,13 @@ export async function POST(request: NextRequest) {
     let data: any = {};
     try { data = JSON.parse(rawText); } catch { /* non-JSON body */ }
 
+    const errorMessage = [data?.message, data?.errMsg, data?.error?.message, data?.error, data?.error_detail]
+      .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+
     // Some compatible nodes return a 2xx HTTP status with an application-level
     // rejection. Do not report that as a successful signed follow/reaction/cast.
     if (data?.ok === false || data?.success === false) {
-      const errMsg = data?.message || data?.errMsg || data?.error || data?.error_detail || 'Hypersnap rejected the message';
+      const errMsg = errorMessage || 'Hypersnap rejected the message';
       return NextResponse.json(
         { ok: false, error: errMsg, details: data?.error_detail || data?.errorDetail || undefined, hub: data },
         { status: 502 }
@@ -164,7 +167,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!hubRes.ok) {
-      const errMsg = data?.message || data?.errMsg || data?.error || rawText.slice(0, 300) || `Hub error ${hubRes.status}`;
+      const errMsg = errorMessage || rawText.slice(0, 300) || `Hub error ${hubRes.status}`;
       console.error(`[submit-cast] hub ${hubRes.status}: ${errMsg}`, JSON.stringify(data));
       return NextResponse.json(
         { ok: false, error: errMsg, details: data?.error_detail || data?.errorDetail || undefined, hub: data },

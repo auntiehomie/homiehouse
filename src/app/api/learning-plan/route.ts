@@ -1256,6 +1256,10 @@ export async function POST(req: NextRequest) {
         kbContext = '\n\nKnowledge Base articles for this track (source material):\n' + kbModules.map((m) => [
           '- Article: "' + m.title + '"',
           '  Source URL: ' + (m.sourceUrl || 'not provided'),
+          m.sourceAuthor ? '  Author: ' + m.sourceAuthor : '',
+          m.sourcePublisher ? '  Publisher: ' + m.sourcePublisher : '',
+          m.sourcePublishedAt ? '  Publication date: ' + m.sourcePublishedAt : '',
+          m.sourceCaveats ? '  Caveats: ' + m.sourceCaveats : '',
           '  Summary: ' + m.description,
           '  Why it matters: ' + m.whyItMatters,
           '  Learning points: ' + m.objectives.join('; '),
