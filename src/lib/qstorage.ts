@@ -1,4 +1,5 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { safeFetchPublicUrl } from './safe-public-fetch';
 
 export interface QStorageConfig {
   accessKeyId: string;
@@ -73,19 +74,43 @@ export function buildQStorageImageUrl(key: string, publicBaseUrl: string): strin
   return `${base}/${key.split('/').map(encodeURIComponent).join('/')}`;
 }
 
+export async function verifyQStoragePublicImage(url: string, expected: Uint8Array): Promise<void> {
+  // A successful authenticated PUT does not prove that cast readers can GET it.
+  // Use the exact permanent URL, without credentials or a signed query string.
+  const response = await safeFetchPublicUrl(url, {
+    headers: { 'Cache-Control': 'no-cache' },
+    timeoutMs: 10000,
+    maxBytes: expected.byteLength,
+    maxRedirects: 0,
+  });
+  if (!response.ok) {
+    throw new Error(`QStorage public image verification failed (HTTP ${response.status}). Check object public access and QSTORAGE_PUBLIC_BASE_URL.`);
+  }
+  if (!response.headers.get('content-type')?.toLowerCase().startsWith('image/')) {
+    throw new Error('QStorage public URL did not return an image.');
+  }
+  const actual = new Uint8Array(await response.arrayBuffer());
+  if (actual.length !== expected.length || actual.some((byte, index) => byte !== expected[index])) {
+    throw new Error('QStorage public URL returned different image bytes.');
+  }
+}
+
 export async function uploadImageToQStorage(file: File, fid?: string | null): Promise<{ key: string; url: string }> {
   const config = getQStorageConfig();
   if (!config) throw new Error('QStorage is not configured.');
 
   const key = `casts/${fid && /^\d+$/.test(fid) ? fid : 'unknown'}/${crypto.randomUUID()}.${extensionForImage(file)}`;
+  const bytes = new Uint8Array(await file.arrayBuffer());
   await getClient(config).send(new PutObjectCommand({
     Bucket: config.bucket,
     Key: key,
-    Body: new Uint8Array(await file.arrayBuffer()),
+    Body: bytes,
     ContentLength: file.size,
     ContentType: file.type,
     CacheControl: 'public, max-age=31536000, immutable',
     ACL: 'public-read',
   }));
-  return { key, url: buildQStorageImageUrl(key, config.publicBaseUrl) };
+  const url = buildQStorageImageUrl(key, config.publicBaseUrl);
+  await verifyQStoragePublicImage(url, bytes);
+  return { key, url };
 }
