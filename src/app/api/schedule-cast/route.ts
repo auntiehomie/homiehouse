@@ -4,6 +4,7 @@ import { rateLimit } from '@/lib/ratelimit';
 import { verifyFarcasterSignerAuth, verifyFarcasterSigner, verifyFarcasterSignerKey } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 import { encryptSignerKey } from '@/lib/signer-crypto';
+import { castTypeForText } from '@/lib/cast-text';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (typeof text !== 'string' || !text.trim()) {
+      return NextResponse.json({ ok: false, error: 'Cast text is required' }, { status: 400 });
+    }
+    try { castTypeForText(text); } catch (error) {
+      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+    }
+
     const userFid = Number(fid);
     if (!userFid || isNaN(userFid)) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const scheduledDate = new Date(scheduled_time);
-    if (scheduledDate <= new Date()) {
+    if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate <= new Date()) {
       return NextResponse.json(
         { ok: false, error: 'Scheduled time must be in the future' },
         { status: 400 }

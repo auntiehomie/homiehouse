@@ -129,11 +129,16 @@ export default function ScheduledPage() {
       // Mark as published in DB
       const authHeaders = await ensureAuthHeaders('write:casts');
       if (!authHeaders) throw new Error('Your posting session could not be verified. Sign in again.');
-      await fetch('/api/schedule-cast', {
+      const markResponse = await fetch('/api/schedule-cast', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ id: cast.id, fid: userFid, cast_hash: result.castHash }),
       });
+
+      const marked = await markResponse.json().catch(() => ({}));
+      if (!markResponse.ok || !marked.ok) {
+        throw new Error('Your cast was submitted, but its scheduled entry could not be updated. Check your profile before trying again.');
+      }
 
       setCasts(prev => prev.filter(c => c.id !== cast.id));
     } catch (err: any) {

@@ -1,65 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { buildSignedMessage, hexToBytes, MessageType } from '@/lib/fc-message-builder';
-import type { CastEmbed } from '@/lib/fc-message-builder';
-import { ed25519 } from '@noble/curves/ed25519';
-import { decryptSignerKey } from '@/lib/signer-crypto';
-import { fetchChannelParentUrl } from '@/lib/hypersnap';
-
-const HYPERSNAP_BASE =
-  process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
-
-async function publishWithStoredKey(cast: any): Promise<string> {
-  // Decrypt the stored signer key (encrypted at schedule time from the auth header)
-  const privateKeyHex = decryptSignerKey(cast.signer_uuid);
-  if (!privateKeyHex) {
-    throw new Error('No valid signer key stored. Re-schedule this cast after approving posting permissions.');
-  }
-
-  const privateKeyBytes = hexToBytes(privateKeyHex);
-  const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
-  const signer = {
-    publicKey: publicKeyBytes,
-    sign: async (hash: Uint8Array) => ed25519.sign(hash, privateKeyBytes),
-  };
-
-  const rawEmbeds: Array<{ url: string }> = Array.isArray(cast.embeds)
-    ? cast.embeds
-    : JSON.parse(cast.embeds || '[]');
-  const castEmbeds: CastEmbed[] = rawEmbeds.map((e: { url: string }) => ({ url: e.url }));
-  const parentUrl = cast.channel_id
-    ? await fetchChannelParentUrl(cast.channel_id)
-    : undefined;
-
-  const message = await buildSignedMessage(
-    {
-      type: MessageType.CAST_ADD,
-      fid: cast.user_fid,
-      body: {
-        castAddBody: {
-          text: cast.text,
-          embeds: castEmbeds.length ? castEmbeds : undefined,
-          parent: parentUrl ? { url: parentUrl } : undefined,
-        },
-      },
-    },
-    signer,
-  );
-
-  const hubRes = await fetch(`${HYPERSNAP_BASE}/v1/submitMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/octet-stream', accept: 'application/json' },
-    body: message as unknown as BodyInit,
-  });
-
-  if (!hubRes.ok) {
-    const errData = await hubRes.json().catch(() => ({}));
-    throw new Error(errData.message || errData.errMsg || errData.error || `Hub error ${hubRes.status}`);
-  }
-
-  const result = await hubRes.json();
-  return result.hash ?? result.cast?.hash ?? result.data?.hash ?? '';
-}
+import { publishWithStoredKey } from '@/lib/scheduled-cast-publisher';
 
 function scheduledCastAuthorization(req: NextRequest): NextResponse | undefined {
   const authHeader = req.headers.get('authorization');
@@ -107,7 +48,7 @@ async function handlePublishScheduledCasts(req: NextRequest) {
 
         await sql`
           UPDATE scheduled_casts
-          SET status = 'published', published_at = ${nowIso}::timestamptz, cast_hash = ${castHash || null}
+          SET status = 'published', published_at = ${nowIso}::timestamptz, cast_hash = ${castHash}, error_message = NULL
           WHERE id = ${cast.id}
         `;
 
@@ -176,7 +117,7 @@ export async function PUT(req: NextRequest) {
 
       await sql`
         UPDATE scheduled_casts
-        SET status = 'published', published_at = NOW(), cast_hash = ${castHash || null}
+        SET status = 'published', published_at = NOW(), cast_hash = ${castHash}, error_message = NULL
         WHERE id = ${id}
       `;
 
