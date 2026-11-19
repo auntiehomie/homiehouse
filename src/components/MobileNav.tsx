@@ -35,6 +35,7 @@ const CloseIcon = (
 
 const NAV_ITEMS = [
   { href: '/feed', label: 'Feed', exact: true, icon: FeedIcon },
+  { href: '/clips', label: 'Clips', icon: <AppIcon name="clips" className="w-5 h-5" /> },
   { href: '/channels', label: 'Channels', icon: <AppIcon name="channels" className="w-5 h-5" /> },
   { href: '/messages', label: 'Messages', icon: <AppIcon name="messages" className="w-5 h-5" /> },
   { href: '/learn', label: 'Learn', icon: LearnIcon },
