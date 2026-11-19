@@ -1,22 +1,23 @@
+jest.mock('@/components/learning/LessonAnimation.module.css', () => ({}));
 jest.mock('@/components/learning/LessonActivity.module.css', () => ({}));
 
-import { lessonIllustrationTopic } from '@/components/learning/LessonIllustration';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import LessonIllustration from '@/components/learning/LessonIllustration';
+import { storyboardForText } from '@/lib/lesson-storyboard';
 
-describe('lesson illustration selection', () => {
-  it.each([
-    ['A waiter takes money before the customer bill is final', 'restaurant'],
-    ['Reentrancy repeatedly calls withdraw', 'reentrancy'],
-    ['A flash loan borrows, swaps and repays', 'flash-loan'],
-    ['A multisig wallet needs multiple approvals', 'multisig'],
-    ['Keep your seed phrase offline', 'seed'],
-    ['An agent observes chain data, evaluates it, and executes transactions', 'agent-loop'],
-    ['A trader watches market prices and decides whether to buy or sell', 'trader'],
-    ['A restaurant menu with five dishes is simpler than a 50-page menu for customers', 'menu'],
-    ['Censorship resistance means that no actor can block or erase transactions or contracts.', 'censorship'],
-    ['Uniswap is permissionless: anyone can trade or create a liquidity pool without KYC or approval.', 'permissionless'],
-    ['A public park is permissionless. A private gated community is permission-based.', 'park'],
-    ['An unrelated AI concept', null],
-  ] as const)('selects a matching scene for %s', (text, expected) => {
-    expect(lessonIllustrationTopic(text)).toBe(expected);
-  });
+it('replaces a legacy comparison on the reported card with an animated explanation', () => {
+  const text = 'The cost of attacking the chain exceeds the reward.';
+  const markup = renderToStaticMarkup(createElement(LessonIllustration, { text, visual: { source: text, layout: 'comparison', labels: ['cost', 'reward'] } }));
+  expect(markup).toContain('Animated explanation');
+  expect(markup).toContain('data-actor="resources"');
+  expect(markup).toContain('Play');
+  expect(markup).not.toContain('lesson-scene');
+});
+
+it('does not reuse a partial storyboard for a card containing additional points', () => {
+  const source = 'The cost of attacking the chain exceeds the reward.';
+  const visual = { ...storyboardForText(source)!, source };
+  const markup = renderToStaticMarkup(createElement(LessonIllustration, { text: 'A completely different explanation of permissions.', visual }));
+  expect(markup).not.toContain('data-actor="resources"');
 });

@@ -1,30 +1,33 @@
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/lesson-scene/route';
 import { llmChat } from '@/lib/llm';
+import { storyboardForText } from '@/lib/lesson-storyboard';
 
 jest.mock('@/lib/llm', () => ({ llmChat: jest.fn() }));
 jest.mock('@/lib/ratelimit', () => ({ rateLimit: jest.fn(() => ({ success: true })) }));
 
-const sentence = 'Independent nodes share control.';
-const request = (text: string) => new NextRequest('http://localhost/api/lesson-scene', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+const text = 'The cost of attacking the chain exceeds the reward. This illustrates economic incentives.';
+const request = () => new NextRequest('http://localhost/api/lesson-scene', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+const plan = { ...storyboardForText('The cost of attacking exceeds the reward.')!, source: text };
 
-describe('animation-only backfill', () => {
-  it('returns a validated plan for the original text', async () => {
-    const plan = { source: sentence, layout: 'network', labels: ['Independent nodes', 'control'] };
-    (llmChat as jest.Mock).mockResolvedValueOnce({ message: { content: JSON.stringify(plan) } });
-    const result = await POST(request(sentence));
-    expect(await result.json()).toEqual({ plan });
-  });
-  it('accepts grounded labels when the model omits the redundant source', async () => {
-    (llmChat as jest.Mock).mockResolvedValueOnce({ message: { content: JSON.stringify({ layout: 'network', labels: [' Independent nodes ', 'control'] }) } });
-    expect(await (await POST(request(sentence))).json()).toEqual({ plan: { source: sentence, layout: 'network', labels: ['Independent nodes', 'control'] } });
-  });
-  it('does not replace an incorrect supplied source', async () => {
-    (llmChat as jest.Mock).mockResolvedValueOnce({ message: { content: JSON.stringify({ source: 'A different source sentence.', layout: 'network', labels: ['Independent nodes', 'control'] }) } });
-    expect(await (await POST(request(sentence))).json()).toEqual({ plan: null });
-  });
-  it('rejects labels that are not in the lesson text', async () => {
-    (llmChat as jest.Mock).mockResolvedValueOnce({ message: { content: JSON.stringify({ source: sentence, layout: 'network', labels: ['Independent nodes', 'central owner'] }) } });
-    expect(await (await POST(request(sentence))).json()).toEqual({ plan: null });
-  });
+it('backfills a timed animation for the entire existing card', async () => {
+  jest.mocked(llmChat).mockResolvedValueOnce({ message: { content: JSON.stringify(plan) } } as never);
+  expect(await (await POST(request())).json()).toEqual({ plan });
+  expect(jest.mocked(llmChat).mock.calls.at(-1)![0].messages[0].content).toContain(JSON.stringify(text));
+});
+
+it('can supply the exact source when the model omits it', async () => {
+  const { source: _source, ...withoutSource } = plan;
+  jest.mocked(llmChat).mockResolvedValueOnce({ message: { content: JSON.stringify(withoutSource) } } as never);
+  expect(await (await POST(request())).json()).toEqual({ plan });
+});
+
+it('rejects another card source instead of relabeling it', async () => {
+  jest.mocked(llmChat).mockResolvedValueOnce({ message: { content: JSON.stringify({ ...plan, source: 'Some unrelated lesson.' }) } } as never);
+  expect(await (await POST(request())).json()).toEqual({ plan: null });
+});
+
+it('rejects the old comparison of static labels', async () => {
+  jest.mocked(llmChat).mockResolvedValueOnce({ message: { content: JSON.stringify({ source: text, layout: 'comparison', labels: ['cost', 'reward'] }) } } as never);
+  expect(await (await POST(request())).json()).toEqual({ plan: null });
 });

@@ -9,7 +9,8 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
 import { ensureAuthHeaders, getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
-import LessonIllustration, { lessonIllustrationTopic } from '@/components/learning/LessonIllustration';
+import LessonIllustration from '@/components/learning/LessonIllustration';
+import { storyboardForText } from '@/lib/lesson-storyboard';
 import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
 import { sceneForText, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
@@ -209,6 +210,7 @@ function ActionsCard({ items }: { items: string[] }) {
           <span style={{ fontSize: 15, color: 'var(--text-on-dark)', lineHeight: 1.7 }}>{action}</span>
         </div>
       ))}
+      <LessonIllustration text={items.join(' ')} />
     </CardBody>
   );
 }
@@ -665,9 +667,10 @@ function ModuleLessonContent() {
     const next = cards[cardIndex + 1];
     if (!next) return;
     let text = '';
-    if (next.type === 'concept' && !next.visual) text = `${next.title} ${next.isAnalogy ? next.analogy ?? '' : next.explanation}`;
+    if (next.type === 'concept' && next.visual?.layout !== 'storyboard') text = `${next.title} ${next.isAnalogy ? next.analogy ?? '' : next.explanation}`;
+    else if (next.type === 'actions') text = next.items.join(' ');
     else if (next.type === 'why' || next.type === 'example' || next.type === 'summary') text = next.content;
-    if (!text || sceneForExistingText(text) || lessonIllustrationTopic(text)) return;
+    if (!text || sceneForExistingText(text)?.layout === 'tokenization' || storyboardForText(text)) return;
     void loadExistingLessonScene(text);
   }, [cards, cardIndex]);
 
