@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { LessonStoryboard, AnimatedActor } from '@/lib/lesson-storyboard';
 import styles from './LessonAnimation.module.css';
 
-function Symbol({ shape }: { shape: AnimatedActor['shape'] }) {
+function ActorGlyph({ shape }: { shape: AnimatedActor['shape'] }) {
   return <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
     {shape === 'coin' ? <><circle cx="24" cy="24" r="18"/><path d="M24 11v26m7-21H21a5 5 0 0 0 0 10h6a5 5 0 0 1 0 10H16"/></>
       : shape === 'person' ? <><circle cx="24" cy="12" r="8"/><path d="M8 43v-8a16 16 0 0 1 32 0v8"/></>
@@ -35,7 +35,7 @@ export default function LessonAnimation({ plan }: { plan: LessonStoryboard }) {
         const state = frame.states.find(state => state.id === actor.id)!;
         const color = state.tone === 'bad' ? '#fb7185' : state.tone === 'good' ? '#34d399' : '#a99bff';
         return <div key={actor.id} data-actor={actor.id} className={styles.actor} style={{ left: `clamp(42px, ${state.x}%, calc(100% - 42px))`, top: `clamp(20px, ${state.y}%, calc(100% - 80px))`, opacity: state.visible ? 1 : 0, color, transform: actor.shape === 'bar' ? 'translateY(-100%)' : undefined }}>
-          {actor.shape === 'bar' ? <div className={styles.bar} style={{ height: 25 * state.amount }} /> : <Symbol shape={actor.shape} />}
+          {actor.shape === 'bar' ? <div className={styles.bar} style={{ height: 25 * state.amount }} /> : <ActorGlyph shape={actor.shape} />}
           <span>{actor.label}</span>
           {actor.shape !== 'bar' && state.amount > 1 && <div className={styles.quantity}>{Array.from({ length: state.amount }, (_, i) => <i key={i} />)}</div>}
         </div>;
