@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { clipVideoUrl } from '@/lib/clips';
 import SmartEmbed from './SmartEmbed';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 import { isCastGalleryUrl, parseCastGalleryImages } from '@/lib/cast-gallery';
@@ -112,6 +113,8 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
       </a>
     );
   }
+
+  if (clipVideoUrl(embedUrl)) return <video src={embedUrl} controls playsInline preload="metadata" className="w-full max-h-[75dvh] rounded-lg bg-black" />;
 
   // IPFS CIDs have no file extension. Try the image without assuming all
   // IPFS content is media; non-images fall back to the regular link preview.
