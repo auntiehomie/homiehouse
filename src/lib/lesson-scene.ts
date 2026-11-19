@@ -1,5 +1,7 @@
+import { normalizeStoryboard, type LessonStoryboard } from './lesson-storyboard';
 /** Bounded, data-only plans: no generated code, markup, URLs, or arbitrary SVG. */
 export type LessonScene =
+  | LessonStoryboard
   | { source: string; layout: 'network' | 'sequence' | 'comparison'; labels: string[] }
   | { source: string; layout: 'tokenization'; sample?: string };
 
@@ -14,6 +16,10 @@ export function normalizeLessonScenes(input: unknown, explanation: string): Less
   return input.slice(0, 6).flatMap((item): LessonScene[] => {
     if (!item || typeof item !== 'object') return [];
     const value = item as Record<string, unknown>;
+    if (value.layout === 'storyboard') {
+      const plan = normalizeStoryboard(value, explanation);
+      return plan ? [plan] : [];
+    }
     if (typeof value.source !== 'string' || value.source.length < 10 || value.source.length > 500 || !explanation.includes(value.source)) return [];
     if (value.layout === 'tokenization') {
       if (!describesModelTokens(value.source)) return [];
