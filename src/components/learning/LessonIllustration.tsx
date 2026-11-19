@@ -16,7 +16,7 @@ function CardAnimation({ text, visual }: { text: string; visual?: LessonScene })
   const activity = lessonActivityFor(text);
   const builtIn = storyboardForText(text);
   const saved = normalizeLessonScenes([visual], text)[0];
-  const tokenization = sceneForExistingText(text);
+  const tokenization = saved?.layout === 'tokenization' ? saved : sceneForExistingText(text);
   const storyboard = builtIn ?? (saved?.layout === 'storyboard' && saved.source === text.trim() ? saved : undefined);
   const [generated, setGenerated] = useState<LessonScene | null>(null);
   const [loading, setLoading] = useState(false);
