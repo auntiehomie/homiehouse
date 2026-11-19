@@ -18,6 +18,6 @@ it('replaces a legacy comparison on the reported card with an animated explanati
 it('does not reuse a partial storyboard for a card containing additional points', () => {
   const source = 'The cost of attacking the chain exceeds the reward.';
   const visual = { ...storyboardForText(source)!, source };
-  const markup = renderToStaticMarkup(createElement(LessonIllustration, { text: 'A completely different explanation of permissions.', visual }));
+  const markup = renderToStaticMarkup(createElement(LessonIllustration, { text: source + ' Nodes also validate signatures.', visual }));
   expect(markup).not.toContain('data-actor="resources"');
 });
