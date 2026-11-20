@@ -6,7 +6,7 @@ updated: 2026-10-11
 
 ## Next
 
-- [ ] Prototype an embedded EVM wallet on Base Sepolia with existing HomieHouse auth, passkey recovery, and a Wagmi-compatible provider; keep Hypersnap posting authorization separate [added::2026-10-26] [doc::docs/EMBEDDED_EVM_WALLET.md]
+- [ ] Spike ZeroDev passkey wallet on Base Sepolia; compare MetaMask Embedded Wallets for account binding, reconnect/recovery, Wagmi 3 compatibility, and HH2-compatible ERC-20 calls; keep Hypersnap posting authorization separate [added::2026-11-11] [doc::docs/EMBEDDED_EVM_WALLET.md]
 
 ## In Progress
 
