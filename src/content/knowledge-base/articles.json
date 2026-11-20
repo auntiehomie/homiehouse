@@ -25,6 +25,7 @@
       "id": "ethereum-whitepaper",
       "title": "Ethereum Whitepaper",
       "url": "https://ethereum.org/whitepaper/",
+      "publishedAt": "2014",
       "source": "ethereum.org",
       "tags": [
         "crypto",
@@ -44,6 +45,7 @@
       "id": "bitcoin-whitepaper",
       "title": "Bitcoin Whitepaper",
       "url": "https://bitcoin.org/bitcoin.pdf",
+      "publishedAt": "2008",
       "source": "bitcoin.org",
       "tags": [
         "crypto",
@@ -1352,6 +1354,7 @@
       "id": "moment-of-zen-tech-tribe-cities-part-2",
       "title": "Balaji on How the Tech Tribe Can Save Our Cities [Part 2]",
       "url": "https://www.youtube.com/watch?v=EqJoXaNFFjY",
+      "publishedAt": "2023-09-10",
       "source": "www.youtube.com",
       "tags": [
         "network states",
