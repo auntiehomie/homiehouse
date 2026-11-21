@@ -184,7 +184,7 @@ async function generateReply(
 export async function GET(request: NextRequest) {
   try {
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`agent-mention:${ip}`, 20, 3600);
+    const { success: rateLimitOk } = await rateLimit(`agent-mention:${ip}`, 20, 3600);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }

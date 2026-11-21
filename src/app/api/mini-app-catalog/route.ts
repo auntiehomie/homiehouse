@@ -53,7 +53,7 @@ function mapCatalogApp(value: unknown) {
 export async function GET(req: Request) {
   const query = new URL(req.url).searchParams.get('q')?.trim() ?? '';
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const { success } = rateLimit(`mini-app-catalog:${ip}`, 30, 60);
+  const { success } = await rateLimit(`mini-app-catalog:${ip}`, 30, 60);
   if (!success) return NextResponse.json({ error: 'Too many catalog requests. Try again shortly.' }, { status: 429 });
 
   try {

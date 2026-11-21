@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
     // Rate limit: 30 requests/minute per IP
     const forwarded = req.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`push-check-notifications:${ip}`, 30, 60);
+    const { success: rateLimitOk } = await rateLimit(`push-check-notifications:${ip}`, 30, 60);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }

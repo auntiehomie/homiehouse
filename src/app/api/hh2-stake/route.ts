@@ -264,7 +264,7 @@ function decodeEvent(receipt: Awaited<ReturnType<typeof baseClient.getTransactio
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`hh2-stake-post:${ip}`, 8, 60).success) return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
+  if (!(await rateLimit(`hh2-stake-post:${ip}`, 8, 60)).success) return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
 
   try {
     const authFid = await verifyFarcasterSignerAuth(req);

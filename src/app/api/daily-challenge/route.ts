@@ -349,7 +349,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`daily-challenge:${ip}`, 10, 60).success) {
+  if (!(await rateLimit(`daily-challenge:${ip}`, 10, 60)).success) {
     return NextResponse.json({ ok: false, error: 'Rate limited' }, { status: 429 });
   }
 

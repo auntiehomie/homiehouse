@@ -8,7 +8,7 @@ import { encryptSignerKey } from '@/lib/signer-crypto';
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`schedule-cast:${ip}`, 10, 3600);
+    const { success: rateLimitOk } = await rateLimit(`schedule-cast:${ip}`, 10, 3600);
 
     if (!rateLimitOk) {
       return NextResponse.json(

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
     const forwarded = req.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success } = rateLimit(`cast-notes:${ip}`, 30, 60);
+    const { success } = await rateLimit(`cast-notes:${ip}`, 30, 60);
     if (!success) return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
 
     const notes = await sql`

@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
   try {
     // Rate limit by IP
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const { success: rlOk } = rateLimit(`url-preview:${ip}`, 60, 3600);
+    const { success: rlOk } = await rateLimit(`url-preview:${ip}`, 60, 3600);
     if (!rlOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
