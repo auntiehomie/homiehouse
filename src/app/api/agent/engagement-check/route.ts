@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     // Rate limit: 10 requests/hour per IP (cron endpoint protection)
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`agent-engagement-check:${ip}`, 10, 3600);
+    const { success: rateLimitOk } = await rateLimit(`agent-engagement-check:${ip}`, 10, 3600);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }

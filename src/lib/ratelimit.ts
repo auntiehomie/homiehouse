@@ -159,14 +159,39 @@ export function rateLimitKeyFromRequest(request: Request): string {
 
 // ── Backward compatibility ───────────────────────────────────────────────────
 
+let warnedMissingStore = false;
+
 /**
- * @deprecated Use checkRateLimit() or enforceRateLimit() instead.
- * Synchronous in-memory rate limiter kept for existing route compatibility.
+ * Legacy-signature rate limiter, now backed by Upstash Redis.
+ *
+ * Previously this was in-memory only, which on serverless meant every warm
+ * instance kept its own counter, so the effective limit was roughly
+ * `limit × instances`. It now uses the shared Upstash store when configured.
+ *
+ * Unlike checkRateLimit(), this degrades to the in-memory limiter (instead of
+ * returning 503) when Upstash is missing or errors, so existing routes never
+ * become less available than before. Routes that spend money or sign
+ * transactions should use checkRateLimit()/enforceRateLimit(), which fail closed.
  */
-export function rateLimit(
+export async function rateLimit(
   key: string,
   limit: number = 10,
   window: number = 3600
-): { success: boolean; remaining: number } {
+): Promise<RateLimitResult> {
+  const upstash = getUpstashRatelimit();
+  if (upstash) {
+    try {
+      const result = await upstash.slidingWindow(limit, window).limit(key);
+      return { success: result.success, remaining: result.remaining };
+    } catch (error) {
+      console.error(
+        '[ratelimit] Upstash unavailable, using in-memory fallback:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  } else if (process.env.NODE_ENV === 'production' && !warnedMissingStore) {
+    warnedMissingStore = true;
+    console.warn('[ratelimit] UPSTASH_REDIS_REST_URL/TOKEN not set; rate limits are per-instance only');
+  }
   return memoryRatelimit(key, limit, window);
 }

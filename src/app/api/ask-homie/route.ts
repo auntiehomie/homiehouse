@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
     const rateLimitKey = authenticatedFid
       ? `ask-homie:fid:${authenticatedFid}`
       : `ask-homie:ip:${ip}`;
-    const { success: rlOk } = rateLimit(rateLimitKey, rateLimitCount, 3600);
+    const { success: rlOk } = await rateLimit(rateLimitKey, rateLimitCount, 3600);
     if (!rlOk) {
       return NextResponse.json({
         error: isPro || isAskHomiePro

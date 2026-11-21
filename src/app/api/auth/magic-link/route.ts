@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit: 10 per IP per hour
     const ip = getClientIp(request);
-    const ipRateLimit = rateLimit(`ml-ip:${ip}`, 10, 3600);
+    const ipRateLimit = await rateLimit(`ml-ip:${ip}`, 10, 3600);
     if (!ipRateLimit.success) {
       return NextResponse.json(
         { ok: true }, // Don't leak rate limit to unauthenticated users
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit: 3 per email per 10 minutes
-    const emailRateLimit = rateLimit(`ml-email:${email}`, 3, 600);
+    const emailRateLimit = await rateLimit(`ml-email:${email}`, 3, 600);
     if (!emailRateLimit.success) {
       return NextResponse.json({ ok: true }); // Don't leak rate limit
     }

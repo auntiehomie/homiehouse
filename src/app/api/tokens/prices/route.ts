@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     // Rate limit: 30 requests/minute per IP
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`tokens-prices:${ip}`, 30, 60);
+    const { success: rateLimitOk } = await rateLimit(`tokens-prices:${ip}`, 30, 60);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }

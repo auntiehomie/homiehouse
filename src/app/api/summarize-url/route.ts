@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success } = rateLimit(`summarize-url:${ip}`, 15, 3600);
+    const { success } = await rateLimit(`summarize-url:${ip}`, 15, 3600);
     if (!success) return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
 
     const { url } = await req.json();

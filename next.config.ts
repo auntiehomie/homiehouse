@@ -23,8 +23,8 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
 //    by any Farcaster client, while everything else (the main app) is
 //    locked to same-origin framing only.
 //
-// 2. The app pulls in several third-party auth/wallet SDKs (Privy,
-//    RainbowKit, wagmi, WalletConnect) whose exact runtime script/connect/
+// 2. The app pulls in several third-party auth/wallet SDKs
+//    (RainbowKit, wagmi, WalletConnect) whose exact runtime script/connect/
 //    frame origins aren't fully enumerable from source alone, and there's
 //    no environment here to live-test a full wallet-connect flow against a
 //    strict CSP. A compatible policy is enforced now; a tighter candidate is
@@ -46,8 +46,8 @@ const CSP_ENFORCED = [
   "img-src 'self' data: https:", // avatars/token logos come from arbitrary HTTPS hosts (see images.remotePatterns)
   "media-src 'self' https: blob:", // Cast video and audio can be hosted on external HTTPS CDNs.
   "font-src 'self' data:",
-  "connect-src 'self' https: wss:", // Hypersnap, RPC endpoints, WalletConnect relay, Privy, Sentry, etc.
-  "frame-src 'self' https:", // WalletConnect / Privy auth iframes
+  "connect-src 'self' https: wss:", // Hypersnap, RPC endpoints, WalletConnect relay, Sentry, etc.
+  "frame-src 'self' https:", // WalletConnect auth iframes
   APP_FRAME_ANCESTORS,
   "object-src 'none'",
   "base-uri 'self'",
@@ -107,11 +107,11 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_FARCASTER_HUB_URL: process.env.NEXT_PUBLIC_FARCASTER_HUB_URL || 'https://nemes.farcaster.xyz:2281',
   },
   // Exclude problematic packages from server component bundling
-  serverExternalPackages: ['pino', 'thread-stream', '@walletconnect/logger', '@privy-io/react-auth'],
+  serverExternalPackages: ['pino', 'thread-stream', '@walletconnect/logger'],
   turbopack: {},
   webpack: (config, { isServer }) => {
     if (isServer) {
-      config.externals.push('pino-pretty', 'lokijs', 'encoding', '@privy-io/react-auth');
+      config.externals.push('pino-pretty', 'lokijs', 'encoding');
     }
     return config;
   },

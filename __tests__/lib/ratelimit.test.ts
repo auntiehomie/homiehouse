@@ -52,3 +52,60 @@ describe('checkRateLimit preview fallback', () => {
       .rejects.toMatchObject({ status: 503, code: 'RATE_LIMIT_STORE_UNAVAILABLE' });
   });
 });
+
+describe('legacy rateLimit()', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const originalUpstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+  const originalUpstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  afterEach(() => {
+    jest.resetModules();
+    jest.dontMock('@upstash/ratelimit');
+    jest.dontMock('@upstash/redis');
+    process.env.NODE_ENV = originalNodeEnv;
+    if (originalUpstashUrl === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
+    else process.env.UPSTASH_REDIS_REST_URL = originalUpstashUrl;
+    if (originalUpstashToken === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    else process.env.UPSTASH_REDIS_REST_TOKEN = originalUpstashToken;
+  });
+
+  function loadWithUpstash(limitImpl: jest.Mock) {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://example.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'token';
+    const Ratelimit = Object.assign(jest.fn(() => ({ limit: limitImpl })), { slidingWindow: jest.fn() });
+    jest.doMock('@upstash/ratelimit', () => ({ Ratelimit }));
+    jest.doMock('@upstash/redis', () => ({ Redis: jest.fn() }));
+    let mod: typeof import('@/lib/ratelimit');
+    jest.isolateModules(() => { mod = require('@/lib/ratelimit'); });
+    return mod!;
+  }
+
+  it('uses the shared Upstash store when configured', async () => {
+    const limit = jest.fn().mockResolvedValue({ success: false, remaining: 0 });
+    const { rateLimit } = loadWithUpstash(limit);
+    await expect(rateLimit('legacy-upstash', 5, 60)).resolves.toEqual({ success: false, remaining: 0 });
+    expect(limit).toHaveBeenCalledWith('legacy-upstash');
+  });
+
+  it('falls back to in-memory limiting when Upstash errors', async () => {
+    const limit = jest.fn().mockRejectedValue(new Error('redis down'));
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const { rateLimit } = loadWithUpstash(limit);
+    const key = `legacy-fallback:${Date.now()}`;
+    await expect(rateLimit(key, 1, 60)).resolves.toEqual({ success: true, remaining: 0 });
+    await expect(rateLimit(key, 1, 60)).resolves.toEqual({ success: false, remaining: 0 });
+    errorSpy.mockRestore();
+  });
+
+  it('stays available in production without Upstash (per-instance fallback)', async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.NODE_ENV = 'production';
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    let mod: typeof import('@/lib/ratelimit');
+    jest.isolateModules(() => { mod = require('@/lib/ratelimit'); });
+    await expect(mod!.rateLimit(`legacy-noconfig:${Date.now()}`, 2, 60)).resolves.toEqual({ success: true, remaining: 1 });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+});

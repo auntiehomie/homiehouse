@@ -7,7 +7,7 @@ export const maxDuration = 40;
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
-  if (!rateLimit(`lesson-scene:${ip}`, 40, 3600).success) return NextResponse.json({ error: 'Too many scene requests' }, { status: 429 });
+  if (!(await rateLimit(`lesson-scene:${ip}`, 40, 3600)).success) return NextResponse.json({ error: 'Too many scene requests' }, { status: 429 });
   try {
     const body = await request.json();
     if (typeof body.text !== 'string' || body.text.length < 10 || body.text.length > 500) return NextResponse.json({ error: 'Invalid lesson text' }, { status: 400 });

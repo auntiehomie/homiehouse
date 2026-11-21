@@ -9,7 +9,7 @@ const authClient = createHypersnapProtocolAuthClient();
 export async function GET(request: NextRequest) {
   const forwarded = request.headers.get('x-forwarded-for');
   const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-  const { success } = rateLimit(`hypersnap-linked-accounts:${ip}`, 20, 60);
+  const { success } = await rateLimit(`hypersnap-linked-accounts:${ip}`, 20, 60);
   if (!success) return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
 
   const address = new URL(request.url).searchParams.get('address');

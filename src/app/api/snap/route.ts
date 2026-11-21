@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     // Rate limit: 30 requests/minute per IP
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`snap:${ip}`, 30, 60);
+    const { success: rateLimitOk } = await rateLimit(`snap:${ip}`, 30, 60);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const forwarded = request.headers.get('x-forwarded-for');
   const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-  const { success: rateLimitOk } = rateLimit(`snap-post:${ip}`, 20, 60);
+  const { success: rateLimitOk } = await rateLimit(`snap-post:${ip}`, 20, 60);
   if (!rateLimitOk) return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
 
   const body = await request.json().catch(() => null);

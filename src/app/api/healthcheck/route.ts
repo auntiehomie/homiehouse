@@ -15,7 +15,6 @@ export async function GET() {
       pinata: !!process.env.PINATA_JWT,
       openai: !!process.env.OPENAI_API_KEY,
       anthropic: !!process.env.ANTHROPIC_API_KEY,
-      supabase: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       farcaster: !!(process.env.APP_FID && process.env.APP_MNEMONIC),
     },
   });

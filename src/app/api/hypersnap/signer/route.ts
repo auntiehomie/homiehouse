@@ -103,7 +103,7 @@ async function createMetadata(fid: number, publicKey: `0x${string}`, deadline: n
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const { success } = rateLimit(`hypersnap-signer:${ip}`, 10, 60);
+  const { success } = await rateLimit(`hypersnap-signer:${ip}`, 10, 60);
   if (!success) return NextResponse.json(
     { ok: false, error: 'Too many signer requests. Wait at least 60 seconds before trying again.' },
     { status: 429, headers: { 'Retry-After': '60' } },

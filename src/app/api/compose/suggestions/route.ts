@@ -21,7 +21,7 @@ function cleanString(value: unknown, max: number): string | undefined {
 export async function POST(request: NextRequest) {
   const forwarded = request.headers.get('x-forwarded-for');
   const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-  if (!rateLimit(`compose-suggestions:${ip}`, 10, 60).success) {
+  if (!(await rateLimit(`compose-suggestions:${ip}`, 10, 60)).success) {
     return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
   }
 

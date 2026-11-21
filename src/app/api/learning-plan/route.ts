@@ -1202,7 +1202,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`learning-plan:${ip}`, 5, 3600);
+    const { success: rateLimitOk } = await rateLimit(`learning-plan:${ip}`, 5, 3600);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Too many requests. Please try again in an hour.' }, { status: 429 });
     }

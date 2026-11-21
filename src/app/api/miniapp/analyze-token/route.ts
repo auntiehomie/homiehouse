@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     // SECURITY: Rate limit (30 per hour per IP)
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const { success: rlOk } = rateLimit(`analyze-token:${ip}`, 30, 3600);
+    const { success: rlOk } = await rateLimit(`analyze-token:${ip}`, 30, 3600);
     if (!rlOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
