@@ -89,7 +89,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
@@ -97,11 +97,11 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^10",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "husky": "^9.1.7",
     "ignore-loader": "^0.1.2",
     "jest": "^30.5.2",
-    "lint-staged": "^17.5.1",
+    "lint-staged": "^17.6.1",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.13",
     "tsx": "^4.23.15",
