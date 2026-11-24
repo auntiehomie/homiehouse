@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Home', exact: true, icon: <AppIcon name="home" className="w-5 h-5" /> },
   { href: '/feed', label: 'Feed', icon: <AppIcon name="feed" className="w-5 h-5" /> },
   { href: '/clips', label: 'Clips', icon: <AppIcon name="clips" className="w-5 h-5" /> },
+  { href: '/castboards', label: 'Castboards', icon: <AppIcon name="channels" className="w-5 h-5" /> },
   { href: '/channels', label: 'Channels', icon: <AppIcon name="channels" className="w-5 h-5" /> },
   { href: '/messages', label: 'Messages', exact: true, icon: <AppIcon name="messages" className="w-5 h-5" /> },
   { href: '/learn', label: 'Learn', icon: <AppIcon name="learn" className="w-5 h-5" /> },
