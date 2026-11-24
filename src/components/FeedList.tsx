@@ -1,5 +1,7 @@
 "use client";
 
+import InlineAskHomie from './InlineAskHomie';
+
 import ReplyStickers from '@/components/ReplyStickers';
 
 import { consumeFeedReturn, FEED_RETURN_TTL, feedSnapshotKey, readFeedReturn, readFeedSnapshot, saveFeedReturn as rememberFeedReturn, saveFeedSnapshot } from '@/lib/feed-session';
@@ -1212,34 +1214,6 @@ export default function FeedList({
                 label="Curate"
               />
 
-              {/* Ask Homie */}
-              <ActionBtn
-                onClick={() => {
-                  const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
-                  const castContext = {
-                    author: { username: authorUsername, display_name: authorName, pfp_url: authorObj?.pfp_url },
-                    text: castText,
-                    hash: key,
-                    timestamp: rawTs,
-                    reactions: { likes_count: it.reactions?.likes_count || 0, recasts_count: it.reactions?.recasts_count || 0 },
-                    replies: { count: it.replies?.count || 0 }
-                  };
-                  // Long casts can exceed browser/proxy URL limits when the
-                  // complete context is JSON-encoded into a query parameter.
-                  // Keep the text in same-tab storage and pass only its hash.
-                  try {
-                    sessionStorage.setItem(`hh_ask_context:${key}`, JSON.stringify(castContext));
-                  } catch {
-                    localStorage.setItem('hh_ask_context', JSON.stringify(castContext));
-                  }
-                  window.location.href = `/ask-homie?castId=${encodeURIComponent(key)}`;
-                }}
-                icon={
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                }
-                label="Ask Homie"
-              />
-
               {/* Save to Notes */}
               <ActionBtn
                 active={savedNotes.has(key)}
@@ -1272,6 +1246,12 @@ export default function FeedList({
               />
             </div>
             
+            <InlineAskHomie cast={{
+              hash: String(key),
+              text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+              author: { username: authorUsername, display_name: authorName, fid: authorObj?.fid },
+            }} />
+
             <ConversationLearningLinks cast={{
               hash: String(key),
               text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
