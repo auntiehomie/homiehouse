@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { castTextWithMentions } from "@/lib/cast-mentions";
 
 interface ParentMeta {
   hash: string;
@@ -17,33 +18,45 @@ async function fetchParent(hash: string): Promise<ParentMeta | null> {
   if (inFlight.has(hash)) return inFlight.get(hash)!;
 
   const p = fetch(`/api/cast?hash=${encodeURIComponent(hash)}`)
-    .then(r => r.ok ? r.json() : null)
-    .then(data => {
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
       const cast = data?.cast;
-      if (!cast) { cache.set(hash, null); return null; }
-      const rawUser = cast.author?.username || '';
+      if (!cast) {
+        cache.set(hash, null);
+        return null;
+      }
+      const rawUser = cast.author?.username || "";
       const isFidString = /^fid:\d+$/i.test(rawUser);
       const authorUsername = isFidString
-        ? (cast.author?.display_name || String(cast.author?.fid || '?'))
-        : (rawUser || cast.author?.display_name || String(cast.author?.fid || '?'));
+        ? cast.author?.display_name || String(cast.author?.fid || "?")
+        : rawUser ||
+          cast.author?.display_name ||
+          String(cast.author?.fid || "?");
       const meta: ParentMeta = {
         hash,
         authorUsername,
-        text: (cast.text || '').slice(0, 200),
+        text: castTextWithMentions(cast).slice(0, 200),
       };
       cache.set(hash, meta);
       return meta;
     })
-    .catch(() => { cache.set(hash, null); return null; })
+    .catch(() => {
+      cache.set(hash, null);
+      return null;
+    })
     .finally(() => inFlight.delete(hash));
 
   inFlight.set(hash, p);
   return p;
 }
 
-export default function ParentCastBadge({ parentHash }: { parentHash: string }) {
+export default function ParentCastBadge({
+  parentHash,
+}: {
+  parentHash: string;
+}) {
   const [meta, setMeta] = useState<ParentMeta | null | undefined>(
-    cache.has(parentHash) ? cache.get(parentHash) : undefined
+    cache.has(parentHash) ? cache.get(parentHash) : undefined,
   );
 
   useEffect(() => {
@@ -57,8 +70,16 @@ export default function ParentCastBadge({ parentHash }: { parentHash: string }) 
     return (
       <Link
         href={`/cast/${parentHash}`}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--muted-on-dark)', marginBottom: 8, textDecoration: 'none' }}
-        onClick={e => e.stopPropagation()}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 13,
+          color: "var(--muted-on-dark)",
+          marginBottom: 8,
+          textDecoration: "none",
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
         ↩ Replying to a cast
       </Link>
@@ -69,28 +90,33 @@ export default function ParentCastBadge({ parentHash }: { parentHash: string }) 
     <Link
       href={`/cast/${meta.hash}`}
       style={{
-        display: 'block',
+        display: "block",
         marginBottom: 10,
-        textDecoration: 'none',
-        borderLeft: '3px solid rgba(255,255,255,0.15)',
+        textDecoration: "none",
+        borderLeft: "3px solid rgba(255,255,255,0.15)",
         paddingLeft: 10,
         paddingTop: 4,
         paddingBottom: 4,
       }}
-      onClick={e => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted-on-dark)' }}>
+      <span
+        style={{ fontSize: 13, fontWeight: 600, color: "var(--muted-on-dark)" }}
+      >
         @{meta.authorUsername}
       </span>
       {meta.text && (
-        <p style={{
-          margin: '2px 0 0',
-          fontSize: 13,
-          color: 'var(--muted-on-dark)',
-          lineHeight: 1.45,
-          opacity: 0.85,
-        }}>
-          {meta.text}{meta.text.length >= 200 ? '…' : ''}
+        <p
+          style={{
+            margin: "2px 0 0",
+            fontSize: 13,
+            color: "var(--muted-on-dark)",
+            lineHeight: 1.45,
+            opacity: 0.85,
+          }}
+        >
+          {meta.text}
+          {meta.text.length >= 200 ? "…" : ""}
         </p>
       )}
     </Link>
