@@ -1,24 +1,36 @@
 "use client";
 
-import CastLoading from './loading';
-import ReplyStickers from '@/components/ReplyStickers';
-import { castEmbedUrls } from '@/lib/cast-embed-urls';
+import CastLoading from "./loading";
+import ReplyStickers from "@/components/ReplyStickers";
+import { castEmbedUrls } from "@/lib/cast-embed-urls";
+import CastText from "@/components/CastText";
+import { castTextWithMentions } from "@/lib/cast-mentions";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
-import ConversationLearningLinks from '@/components/ConversationLearningLinks';
+import ConversationLearningLinks from "@/components/ConversationLearningLinks";
 import EmbedRenderer from "@/components/EmbedRenderer";
-import { previousRoute, readCastNavigation, scrollPageTo, visitRoute, writeCastNavigation } from "@/lib/cast-navigation";
+import {
+  previousRoute,
+  readCastNavigation,
+  scrollPageTo,
+  visitRoute,
+  writeCastNavigation,
+} from "@/lib/cast-navigation";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { buildReplyTree } from "@/lib/cast-thread";
-import { profileHref } from '@/lib/profile-links';
-import { getStoredFid } from '@/lib/client-auth';
+import { profileHref } from "@/lib/profile-links";
+import { getStoredFid } from "@/lib/client-auth";
 
 function ActionBtn({
-  onClick, icon, label, active = false, disabled = false,
+  onClick,
+  icon,
+  label,
+  active = false,
+  disabled = false,
 }: {
   onClick: () => void;
   icon: React.ReactNode;
@@ -31,15 +43,22 @@ function ActionBtn({
       onClick={onClick}
       disabled={disabled}
       style={{
-        display: 'flex', alignItems: 'center', gap: 5,
-        background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
-        border: 'none',
-        color: active ? 'var(--text-on-dark, #fff)' : 'var(--muted-on-dark, #999)',
-        cursor: disabled ? 'default' : 'pointer',
-        fontSize: 13, fontWeight: active ? 600 : 400,
-        padding: '5px 9px', borderRadius: 8,
-        transition: 'background 0.15s, color 0.15s',
-        flexShrink: 0, whiteSpace: 'nowrap',
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        background: active ? "rgba(255,255,255,0.08)" : "transparent",
+        border: "none",
+        color: active
+          ? "var(--text-on-dark, #fff)"
+          : "var(--muted-on-dark, #999)",
+        cursor: disabled ? "default" : "pointer",
+        fontSize: 13,
+        fontWeight: active ? 600 : 400,
+        padding: "5px 9px",
+        borderRadius: 8,
+        transition: "background 0.15s, color 0.15s",
+        flexShrink: 0,
+        whiteSpace: "nowrap",
         opacity: disabled ? 0.5 : 1,
       }}
     >
@@ -67,30 +86,54 @@ export default function CastDetailClient() {
   const [replyText, setReplyText] = useState("");
   const [replyStickers, setReplyStickers] = useState<string[]>([]);
   const [replySending, setReplySending] = useState(false);
-  const [showQuoteModal, setShowQuoteModal] = useState<{ hash: string; authorFid: number; preview: string } | null>(null);
+  const [showQuoteModal, setShowQuoteModal] = useState<{
+    hash: string;
+    authorFid: number;
+    preview: string;
+  } | null>(null);
   const [quoteText, setQuoteText] = useState("");
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const { hasActiveSigner, requestSigner, likeCast, unlikeCast, recast: recastFn, removeRecast, removeCast, reply: replyFn, submitCast } = useFarcasterWrites();
+  const {
+    hasActiveSigner,
+    requestSigner,
+    likeCast,
+    unlikeCast,
+    recast: recastFn,
+    removeRecast,
+    removeCast,
+    reply: replyFn,
+    submitCast,
+  } = useFarcasterWrites();
 
   useEffect(() => {
-    writeCastNavigation(visitRoute(readCastNavigation(), window.location.pathname + window.location.search));
+    writeCastNavigation(
+      visitRoute(
+        readCastNavigation(),
+        window.location.pathname + window.location.search,
+      ),
+    );
   }, [hash]);
 
   const handleBack = useCallback(() => {
-    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
-    if (returnTo === '/feed?feed_type=following') {
+    const returnTo = new URLSearchParams(window.location.search).get(
+      "returnTo",
+    );
+    if (returnTo === "/feed?feed_type=following") {
       router.replace(returnTo, { scroll: false });
       return;
     }
-    const previous = previousRoute(readCastNavigation(), window.location.pathname + window.location.search);
+    const previous = previousRoute(
+      readCastNavigation(),
+      window.location.pathname + window.location.search,
+    );
     if (previous) {
       // Retrace the actual route, including parent/quoted casts and profile tabs.
       router.replace(previous, { scroll: false });
       return;
     }
-    router.replace('/feed', { scroll: false });
+    router.replace("/feed", { scroll: false });
   }, [router]);
 
   const showToast = useCallback((msg: string, ok: boolean) => {
@@ -101,46 +144,58 @@ export default function CastDetailClient() {
   const fetchCastDetail = useCallback(async () => {
     if (!hash) return;
     try {
-      const response = await fetch(`/api/cast?hash=${encodeURIComponent(hash)}`);
+      const response = await fetch(
+        `/api/cast?hash=${encodeURIComponent(hash)}`,
+      );
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to fetch cast');
+        throw new Error(errData.error || "Failed to fetch cast");
       }
       const data = await response.json();
       setCast(data.cast);
     } catch (err: any) {
-      console.error('Error fetching cast:', err);
-      setError(err.message || 'Failed to load cast');
+      console.error("Error fetching cast:", err);
+      setError(err.message || "Failed to load cast");
     }
   }, [hash]);
 
   useEffect(() => {
-    if (!hash) { setError("No cast hash provided"); setLoading(false); return; }
+    if (!hash) {
+      setError("No cast hash provided");
+      setLoading(false);
+      return;
+    }
     fetchCastDetail().finally(() => setLoading(false));
   }, [hash, fetchCastDetail]);
 
   useEffect(() => {
     if (loading || !cast || cast.hash !== hash) return;
     const path = window.location.pathname + window.location.search;
-    const saved = readCastNavigation().entries.find(entry => entry.path === path);
+    const saved = readCastNavigation().entries.find(
+      (entry) => entry.path === path,
+    );
     if (!saved || saved.scrollY <= 0) return;
     const target = saved.scrollY;
     let frame = 0;
     let stopped = false;
     const started = performance.now();
-    const stop = () => { stopped = true; cancelAnimationFrame(frame); };
+    const stop = () => {
+      stopped = true;
+      cancelAnimationFrame(frame);
+    };
     const restore = () => {
       if (stopped) return;
       scrollPageTo(target);
-      if (performance.now() - started < 1200) frame = requestAnimationFrame(restore);
+      if (performance.now() - started < 1200)
+        frame = requestAnimationFrame(restore);
     };
     frame = requestAnimationFrame(restore);
-    window.addEventListener('touchstart', stop, { passive: true });
-    window.addEventListener('wheel', stop, { passive: true });
+    window.addEventListener("touchstart", stop, { passive: true });
+    window.addEventListener("wheel", stop, { passive: true });
     return () => {
       stop();
-      window.removeEventListener('touchstart', stop);
-      window.removeEventListener('wheel', stop);
+      window.removeEventListener("touchstart", stop);
+      window.removeEventListener("wheel", stop);
     };
   }, [cast, hash, loading]);
   const loadMoreReplies = async () => {
@@ -148,205 +203,410 @@ export default function CastDetailClient() {
     if (!cursor || loadingReplies) return;
     setLoadingReplies(true);
     try {
-      const response = await fetch(`/api/cast?hash=${encodeURIComponent(hash)}&replies_cursor=${encodeURIComponent(cursor)}`);
-      if (!response.ok) throw new Error('Failed to load replies');
+      const response = await fetch(
+        `/api/cast?hash=${encodeURIComponent(hash)}&replies_cursor=${encodeURIComponent(cursor)}`,
+      );
+      if (!response.ok) throw new Error("Failed to load replies");
       const data = await response.json();
       setCast((previous: any) => {
         if (previous?.hash !== data.cast?.hash) return previous;
-        const merged = new Map((previous.direct_replies ?? []).map((r: any) => [r.hash, r]));
-        for (const reply of data.cast.direct_replies ?? []) merged.set(reply.hash, reply);
+        const merged = new Map(
+          (previous.direct_replies ?? []).map((r: any) => [r.hash, r]),
+        );
+        for (const reply of data.cast.direct_replies ?? [])
+          merged.set(reply.hash, reply);
         const casts = [...merged.values()];
-        return { ...previous, direct_replies: casts, replies: { ...previous.replies, casts }, replies_next: data.cast.replies_next };
+        return {
+          ...previous,
+          direct_replies: casts,
+          replies: { ...previous.replies, casts },
+          replies_next: data.cast.replies_next,
+        };
       });
     } catch {
-      showToast('Could not load more replies. Please try again.', false);
-    } finally { setLoadingReplies(false); }
+      showToast("Could not load more replies. Please try again.", false);
+    } finally {
+      setLoadingReplies(false);
+    }
   };
 
   const handleLike = async (castHash: string, authorFid: number) => {
-    if (!hasActiveSigner) { await requestSigner(); return; }
+    if (!hasActiveSigner) {
+      await requestSigner();
+      return;
+    }
     setActionLoading(`like-${castHash}`);
     try {
       if (likedCasts.has(castHash)) {
-        await unlikeCast({ targetCastHash: castHash, targetCastFid: authorFid });
-        setLikedCasts(prev => { const s = new Set(prev); s.delete(castHash); return s; });
+        await unlikeCast({
+          targetCastHash: castHash,
+          targetCastFid: authorFid,
+        });
+        setLikedCasts((prev) => {
+          const s = new Set(prev);
+          s.delete(castHash);
+          return s;
+        });
       } else {
         await likeCast({ targetCastHash: castHash, targetCastFid: authorFid });
-        setLikedCasts(prev => new Set([...prev, castHash]));
+        setLikedCasts((prev) => new Set([...prev, castHash]));
       }
     } catch (err: any) {
-      showToast(`Failed to like: ${err?.message ?? 'error'}`, false);
+      showToast(`Failed to like: ${err?.message ?? "error"}`, false);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleRecast = async (castHash: string, authorFid: number) => {
-    if (!hasActiveSigner) { await requestSigner(); return; }
+    if (!hasActiveSigner) {
+      await requestSigner();
+      return;
+    }
     setActionLoading(`recast-${castHash}`);
     try {
       if (recastedCasts.has(castHash)) {
-        await removeRecast({ targetCastHash: castHash, targetCastFid: authorFid });
-        setRecastedCasts(prev => { const s = new Set(prev); s.delete(castHash); return s; });
+        await removeRecast({
+          targetCastHash: castHash,
+          targetCastFid: authorFid,
+        });
+        setRecastedCasts((prev) => {
+          const s = new Set(prev);
+          s.delete(castHash);
+          return s;
+        });
       } else {
         await recastFn({ targetCastHash: castHash, targetCastFid: authorFid });
-        setRecastedCasts(prev => new Set([...prev, castHash]));
+        setRecastedCasts((prev) => new Set([...prev, castHash]));
       }
     } catch (err: any) {
-      showToast(`Failed to recast: ${err?.message ?? 'error'}`, false);
+      showToast(`Failed to recast: ${err?.message ?? "error"}`, false);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleReply = async (castHash: string, authorFid: number) => {
-    if (!hasActiveSigner) { await requestSigner(); return; }
+    if (!hasActiveSigner) {
+      await requestSigner();
+      return;
+    }
     const text = replyText.trim();
     if (!text && !replyStickers.length) return;
     if (replySending) return;
     setReplySending(true);
-    showToast('Sending reply…', true);
+    showToast("Sending reply…", true);
     try {
-      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid, embeds: replyStickers.map(url => ({url})) });
-      setReplyText(''); setReplyStickers([]); setReplyingTo(null);
-      showToast('Reply posted!', true);
+      await replyFn({
+        text,
+        parentCastHash: castHash,
+        parentCastFid: authorFid,
+        embeds: replyStickers.map((url) => ({ url })),
+      });
+      setReplyText("");
+      setReplyStickers([]);
+      setReplyingTo(null);
+      showToast("Reply posted!", true);
     } catch (err: any) {
-      showToast(`Failed: ${err?.message ?? 'error'}`, false);
-    } finally { setReplySending(false); }
+      showToast(`Failed: ${err?.message ?? "error"}`, false);
+    } finally {
+      setReplySending(false);
+    }
   };
 
   const handleQuoteCast = async () => {
     if (!showQuoteModal) return;
-    if (!hasActiveSigner) { await requestSigner(); return; }
+    if (!hasActiveSigner) {
+      await requestSigner();
+      return;
+    }
     if (!quoteText.trim()) return;
     setQuoteLoading(true);
     try {
       const castUrl = `https://warpcast.com/~/conversations/${showQuoteModal.hash}`;
       await submitCast({ text: quoteText, embeds: [{ url: castUrl }] });
-      setQuoteText('');
+      setQuoteText("");
       setShowQuoteModal(null);
-      showToast('Quote cast posted!', true);
+      showToast("Quote cast posted!", true);
     } catch (err: any) {
-      showToast(`Failed: ${err?.message ?? 'error'}`, false);
+      showToast(`Failed: ${err?.message ?? "error"}`, false);
     } finally {
       setQuoteLoading(false);
     }
   };
 
-  const handleSaveToNotes = (castHash: string, authorHandle: string, castText: string) => {
+  const handleSaveToNotes = (
+    castHash: string,
+    authorHandle: string,
+    castText: string,
+  ) => {
     try {
-      const raw = localStorage.getItem('hh_notes');
+      const raw = localStorage.getItem("hh_notes");
       const notes = raw ? JSON.parse(raw) : [];
       const note = {
         id: Date.now().toString(),
         title: `@${authorHandle}`,
         content: castText,
-        tags: ['saved-cast'],
+        tags: ["saved-cast"],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         source: castHash,
       };
-      localStorage.setItem('hh_notes', JSON.stringify([note, ...notes]));
-      setSavedCasts(prev => new Set([...prev, castHash]));
-      showToast('Saved to Notes!', true);
-      setTimeout(() => setSavedCasts(prev => { const s = new Set(prev); s.delete(castHash); return s; }), 3000);
+      localStorage.setItem("hh_notes", JSON.stringify([note, ...notes]));
+      setSavedCasts((prev) => new Set([...prev, castHash]));
+      showToast("Saved to Notes!", true);
+      setTimeout(
+        () =>
+          setSavedCasts((prev) => {
+            const s = new Set(prev);
+            s.delete(castHash);
+            return s;
+          }),
+        3000,
+      );
     } catch {
-      showToast('Could not save to Notes', false);
+      showToast("Could not save to Notes", false);
     }
   };
 
   const handleShareCast = async (castHash: string) => {
-    const url = new URL(`/cast/${encodeURIComponent(castHash)}`, window.location.origin).href;
-    if (typeof navigator.share === 'function') {
+    const url = new URL(
+      `/cast/${encodeURIComponent(castHash)}`,
+      window.location.origin,
+    ).href;
+    if (typeof navigator.share === "function") {
       try {
         await navigator.share({ url });
         return;
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
       }
     }
 
     try {
       await navigator.clipboard.writeText(url);
-      showToast('Cast link copied!', true);
+      showToast("Cast link copied!", true);
     } catch {
-      showToast('Could not copy the cast link.', false);
+      showToast("Could not copy the cast link.", false);
     }
   };
 
-  const renderActionRow = (castHash: string, authorFid: number, previewText: string, authorHandle = '') => (
-    <div style={{
-      display: 'flex', gap: 4, marginTop: 12, paddingTop: 12,
-      borderTop: '1px solid rgba(255,255,255,0.08)',
-      flexWrap: 'wrap',
-    }}>
+  const renderActionRow = (
+    castHash: string,
+    authorFid: number,
+    previewText: string,
+    authorHandle = "",
+  ) => (
+    <div
+      style={{
+        display: "flex",
+        gap: 4,
+        marginTop: 12,
+        paddingTop: 12,
+        borderTop: "1px solid rgba(255,255,255,0.08)",
+        flexWrap: "wrap",
+      }}
+    >
       {/* Like */}
       <ActionBtn
         active={likedCasts.has(castHash)}
         disabled={actionLoading === `like-${castHash}`}
         onClick={() => handleLike(castHash, authorFid)}
-        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill={likedCasts.has(castHash) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>}
-        label={actionLoading === `like-${castHash}` ? '…' : 'Like'}
+        icon={
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill={likedCasts.has(castHash) ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        }
+        label={actionLoading === `like-${castHash}` ? "…" : "Like"}
       />
       {/* Recast */}
       <ActionBtn
         active={recastedCasts.has(castHash)}
         disabled={actionLoading === `recast-${castHash}`}
         onClick={() => handleRecast(castHash, authorFid)}
-        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" /><polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" /></svg>}
-        label={actionLoading === `recast-${castHash}` ? '…' : recastedCasts.has(castHash) ? 'Recasted' : 'Recast'}
+        icon={
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="17 1 21 5 17 9" />
+            <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+            <polyline points="7 23 3 19 7 15" />
+            <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+          </svg>
+        }
+        label={
+          actionLoading === `recast-${castHash}`
+            ? "…"
+            : recastedCasts.has(castHash)
+              ? "Recasted"
+              : "Recast"
+        }
       />
       {/* Quote */}
       <ActionBtn
-        onClick={() => setShowQuoteModal({ hash: castHash, authorFid, preview: previewText })}
-        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>}
+        onClick={() =>
+          setShowQuoteModal({ hash: castHash, authorFid, preview: previewText })
+        }
+        icon={
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            <line x1="9" y1="9" x2="9.01" y2="9" />
+            <line x1="15" y1="9" x2="15.01" y2="9" />
+          </svg>
+        }
         label="Quote"
       />
       {/* Reply */}
       <ActionBtn
         active={replyingTo === castHash}
-        onClick={() => (setReplyStickers([]), setReplyingTo(replyingTo === castHash ? null : castHash))}
-        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>}
+        onClick={() => (
+          setReplyStickers([]),
+          setReplyingTo(replyingTo === castHash ? null : castHash)
+        )}
+        icon={
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        }
         label="Reply"
       />
       <ActionBtn
         onClick={() => void handleShareCast(castHash)}
-        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2" /></svg>}
+        icon={
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 16V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2" />
+          </svg>
+        }
         label="Share"
       />
       {/* Save to Notes */}
       <ActionBtn
         active={savedCasts.has(castHash)}
         onClick={() => handleSaveToNotes(castHash, authorHandle, previewText)}
-        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill={savedCasts.has(castHash) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
-        label={savedCasts.has(castHash) ? 'Saved!' : 'Save'}
+        icon={
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill={savedCasts.has(castHash) ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        }
+        label={savedCasts.has(castHash) ? "Saved!" : "Save"}
       />
       {/* Ask Homie — bring the cast into the Homie chat as context */}
       <ActionBtn
         onClick={() => {
-          const castData = encodeURIComponent(JSON.stringify({
-            author: { username: authorHandle },
-            text: previewText,
-            hash: castHash,
-          }));
+          const castData = encodeURIComponent(
+            JSON.stringify({
+              author: { username: authorHandle },
+              text: previewText,
+              hash: castHash,
+            }),
+          );
           window.location.href = `/ask-homie?cast=${castData}`;
         }}
-        icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>}
+        icon={
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        }
         label="Ask Homie"
       />
       {Number(authorFid) === Number(viewerFid) && (
         <ActionBtn
           disabled={actionLoading === `delete-${castHash}`}
           onClick={() => void handleDeleteCast(castHash, authorFid)}
-          icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>}
-          label={actionLoading === `delete-${castHash}` ? 'Deleting…' : 'Delete'}
+          icon={
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 6h18" />
+              <path d="M8 6V4h8v2" />
+              <path d="m19 6-1 14H6L5 6" />
+              <path d="M10 11v5M14 11v5" />
+            </svg>
+          }
+          label={
+            actionLoading === `delete-${castHash}` ? "Deleting…" : "Delete"
+          }
         />
       )}
     </div>
   );
 
   const replyCasts = cast?.replies?.casts ?? cast?.direct_replies ?? [];
-  const replyTree = useMemo(() => buildReplyTree(replyCasts, cast?.hash ?? ''), [replyCasts, cast?.hash]);
+  const replyTree = useMemo(
+    () => buildReplyTree(replyCasts, cast?.hash ?? ""),
+    [replyCasts, cast?.hash],
+  );
 
   if (loading) {
     return <CastLoading />;
@@ -354,68 +614,97 @@ export default function CastDetailClient() {
 
   if (error || !cast) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center', maxWidth: 400, padding: 24 }}>
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ textAlign: "center", maxWidth: 400, padding: 24 }}>
           <div style={{ fontSize: 32, marginBottom: 16 }}>😔</div>
-          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Cast Not Found</div>
-          <div style={{ color: 'var(--muted-on-dark, #999)', marginBottom: 24 }}>{error || 'Unable to load this cast'}</div>
-          <button type="button" onClick={handleBack} className="btn">← Back to Feed</button>
+          <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+            Cast Not Found
+          </div>
+          <div
+            style={{ color: "var(--muted-on-dark, #999)", marginBottom: 24 }}
+          >
+            {error || "Unable to load this cast"}
+          </div>
+          <button type="button" onClick={handleBack} className="btn">
+            ← Back to Feed
+          </button>
         </div>
       </div>
     );
   }
 
   const author = cast.author;
-  const authorName = author?.display_name || author?.username || 'Unknown';
-  const authorUsername = author?.username || '';
+  const authorName = author?.display_name || author?.username || "Unknown";
+  const authorUsername = author?.username || "";
   const authorFid = author?.fid ?? 0;
   const viewerFid = getStoredFid();
   const authorPfp = author?.pfp_url;
-  const text = cast.text || '';
-  const embeds = castEmbedUrls(cast.text || '', cast.embeds);
+  const text = castTextWithMentions(cast);
+  const embeds = castEmbedUrls(cast.text || "", cast.embeds);
   const replies = cast.replies?.casts || cast.direct_replies || [];
   const parentChain: any[] = cast.parent_chain || [];
 
-  const handleDeleteCast = async (targetHash: string, targetAuthorFid: number) => {
-    if (Number(targetAuthorFid) !== Number(viewerFid) || !window.confirm('Delete this cast? This action cannot be undone.')) return;
+  const handleDeleteCast = async (
+    targetHash: string,
+    targetAuthorFid: number,
+  ) => {
+    if (
+      Number(targetAuthorFid) !== Number(viewerFid) ||
+      !window.confirm("Delete this cast? This action cannot be undone.")
+    )
+      return;
     setActionLoading(`delete-${targetHash}`);
     try {
       await removeCast(targetHash);
-      router.replace('/feed', { scroll: false });
+      router.replace("/feed", { scroll: false });
     } catch (err: any) {
       setActionLoading(null);
-      showToast(err?.message || 'Could not delete this cast.', false);
+      showToast(err?.message || "Could not delete this cast.", false);
     }
   };
 
-  let timeLabel = '';
+  let timeLabel = "";
   if (cast.timestamp) {
     try {
       const d = new Date(cast.timestamp);
-      if (!isNaN(d.getTime())) timeLabel = formatDistanceToNow(d, { addSuffix: true });
+      if (!isNaN(d.getTime()))
+        timeLabel = formatDistanceToNow(d, { addSuffix: true });
     } catch {}
   }
 
   const renderReply = (reply: any, depth = 0): React.ReactNode => {
     const rAuthor = reply.author;
-    const rName = rAuthor?.display_name || rAuthor?.username || 'Unknown';
-    const rRawUsername = rAuthor?.username || '';
-    const rUsername = /^fid:\d+$/i.test(rRawUsername) ? '' : rRawUsername;
-    const rProfileHref = profileHref({ fid: rAuthor?.fid, username: rUsername || undefined });
+    const rName = rAuthor?.display_name || rAuthor?.username || "Unknown";
+    const rRawUsername = rAuthor?.username || "";
+    const rUsername = /^fid:\d+$/i.test(rRawUsername) ? "" : rRawUsername;
+    const rProfileHref = profileHref({
+      fid: rAuthor?.fid,
+      username: rUsername || undefined,
+    });
     const rFid = rAuthor?.fid ?? 0;
     const rPfp = rAuthor?.pfp_url;
-    const rText = reply.text || '';
+    const rText = reply.text || "";
     const parentHash = reply.parent_hash || reply.parentHash;
-    const replyParent = parentHash && [cast, ...replies].find((item: any) =>
-      item.hash?.toLowerCase() === parentHash.toLowerCase()
-    );
+    const replyParent =
+      parentHash &&
+      [cast, ...replies].find(
+        (item: any) => item.hash?.toLowerCase() === parentHash.toLowerCase(),
+      );
     const parentAuthor = replyParent?.author;
     const parentUsername = parentAuthor?.username;
-    let rTime = '';
+    let rTime = "";
     if (reply.timestamp) {
       try {
         const d = new Date(reply.timestamp);
-        if (!isNaN(d.getTime())) rTime = formatDistanceToNow(d, { addSuffix: true });
+        if (!isNaN(d.getTime()))
+          rTime = formatDistanceToNow(d, { addSuffix: true });
       } catch {}
     }
 
@@ -425,223 +714,586 @@ export default function CastDetailClient() {
         style={{
           marginLeft: Math.min(depth, 4) * 16,
           padding: `14px 16px 14px ${depth > 0 ? 12 : 16}px`,
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          borderTop: "1px solid rgba(255,255,255,0.08)",
           borderLeftWidth: Math.min(depth * 2, 6),
-          borderLeftStyle: depth > 0 ? 'solid' : 'none',
-          borderLeftColor: 'var(--accent, #a78bfa)',
+          borderLeftStyle: depth > 0 ? "solid" : "none",
+          borderLeftColor: "var(--accent, #a78bfa)",
         }}
       >
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+            marginBottom: 8,
+          }}
+        >
           {rPfp && (
             <Link href={rProfileHref}>
-              <Image src={rPfp} alt={rName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              <Image
+                src={rPfp}
+                alt={rName}
+                width={36}
+                height={36}
+                style={{
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  flexShrink: 0,
+                }}
+              />
             </Link>
           )}
           <div>
-            <Link href={rProfileHref} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 14 }}>
+            <Link
+              href={rProfileHref}
+              style={{
+                fontWeight: 700,
+                textDecoration: "none",
+                color: "inherit",
+                fontSize: 14,
+              }}
+            >
               {rName}
             </Link>
-            <div style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>@{rUsername} · {rTime}</div>
+            <div style={{ fontSize: 12, color: "var(--muted-on-dark, #999)" }}>
+              @{rUsername} · {rTime}
+            </div>
           </div>
         </div>
 
         {replyParent && parentUsername && (
-          <div style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)', marginBottom: 6 }}>
-            ↳ Replying to <Link href={`/cast/${encodeURIComponent(replyParent.hash)}`} style={{ color: 'var(--accent)', textDecoration: 'none' }}>@{parentUsername}</Link>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--muted-on-dark, #999)",
+              marginBottom: 6,
+            }}
+          >
+            ↳ Replying to{" "}
+            <Link
+              href={`/cast/${encodeURIComponent(replyParent.hash)}`}
+              style={{ color: "var(--accent)", textDecoration: "none" }}
+            >
+              @{parentUsername}
+            </Link>
           </div>
         )}
-        <div style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 4 }}>
-          {rText}
+        <div
+          style={{
+            fontSize: 14,
+            lineHeight: 1.5,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            marginBottom: 4,
+          }}
+        >
+          <CastText cast={reply} />
         </div>
-        <div style={{ display: 'grid', gap: 12, margin: '12px 0', minWidth: 0 }}>
-          {castEmbedUrls(rText, reply.embeds).map((url, index) => <EmbedRenderer key={url} embed={url} index={index} />)}
+        <div
+          style={{ display: "grid", gap: 12, margin: "12px 0", minWidth: 0 }}
+        >
+          {castEmbedUrls(rText, reply.embeds).map((url, index) => (
+            <EmbedRenderer key={url} embed={url} index={index} />
+          ))}
         </div>
-        <Link href={`/cast/${encodeURIComponent(reply.hash)}`} style={{ color: 'var(--accent)', fontSize: 13 }}>
+        <Link
+          href={`/cast/${encodeURIComponent(reply.hash)}`}
+          style={{ color: "var(--accent)", fontSize: 13 }}
+        >
           View conversation
         </Link>
         {renderActionRow(reply.hash, rFid, rText, rUsername)}
 
         {replyingTo === reply.hash && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <div
+            style={{
+              marginTop: 12,
+              paddingTop: 12,
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
             <textarea
               className="compose-textarea"
               value={replyText}
-              onChange={e => setReplyText(e.target.value)}
+              onChange={(e) => setReplyText(e.target.value)}
               placeholder={`Replying to @${rUsername}…`}
               autoFocus
               style={{ minHeight: 72 }}
             />
             <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
-              <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); setReplyStickers([]); }}>Cancel</button>
-              <button className="btn primary" onClick={() => handleReply(reply.hash, rFid)} disabled={replySending || (!replyText.trim() && !replyStickers.length)}>Post Reply</button>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 8,
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                className="btn"
+                onClick={() => {
+                  setReplyingTo(null);
+                  setReplyText("");
+                  setReplyStickers([]);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn primary"
+                onClick={() => handleReply(reply.hash, rFid)}
+                disabled={
+                  replySending || (!replyText.trim() && !replyStickers.length)
+                }
+              >
+                Post Reply
+              </button>
             </div>
           </div>
         )}
-        {reply.threadChildren?.map((child: any) => renderReply(child, depth + 1))}
+        {reply.threadChildren?.map((child: any) =>
+          renderReply(child, depth + 1),
+        )}
       </article>
     );
   };
 
   return (
-    <div data-cast-detail-ready={cast.hash === hash ? hash : undefined} style={{ minHeight: '100vh' }}>
+    <div
+      data-cast-detail-ready={cast.hash === hash ? hash : undefined}
+      style={{ minHeight: "100vh" }}
+    >
       {/* Toast */}
       {toast && (
-        <div style={{
-          position: 'fixed',
-          bottom: 'calc(90px + env(safe-area-inset-bottom, 0px))',
-          left: '50%', transform: 'translateX(-50%)',
-          background: toast.ok ? 'rgba(30,30,30,0.95)' : 'rgba(180,30,30,0.95)',
-          color: '#fff', padding: '10px 20px', borderRadius: 24,
-          fontSize: 14, fontWeight: 500, zIndex: 20000,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-          whiteSpace: 'nowrap',
-        }}>
+        <div
+          style={{
+            position: "fixed",
+            bottom: "calc(90px + env(safe-area-inset-bottom, 0px))",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: toast.ok
+              ? "rgba(30,30,30,0.95)"
+              : "rgba(180,30,30,0.95)",
+            color: "#fff",
+            padding: "10px 20px",
+            borderRadius: 24,
+            fontSize: 14,
+            fontWeight: 500,
+            zIndex: 20000,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+            whiteSpace: "nowrap",
+          }}
+        >
           {toast.msg}
         </div>
       )}
 
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px' }}>
+      <div
+        style={{ maxWidth: 680, margin: "0 auto", padding: "20px 16px 100px" }}
+      >
         {/* Back */}
         <button
           type="button"
           onClick={handleBack}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--muted-on-dark, #999)', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', marginBottom: 20, fontSize: 14 }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            color: "var(--muted-on-dark, #999)",
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            marginBottom: 20,
+            fontSize: 14,
+          }}
         >
           ← Back
         </button>
 
-        <section aria-label="Cast conversation" className="surface" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
-        {/* Parent thread context */}
-        {parentChain.length > 0 && (
-          <div>
-            {parentChain.map((p: any, idx: number) => {
-              const pAuthor = p.author;
-              const pName = pAuthor?.display_name || pAuthor?.username || 'Unknown';
-              const pRawUsername = pAuthor?.username || '';
-              const pUsername = /^fid:\d+$/i.test(pRawUsername) ? '' : pRawUsername;
-              const pProfileHref = profileHref({ fid: pAuthor?.fid, username: pUsername || undefined });
-              const pPfp = pAuthor?.pfp_url;
-              const pText = p.text || '';
-              let pTime = '';
-              try { const d = new Date(p.timestamp); if (!isNaN(d.getTime())) pTime = formatDistanceToNow(d, { addSuffix: true }); } catch {}
-              return (
-                <div key={p.hash || idx} style={{ position: 'relative' }}>
-                  <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    {idx === 0 && <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--muted-on-dark, #999)', marginBottom: 8 }}>Earlier in this thread</div>}
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                        {pPfp ? (
-                          <Link href={pProfileHref}>
-                            <Image src={pPfp} alt={pName} width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover' }} />
-                          </Link>
-                        ) : (
-                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border)' }} />
-                        )}
-                        {/* Thread line */}
-                        <div aria-hidden="true" style={{ width: 2, height: 20, background: 'var(--accent, #a78bfa)', opacity: 0.55, marginTop: 5 }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0, paddingBottom: 12 }}>
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', marginBottom: 4 }}>
-                          <Link href={pProfileHref} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', fontSize: 13 }}>{pName}</Link>
-                          <span style={{ fontSize: 12, color: 'var(--muted-on-dark, #999)' }}>· {pTime}</span>
+        <section
+          aria-label="Cast conversation"
+          className="surface"
+          style={{ padding: 0, overflow: "hidden", marginBottom: 20 }}
+        >
+          {/* Parent thread context */}
+          {parentChain.length > 0 && (
+            <div>
+              {parentChain.map((p: any, idx: number) => {
+                const pAuthor = p.author;
+                const pName =
+                  pAuthor?.display_name || pAuthor?.username || "Unknown";
+                const pRawUsername = pAuthor?.username || "";
+                const pUsername = /^fid:\d+$/i.test(pRawUsername)
+                  ? ""
+                  : pRawUsername;
+                const pProfileHref = profileHref({
+                  fid: pAuthor?.fid,
+                  username: pUsername || undefined,
+                });
+                const pPfp = pAuthor?.pfp_url;
+                const pText = castTextWithMentions(p);
+                let pTime = "";
+                try {
+                  const d = new Date(p.timestamp);
+                  if (!isNaN(d.getTime()))
+                    pTime = formatDistanceToNow(d, { addSuffix: true });
+                } catch {}
+                return (
+                  <div key={p.hash || idx} style={{ position: "relative" }}>
+                    <div
+                      style={{
+                        padding: "14px 16px",
+                        borderBottom: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      {idx === 0 && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: "0.04em",
+                            textTransform: "uppercase",
+                            color: "var(--muted-on-dark, #999)",
+                            marginBottom: 8,
+                          }}
+                        >
+                          Earlier in this thread
                         </div>
-                        <Link href={`/cast/${encodeURIComponent(p.hash)}`} style={{ display: 'block', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-on-dark, #eee)', textDecoration: 'none' }}>{pText}</Link>
-                        <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-                          {castEmbedUrls(pText, p.embeds).map((url, index) => <EmbedRenderer key={url} embed={url} index={index} />)}
+                      )}
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {pPfp ? (
+                            <Link href={pProfileHref}>
+                              <Image
+                                src={pPfp}
+                                alt={pName}
+                                width={36}
+                                height={36}
+                                style={{
+                                  borderRadius: "50%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            </Link>
+                          ) : (
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: "50%",
+                                background: "var(--surface)",
+                                border: "1px solid var(--border)",
+                              }}
+                            />
+                          )}
+                          {/* Thread line */}
+                          <div
+                            aria-hidden="true"
+                            style={{
+                              width: 2,
+                              height: 20,
+                              background: "var(--accent, #a78bfa)",
+                              opacity: 0.55,
+                              marginTop: 5,
+                            }}
+                          />
+                        </div>
+                        <div
+                          style={{ flex: 1, minWidth: 0, paddingBottom: 12 }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 6,
+                              alignItems: "baseline",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <Link
+                              href={pProfileHref}
+                              style={{
+                                fontWeight: 700,
+                                textDecoration: "none",
+                                color: "inherit",
+                                fontSize: 13,
+                              }}
+                            >
+                              {pName}
+                            </Link>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: "var(--muted-on-dark, #999)",
+                              }}
+                            >
+                              · {pTime}
+                            </span>
+                          </div>
+                          <Link
+                            href={`/cast/${encodeURIComponent(p.hash)}`}
+                            style={{
+                              display: "block",
+                              fontSize: 14,
+                              lineHeight: 1.5,
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                              color: "var(--text-on-dark, #eee)",
+                              textDecoration: "none",
+                            }}
+                          >
+                            {pText}
+                          </Link>
+                          <div
+                            style={{ display: "grid", gap: 12, marginTop: 12 }}
+                          >
+                            {castEmbedUrls(pText, p.embeds).map(
+                              (url, index) => (
+                                <EmbedRenderer
+                                  key={url}
+                                  embed={url}
+                                  index={index}
+                                />
+                              ),
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Main Cast */}
-        <article style={{ padding: 16, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
-            {authorPfp && (
-              <Link href={profileHref({ fid: authorFid, username: authorUsername })}>
-                <Image src={authorPfp} alt={authorName} width={44} height={44} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              </Link>
-            )}
-            <div>
-              <Link href={profileHref({ fid: authorFid, username: authorUsername })} style={{ fontWeight: 700, textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                {authorName}
-              </Link>
-              <div style={{ fontSize: 13, color: 'var(--muted-on-dark, #999)' }}>@{authorUsername}</div>
-            </div>
-          </div>
-
-          <div style={{ fontSize: 16, lineHeight: 1.6, marginBottom: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-            {text}
-          </div>
-
-          {embeds.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 }}>
-              {/* EmbedRenderer handles images, video, YouTube, and Farcaster cast
-                  links (→ pressable quote-cast preview), falling back to SmartEmbed. */}
-              {embeds.map((embed: any, idx: number) => (
-                <EmbedRenderer key={idx} embed={embed} index={idx} />
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* Stats row */}
-          <div style={{ display: 'flex', gap: 20, fontSize: 13, color: 'var(--muted-on-dark, #999)', marginBottom: 4 }}>
-            <span>{cast.reactions?.likes_count ?? cast.reactions?.likes?.length ?? 0} likes</span>
-            <span>{cast.reactions?.recasts_count ?? cast.reactions?.recasts?.length ?? 0} recasts</span>
-            <span>{cast.replies?.count ?? 0} replies</span>
-            <span style={{ marginLeft: 'auto' }}>{timeLabel}</span>
-          </div>
-
-          {/* Action buttons */}
-          {renderActionRow(cast.hash, authorFid, text, authorUsername)}
-
-          {/* Keep cast-based learning attached to the parent, before its replies. */}
-          <ConversationLearningLinks cast={{ hash: cast.hash, text, author: { username: authorUsername } }} />
-
-          {/* Reply input for main cast */}
-          {replyingTo === cast.hash && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-              <textarea
-                className="compose-textarea"
-                value={replyText}
-                onChange={e => setReplyText(e.target.value)}
-                placeholder={`Replying to @${authorUsername}…`}
-                autoFocus
-                style={{ minHeight: 80 }}
-              />
-              <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
-                <button className="btn" onClick={() => { setReplyingTo(null); setReplyText(''); setReplyStickers([]); }}>Cancel</button>
-                <button className="btn primary" onClick={() => handleReply(cast.hash, authorFid)} disabled={replySending || (!replyText.trim() && !replyStickers.length)}>Post Reply</button>
+          {/* Main Cast */}
+          <article
+            style={{
+              padding: 16,
+              borderBottom: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "flex-start",
+                marginBottom: 12,
+              }}
+            >
+              {authorPfp && (
+                <Link
+                  href={profileHref({
+                    fid: authorFid,
+                    username: authorUsername,
+                  })}
+                >
+                  <Image
+                    src={authorPfp}
+                    alt={authorName}
+                    width={44}
+                    height={44}
+                    style={{
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      flexShrink: 0,
+                    }}
+                  />
+                </Link>
+              )}
+              <div>
+                <Link
+                  href={profileHref({
+                    fid: authorFid,
+                    username: authorUsername,
+                  })}
+                  style={{
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    color: "inherit",
+                    display: "block",
+                  }}
+                >
+                  {authorName}
+                </Link>
+                <div
+                  style={{ fontSize: 13, color: "var(--muted-on-dark, #999)" }}
+                >
+                  @{authorUsername}
+                </div>
               </div>
             </div>
-          )}
-        </article>
 
-        {/* Replies stay in the same conversation surface and indent beneath
+            <div
+              style={{
+                fontSize: 16,
+                lineHeight: 1.6,
+                marginBottom: 12,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              <CastText cast={cast} />
+            </div>
+
+            {embeds.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  marginBottom: 12,
+                }}
+              >
+                {/* EmbedRenderer handles images, video, YouTube, and Farcaster cast
+                  links (→ pressable quote-cast preview), falling back to SmartEmbed. */}
+                {embeds.map((embed: any, idx: number) => (
+                  <EmbedRenderer key={idx} embed={embed} index={idx} />
+                ))}
+              </div>
+            )}
+
+            {/* Stats row */}
+            <div
+              style={{
+                display: "flex",
+                gap: 20,
+                fontSize: 13,
+                color: "var(--muted-on-dark, #999)",
+                marginBottom: 4,
+              }}
+            >
+              <span>
+                {cast.reactions?.likes_count ??
+                  cast.reactions?.likes?.length ??
+                  0}{" "}
+                likes
+              </span>
+              <span>
+                {cast.reactions?.recasts_count ??
+                  cast.reactions?.recasts?.length ??
+                  0}{" "}
+                recasts
+              </span>
+              <span>{cast.replies?.count ?? 0} replies</span>
+              <span style={{ marginLeft: "auto" }}>{timeLabel}</span>
+            </div>
+
+            {/* Action buttons */}
+            {renderActionRow(cast.hash, authorFid, text, authorUsername)}
+
+            {/* Keep cast-based learning attached to the parent, before its replies. */}
+            <ConversationLearningLinks
+              cast={{
+                hash: cast.hash,
+                text,
+                author: { username: authorUsername },
+              }}
+            />
+
+            {/* Reply input for main cast */}
+            {replyingTo === cast.hash && (
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 12,
+                  borderTop: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <textarea
+                  className="compose-textarea"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder={`Replying to @${authorUsername}…`}
+                  autoFocus
+                  style={{ minHeight: 80 }}
+                />
+                <ReplyStickers
+                  urls={replyStickers}
+                  onChange={setReplyStickers}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    marginTop: 8,
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setReplyingTo(null);
+                      setReplyText("");
+                      setReplyStickers([]);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn primary"
+                    onClick={() => handleReply(cast.hash, authorFid)}
+                    disabled={
+                      replySending ||
+                      (!replyText.trim() && !replyStickers.length)
+                    }
+                  >
+                    Post Reply
+                  </button>
+                </div>
+              </div>
+            )}
+          </article>
+
+          {/* Replies stay in the same conversation surface and indent beneath
             the cast they answer, like Quorum's parent → focus → reply stack. */}
-        {replyTree.length > 0 && (
-          <div style={{ paddingTop: 12 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 16px 4px' }}>Replies ({cast.replies?.count ?? replies.length})</h2>
-            {replyTree.map((reply: any) => renderReply(reply))}
-          </div>
-        )}
-        {cast?.replies_unavailable && <p role="status" style={{ margin: '12px 16px', color: 'var(--muted-on-dark, #999)', fontSize: 13 }}>Some replies may be unavailable. Please reload to try again.</p>}
-        {cast?.replies_next?.cursor && (
-          <div style={{ padding: '12px 16px' }}>
-            <button className="btn" onClick={loadMoreReplies} disabled={loadingReplies}>
-              {loadingReplies ? 'Loading replies…' : 'Load more replies'}
-            </button>
-          </div>
-        )}
+          {replyTree.length > 0 && (
+            <div style={{ paddingTop: 12 }}>
+              <h2
+                style={{ fontSize: 16, fontWeight: 700, margin: "0 16px 4px" }}
+              >
+                Replies ({cast.replies?.count ?? replies.length})
+              </h2>
+              {replyTree.map((reply: any) => renderReply(reply))}
+            </div>
+          )}
+          {cast?.replies_unavailable && (
+            <p
+              role="status"
+              style={{
+                margin: "12px 16px",
+                color: "var(--muted-on-dark, #999)",
+                fontSize: 13,
+              }}
+            >
+              Some replies may be unavailable. Please reload to try again.
+            </p>
+          )}
+          {cast?.replies_next?.cursor && (
+            <div style={{ padding: "12px 16px" }}>
+              <button
+                className="btn"
+                onClick={loadMoreReplies}
+                disabled={loadingReplies}
+              >
+                {loadingReplies ? "Loading replies…" : "Load more replies"}
+              </button>
+            </div>
+          )}
         </section>
-
-
       </div>
 
       {/* Quote Cast Modal */}
@@ -649,45 +1301,79 @@ export default function CastDetailClient() {
         <div
           onClick={() => setShowQuoteModal(null)}
           style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-            zIndex: 9000, padding: '0 0 env(safe-area-inset-bottom, 0px)',
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.8)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+            zIndex: 9000,
+            padding: "0 0 env(safe-area-inset-bottom, 0px)",
           }}
         >
           <div
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             style={{
-              background: 'var(--surface, #1a1a1a)', borderRadius: '16px 16px 0 0',
-              padding: '24px 20px', width: '100%', maxWidth: 600,
-              maxHeight: '80vh', overflow: 'auto',
+              background: "var(--surface, #1a1a1a)",
+              borderRadius: "16px 16px 0 0",
+              padding: "24px 20px",
+              width: "100%",
+              maxWidth: 600,
+              maxHeight: "80vh",
+              overflow: "auto",
             }}
           >
-            <h3 style={{ margin: '0 0 12px 0', fontSize: 17, fontWeight: 600 }}>Quote Cast</h3>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: 17, fontWeight: 600 }}>
+              Quote Cast
+            </h3>
             {/* Preview */}
-            <div style={{
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 10, padding: '12px 14px', marginBottom: 14,
-              fontSize: 13, color: 'var(--muted-on-dark, #999)',
-              maxHeight: 80, overflow: 'hidden',
-            }}>
-              {showQuoteModal.preview.slice(0, 200)}{showQuoteModal.preview.length > 200 ? '…' : ''}
+            <div
+              style={{
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 10,
+                padding: "12px 14px",
+                marginBottom: 14,
+                fontSize: 13,
+                color: "var(--muted-on-dark, #999)",
+                maxHeight: 80,
+                overflow: "hidden",
+              }}
+            >
+              {showQuoteModal.preview.slice(0, 200)}
+              {showQuoteModal.preview.length > 200 ? "…" : ""}
             </div>
             <textarea
               className="compose-textarea"
               value={quoteText}
-              onChange={e => setQuoteText(e.target.value)}
+              onChange={(e) => setQuoteText(e.target.value)}
               placeholder="Add your thoughts…"
               autoFocus
-              style={{ minHeight: 100, fontSize: 15, width: '100%' }}
+              style={{ minHeight: 100, fontSize: 15, width: "100%" }}
             />
-            <div style={{ display: 'flex', gap: 10, marginTop: 12, justifyContent: 'flex-end' }}>
-              <button className="btn" onClick={() => { setShowQuoteModal(null); setQuoteText(''); }}>Cancel</button>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 12,
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                className="btn"
+                onClick={() => {
+                  setShowQuoteModal(null);
+                  setQuoteText("");
+                }}
+              >
+                Cancel
+              </button>
               <button
                 className="btn primary"
                 onClick={handleQuoteCast}
                 disabled={quoteLoading || !quoteText.trim()}
               >
-                {quoteLoading ? 'Posting…' : 'Post Quote'}
+                {quoteLoading ? "Posting…" : "Post Quote"}
               </button>
             </div>
           </div>

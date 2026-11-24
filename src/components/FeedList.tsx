@@ -22,6 +22,7 @@ import { FeedScope } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import HH2TipAction from '@/components/HH2TipAction';
 import Link from "next/link";
+import CastText from "@/components/CastText";
 import { useRouter } from "next/navigation";
 import { personalizePage, preferenceStorage } from '@/lib/like-curation';
 import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions, type RecentInteractionType } from '@/lib/recent-interactions';
@@ -47,32 +48,6 @@ const LazyMarkdown = dynamic(
   },
   { ssr: false }
 );
-
-function renderCastText(text: string) {
-  const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|@[a-zA-Z0-9][a-zA-Z0-9_.-]*|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
-  const parts = text.split(tokenOrUrl);
-  return parts.map((part, i) => {
-    if (/^\$[A-Z][A-Z0-9]{0,9}$/.test(part)) {
-      return (
-        <Link key={i} href={`/tokens/${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }} onClick={e => e.stopPropagation()}>
-          {part}
-        </Link>
-      );
-    }
-    if (/^@[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(part)) {
-      return <Link key={i} href={`/profile?user=${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }} onClick={e => e.stopPropagation()}>{part}</Link>;
-    }
-    if (/^https?:\/\//i.test(part) || /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/.test(part)) {
-      const href = part.startsWith('http') ? part : `https://${part}`;
-      return (
-        <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>
-          {part}
-        </a>
-      );
-    }
-    return <React.Fragment key={i}>{part}</React.Fragment>;
-  });
-}
 
 function ActionBtn({
   onClick, icon, label, active = false, disabled = false,
@@ -657,7 +632,7 @@ export default function FeedList({
     }, { threshold: 0.1 });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [hasMore, loadingMore, cursor, feedError]);
 
   // Must be before any early returns — hooks can't be called conditionally
@@ -672,7 +647,7 @@ export default function FeedList({
       return true;
     });
     return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [items, mutedUsers, hiddenCasts]);
 
   const displayItems = useMemo(() => {
@@ -1619,7 +1594,7 @@ export default function FeedList({
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word'
                     }}>
-                      {renderCastText(cast.text || '(No text)')}
+                      <CastText cast={cast} fallback="(No text)" />
                     </p>
                     {cast.embeds && cast.embeds.length > 0 && cast.embeds[0]?.url && (
                       <div style={{ marginTop: '12px' }}>
