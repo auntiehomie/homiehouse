@@ -77,7 +77,11 @@ export function getHypersnapReadDiagnostics(data: any): {
 /** Ardea/Arca — second Hypersnap node, same API surface. Used when primary is slow/unavailable. */
 const HYPERSNAP_FALLBACK =
   (typeof process !== 'undefined' && process.env.HYPERSNAP_FALLBACK_URL) ||
-  (PERSONAL_HYPERSNAP_BASE ? PUBLIC_HYPERSNAP_BASE : 'http://161.35.52.192:3100');
+  // Operator-owned reference node: read fallback when no
+  // HYPERSNAP_FALLBACK_URL is configured and no personal node is set.
+  // Replaces the dead legacy hub (161.35.52.192:3100) that left feeds
+  // with no working fallback during primary-node stalls.
+  (PERSONAL_HYPERSNAP_BASE ? PUBLIC_HYPERSNAP_BASE : 'https://rpc.homiehouse.xyz');
 
 // ─── Generic fetch ──────────────────────────────────────────────────────────
 
