@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import DevicePushSettings from '@/components/DevicePushSettings';
 import SidebarNav from '@/components/SidebarNav';
 import AppIcon, { type AppIconName } from '@/components/AppIcon';
 import { profileHref } from '@/lib/profile-links';
@@ -221,6 +222,7 @@ export default function NotificationsPage() {
           </aside>
 
           <main className="flex-1 min-w-0">
+            <DevicePushSettings />
 
             {loading ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem', color: 'var(--muted-on-dark)' }}>
