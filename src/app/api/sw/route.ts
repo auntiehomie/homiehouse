@@ -39,11 +39,15 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/notifications';
+  let url = '/notifications';
+  try {
+    const target = new URL(event.notification.data?.url || url, self.location.origin);
+    if (target.origin === self.location.origin) url = target.pathname + target.search + target.hash;
+  } catch (_) {}
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
+        if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
           client.navigate(url);
           return client.focus();
         }

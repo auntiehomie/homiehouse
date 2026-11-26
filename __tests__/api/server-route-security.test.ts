@@ -68,13 +68,13 @@ it('checks stored push destinations at delivery and preserves sent and expired b
   process.env.VAPID_PRIVATE_KEY = 'private';
   const endpoints = ['http://127.0.0.1', 'https://push.example.com/sent', 'https://push.example.com/gone'];
   const rows = endpoints.map((endpoint, id) => ({
-    id, user_fid: 123, subscription: { endpoint }, last_notified_at: '2020-01-01',
+    id, user_fid: 123, subscription: { endpoint }, last_notified_at: '2020-01-01', last_cast_notified_at: '2020-01-01',
   }));
-  const query = jest.fn().mockResolvedValueOnce({ rows }).mockResolvedValue({ rows: [] });
+  const query = jest.fn().mockImplementation(async (statement: string) => ({
+    rows: statement.includes('SELECT id,') ? rows : statement.includes('RETURNING id') ? [{ id: 'claimed' }] : [],
+  }));
   jest.mocked(getDb).mockReturnValue({ query } as unknown as ReturnType<typeof getDb>);
-  jest.spyOn(global, 'fetch').mockImplementation(async () =>
-    Response.json({ notifications: [{ timestamp: '2026-01-01' }] }),
-  );
+  jest.mocked(fetchNotifications).mockResolvedValue({ notifications: [{ type: 'reply', timestamp: '2026-01-01' }] });
   const body = Buffer.from('encrypted');
   jest.mocked(webpush.generateRequestDetails).mockReturnValue({
     method: 'POST', endpoint: endpoints[1], headers: { Authorization: 'vapid example' }, body,
@@ -84,7 +84,7 @@ it('checks stored push destinations at delivery and preserves sent and expired b
     .mockResolvedValueOnce(new Response(null, { status: 410 }));
 
   const request = new NextRequest('https://example.com', { headers: { authorization: `Bearer ${secret}` } });
-  expect(await (await pushCron(request)).json()).toEqual({ ok: true, sent: 1, errors: 2 });
+  expect(await (await pushCron(request)).json()).toEqual({ ok: true, sent: 1, errors: 1 });
   expect(safeFetchPublicUrl).toHaveBeenCalledTimes(2);
   expect(safeFetchPublicUrl).toHaveBeenNthCalledWith(1, new URL(endpoints[1]), expect.objectContaining({
     method: 'POST', maxRedirects: 0, body,
