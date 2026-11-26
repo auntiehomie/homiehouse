@@ -71,6 +71,11 @@ describe('/api/learning-plan source context', () => {
       id: 'kb-building-effective-agents',
       title: 'Building effective agents',
       sourceUrl: 'https://www.anthropic.com/research/building-effective-agents',
+      sourceArticleId: 'building-effective-agents',
+      sourceAuthor: 'Anthropic Research',
+      sourcePublisher: 'Anthropic',
+      sourcePublishedAt: '2024-12-19',
+      sourceCaveats: 'The source is an introductory article.',
       description: 'Start with workflows before adding agent autonomy.',
       whyItMatters: 'Simple systems are easier to test.',
       objectives: ['Compare workflows and agents'],
@@ -81,7 +86,10 @@ describe('/api/learning-plan source context', () => {
     mockLlmChat.mockResolvedValueOnce({
       message: { content: JSON.stringify({
         track: 'ai', level: 'beginner', summary: 'A grounded path.',
-        modules: [{ id: 'agent-basics', title: 'Agent basics', description: 'Learn agent design.', whyItMatters: 'Useful.', objectives: ['Compare systems'], estimatedMinutes: 20, difficulty: 'beginner', tags: ['ai'], sourceUrl: 'https://attacker.example/fake' }],
+        modules: [
+          { id: 'agent-basics', title: 'Agent basics', description: 'Learn agent design.', whyItMatters: 'Useful.', objectives: ['Compare systems'], estimatedMinutes: 20, difficulty: 'beginner', tags: ['ai'], sourceUrl: 'https://attacker.example/fake' },
+          { id: 'grounded-agent-basics', title: 'Grounded agent basics', description: 'Learn agent design.', whyItMatters: 'Useful.', objectives: ['Compare systems'], estimatedMinutes: 20, difficulty: 'beginner', tags: ['ai'], sourceUrl: 'https://www.anthropic.com/research/building-effective-agents' },
+        ],
       }) },
     } as any);
 
@@ -92,6 +100,14 @@ describe('/api/learning-plan source context', () => {
     expect(prompt).toContain('Start with workflows before adding agent autonomy.');
     const plan = await response.json();
     expect(plan.modules[0].sourceUrl).toBeUndefined();
+    expect(plan.modules.find((module: any) => module.id === 'grounded-agent-basics')).toMatchObject({
+      sourceArticleId: 'building-effective-agents',
+      sourceUrl: 'https://www.anthropic.com/research/building-effective-agents',
+      sourceAuthor: 'Anthropic Research',
+      sourcePublisher: 'Anthropic',
+      sourcePublishedAt: '2024-12-19',
+      sourceCaveats: 'The source is an introductory article.',
+    });
     expect(plan.modules.find((module: any) => module.title === 'Building effective agents').sourceUrl)
       .toBe('https://www.anthropic.com/research/building-effective-agents');
   });
@@ -107,6 +123,12 @@ describe('/api/learning-plan source context', () => {
       estimatedMinutes: 20,
       difficulty: 'beginner' as const,
       tags: ['ai'],
+      ...(suffix === 'A' ? {
+        sourceAuthor: 'Test Researcher',
+        sourcePublisher: 'Test Publisher',
+        sourcePublishedAt: '2026-11-20',
+        sourceCaveats: 'Test caveat.',
+      } : {}),
     }));
     jest.mocked(getKBModulesForTrack).mockResolvedValue(kbModules);
     const generatedModules = Array.from({ length: 8 }, (_, index) => ({
@@ -131,6 +153,12 @@ describe('/api/learning-plan source context', () => {
       .toEqual(kbModules.map((module) => module.id));
     expect(mockLlmChat.mock.calls[0][0].messages[1].content)
       .toContain('repository Knowledge Base lessons are supplemental additions');
+    expect(plan.modules[8]).toMatchObject({
+      sourceAuthor: 'Test Researcher',
+      sourcePublisher: 'Test Publisher',
+      sourcePublishedAt: '2026-11-20',
+      sourceCaveats: 'Test caveat.',
+    });
   });
 
   it('keeps the first lesson tied to the cast when plan generation fails', async () => {

@@ -54,7 +54,8 @@ so article rotation continues to work for the new practical and question modes.
 ## Adding knowledge
 
 Continue adding article links and source-grounded summaries and learning points
-to the Rufus-vault Knowledge Base index and article-context file. The existing
+to the Knowledge Base in `auntiehomie/knowledge-base` (its index, article context
+and `homiehouse/articles.json`), then run `npm run kb:pull`. The existing
 KB sync and recovery path populate `kb_articles`;
 posts retrieve usable article context and skip if none is available. New sources
 expand retrieval; they do not train the underlying model's weights or change its

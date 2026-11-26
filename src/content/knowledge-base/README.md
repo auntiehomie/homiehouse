@@ -1,6 +1,6 @@
 # Homiehouse Knowledge Base
 
-This directory is the source of truth for Homiehouse's learning articles. It contains a curated set of source links, short summaries, and explicit learning points. The wider Rufus Vault and personal reading archive are not runtime dependencies and must not be copied wholesale here.
+This directory is the vendored copy of Homiehouse's learning articles. The upstream source of truth is `homiehouse/articles.json` in the private [`auntiehomie/knowledge-base`](https://github.com/auntiehomie/knowledge-base) repository; the app reads only this local copy. It contains a curated set of source links, short summaries, and explicit learning points. The wider Rufus Vault and personal reading archive are not runtime dependencies and must not be copied wholesale here.
 
 ## How content is used
 
@@ -9,9 +9,15 @@ This directory is the source of truth for Homiehouse's learning articles. It con
 - The hourly `/api/agent/kb-sync` job mirrors the same records into Neon for Ask Homie retrieval, search, semantic indexing, and the posting agent.
 - The app shows a source link on each article-backed module. Source casts remain untrusted prompts; article text is context, not instructions.
 
+## Pull upstream changes
+
+Run `npm run kb:pull` to copy `homiehouse/articles.json` from `auntiehomie/knowledge-base` into this directory. It uses `KNOWLEDGE_BASE_TOKEN`, `GITHUB_TOKEN` or your `gh` login, and refuses a corpus that `kb-sync` would reject. `npm run kb:pull -- --file <path>` copies from a local checkout, and `--check` fails if this copy is stale.
+
+The "Sync knowledge base" workflow runs the same pull daily and opens a pull request when articles changed. It needs a `KNOWLEDGE_BASE_TOKEN` repository secret with read-only Contents access to `auntiehomie/knowledge-base`; without it the workflow skips.
+
 ## Add an article
 
-Append one object to `articles.json` with these fields:
+Add new articles in `auntiehomie/knowledge-base` first, then pull them here. Each object in `articles.json` has these fields:
 
 - `id`: stable lowercase kebab-case identifier.
 - `title`, `url`, and `source`: source title, canonical HTTPS URL, and host.

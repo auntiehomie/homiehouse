@@ -117,7 +117,7 @@ export interface PostModeDef {
   needsTrend: boolean;
   /** Whether this mode wants a real crypto news story (from the wider web) to react to. */
   needsNews: boolean;
-  /** Whether this mode wants a knowledge-base article topic (from rufus-vault). */
+  /** Whether this mode wants a knowledge-base article topic (from auntiehomie/knowledge-base). */
   needsKB: boolean;
 }
 

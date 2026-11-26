@@ -1534,6 +1534,34 @@
       "caveats": "The update is marked as merged source, not proof that a particular node or client has deployed it. Rankings are bounded and can remain available during background refresh; do not infer exhaustive coverage or exact real-time freshness.",
       "addedAt": "2026-11-13",
       "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ef-protocol-current-emerging-priorities-2026",
+      "title": "EF Protocol: Current and Emerging Priorities",
+      "author": "Ethereum Foundation Protocol Cluster",
+      "publisher": "Ethereum Foundation Blog",
+      "publishedAt": "2026-09-07",
+      "url": "https://blog.ethereum.org/2026/09/07/protocol-priorities",
+      "source": "blog.ethereum.org",
+      "tags": [
+        "ethereum",
+        "post-quantum",
+        "cryptography",
+        "zk-rollup",
+        "protect-the-protocol",
+        "decentralized clients",
+        "protocol governance"
+      ],
+      "summary": "The Ethereum Foundation Protocol Cluster describes its current research and delivery priorities through 2029. The post groups work into fast finality, post-quantum security, privacy, state management and zkEVM proofs, and describes a maturity path from research and EIPs through prototypes, devnets and mainnet. It also explains why these goals depend on coordinated work across client teams, researchers and the wider ecosystem.",
+      "learningPoints": [
+        "Separate a research direction, an EIP, a prototype, a devnet result and a mainnet release; each stage provides different evidence and is not a promise that the feature is already live.",
+        "Post-quantum preparation covers Ethereum execution, consensus and data layers, with the Foundation describing December 2029 as a target and minimum-viable safeguards as reduced-guarantee steps rather than full resistance.",
+        "Protocol roadmaps involve tradeoffs: the post argues that staging fork scope and formal verification work help teams manage security, implementation capacity and upgrade risk.",
+        "Use this post as the Protocol cluster’s stated plan, then check later EIPs, client implementations and network releases before describing a proposal as adopted or deployed."
+      ],
+      "caveats": "This is a roadmap and priority statement, not an independent assessment or a guarantee of delivery. The authors call the schedule aggressive; fork ordering, specifications and research remain subject to change, and the post says the minimum-viable post-quantum milestone would retain reduced guarantees.",
+      "addedAt": "2026-11-20",
+      "reviewStatus": "curated-summary"
     }
   ]
 }

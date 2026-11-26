@@ -19,7 +19,12 @@ export const maxDuration = 40;
 interface LearningModule {
   id: string;
   title: string;
+  sourceArticleId?: string;
   sourceUrl?: string;
+  sourceAuthor?: string;
+  sourcePublisher?: string;
+  sourcePublishedAt?: string;
+  sourceCaveats?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];
@@ -1418,14 +1423,24 @@ Requirements:
     // server and saved server-side; client-supplied progress never defines rewards.
     if (!Array.isArray(plan.modules)) plan.modules = [];
     const verifiedSourceUrls = new Set([...kbModules.map((module) => module.sourceUrl), ...webSources.map(source => source.url)].filter((url): url is string => Boolean(url)));
+    const kbSourceByUrl = new Map(kbModules.filter((module) => module.sourceUrl).map((module) => [module.sourceUrl!, module]));
     plan.modules = plan.modules
       .filter((module) => module && typeof module.id === 'string' &&
         /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(module.id) &&
         typeof module.title === 'string' && module.title.length <= 160)
-      .map((module) => ({
-        ...module,
-        sourceUrl: typeof module.sourceUrl === 'string' && verifiedSourceUrls.has(module.sourceUrl) ? module.sourceUrl : undefined,
-      }))
+      .map((module) => {
+        const sourceUrl = typeof module.sourceUrl === 'string' && verifiedSourceUrls.has(module.sourceUrl) ? module.sourceUrl : undefined;
+        const kbSource = sourceUrl ? kbSourceByUrl.get(sourceUrl) : undefined;
+        return {
+          ...module,
+          sourceArticleId: kbSource?.sourceArticleId,
+          sourceUrl,
+          sourceAuthor: kbSource?.sourceAuthor,
+          sourcePublisher: kbSource?.sourcePublisher,
+          sourcePublishedAt: kbSource?.sourcePublishedAt,
+          sourceCaveats: kbSource?.sourceCaveats,
+        };
+      })
       .slice(0, 8);
     if (plan.modules.length < 1) plan = withKBModules(fallbackForTrack(normalizedTrack, level));
 
