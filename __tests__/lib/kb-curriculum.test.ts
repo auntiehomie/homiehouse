@@ -55,3 +55,21 @@ it('turns newly curated Hypersnap sources into source-linked beginner lessons', 
     expect.stringContaining('merged source code'),
   ]));
 });
+
+it('turns the Ethereum Foundation roadmap into a dated, caveated beginner lesson', async () => {
+  const modules = await getKBModulesForTrack('decentralization', 'beginner', knowledgeBase.articles.length);
+  const module = modules.find((item) => item.id === 'kb-ef-protocol-current-emerging-priorities-2026-ef-protocol-current-and-emerging-priorities');
+  expect(module).toMatchObject({
+    sourceUrl: 'https://blog.ethereum.org/2026/09/07/protocol-priorities',
+    sourceAuthor: 'Ethereum Foundation Protocol Cluster',
+    sourcePublisher: 'Ethereum Foundation Blog',
+    sourcePublishedAt: '2026-09-07',
+    sourceCaveats: expect.stringContaining('guarantee of delivery'),
+    difficulty: 'beginner',
+    tags: expect.arrayContaining(['ethereum', 'zk-rollup', 'protect-the-protocol']),
+  });
+  expect(module?.objectives).toEqual(expect.arrayContaining([
+    expect.stringContaining('research direction'),
+    expect.stringContaining('Post-quantum'),
+  ]));
+});

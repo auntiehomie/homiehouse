@@ -28,11 +28,11 @@ const lesson = {
   quiz: [{ question: 'Which is correct?', options: ['Correct', 'Incorrect'], correctIndex: 0, explanation: 'Because it is.' }],
 };
 
-function request() {
+function request(body = { moduleId: 'generated-cache-test', title: 'Generated cache test', description: 'A lesson test', objectives: ['Understand the idea'] }) {
   return new NextRequest('http://localhost/api/lesson', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ moduleId: 'generated-cache-test', title: 'Generated cache test', description: 'A lesson test', objectives: ['Understand the idea'] }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -77,5 +77,23 @@ describe('/api/lesson cache validation', () => {
     expect(result.quiz[0].options[result.quiz[0].correctIndex]).toBe('Correct');
     expect(mockRedisDel).toHaveBeenCalledWith(expect.stringMatching(/^lesson:v14:/));
     expect(mockLlmChat).toHaveBeenCalled();
+  });
+
+  it('uses only repository-owned source content when building an article-backed lesson', async () => {
+    const response = await POST(request({
+      moduleId: 'kb-ef-protocol-current-emerging-priorities-2026',
+      sourceArticleId: 'ef-protocol-current-emerging-priorities-2026',
+      title: 'Protocol priorities and roadmap stages',
+      description: 'Learn to distinguish research, proposals, devnets and mainnet releases.',
+      objectives: ['Distinguish a roadmap from a shipped change'],
+    }));
+
+    expect(response.status).toBe(200);
+    const prompt = mockLlmChat.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain('Repository Knowledge Base source (verified by article ID');
+    expect(prompt).toContain('Ethereum Foundation Protocol Cluster');
+    expect(prompt).toContain('https://blog.ethereum.org/2026/09/07/protocol-priorities');
+    expect(prompt).toContain('not an independent assessment or a guarantee of delivery');
+    expect(prompt).toContain('distinguish source evidence from inference');
   });
 });

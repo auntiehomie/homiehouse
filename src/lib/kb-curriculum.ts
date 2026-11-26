@@ -44,6 +44,7 @@ interface RepositoryKBArticle {
 export interface LearningModule {
   id: string;
   title: string;
+  sourceArticleId?: string;
   sourceUrl?: string;
   sourceAuthor?: string;
   sourcePublisher?: string;
@@ -84,6 +85,7 @@ function articleToModule(article: KBArticle, level: string): LearningModule {
 
   return {
     id: `kb-${article.id}-${slugify(article.title)}`,
+    sourceArticleId: article.id,
     title: article.title,
     sourceUrl: article.url ?? undefined,
     sourceAuthor: article.author,

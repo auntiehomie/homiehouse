@@ -25,7 +25,12 @@ import CourseCatalog, { type CatalogLevel, type CatalogTrack, type CourseCatalog
 interface LearningModule {
   id: string;
   title: string;
+  sourceArticleId?: string;
   sourceUrl?: string;
+  sourceAuthor?: string;
+  sourcePublisher?: string;
+  sourcePublishedAt?: string;
+  sourceCaveats?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];

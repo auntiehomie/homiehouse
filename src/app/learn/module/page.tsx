@@ -1075,6 +1075,7 @@ function ModuleLessonContent() {
         <div style={{ minWidth: 72, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
           <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}>
             {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
+            {mod?.sourceUrl && <a href={mod.sourceUrl} target="_blank" rel="noopener noreferrer" title={[mod.sourceAuthor, mod.sourcePublisher, mod.sourcePublishedAt, mod.sourceCaveats].filter(Boolean).join(' · ')} aria-label={`Open source${mod.sourcePublisher ? ` from ${mod.sourcePublisher}` : ''}${mod.sourcePublishedAt ? `, published ${mod.sourcePublishedAt}` : ''}${mod.sourceCaveats ? `. Note: ${mod.sourceCaveats}` : ''}`} style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Source ↗</a>}
             {mod?.tags.includes('network-states') && <a href={`/learn/library/${encodeURIComponent(mod.id)}#sources`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Course sources ↗</a>}
           </div>
           {!loading && mod && currentCard && (

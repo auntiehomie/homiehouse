@@ -5,6 +5,12 @@ import { correctLessonRepositoryReferences } from '@/lib/lesson-source-correctio
 export interface LessonModuleRequest {
   id: string;
   title: string;
+  sourceArticleId?: string;
+  sourceUrl?: string;
+  sourceAuthor?: string;
+  sourcePublisher?: string;
+  sourcePublishedAt?: string;
+  sourceCaveats?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];
@@ -96,6 +102,7 @@ function fingerprint(value: string): string {
 function lessonKey(module: LessonModuleRequest, eli5: boolean): string {
   const revision = fingerprint(JSON.stringify({
     title: module.title,
+    sourceArticleId: module.sourceArticleId,
     description: module.description,
     whyItMatters: module.whyItMatters,
     objectives: module.objectives,
