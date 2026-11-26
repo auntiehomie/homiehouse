@@ -1,13 +1,15 @@
 'use client';
 
 import TokenizationScene from './TokenizationScene';
+import BlockLinkScene from './BlockLinkScene';
 import LessonActivity, { lessonActivityFor } from './LessonActivity';
 import { useEffect, useState } from 'react';
 import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
 import { normalizeLessonScenes, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 
 // Select a concrete scene only when the card describes its subject.
-export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | 'agent-loop' | 'trader' | 'menu' | 'censorship' | 'permissionless' | 'park' | null {
+export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restaurant' | 'multisig' | 'seed' | 'flash-loan' | 'agent-loop' | 'trader' | 'menu' | 'censorship' | 'permissionless' | 'park' | 'block-link' | null {
+  if (/blocks? (?:link|connect|chain)|how blocks? link|block contains/i.test(text) && /hash|chain|link|previous/i.test(text)) return 'block-link';
   if (/public park/i.test(text) && /gated community/i.test(text)) return 'park';
   if (/censorship.resistan/i.test(text) && /block|erase|exclude|censor/i.test(text)) return 'censorship';
   if (/permissionless/i.test(text) && /anyone|without (?:kyc|approval|permission)/i.test(text)) return 'permissionless';
@@ -23,6 +25,9 @@ export function lessonIllustrationTopic(text: string): 'reentrancy' | 'restauran
 }
 
 export default function LessonIllustration({ text, visual }: { text: string; visual?: LessonScene }) {
+  // Full interactive scenes render as their own component before the simpler
+  // activity/diagram fallbacks get a chance.
+  if (lessonIllustrationTopic(text) === 'block-link') return <BlockLinkScene key={text} />;
   const activity = lessonActivityFor(text);
   if (activity) return <LessonActivity key={text} activity={activity} />;
   return <LessonDiagram text={text} visual={visual} />;
