@@ -39,7 +39,6 @@
     "@langchain/openai": "^1.2.2",
     "@neondatabase/serverless": "^1.1.0",
     "@noble/ed25519": "^3.0.0",
-    "@pigment-css/react": "^0.0.31",
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@scure/bip32": "^2.4.0",
     "@scure/bip39": "^2.4.0",
