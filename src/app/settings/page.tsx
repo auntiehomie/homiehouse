@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
+import { ensureAuthHeaders } from "@/lib/client-auth";
 import Image from "next/image";
 import AppShell from "@/components/AppShell";
 import { provisionSignerWithMnemonic, CustodyMismatchError } from "@/lib/fc-key-add";
@@ -570,7 +571,8 @@ export default function SettingsPage() {
           const sub = await reg?.pushManager?.getSubscription();
           if (sub) {
             const fid = profile?.fid;
-            if (fid) await fetch("/api/push/subscribe", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ fid, endpoint: sub.endpoint }) });
+            const auth = fid ? await ensureAuthHeaders("write:profile") : null;
+            if (fid && auth) await fetch("/api/push/subscribe", { method: "DELETE", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ fid, endpoint: sub.endpoint }) });
             await sub.unsubscribe();
           }
         }
@@ -590,7 +592,10 @@ export default function SettingsPage() {
         const arr = new Uint8Array(raw.length);
         for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
         const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr.buffer as ArrayBuffer });
-        await fetch("/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fid, subscription: sub.toJSON() }) });
+        const auth = await ensureAuthHeaders("write:profile");
+        if (!auth) throw new Error("Sign in again to enable notifications");
+        const response = await fetch("/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ fid, subscription: sub.toJSON() }) });
+        if (!response.ok) throw new Error(`Could not save push subscription (${response.status})`);
         setNotifState("granted");
       }
     } catch (err) { console.warn("[settings] notif toggle error:", err); }
