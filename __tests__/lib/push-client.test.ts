@@ -1,0 +1,23 @@
+import { enableDevicePush } from '@/lib/push-client';
+import { ensureAuthHeaders } from '@/lib/client-auth';
+jest.mock('@/lib/client-auth', () => ({ ensureAuthHeaders: jest.fn(async () => ({ 'x-session-token': 'session' })) }));
+it('requests permission only when asked, then saves an authenticated subscription and explicit preferences', async () => {
+ const subscription = { toJSON: () => ({ endpoint: 'https://push.example.org/device' }) };
+ const registration = { pushManager: { getSubscription: jest.fn(async () => subscription) } };
+ const requestPermission = jest.fn(async () => 'granted');
+ Object.defineProperty(globalThis, 'window', { configurable: true, value: { PushManager: function() {} } });
+ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { serviceWorker: { register: jest.fn(async () => registration), ready: Promise.resolve(registration) } } });
+ Object.defineProperty(globalThis, 'Notification', { configurable: true, value: { permission: 'default', requestPermission } });
+ const setItem = jest.fn();
+ Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { setItem } });
+ process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = 'configured';
+ const fetcher = jest.fn(async () => Response.json({ ok: true }));
+ const preferences = { replies: true, mentions: false, newCasts: true };
+ await enableDevicePush(12, preferences, true, fetcher);
+ expect(requestPermission).toHaveBeenCalledTimes(1);
+ expect(ensureAuthHeaders).toHaveBeenCalledWith('write:profile');
+ const options = fetcher.mock.calls[0][1] as RequestInit;
+ expect(options.headers).toMatchObject({ 'x-session-token': 'session' });
+ expect(JSON.parse(String(options.body))).toMatchObject({ fid: 12, preferences });
+ expect(setItem).toHaveBeenCalled();
+});
