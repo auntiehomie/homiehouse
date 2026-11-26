@@ -1,18 +1,20 @@
 /**
  * Knowledge-base article topics for autonomous posting.
  *
- * These are synced from rufus-vault/projects/Knowledge Base.md and provide
+ * These were synced from the Knowledge Base index (now index/Knowledge Base.md
+ * in the auntiehomie/knowledge-base repo, formerly rufus-vault) and provide
  * source material for the 'culture' and 'deep-dive' post modes.
  *
  * ─── SYNC INSTRUCTIONS ──────────────────────────────────────────────────────
- * When new articles are added to the Knowledge Base in rufus-vault:
+ * When new articles are added to the Knowledge Base in auntiehomie/knowledge-base:
  * 1. Add an entry to KB_TOPICS below with title, 1-2 sentence summary,
  *    source domain, and tags.
  * 2. The summary should be a casual one-liner — what you'd text a friend,
  *    not a formal abstract.
  * 3. Commit and redeploy. The bot automatically avoids recently-used topics.
  *
- * Last synced: 2026-09-13 from rufus-vault/projects/Knowledge Base.md
+ * Last synced: 2026-09-13 from rufus-vault/projects/Knowledge Base.md (since moved
+ * to auntiehomie/knowledge-base)
  * ────────────────────────────────────────────────────────────────────────────
  */
 
