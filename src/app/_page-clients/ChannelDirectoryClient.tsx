@@ -109,6 +109,7 @@ export default function ChannelDirectoryClient() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 pb-24 lg:pb-8 grid grid-cols-1 lg:grid-cols-[240px_minmax(0,680px)] gap-6">
         <aside className="hidden lg:block"><SidebarNav /></aside>
         <main className="min-w-0">
+          <Link href="/castboards" className="surface block rounded-xl p-4 mb-5">Explore topic castboards → Curated collections across channels</Link>
           <label htmlFor="channel-search" className="block text-sm font-semibold mb-2">Search Hypersnap channels</label>
           <input
             id="channel-search"
