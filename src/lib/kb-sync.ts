@@ -72,7 +72,8 @@ export interface SyncResult {
 
 /**
  * The repository JSON is reviewed, topic-scoped content. Personal notes and
- * source documents from the broader Rufus Vault are deliberately excluded.
+ * source documents from the broader knowledge base (auntiehomie/knowledge-base)
+ * are deliberately excluded; only its homiehouse/articles.json is vendored.
  */
 export async function syncKnowledgeBase(options: { dryRun?: boolean; skipIndex?: boolean } = {}): Promise<SyncResult> {
   const errors: string[] = [];

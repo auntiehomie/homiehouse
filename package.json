@@ -16,6 +16,7 @@
     "test:qstorage:live": "node --import tsx scripts/test-qstorage-live.ts",
     "test": "jest --passWithNoTests",
     "audit:security": "node scripts/security-audit.mjs",
+    "kb:pull": "node scripts/pull-knowledge-base.mjs",
     "prepare": "husky install",
     "test:e2e": "playwright test"
   },

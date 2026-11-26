@@ -251,7 +251,8 @@ export async function indexKnowledgeBaseArticles(): Promise<number> {
       };
     });
     const indexed = await indexDocuments(docs);
-    // KB sync reconciles kb_articles against Rufus-vault's canonical index.
+    // KB sync reconciles kb_articles against the vendored corpus from
+    // auntiehomie/knowledge-base (src/content/knowledge-base/articles.json).
     // Remove embeddings for rows that were retired from that source so old
     // context cannot continue to surface through semantic search.
     await sql`
