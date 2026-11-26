@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ensureAuthHeaders } from "@/lib/client-auth";
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -42,9 +43,11 @@ async function setupPush(askPermission: boolean): Promise<string | null> {
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(vapidKey),
   });
+  const auth = await ensureAuthHeaders('write:profile');
+  if (!auth) return 'Sign in again to enable notifications, then try again from Getting started.';
   const response = await fetch('/api/push/subscribe', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...auth },
     body: JSON.stringify({ fid, subscription: subscription.toJSON() }),
   });
   if (!response.ok) throw new Error('Could not save notification settings. Please try again.');
