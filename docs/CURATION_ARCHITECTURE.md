@@ -1,5 +1,7 @@
 # Feed Curation System Architecture
 
+> **Update (Nov 2026):** Curation preferences are now stored in the app's own database (`user_curation_preferences`, created automatically on first use) by `src/app/api/curation/route.ts`. The separate server on port 3001 and `SERVER_URL` are no longer used, and the `server/` folder described below is not in this repo. Note: the feed does not currently apply these preferences.
+
 ## Component Structure
 
 ```
