@@ -16,6 +16,8 @@
  * it does not mean this client should switch to the public Snapchain service.
  * Private URLs are never selected in a browser bundle.
  */
+import { getExtraFallbackUrls, markNodeHealthy, markNodeUnhealthy, preferHealthy } from './hypersnap-nodes';
+
 const PUBLIC_HYPERSNAP_BASE =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_HYPERSNAP_URL) ||
   'https://haatz.quilibrium.com';
@@ -83,6 +85,18 @@ const HYPERSNAP_FALLBACK =
   // with no working fallback during primary-node stalls.
   (PERSONAL_HYPERSNAP_BASE ? PUBLIC_HYPERSNAP_BASE : 'https://rpc.homiehouse.xyz');
 
+/**
+ * Every read fallback, in order: HYPERSNAP_FALLBACK, then any extra nodes from
+ * HYPERSNAP_FALLBACK_URLS (server-only), with recently failed nodes moved last.
+ */
+function readFallbacks(): string[] {
+  const extras = typeof window === 'undefined' ? getExtraFallbackUrls() : [];
+  return preferHealthy(
+    [...new Set([HYPERSNAP_FALLBACK, ...extras].filter(Boolean).map((url) => url.replace(/\/+$/, '')))],
+    (url) => url,
+  );
+}
+
 // ─── Generic fetch ──────────────────────────────────────────────────────────
 
 /**
@@ -97,12 +111,16 @@ export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}, t
   // the fallback node so features like @mention search keep working.
   const bases = isWrite
     ? [HYPERSNAP_BASE]
-    : [...new Set([HYPERSNAP_BASE, HYPERSNAP_FALLBACK].filter(Boolean))];
+    : [...new Set([HYPERSNAP_BASE, ...readFallbacks()].filter(Boolean))];
   let firstError: unknown;
   for (const base of bases) {
     try {
-      return await hypersnapFetchFrom(base, endpoint, opts, timeoutMs);
+      const result = await hypersnapFetchFrom(base, endpoint, opts, timeoutMs);
+      markNodeHealthy(base);
+      return result;
     } catch (error) {
+      // A 404 is an answer about this path, not a sign the node is down.
+      if (!/Hypersnap API error 404/.test(String((error as Error)?.message))) markNodeUnhealthy(base);
       firstError ??= error;
     }
   }
@@ -145,23 +163,27 @@ async function hypersnapFetchFrom(base: string, endpoint: string, opts: RequestI
  * Returns null if no fallback is configured or if the fallback also fails.
  */
 export async function fallbackFetch(endpoint: string, opts: RequestInit = {}): Promise<any> {
-  if (!HYPERSNAP_FALLBACK) return null;
-  const url = `${HYPERSNAP_FALLBACK}${endpoint}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
-    const res = await fetch(url, {
-      ...opts,
-      signal: controller.signal,
-      headers: { accept: 'application/json' },
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
+  for (const base of readFallbacks()) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    try {
+      const res = await fetch(`${base}${endpoint}`, {
+        ...opts,
+        signal: controller.signal,
+        headers: { accept: 'application/json' },
+      });
+      if (res.ok) {
+        markNodeHealthy(base);
+        return await res.json();
+      }
+      if (res.status >= 500 || res.status === 429) markNodeUnhealthy(base);
+    } catch {
+      markNodeUnhealthy(base);
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return null;
 }
 
 /**
@@ -170,23 +192,7 @@ export async function fallbackFetch(endpoint: string, opts: RequestInit = {}): P
  * empty inbox.
  */
 async function fallbackNotifications(endpoint: string): Promise<any> {
-  if (!HYPERSNAP_FALLBACK) return null;
-  const url = `${HYPERSNAP_FALLBACK}${endpoint}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      cache: 'no-store',
-      headers: { accept: 'application/json' },
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  return fallbackFetch(endpoint, { cache: 'no-store' });
 }
 
 // Legacy fetch alias removed — use hypersnapFetch directly
@@ -227,7 +233,7 @@ export async function fetchFollowStatus(fid: number, targetFid: number): Promise
     target_fid: String(targetFid),
     link_type: 'follow',
   })}`;
-  const nodes = [...new Set([HYPERSNAP_BASE, HYPERSNAP_FALLBACK].filter(Boolean))];
+  const nodes = [...new Set([HYPERSNAP_BASE, ...readFallbacks()].filter(Boolean))];
   let lastError: unknown;
 
   for (const base of nodes) {

@@ -55,6 +55,25 @@ it.each([
   expect(fetchMock.mock.calls[1][0]).toBe('https://fallback.example/v1/submitMessage');
 });
 
+it('tries HYPERSNAP_FALLBACK_URLS after haatz, without the write key', async () => {
+  jest.resetModules();
+  process.env.HYPERSNAP_FALLBACK_URLS = 'https://node-a.example';
+  process.env.HYPERSNAP_WRITE_KEY = 'test-secret';
+  submit = (await import('@/lib/hypersnap-submit')).submitHypersnapMessage;
+  fetchMock.mockResolvedValueOnce(new Response(mempoolError, { status: 400 }));
+  fetchMock.mockRejectedValueOnce(new DOMException('timeout', 'TimeoutError'));
+  const response = Response.json({ hash: 'confirmed' });
+  fetchMock.mockResolvedValueOnce(response);
+  await expect(submit(message)).resolves.toBe(response);
+  expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
+    'https://rpc.homiehouse.xyz/v1/submitMessage',
+    'https://fallback.example/v1/submitMessage',
+    'https://node-a.example/v1/submitMessage',
+  ]);
+  expect(fetchMock.mock.calls[2][1].headers['x-homiehouse-key']).toBeUndefined();
+  expect(fetchMock.mock.calls[2][1].body).toEqual(fetchMock.mock.calls[0][1].body);
+});
+
 it('returns the readable busy response when every node is busy', async () => {
   fetchMock.mockResolvedValueOnce(new Response(mempoolError, { status: 400 }));
   fetchMock.mockResolvedValueOnce(new Response(mempoolError, { status: 400 }));

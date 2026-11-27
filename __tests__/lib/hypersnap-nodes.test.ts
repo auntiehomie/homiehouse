@@ -1,4 +1,4 @@
-import { fetchFromHypersnapNodes, getHypersnapNodes, HypersnapUnavailableError } from '@/lib/hypersnap-nodes';
+import { fetchFromHypersnapNodes, getHypersnapNodes, HypersnapUnavailableError, resetNodeHealth } from '@/lib/hypersnap-nodes';
 
 const env = process.env;
 const ok = (body: unknown = {}) => ({ ok: true, status: 200, json: async () => body, clone: () => ({ text: async () => JSON.stringify(body) }) });
@@ -14,6 +14,7 @@ describe('Hypersnap node failover', () => {
       HYPERSNAP_WRITE_KEY: 'secret',
     };
     global.fetch = jest.fn();
+    resetNodeHealth();
   });
   afterEach(() => { process.env = env; });
 
@@ -72,4 +73,56 @@ describe('Hypersnap node failover', () => {
     await expect(fetchFromHypersnapNodes('/v1/signersByFid?fid=1')).rejects.toBeInstanceOf(HypersnapUnavailableError);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
+
+  describe('extra fallbacks (HYPERSNAP_FALLBACK_URLS)', () => {
+    beforeEach(() => {
+      process.env.HYPERSNAP_FALLBACK_URLS = 'https://node-a.example/, https://node-b.example  not-a-url';
+    });
+
+    it('adds them after haatz, ignoring invalid entries', () => {
+      expect(getHypersnapNodes().map((n) => n.url)).toEqual([
+        'https://rpc.example.test',
+        'https://haatz.quilibrium.com',
+        'https://node-a.example',
+        'https://node-b.example',
+      ]);
+    });
+
+    it('keeps going until a node answers', async () => {
+      (fetch as jest.Mock)
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockResolvedValueOnce(ok({ hash: '0x1' }));
+      const { node } = await fetchFromHypersnapNodes('/v1/submitMessage', { method: 'POST' });
+      expect(node.url).toBe('https://node-a.example');
+    });
+
+    it('tries a node that just failed last on the next request', async () => {
+      (fetch as jest.Mock).mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(ok());
+      await fetchFromHypersnapNodes('/v1/info');
+      (fetch as jest.Mock).mockClear().mockResolvedValue(ok());
+      await fetchFromHypersnapNodes('/v1/info');
+      expect((fetch as jest.Mock).mock.calls[0][0]).toBe('https://haatz.quilibrium.com/v1/info');
+    });
+
+    it('never sends the write key to other operators', async () => {
+      (fetch as jest.Mock)
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockResolvedValueOnce(ok());
+      await fetchFromHypersnapNodes('/v1/submitMessage', { method: 'POST' });
+      const [, init] = (fetch as jest.Mock).mock.calls[2];
+      expect((init.headers as Headers).has('x-homiehouse-key')).toBe(false);
+    });
+
+    it('stops at the overall time budget', async () => {
+      (fetch as jest.Mock).mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        throw new Error('timeout');
+      });
+      await expect(fetchFromHypersnapNodes('/v1/info', { totalTimeoutMs: 1_050 })).rejects.toBeInstanceOf(HypersnapUnavailableError);
+      expect((fetch as jest.Mock).mock.calls.length).toBeLessThan(4);
+    });
+  });
 });
+
