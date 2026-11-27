@@ -129,6 +129,38 @@ export default function WalletPage() {
             <ConnectButton label="Connect" />
           </div>
 
+          {process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 14,
+              padding: '16px 18px',
+              marginBottom: 24,
+            }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-on-dark)' }}>Try the embedded wallet</div>
+                <div style={{ fontSize: 12, color: 'var(--muted-on-dark)', marginTop: 4 }}>Preview experiment on Base Sepolia testnet</div>
+              </div>
+              <Link href="/wallet/embedded" style={{
+                background: 'var(--btn-primary-bg)',
+                color: 'var(--btn-primary-color)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '9px 13px',
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+              }}>
+                Open test wallet
+              </Link>
+            </div>
+          )}
+
           {/* Not connected */}
           {!isConnected && (
             <div style={{ textAlign: 'center', padding: '48px 20px' }}>
