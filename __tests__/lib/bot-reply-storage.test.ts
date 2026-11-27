@@ -12,10 +12,14 @@ describe('bot reply storage', () => {
 
   it('relaxes NOT NULL on legacy columns, including whitespace-named ones', async () => {
     await recordReplyBatch({ trackingKeys: ['0xabc'], replyHash: 'pending' });
-    const repair = query.mock.calls.map(([sql]) => String(sql)).find((sql) => sql.includes('information_schema.columns'));
+    const repair = query.mock.calls.map(([sql]) => String(sql)).find((sql) => sql.includes('pg_attribute'));
     expect(repair).toBeDefined();
-    expect(repair).toContain("is_nullable = 'NO'");
-    expect(repair).toContain("NOT IN ('id', 'created_at')");
+    expect(repair).toContain('a.attnotnull');
+    // Primary-key columns (the legacy "    id") are skipped, not just a column named exactly "id".
+    expect(repair).toContain('i.indisprimary');
+    expect(repair).toContain("btrim(a.attname) <> 'created_at'");
+    // One refused column must not roll back the others.
+    expect(repair).toContain('EXCEPTION WHEN others');
     // %I quotes identifiers, so a column named "    parent_hash" is altered correctly.
     expect(repair).toContain('ALTER COLUMN %I DROP NOT NULL');
   });

@@ -44,21 +44,33 @@ async function ensureTable(): Promise<void> {
     // tracking key then fail and replied=0 in production. Drop the constraint
     // idempotently (no-op when already nullable).
     `ALTER TABLE bot_replies ALTER COLUMN parent_hash DROP NOT NULL`,
-    // Legacy tables also carry columns this code never writes, including one
-    // literally named "    parent_hash" (leading spaces) that is NOT NULL, so
-    // every INSERT failed with 23502. Relax NOT NULL on every column other than
-    // id/created_at; the unused legacy columns are left in place.
+    // Legacy tables also carry columns this code never writes. Every legacy
+    // column name has leading spaces (e.g. "    parent_hash", and the primary
+    // key "    id"), and "    parent_hash" is NOT NULL, so every INSERT failed
+    // with 23502. Relax NOT NULL on every column that is not part of the
+    // primary key and not created_at. Each column is altered in its own
+    // sub-block so one refusal cannot roll back the rest.
     `DO $$
      DECLARE col record;
      BEGIN
        FOR col IN
-         SELECT column_name FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'bot_replies'
-           AND is_nullable = 'NO'
-           AND column_name NOT IN ('id', 'created_at')
+         SELECT a.attname AS column_name
+         FROM pg_attribute a
+         WHERE a.attrelid = 'bot_replies'::regclass
+           AND a.attnum > 0
+           AND NOT a.attisdropped
+           AND a.attnotnull
+           AND btrim(a.attname) <> 'created_at'
+           AND NOT EXISTS (
+             SELECT 1 FROM pg_index i
+             WHERE i.indrelid = a.attrelid AND i.indisprimary AND a.attnum = ANY(i.indkey)
+           )
        LOOP
-         EXECUTE format('ALTER TABLE bot_replies ALTER COLUMN %I DROP NOT NULL', col.column_name);
+         BEGIN
+           EXECUTE format('ALTER TABLE bot_replies ALTER COLUMN %I DROP NOT NULL', col.column_name);
+         EXCEPTION WHEN others THEN
+           RAISE WARNING 'bot_replies: could not relax NOT NULL on %: %', col.column_name, SQLERRM;
+         END;
        END LOOP;
      END $$`,
     // Unique index backs the ON CONFLICT (parent_hash) upsert in recordReply.
