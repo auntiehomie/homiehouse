@@ -279,12 +279,31 @@ export async function verifyFarcasterSigner(
   return fid;
 }
 
-/** Verify that a provided Ed25519 private key belongs to an active signer for a FID. */
+/**
+ * Verify that a provided Ed25519 private key belongs to an active signer for a FID.
+ * Legacy: new clients send a signer proof instead (see verifyFarcasterSignerPublicKey).
+ */
 export async function verifyFarcasterSignerKey(fid: number, signerKey: string): Promise<number> {
   if (!fid || !Number.isSafeInteger(fid) || fid <= 0) {
     throw new AuthError('Valid FID required', 401, 'INVALID_FID');
   }
   const publicKeyHex = await derivePublicKey(signerKey);
+  return verifyFarcasterSignerPublicKey(fid, publicKeyHex);
+}
+
+/**
+ * Verify that an Ed25519 public key (0x-prefixed hex) is an active signer for a FID.
+ * Callers must already have proven possession of the matching private key,
+ * e.g. with a signer proof or a signed Farcaster message.
+ */
+export async function verifyFarcasterSignerPublicKey(fid: number, publicKeyInput: string): Promise<number> {
+  if (!fid || !Number.isSafeInteger(fid) || fid <= 0) {
+    throw new AuthError('Valid FID required', 401, 'INVALID_FID');
+  }
+  if (!/^0x[0-9a-fA-F]{64}$/.test(publicKeyInput)) {
+    throw new AuthError('Invalid signer public key', 401, 'INVALID_SIGNER_KEY');
+  }
+  const publicKeyHex = publicKeyInput.toLowerCase();
   try {
     await ensureSignersTable();
     const rows = await sql`

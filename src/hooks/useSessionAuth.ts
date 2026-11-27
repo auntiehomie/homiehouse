@@ -12,6 +12,7 @@
 
 'use client';
 
+import { createSignerProofHeaders } from '@/lib/signer-proof';
 import {
   useState,
   useEffect,
@@ -170,7 +171,7 @@ export function useSessionAuth() {
         headers: {
           'content-type': 'application/json',
           'x-farcaster-fid': String(fid),
-          'x-signer-key': signer.private_key,
+          ...createSignerProofHeaders(fid, signer.private_key),
         },
         body: JSON.stringify({ fid }),
       });

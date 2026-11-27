@@ -22,6 +22,7 @@ export enum MessageType {
   REACTION_REMOVE = 4,
   LINK_ADD = 5,
   LINK_REMOVE = 6,
+  FRAME_ACTION = 13,
   // These are the Hypersnap/Snapchain protocol values. The previous values
   // (11/12) are deprecated Farcaster signer messages, not gasless key ops.
   KEY_ADD = 16,
@@ -232,6 +233,25 @@ export function encodeKeyAddBody(input: KeyAddInput): Uint8Array {
 // MessageData + envelope
 // ---------------------------------------------------------------------------
 
+export interface FrameActionInput {
+  url: string;
+  buttonIndex: number;
+  castId: { fid: number; hash: Uint8Array };
+  inputText?: string;
+  state?: Uint8Array;
+}
+
+/** FrameActionBody: url=1, button_index=2, cast_id=3, input_text=4, state=5. */
+export function encodeFrameActionBody(input: FrameActionInput): Uint8Array {
+  const w = new ProtoWriter();
+  w.writeStringField(1, input.url);
+  w.writeVarintField(2, input.buttonIndex);
+  w.writeSubMessage(3, encodeCastId(input.castId.fid, input.castId.hash));
+  if (input.inputText) w.writeStringField(4, input.inputText);
+  if (input.state?.length) w.writeBytesField(5, input.state);
+  return w.bytes();
+}
+
 export interface MessageDataInput {
   type: MessageType;
   fid: number;
@@ -242,7 +262,8 @@ export interface MessageDataInput {
     | { castRemoveBody: { targetHash: Uint8Array } }
     | { reactionBody: ReactionInput }
     | { linkBody: LinkInput }
-    | { keyAddBody: KeyAddInput };
+    | { keyAddBody: KeyAddInput }
+    | { frameActionBody: FrameActionInput };
 }
 
 export function encodeMessageData(input: MessageDataInput): Uint8Array {
@@ -263,6 +284,8 @@ export function encodeMessageData(input: MessageDataInput): Uint8Array {
     w.writeSubMessage(14, encodeLinkBody(input.body.linkBody));
   } else if ('keyAddBody' in input.body) {
     w.writeSubMessage(19, encodeKeyAddBody(input.body.keyAddBody));
+  } else if ('frameActionBody' in input.body) {
+    w.writeSubMessage(16, encodeFrameActionBody(input.body.frameActionBody));
   }
   return w.bytes();
 }

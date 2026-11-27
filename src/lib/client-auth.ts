@@ -9,6 +9,8 @@
  *   fetch('/api/some-authenticated-route', { headers: { ...headers } })
  */
 
+import { createSignerProofHeaders } from './signer-proof';
+
 export interface FarcasterAuthHeaders {
   'x-session-token'?: string;
 }
@@ -96,10 +98,11 @@ export async function ensureAuthHeaders(
     try {
       const response = await fetch('/api/auth/session', {
         method: 'POST',
+        // Prove possession of the signer without sending the private key.
         headers: {
           'content-type': 'application/json',
           'x-farcaster-fid': String(fid),
-          'x-signer-key': signerKey,
+          ...createSignerProofHeaders(fid, signerKey),
         },
         body: JSON.stringify({ fid }),
       });
