@@ -24,7 +24,8 @@ import {
   refreshSession,
   SessionError,
 } from '@/lib/session';
-import { verifyFarcasterSignerKey } from '@/lib/auth';
+import { verifyFarcasterSignerKey, verifyFarcasterSignerPublicKey } from '@/lib/auth';
+import { readSignerProof, SignerProofError } from '@/lib/signer-proof';
 import { AuthError } from '@/lib/errors';
 import {
   getHomieHouseAuthDomain,
@@ -97,14 +98,31 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const signerKey = req.headers.get('x-signer-key');
-      if (!signerKey) {
-        return NextResponse.json(
-          { ok: false, error: 'Approved signer proof required' },
-          { status: 401 },
+      // Preferred: a signature from the signer key (the private key never
+      // leaves the browser). Each proof is single-use.
+      let verifiedFid: number;
+      const proof = readSignerProof(req.headers, requestedFid, req.nextUrl.host);
+      if (proof) {
+        const { success: freshProof } = await checkRateLimit(
+          `auth-session:proof:${proof.signatureHex}`, 1, 300, { allowInMemoryPreview: true },
         );
+        if (!freshProof) {
+          return NextResponse.json({ ok: false, error: 'Signer proof was already used' }, { status: 401 });
+        }
+        verifiedFid = await verifyFarcasterSignerPublicKey(requestedFid, proof.publicKeyHex);
+      } else {
+        // Legacy: older cached app versions still send the private key.
+        // Remove once those clients have aged out.
+        const signerKey = req.headers.get('x-signer-key');
+        if (!signerKey) {
+          return NextResponse.json(
+            { ok: false, error: 'Approved signer proof required' },
+            { status: 401 },
+          );
+        }
+        console.warn('[auth/session] legacy x-signer-key session request');
+        verifiedFid = await verifyFarcasterSignerKey(requestedFid, signerKey);
       }
-      const verifiedFid = await verifyFarcasterSignerKey(requestedFid, signerKey);
       if (verifiedFid !== requestedFid) {
         return NextResponse.json(
           {
@@ -147,6 +165,9 @@ export async function POST(req: NextRequest) {
         { ok: false, error: err.message },
         { status: err.status },
       );
+    }
+    if (err instanceof SignerProofError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
     }
     console.error('[auth/session] create error:', err?.message ?? err);
     return NextResponse.json(

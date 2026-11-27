@@ -5,7 +5,47 @@ import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import type { FrameData } from '@/app/api/frame/route';
 import { openMiniApp } from '@/lib/farcaster';
-import { getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders } from '@/lib/client-auth';
+import { ed25519 } from '@noble/curves/ed25519';
+import { buildSignedMessage, FarcasterNetwork, hexToBytes, MessageType } from '@/lib/fc-message-builder';
+
+/**
+ * Sign a frame action in the browser. The signer private key stays here;
+ * only the signed message goes to the server.
+ */
+async function signFrameAction(params: {
+  privateKeyHex: string;
+  fid: number;
+  url: string;
+  buttonIndex: number;
+  inputText: string;
+  castHash?: string;
+}): Promise<string> {
+  const privateKey = hexToBytes(params.privateKeyHex);
+  const castHashBytes = params.castHash && /^0x[0-9a-fA-F]{40}$/.test(params.castHash)
+    ? hexToBytes(params.castHash)
+    : new Uint8Array(20);
+  const bytes = await buildSignedMessage(
+    {
+      type: MessageType.FRAME_ACTION,
+      fid: params.fid,
+      network: FarcasterNetwork.MAINNET,
+      body: {
+        frameActionBody: {
+          url: params.url,
+          buttonIndex: params.buttonIndex,
+          castId: { fid: params.fid, hash: castHashBytes },
+          inputText: params.inputText,
+        },
+      },
+    },
+    {
+      publicKey: ed25519.getPublicKey(privateKey),
+      sign: async (hash) => ed25519.sign(hash, privateKey),
+    },
+  );
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 interface Props {
   url: string;
@@ -50,16 +90,15 @@ export default function FrameEmbed({ url, castHash }: Props) {
       setInteractError(null);
       try {
         const privateKeyHex = getPrivateKeyHex();
-        const signerHeaders = privateKeyHex ? getAuthHeaders('write:casts') : null;
+        const sessionHeaders = privateKeyHex && userFid ? await ensureAuthHeaders('write:casts') : null;
+        const trustedMessageBytes = privateKeyHex && userFid && sessionHeaders
+          ? await signFrameAction({ privateKeyHex, fid: userFid, url, buttonIndex: btn.index, inputText: inputValue, castHash })
+          : undefined;
         const res = await fetch('/api/frame/interact', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(signerHeaders ?? {}),
-            ...(privateKeyHex && userFid ? {
-              'x-farcaster-fid': String(userFid),
-              'x-signer-key': privateKeyHex,
-            } : {}),
+            ...(trustedMessageBytes ? sessionHeaders : {}),
           },
           body: JSON.stringify({
             url,
@@ -67,6 +106,7 @@ export default function FrameEmbed({ url, castHash }: Props) {
             buttonIndex: btn.index,
             inputText: inputValue,
             castHash,
+            ...(trustedMessageBytes ? { trustedMessageBytes } : {}),
           }),
         });
         const data = await res.json();

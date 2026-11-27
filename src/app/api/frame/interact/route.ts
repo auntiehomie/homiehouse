@@ -1,14 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { safeFetchPublicUrl } from '@/lib/safe-public-fetch';
-import { verifyFarcasterSignerAuth, verifyFarcasterSignerKey } from '@/lib/auth';
+import { verifyFarcasterSignerAuth, verifyFarcasterSignerPublicKey } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
-import {
-  makeFrameAction,
-  NobleEd25519Signer,
-  FrameActionBody,
-  Message,
-  FarcasterNetwork,
-} from '@farcaster/hub-nodejs';
+import { Message, MessageData, MessageType } from '@farcaster/hub-nodejs';
+import { ed25519 } from '@noble/curves/ed25519';
+import { blake3_20, farcasterTimestamp } from '@/lib/fc-message-builder';
+
+const MAX_TRUSTED_MESSAGE_BYTES = 4096;
+const MAX_FRAME_ACTION_AGE_SECONDS = 10 * 60;
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/**
+ * Verify a frame action signed in the browser. Returns the signer public key
+ * (0x hex) when the message is a fresh FRAME_ACTION for `fid` that matches the
+ * requested url, button, input and cast; throws otherwise.
+ */
+function verifyBrowserSignedFrameAction(
+  messageHex: string,
+  expected: { fid: number; url: string; buttonIndex: number; inputText: string; castHash: string },
+): `0x${string}` {
+  if (!/^(?:[0-9a-fA-F]{2})+$/.test(messageHex) || messageHex.length / 2 > MAX_TRUSTED_MESSAGE_BYTES) {
+    throw new AuthError('Signed frame action is malformed', 400, 'INVALID_FRAME_ACTION');
+  }
+  const message = Message.decode(Buffer.from(messageHex, 'hex'));
+  const dataBytes = message.dataBytes;
+  if (!dataBytes?.length || !message.signer?.length || !message.signature?.length || !message.hash?.length) {
+    throw new AuthError('Signed frame action is incomplete', 400, 'INVALID_FRAME_ACTION');
+  }
+  if (!bytesEqual(blake3_20(dataBytes), message.hash) || !ed25519.verify(message.signature, message.hash, message.signer)) {
+    throw new AuthError('Frame action signature is invalid', 401, 'INVALID_FRAME_ACTION');
+  }
+
+  const data = MessageData.decode(dataBytes);
+  const body = data.frameActionBody;
+  const decoder = new TextDecoder();
+  const expectedHash = expected.castHash
+    ? Buffer.from(expected.castHash.slice(2), 'hex')
+    : Buffer.alloc(20);
+  if (
+    data.type !== MessageType.FRAME_ACTION || data.fid !== expected.fid || !body ||
+    decoder.decode(body.url) !== expected.url || body.buttonIndex !== expected.buttonIndex ||
+    decoder.decode(body.inputText) !== expected.inputText ||
+    !body.castId || !bytesEqual(body.castId.hash, expectedHash) ||
+    Math.abs(farcasterTimestamp() - data.timestamp) > MAX_FRAME_ACTION_AGE_SECONDS
+  ) {
+    throw new AuthError('Signed frame action does not match this request', 400, 'INVALID_FRAME_ACTION');
+  }
+  return `0x${Buffer.from(message.signer).toString('hex')}`;
+}
 
 function extractMeta(html: string, property: string): string | null {
   const re = new RegExp(
@@ -33,22 +75,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ isFrame: false, error: 'url and postUrl required' }, { status: 400 });
   }
 
-  const { postUrl, buttonIndex = 1, inputText = '', castHash = '' } = body;
-  let fid = 0;
-  const privateKeyHex = request.headers.get('x-signer-key');
-
-  if (privateKeyHex) {
-    try {
-      fid = await verifyFarcasterSignerAuth(request, 'write:casts');
-      await verifyFarcasterSignerKey(fid, privateKeyHex);
-    } catch (error) {
-      if (error instanceof AuthError) {
-        return NextResponse.json({ error: error.message }, { status: error.status });
-      }
-      return NextResponse.json({ error: 'Frame signer verification failed' }, { status: 401 });
-    }
-  }
-
+  const { postUrl, buttonIndex = 1, inputText = '', castHash = '', trustedMessageBytes } = body;
   if (typeof body.url !== 'string' || body.url.length > 2048 || typeof postUrl !== 'string' || postUrl.length > 2048
     || !Number.isInteger(buttonIndex) || buttonIndex < 1 || buttonIndex > 4
     || typeof inputText !== 'string' || inputText.length > 1000
@@ -60,6 +87,25 @@ export async function POST(request: NextRequest) {
     if (!['http:', 'https:'].includes(frameUrl.protocol)) throw new Error('Invalid frame URL protocol');
   } catch {
     return NextResponse.json({ isFrame: false, error: 'A valid frame URL is required' }, { status: 400 });
+  }
+
+  // Signed actions are built and signed in the browser; the signer private
+  // key is never sent here. Unsigned actions still work for open frames.
+  let fid = 0;
+  if (trustedMessageBytes !== undefined) {
+    try {
+      if (typeof trustedMessageBytes !== 'string') throw new AuthError('Signed frame action is malformed', 400, 'INVALID_FRAME_ACTION');
+      fid = await verifyFarcasterSignerAuth(request, 'write:casts');
+      const signerPublicKey = verifyBrowserSignedFrameAction(trustedMessageBytes, {
+        fid, url: body.url, buttonIndex, inputText, castHash,
+      });
+      await verifyFarcasterSignerPublicKey(fid, signerPublicKey);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+      return NextResponse.json({ error: 'Frame signer verification failed' }, { status: 401 });
+    }
   }
 
   const frameBody: any = {
@@ -75,37 +121,8 @@ export async function POST(request: NextRequest) {
     trustedData: { messageBytes: '' },
   };
 
-  // Sign the frame action if the user's private key and FID are available
-  if (privateKeyHex && fid) {
-    try {
-      const privateKeyBytes = Buffer.from(privateKeyHex.replace('0x', ''), 'hex');
-      const signer = new NobleEd25519Signer(privateKeyBytes);
-
-      const hashBytes = castHash
-        ? Buffer.from(castHash.replace('0x', ''), 'hex')
-        : Buffer.alloc(20);
-
-      const frameActionBody = FrameActionBody.create({
-        url: Buffer.from(body.url),
-        buttonIndex,
-        castId: { fid, hash: hashBytes },
-        inputText: Buffer.from(inputText),
-        state: Buffer.alloc(0),
-      });
-
-      const result = await makeFrameAction(
-        frameActionBody,
-        { fid, network: FarcasterNetwork.MAINNET },
-        signer,
-      );
-
-      if (result.isOk()) {
-        const messageBytes = Buffer.from(Message.encode(result.value).finish()).toString('hex');
-        frameBody.trustedData = { messageBytes };
-      }
-    } catch {
-      // Fall through with unsigned action
-    }
+  if (fid && typeof trustedMessageBytes === 'string') {
+    frameBody.trustedData = { messageBytes: trustedMessageBytes.toLowerCase() };
   }
 
   try {

@@ -13,7 +13,7 @@ describe('checkout credential selection', () => {
     Object.defineProperty(global, 'localStorage', { value: storage, configurable: true });
     Object.defineProperty(global, 'sessionStorage', { value: storage, configurable: true });
     values.set('hh_profile', JSON.stringify({ fid: 123 }));
-    values.set('signer_123', JSON.stringify({ status: 'approved', private_key: 'test-private-key' }));
+    values.set('signer_123', JSON.stringify({ status: 'approved', private_key: '07'.repeat(32) }));
   });
   afterAll(() => {
     Reflect.deleteProperty(global, 'window');
@@ -56,10 +56,18 @@ describe('checkout credential selection', () => {
     await expect(ensureAuthHeaders('write:casts')).resolves.toEqual({ 'x-session-token': token });
     expect(global.fetch).toHaveBeenCalledWith('/api/auth/session', expect.objectContaining({
       method: 'POST',
-      headers: expect.objectContaining({ 'x-farcaster-fid': '123', 'x-signer-key': 'test-private-key' }),
+      headers: expect.objectContaining({
+        'x-farcaster-fid': '123',
+        'x-signer-public-key': expect.stringMatching(/^0x[0-9a-f]{64}$/),
+        'x-signer-proof': expect.stringMatching(/^0x[0-9a-f]{128}$/),
+        'x-signer-timestamp': expect.stringMatching(/^\d+$/),
+      }),
     }));
     expect(JSON.parse(values.get('hh_session_v1')!).token).toBe(token);
     expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    const sentHeaders = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(sentHeaders).not.toHaveProperty('x-signer-key');
+    expect(JSON.stringify(sentHeaders)).not.toContain('07'.repeat(32));
   });
 
   it('force refresh discards an expired cached session and mints a fresh write session', async () => {
