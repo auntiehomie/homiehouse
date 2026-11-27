@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
   }
   try { initVapid(); }
-  catch { return NextResponse.json({ ok: true, sent: 0, errors: 0, note: 'VAPID not configured' }); }
+  catch {
+    console.error('[push/check] VAPID keys are not configured; no pushes sent');
+    return NextResponse.json({ ok: true, sent: 0, errors: 0, note: 'VAPID not configured' });
+  }
 
   const db = getDb();
   await ensurePushTable(db);
@@ -59,7 +62,10 @@ export async function GET(req: NextRequest) {
         ? notificationResult.value?.notifications ?? notificationResult.value?.data?.notifications : null;
       const notificationOk = Array.isArray(notifications) && notificationResult.status === 'fulfilled' && notificationResult.value?._source !== 'empty';
       const castOk = castResult.status === 'fulfilled' && Array.isArray(castResult.value?.casts);
-      if (!notificationOk || !castOk) errors++;
+      if (!notificationOk || !castOk) {
+        errors++;
+        console.warn(`[push/check] fid=${sub.user_fid} source failed notifications=${notificationOk} casts=${castOk}`);
+      }
       // Independent sources can deliver independently. A failed source never advances its watermark.
       const digest = selectPushDigest(
         notificationOk ? notifications : [],
@@ -75,20 +81,29 @@ export async function GET(req: NextRequest) {
           maxRedirects: 0, maxBytes: 16 * 1024, timeoutMs: 5000,
         });
         if (response.status === 404 || response.status === 410) {
+          console.warn(`[push/check] fid=${sub.user_fid} subscription expired (${response.status}); removing`);
           await db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]);
           continue;
         }
-        if (!response.ok) { errors++; continue; }
+        if (!response.ok) {
+          errors++;
+          console.error(`[push/check] fid=${sub.user_fid} push service ${endpoint.host} returned ${response.status}: ${(await response.text?.().catch(() => '') ?? '').slice(0, 200)}`);
+          continue;
+        }
         sent++;
       }
       await db.query(`UPDATE push_subscriptions SET last_notified_at = GREATEST(last_notified_at, $2::timestamptz),
         last_cast_notified_at = GREATEST(last_cast_notified_at, $3::timestamptz) WHERE id = $1`,
         [sub.id, digest.notificationWatermark, digest.castWatermark]);
-    } catch { errors++; }
+    } catch (error) {
+      errors++;
+      console.error(`[push/check] fid=${sub.user_fid} delivery failed:`, error instanceof Error ? error.message : error);
+    }
     finally {
       // Keep a last-processed time for fair scheduling beyond the bounded batch.
       await db.query('UPDATE push_subscriptions SET processing_until = NOW() WHERE id = $1', [sub.id]);
     }
   }
+  if (subs.length || sent || errors) console.log(`[push/check] subscriptions=${subs.length} sent=${sent} errors=${errors}`);
   return NextResponse.json({ ok: true, sent, errors }, { headers: { 'Cache-Control': 'no-store' } });
 }
