@@ -15,6 +15,12 @@ it('replaces a legacy comparison on the reported card with an animated explanati
   expect(markup).not.toContain('lesson-scene');
 });
 
+it('preserves the dedicated interactive block-link scene from master', () => {
+  const text = 'Each block contains the hash of the previous block, linking the chain.';
+  const markup = renderToStaticMarkup(createElement(LessonIllustration, { text }));
+  expect(markup).toContain('Edit old transaction');
+});
+
 it('does not reuse a partial storyboard for a card containing additional points', () => {
   const source = 'The cost of attacking the chain exceeds the reward.';
   const visual = { ...storyboardForText(source)!, source };

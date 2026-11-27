@@ -3,12 +3,17 @@
 import LessonAnimation from './LessonAnimation';
 import { storyboardForText } from '@/lib/lesson-storyboard';
 import TokenizationScene from './TokenizationScene';
+import BlockLinkScene from './BlockLinkScene';
 import LessonActivity, { lessonActivityFor } from './LessonActivity';
 import { useEffect, useState } from 'react';
 import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
 import { normalizeLessonScenes, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 
 export default function LessonIllustration({ text, visual }: { text: string; visual?: LessonScene }) {
+  // Preserve master's purpose-built block-link interaction ahead of generic animation.
+  if (/blocks? (?:link|connect|chain)|how blocks? link|block contains/i.test(text) && /hash|chain|link|previous/i.test(text)) {
+    return <BlockLinkScene key={text} />;
+  }
   return <CardAnimation key={text} text={text} visual={visual} />;
 }
 
