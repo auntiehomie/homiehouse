@@ -1626,6 +1626,35 @@
       "reviewStatus": "curated-summary"
     },
     {
+      "id": "pqai-0-preparing-ethereum-post-quantum-post-ai",
+      "title": "PQAI #0: Preparing Ethereum for a post-quantum, post-AI world",
+      "author": "Kev Wedderburn",
+      "publisher": "Ethereum Foundation Blog",
+      "publishedAt": "2026-11-23",
+      "url": "https://blog.ethereum.org/2026/11/23/pqai-0",
+      "source": "blog.ethereum.org",
+      "tags": [
+        "ethereum",
+        "post-quantum",
+        "cryptography",
+        "protocol security",
+        "decentralized clients",
+        "wallets",
+        "zk-rollup"
+      ],
+      "summary": "Ethereum Foundation researcher Kev Wedderburn argues that Ethereum should prepare for a future where AI accelerates software bug discovery as well as the possibility of quantum attacks on cryptography. The post describes proposed work across validator consensus, user-account signatures, and data commitments; advocates conservative cryptographic assumptions and formal verification; and says early specifications and a first post-quantum consensus-layer devnet are under way. It presents December 2028 as a target raised at Devcon, with 2029 as the Foundation's internal deadline and a January roadmap review planned.",
+      "learningPoints": [
+        "Explain the difference between the cryptographic signatures used for validator consensus and the signatures used by wallet accounts; a transition must consider both.",
+        "Describe the three layers named in the article: hash-based validator keys, wallet migration to hash-based signatures, and hash-based commitments for blob data.",
+        "Distinguish a stated target, an early specification, and a devnet from a completed upgrade activated on Ethereum mainnet.",
+        "Explain why the author pairs faster implementation with formal verification and security review, and identify the tradeoff that larger signatures may increase node hardware needs.",
+        "Treat the proposed timeline and AI-risk assessment as the author's current argument; check later specifications, test results, and roadmap reviews before calling the design settled."
+      ],
+      "caveats": "This is one Ethereum Foundation author's technical and risk-management argument, not an independent forecast or consensus specification. The article does not show that AI can currently break Ethereum's cryptography; it argues for precaution under uncertainty. December 2028 is a target, 2029 is described as an internal deadline, and the roadmap review is planned for January. Early specs and a devnet are not evidence of mainnet activation. Larger hash-based signatures may also affect home-node hardware requirements.",
+      "addedAt": "2026-11-27",
+      "reviewStatus": "curated-summary"
+    },
+    {
       "id": "talos-ai-enabled-penetration-testing-defense",
       "title": "ARTEX and beyond: AI-enabled penetration testing platforms",
       "url": "https://blog.talosintelligence.com/artex-and-beyond/",

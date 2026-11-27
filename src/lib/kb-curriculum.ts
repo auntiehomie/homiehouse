@@ -64,8 +64,8 @@ const TRACK_TAGS: Record<string, string[]> = {
   ai: ['ai', 'llm', 'machine-learning', 'agents', 'prompt-injection', 'venice', 'openai', 'claude', 'gpt'],
   finance: ['defi', 'tokens', 'trading', 'crypto', 'finance', 'tokenomics', 'hyperliquid', 'portfolio'],
   creator: ['creator', 'nft', 'gaming', 'content', 'music', 'creator-economy', 'creator-coins', 'content-coins', 'zora', 'base-app'],
-  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security', 'decentralization', 'privacy', 'network states', 'bitcoin', 'cryptography', 'hypersnap', 'decentralized-social', 'decentralized clients', 'rollup', 'zk-rollup', 'feeds'],
-  all: ['ai', 'agents', 'creator', 'crypto', 'web3', 'dao', 'governance', 'ethereum', 'privacy', 'network states', 'bitcoin', 'cryptography', 'defi'],
+  decentralization: ['web3', 'blockchain', 'dao', 'governance', 'ethereum', 'social network', 'wallet', 'security', 'decentralization', 'privacy', 'network states', 'bitcoin', 'cryptography', 'post-quantum', 'hypersnap', 'decentralized-social', 'decentralized clients', 'rollup', 'zk-rollup', 'feeds'],
+  all: ['ai', 'agents', 'creator', 'crypto', 'web3', 'dao', 'governance', 'ethereum', 'privacy', 'network states', 'bitcoin', 'cryptography', 'post-quantum', 'zk-rollup', 'defi'],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

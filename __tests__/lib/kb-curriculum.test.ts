@@ -73,3 +73,25 @@ it('turns the Ethereum Foundation roadmap into a dated, caveated beginner lesson
     expect.stringContaining('Post-quantum'),
   ]));
 });
+
+it('surfaces the newly published PQAI source in both decentralization and general learning', async () => {
+  const expected = {
+    sourceArticleId: 'pqai-0-preparing-ethereum-post-quantum-post-ai',
+    sourceUrl: 'https://blog.ethereum.org/2026/11/23/pqai-0',
+    sourceAuthor: 'Kev Wedderburn',
+    sourcePublisher: 'Ethereum Foundation Blog',
+    sourcePublishedAt: '2026-11-23',
+    sourceCaveats: expect.stringContaining('not an independent forecast'),
+    difficulty: 'beginner',
+    tags: expect.arrayContaining(['ethereum', 'post-quantum']),
+  };
+  const decentralizationModules = await getKBModulesForTrack('decentralization', 'beginner', knowledgeBase.articles.length);
+  const generalModules = await getKBModulesForTrack('all', 'beginner', knowledgeBase.articles.length);
+  const module = decentralizationModules.find((item) => item.sourceArticleId === expected.sourceArticleId);
+  expect(module).toMatchObject(expected);
+  expect(generalModules.find((item) => item.sourceArticleId === expected.sourceArticleId)).toMatchObject(expected);
+  expect(module?.objectives).toEqual(expect.arrayContaining([
+    expect.stringContaining('early specification'),
+    expect.stringContaining('devnet'),
+  ]));
+});
