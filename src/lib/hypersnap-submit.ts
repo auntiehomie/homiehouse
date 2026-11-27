@@ -14,6 +14,31 @@ const HYPERSNAP_WRITE_TARGETS = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRI
   .map((url) => url.replace(/\/+$/, ''))
   .filter(Boolean))];
 
+/**
+ * Hypersnap (like Snapchain) reports a busy node — full mempool, still syncing,
+ * shedding load — as a gRPC `Unavailable` status, which its HTTP API can return
+ * with a 4xx code. That rejection says nothing about the message itself, so the
+ * identical signed bytes are safe to send to the fallback node.
+ */
+const TRANSIENT_REJECTION = /\bunavailable\b|mempool|x-err-code"?\s*:\s*"?unavailable/i;
+
+export function isNodeBusyMessage(text: string | undefined | null): boolean {
+  return typeof text === 'string' && TRANSIENT_REJECTION.test(text);
+}
+
+export const NODE_BUSY_USER_MESSAGE =
+  "Hypersnap is busy right now, so your cast wasn't posted. Your text is still here—try again in a moment.";
+
+async function isTransientRejection(response: Response): Promise<boolean> {
+  if (response.status >= 500 || response.status === 429) return true;
+  if (response.ok) return false;
+  try {
+    return TRANSIENT_REJECTION.test(await response.clone().text());
+  } catch {
+    return false;
+  }
+}
+
 export async function submitHypersnapMessage(messageBytes: ArrayBuffer): Promise<Response> {
   let lastError: unknown;
 
@@ -29,11 +54,11 @@ export async function submitHypersnapMessage(messageBytes: ArrayBuffer): Promise
         signal: AbortSignal.timeout(10_000),
       });
 
-      if (response.ok || response.status < 500 || index === HYPERSNAP_WRITE_TARGETS.length - 1) {
+      if (index === HYPERSNAP_WRITE_TARGETS.length - 1 || !(await isTransientRejection(response))) {
         return response;
       }
 
-      console.warn(`[submit-cast] primary Hypersnap node returned ${response.status}; trying fallback`);
+      console.warn(`[submit-cast] Hypersnap node ${baseUrl} returned ${response.status} (node busy/unavailable); trying fallback`);
     } catch (error) {
       lastError = error;
       if (index === HYPERSNAP_WRITE_TARGETS.length - 1) throw error;

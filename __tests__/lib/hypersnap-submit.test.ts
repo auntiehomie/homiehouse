@@ -39,3 +39,26 @@ it('returns validation rejections without resubmitting to another node', async (
   await expect(submit(message)).resolves.toBe(response);
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
+
+const mempoolError = 'status: Unavailable, message: "unavailable/Error adding to mempool", details: [], metadata: MetadataMap { headers: {"x-err-code": "unavailable"} }';
+
+it.each([
+  Response.json({ errCode: 'unavailable', errMsg: mempoolError }, { status: 400 }),
+  new Response(mempoolError, { status: 400 }),
+  new Response('', { status: 429 }),
+])('falls back when the primary node is busy even with a 4xx status', async busy => {
+  fetchMock.mockResolvedValueOnce(busy);
+  const response = Response.json({ hash: 'confirmed' });
+  fetchMock.mockResolvedValueOnce(response);
+  await expect(submit(message)).resolves.toBe(response);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls[1][0]).toBe('https://fallback.example/v1/submitMessage');
+});
+
+it('returns the readable busy response when every node is busy', async () => {
+  fetchMock.mockResolvedValueOnce(new Response(mempoolError, { status: 400 }));
+  fetchMock.mockResolvedValueOnce(new Response(mempoolError, { status: 400 }));
+  const response = await submit(message);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  await expect(response.text()).resolves.toContain('mempool');
+});
