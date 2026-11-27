@@ -68,7 +68,12 @@ export async function submitHypersnapMessage(messageBytes: ArrayBuffer): Promise
         return response;
       }
 
-      console.warn(`[submit-cast] Hypersnap node ${baseUrl} returned ${response.status} (node busy/unavailable); trying fallback`);
+      // Log the node's own reason (e.g. "mempool channel is full" vs "Error adding
+      // to mempool") so a node problem can be told apart from a client one.
+      const reason = await response.clone().text().catch(() => '');
+      console.warn(
+        `[submit-cast] Hypersnap node ${baseUrl} returned ${response.status} (node busy/unavailable); trying fallback. Node said: ${reason.slice(0, 300)}`,
+      );
     } catch (error) {
       lastError = error;
       if (index === HYPERSNAP_WRITE_TARGETS.length - 1) throw error;

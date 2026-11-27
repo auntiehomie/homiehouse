@@ -106,7 +106,10 @@ export async function fetchFromHypersnapNodes(
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (isLast || !(await shouldTryNextNode(response, node))) return { response, node };
-      console.warn(`[${label}] ${node.personal ? 'personal' : 'public'} Hypersnap node answered ${response.status}; trying next node`);
+      const reason = await response.clone().text().catch(() => '');
+      console.warn(
+        `[${label}] ${node.personal ? 'personal' : 'public'} Hypersnap node answered ${response.status}; trying next node. Node said: ${reason.slice(0, 300)}`,
+      );
     } catch (error) {
       lastError = error;
       if (isLast) break;
