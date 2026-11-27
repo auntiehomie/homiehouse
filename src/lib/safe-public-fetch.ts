@@ -171,6 +171,11 @@ async function responseFromMessage(response: http.IncomingMessage, maxBytes: num
   return new Response(body, { status, statusText: response.statusMessage, headers });
 }
 
+const CONNECT_ERROR_CODES = new Set(['ENETUNREACH', 'EHOSTUNREACH', 'ECONNREFUSED', 'EADDRNOTAVAIL', 'ETIMEDOUT']);
+function isConnectError(error: unknown): boolean {
+  return CONNECT_ERROR_CODES.has((error as NodeJS.ErrnoException | undefined)?.code || '');
+}
+
 /**
  * Fetches public HTTP(S) URLs only, pins each connection to a vetted DNS
  * answer, validates every redirect target, and caps the response size.
@@ -183,7 +188,19 @@ export async function safeFetchPublicUrl(input: string | URL, options: SafeFetch
 
   for (let redirects = 0; ; redirects += 1) {
     const addresses = await resolvePublicAddresses(url);
-    const response = await requestPinned(url, addresses[0], { ...options, method, body });
+    // Serverless egress is often IPv4-only, so try IPv4 first and fall back
+    // through the vetted addresses when a connection can't be established.
+    const ordered = [...addresses.filter(a => a.family === 4), ...addresses.filter(a => a.family !== 4)];
+    let response: http.IncomingMessage | undefined;
+    let lastError: unknown;
+    for (const address of ordered) {
+      try { response = await requestPinned(url, address, { ...options, method, body }); break; }
+      catch (error) {
+        lastError = error;
+        if (!isConnectError(error)) throw error;
+      }
+    }
+    if (!response) throw lastError instanceof Error ? lastError : new Error('Could not connect');
     const status = response.statusCode ?? 0;
     const location = response.headers.location;
     if ([301, 302, 303, 307, 308].includes(status) && location) {

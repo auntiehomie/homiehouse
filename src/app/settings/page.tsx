@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
-import { ensureAuthHeaders } from "@/lib/client-auth";
+import { disableDevicePush, enableDevicePush } from "@/lib/push-client";
+import { readPushPreferences } from "@/lib/push-preferences";
 import Image from "next/image";
 import AppShell from "@/components/AppShell";
 import { provisionSignerWithMnemonic, CustodyMismatchError } from "@/lib/fc-key-add";
@@ -540,7 +541,14 @@ export default function SettingsPage() {
     setPremiumUnlocked(localStorage.getItem("hh_premium_unlocked") === "true");
     setIos(isIOS());
     setStandalone(isStandalone());
-    if ("Notification" in window) setNotifState(Notification.permission as any);
+    if ("Notification" in window) {
+      // Permission alone doesn't mean this device is subscribed; also require the saved flag.
+      let savedFid: number | undefined;
+      try { savedFid = JSON.parse(localStorage.getItem("hh_profile") || "null")?.fid; } catch {}
+      const permission = Notification.permission;
+      const subscribed = !!savedFid && localStorage.getItem(`hh_push_enabled:${savedFid}`) === "true";
+      setNotifState(permission === "granted" && !subscribed ? "default" : permission as any);
+    }
     setEli5(getEli5Mode());
     try {
       const raw = localStorage.getItem("hh_profile");
@@ -563,42 +571,25 @@ export default function SettingsPage() {
 
   async function toggleNotifications() {
     if (notifLoading) return;
+    const fid = profile?.fid;
+    if (!fid) return;
     setNotifLoading(true);
     try {
+      // Share the device-push path with Alerts so the "enabled" flag is always
+      // written. Without it, PushNotificationSetup unsubscribes the device on the
+      // next launch and the cron ends up deleting the dead subscription.
       if (notifState === "granted") {
-        if ("serviceWorker" in navigator) {
-          const reg = await navigator.serviceWorker.getRegistration("/sw.js");
-          const sub = await reg?.pushManager?.getSubscription();
-          if (sub) {
-            const fid = profile?.fid;
-            const auth = fid ? await ensureAuthHeaders("write:profile") : null;
-            if (fid && auth) await fetch("/api/push/subscribe", { method: "DELETE", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ fid, endpoint: sub.endpoint }) });
-            await sub.unsubscribe();
-          }
-        }
+        await disableDevicePush(fid);
         setNotifState("default");
       } else {
-        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!vapidKey) return;
-        const fid = profile?.fid;
-        if (!fid) return;
-        const permission = await Notification.requestPermission();
-        if (permission !== "granted") { setNotifState(permission as any); return; }
-        const reg = await navigator.serviceWorker.register("/sw.js");
-        await navigator.serviceWorker.ready;
-        const padding = "=".repeat((4 - (vapidKey.length % 4)) % 4);
-        const base64 = (vapidKey + padding).replace(/-/g, "+").replace(/_/g, "/");
-        const raw = atob(base64);
-        const arr = new Uint8Array(raw.length);
-        for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
-        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr.buffer as ArrayBuffer });
-        const auth = await ensureAuthHeaders("write:profile");
-        if (!auth) throw new Error("Sign in again to enable notifications");
-        const response = await fetch("/api/push/subscribe", { method: "POST", headers: { "content-type": "application/json", ...auth }, body: JSON.stringify({ fid, subscription: sub.toJSON() }) });
-        if (!response.ok) throw new Error(`Could not save push subscription (${response.status})`);
+        await enableDevicePush(fid, readPushPreferences(fid), true);
         setNotifState("granted");
       }
-    } catch (err) { console.warn("[settings] notif toggle error:", err); }
+    } catch (err) {
+      console.warn("[settings] notif toggle error:", err);
+      alert(err instanceof Error ? err.message : "Could not update notifications.");
+      if ("Notification" in window && Notification.permission === "denied") setNotifState("denied");
+    }
     finally { setNotifLoading(false); }
   }
 
