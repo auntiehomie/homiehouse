@@ -91,7 +91,26 @@ const HYPERSNAP_FALLBACK =
  * timeoutMs: abort if no response within this many ms (default 6 s).
  */
 export async function hypersnapFetch(endpoint: string, opts: RequestInit = {}, timeoutMs = 6000): Promise<any> {
-  const url = `${HYPERSNAP_BASE}${endpoint}`;
+  const isWrite = opts.method && opts.method !== 'GET' && opts.method !== 'HEAD';
+  // The personal node sits behind rpc.homiehouse.xyz, which only proxies a few
+  // paths. Reads it can't serve (404 from the proxy, outage, timeout) retry on
+  // the fallback node so features like @mention search keep working.
+  const bases = isWrite
+    ? [HYPERSNAP_BASE]
+    : [...new Set([HYPERSNAP_BASE, HYPERSNAP_FALLBACK].filter(Boolean))];
+  let firstError: unknown;
+  for (const base of bases) {
+    try {
+      return await hypersnapFetchFrom(base, endpoint, opts, timeoutMs);
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  throw firstError;
+}
+
+async function hypersnapFetchFrom(base: string, endpoint: string, opts: RequestInit, timeoutMs: number): Promise<any> {
+  const url = `${base}${endpoint}`;
   const isWrite = opts.method && opts.method !== 'GET' && opts.method !== 'HEAD';
 
   const controller = new AbortController();
@@ -218,7 +237,13 @@ export async function fetchFollowStatus(fid: number, targetFid: number): Promise
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(6000),
       });
-      if (response.status === 404) return false;
+      // A Vercel routing 404 (x-vercel-error) means the proxy has no route for
+      // this path, not that the follow is missing; try the next node.
+      if (response.status === 404 && !response.headers?.get?.('x-vercel-error')) return false;
+      if (response.status === 404) {
+        lastError = new Error('Hypersnap proxy does not route link lookups');
+        continue;
+      }
       if (response.ok) return true;
       lastError = new Error(`Hypersnap link lookup failed (${response.status})`);
     } catch (error) {
