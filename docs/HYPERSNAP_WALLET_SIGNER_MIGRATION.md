@@ -5,6 +5,8 @@
 - Login discovers FIDs linked to a connected wallet through Hypersnap and exchanges a short-lived, wallet-signed protocol token for a read-only HomieHouse session.
 - Posting authorization creates an Ed25519 signer in the browser and asks the FID custody wallet to sign a scoped, expiring Hypersnap `KEY_ADD` authorization. The custody private key and recovery phrase are never requested or sent to HomieHouse.
 - The server checks the FID's Optimism custody address, Hypersnap's current per-FID signer nonce, HomieHouse app metadata, the EIP-712 custody signature, and the Ed25519 message signature before relaying the protobuf to `/v1/submitMessage`.
+- Signer lookups and the `KEY_ADD` submission use the personal Hypersnap node (`MY_HYPERSNAP_NODE_URL`) first, then `NEXT_PUBLIC_HYPERSNAP_URL`, then `HYPERSNAP_FALLBACK_URL` (Haatz). See `src/lib/hypersnap-nodes.ts`. A node that times out, returns 5xx/429, reports itself busy, or (personal node only) returns 404 is skipped. The same signed `KEY_ADD` bytes may reach a second node after a timeout; a "duplicate"/"already merged" answer counts as success.
+- If no node can confirm a signer during a write, the server returns `503 SIGNER_VERIFICATION_UNAVAILABLE` instead of `401 INVALID_SIGNER_KEY`, and the client shows a retry message instead of opening the renewal flow.
 - Only cast add/remove, reaction add/remove, and follow/unfollow message types are authorized. The key uses a 30-day sliding TTL.
 
 ## Identity and account creation boundary

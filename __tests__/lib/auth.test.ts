@@ -2,9 +2,9 @@ import { NextRequest } from 'next/server';
 import { verifyFarcasterSignerAuth, verifyFarcasterSignerKey } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import { verifySession } from '@/lib/session';
-import { isActiveHypersnapSigner } from '@/lib/hypersnap-signer-auth';
+import { checkHypersnapSigner } from '@/lib/hypersnap-signer-auth';
 
-jest.mock('@/lib/hypersnap-signer-auth', () => ({ isActiveHypersnapSigner: jest.fn() }));
+jest.mock('@/lib/hypersnap-signer-auth', () => ({ checkHypersnapSigner: jest.fn() }));
 
 jest.mock('@noble/ed25519', () => ({
   getPublicKeyAsync: jest.fn(async () => Uint8Array.from({ length: 32 }, () => 2)),
@@ -22,14 +22,14 @@ describe('Farcaster signer authentication', () => {
     jest.clearAllMocks();
     mockSql.mockResolvedValue([{ id: 'approved-signer' }]);
     global.fetch = jest.fn();
-    (isActiveHypersnapSigner as jest.Mock).mockResolvedValue(false);
+    (checkHypersnapSigner as jest.Mock).mockResolvedValue('inactive');
   });
 
   it('accepts a Hypersnap-only signer for checkout without permanently caching it', async () => {
     mockSql.mockResolvedValue([]);
-    (isActiveHypersnapSigner as jest.Mock).mockResolvedValue(true);
+    (checkHypersnapSigner as jest.Mock).mockResolvedValue('active');
     await expect(verifyFarcasterSignerKey(123, '01'.repeat(32))).resolves.toBe(123);
-    expect(isActiveHypersnapSigner).toHaveBeenCalledWith(123, `0x${'02'.repeat(32)}`);
+    expect(checkHypersnapSigner).toHaveBeenCalledWith(123, `0x${'02'.repeat(32)}`);
     expect(global.fetch).not.toHaveBeenCalled();
     expect(mockSql.mock.calls.every(([strings]) => !strings.join('').includes('INSERT'))).toBe(true);
   });
@@ -70,6 +70,26 @@ describe('Farcaster signer authentication', () => {
       expect.objectContaining({ method: 'POST' }),
     );
     expect(mockSql).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a temporary outage, not an invalid key, when no Hypersnap node answers', async () => {
+    mockSql.mockResolvedValue([]);
+    (checkHypersnapSigner as jest.Mock).mockResolvedValue('unavailable');
+    (global.fetch as jest.Mock).mockResolvedValue({ ok: false });
+    await expect(verifyFarcasterSignerKey(123, `0x${'01'.repeat(32)}`)).rejects.toMatchObject({
+      code: 'SIGNER_VERIFICATION_UNAVAILABLE',
+      status: 503,
+    });
+  });
+
+  it('still accepts an onchain signer while Hypersnap is unavailable', async () => {
+    mockSql.mockResolvedValue([]);
+    (checkHypersnapSigner as jest.Mock).mockResolvedValue('unavailable');
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ result: `0x${'0'.repeat(63)}1${'0'.repeat(63)}1` }),
+    });
+    await expect(verifyFarcasterSignerKey(123, `0x${'01'.repeat(32)}`)).resolves.toBe(123);
   });
 
   it('rejects malformed signer keys before querying for approval', async () => {

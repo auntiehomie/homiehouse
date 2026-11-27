@@ -1,4 +1,4 @@
-import { isActiveHypersnapSigner } from '@/lib/hypersnap-signer-auth';
+import { checkHypersnapSigner, isActiveHypersnapSigner } from '@/lib/hypersnap-signer-auth';
 
 const key = '02'.repeat(32);
 const signer = { fid: 123, key, keyType: 1, source: 'SIGNER_SOURCE_OFFCHAIN' };
@@ -9,7 +9,8 @@ describe('Hypersnap signer proof', () => {
   it('accepts an exact offchain key and FID using a live, public-key-only lookup', async () => {
     (fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => ({ signer }) });
     await expect(isActiveHypersnapSigner(123, `0x${key}`)).resolves.toBe(true);
-    const [url, options] = (fetch as jest.Mock).mock.calls[0];
+    const [rawUrl, options] = (fetch as jest.Mock).mock.calls[0];
+    const url = new URL(rawUrl);
     expect(url.pathname).toBe('/v1/signer');
     expect(url.searchParams.get('fid')).toBe('123');
     expect(url.searchParams.get('signer')).toBe(key);
@@ -46,5 +47,42 @@ describe('Hypersnap signer proof', () => {
       } };
     });
     await expect(isActiveHypersnapSigner(123, key)).resolves.toBe(false);
+  });
+
+  describe('with a personal node configured', () => {
+    const env = process.env;
+    beforeEach(() => {
+      process.env = { ...env, MY_HYPERSNAP_NODE_URL: 'https://rpc.example.test/', HYPERSNAP_FALLBACK_URL: 'https://haatz.quilibrium.com' };
+      delete process.env.NEXT_PUBLIC_HYPERSNAP_URL;
+    });
+    afterEach(() => { process.env = env; });
+
+    it('asks the personal node first', async () => {
+      (fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200, json: async () => ({ signer }) });
+      await expect(checkHypersnapSigner(123, key)).resolves.toBe('active');
+      expect((fetch as jest.Mock).mock.calls).toHaveLength(1);
+      expect((fetch as jest.Mock).mock.calls[0][0]).toMatch(/^https:\/\/rpc\.example\.test\/v1\/signer\?/);
+    });
+
+    it('falls back to haatz when the personal node times out', async () => {
+      (fetch as jest.Mock)
+        .mockRejectedValueOnce(new Error('The operation was aborted due to timeout'))
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ signer }) });
+      await expect(checkHypersnapSigner(123, key)).resolves.toBe('active');
+      expect((fetch as jest.Mock).mock.calls[1][0]).toMatch(/^https:\/\/haatz\.quilibrium\.com\/v1\/signer\?/);
+    });
+
+    it('falls back when the personal node proxy does not route the path', async () => {
+      (fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: false, status: 404, clone: () => ({ text: async () => '' }) })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ signer }) });
+      await expect(checkHypersnapSigner(123, key)).resolves.toBe('active');
+    });
+
+    it('reports unavailable, not inactive, when every node times out', async () => {
+      (fetch as jest.Mock).mockRejectedValue(new Error('The operation was aborted due to timeout'));
+      await expect(checkHypersnapSigner(123, key)).resolves.toBe('unavailable');
+      expect((fetch as jest.Mock).mock.calls).toHaveLength(2);
+    });
   });
 });

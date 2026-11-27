@@ -6,12 +6,16 @@ import { ed25519 } from '@noble/curves/ed25519';
 import { rateLimit } from '@/lib/ratelimit';
 import { encodeMessageEnvelope } from '@/lib/fc-message-builder';
 import { encodeKeyAddSignedMessage, isValidKeyAddTimestamp } from '@/lib/hypersnap-key-add-message';
+import { fetchFromHypersnapNodes, HypersnapUnavailableError } from '@/lib/hypersnap-nodes';
 
 export const dynamic = 'force-dynamic';
 
 const ID_REGISTRY = '0x00000000fc6c5f01fc30151999387bb99a9f489b' as const;
 const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
-const HUB_URL = process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
+// Signer lookups and KEY_ADD submissions go to the personal Hypersnap node
+// first, then NEXT_PUBLIC_HYPERSNAP_URL, then HYPERSNAP_FALLBACK_URL (haatz).
+// See src/lib/hypersnap-nodes.ts.
+const DUPLICATE_MESSAGE = /duplicate|already (?:been )?merged|already exists/i;
 const keyDomain = { name: 'Farcaster KeyAdd', version: '1', chainId: 1 } as const;
 const keyAddTypes = {
   KeyAdd: [
@@ -70,9 +74,9 @@ async function custodyOf(fid: number): Promise<`0x${string}`> {
 }
 
 async function getUserNonce(fid: number, allowUnindexedRegistration = false): Promise<number> {
-  const url = new URL('/v1/signersByFid', HUB_URL);
-  url.searchParams.set('fid', String(fid));
-  const res = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8_000) });
+  const { response: res } = await fetchFromHypersnapNodes(`/v1/signersByFid?fid=${fid}`, {
+    timeoutMs: 8_000, label: 'hypersnap/signer',
+  });
   if (res.status === 404 && allowUnindexedRegistration) return 0;
   if (!res.ok) throw new Error(`Hypersnap signer lookup failed (${res.status}).`);
   const data = await res.json();
@@ -212,19 +216,33 @@ export async function POST(req: NextRequest) {
       signature: signatureBytes,
       signer: publicKeyBytes,
     });
-    const hubRes = await fetch(`${HUB_URL}/v1/submitMessage`, {
+    // The identical signed KEY_ADD is safe to resend to the next node if one
+    // times out, so a node that already merged it may answer "duplicate".
+    const { response: hubRes } = await fetchFromHypersnapNodes('/v1/submitMessage', {
       method: 'POST',
-      headers: { 'content-type': 'application/octet-stream', accept: 'application/json' },
+      headers: { 'content-type': 'application/octet-stream' },
       body: Buffer.from(envelope),
-      signal: AbortSignal.timeout(12_000),
+      timeoutMs: 12_000,
+      label: 'hypersnap/signer',
     });
     const hubText = await hubRes.text();
     let hubData: any = {};
     try { hubData = JSON.parse(hubText); } catch { /* include the bounded response below */ }
-    if (!hubRes.ok) return jsonError(hubData.message || hubData.errMsg || hubText.slice(0, 240) || `Hypersnap rejected KEY_ADD (${hubRes.status}).`, hubRes.status);
+    const hubError = hubData.message || hubData.errMsg || hubText.slice(0, 240);
+    if (!hubRes.ok && !(typeof hubError === 'string' && DUPLICATE_MESSAGE.test(hubError))) {
+      return jsonError(hubError || `Hypersnap rejected KEY_ADD (${hubRes.status}).`, hubRes.status);
+    }
     return NextResponse.json({ ok: true, fid, publicKey: body.publicKey, hash: hubData.hash ?? null, status: 'submitted' });
   } catch (error: any) {
     console.error('[hypersnap/signer] registration failed:', error?.message || error);
+    if (error instanceof HypersnapUnavailableError) {
+      return jsonError(
+        body.action === 'submit'
+          ? `${error.message} If your wallet already approved, use "Check activation status" before signing again.`
+          : error.message,
+        503,
+      );
+    }
     return jsonError(error?.message || 'Hypersnap signer registration failed.', 502);
   }
 }
@@ -237,14 +255,15 @@ export async function GET(req: NextRequest) {
     return jsonError('Valid fid and 32-byte publicKey are required.', 400);
   }
   try {
-    const url = new URL('/v1/signer', HUB_URL);
-    url.searchParams.set('fid', String(fid));
-    url.searchParams.set('signer', publicKey.slice(2));
-    const response = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8_000) });
+    const query = new URLSearchParams({ fid: String(fid), signer: publicKey.slice(2) });
+    const { response } = await fetchFromHypersnapNodes(`/v1/signer?${query}`, {
+      timeoutMs: 8_000, label: 'hypersnap/signer',
+    });
     if (response.status === 404) return NextResponse.json({ ok: true, active: false });
     if (!response.ok) return jsonError(`Hypersnap signer status check failed (${response.status}).`, 502);
     return NextResponse.json({ ok: true, active: true });
   } catch (error: any) {
+    if (error instanceof HypersnapUnavailableError) return jsonError(error.message, 503);
     return jsonError(error?.message || 'Could not check Hypersnap signer status.', 502);
   }
 }
