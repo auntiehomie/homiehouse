@@ -62,3 +62,19 @@ it('returns the readable busy response when every node is busy', async () => {
   expect(fetchMock).toHaveBeenCalledTimes(2);
   await expect(response.text()).resolves.toContain('mempool');
 });
+
+describe('write key for the personal node', () => {
+  beforeEach(async () => {
+    jest.resetModules();
+    process.env.HYPERSNAP_WRITE_KEY = 'test-secret';
+    submit = (await import('@/lib/hypersnap-submit')).submitHypersnapMessage;
+  });
+
+  it('sends the key to the personal node but never to the fallback', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }));
+    fetchMock.mockResolvedValueOnce(Response.json({ hash: 'confirmed' }));
+    await submit(message);
+    expect(fetchMock.mock.calls[0][1].headers['x-homiehouse-key']).toBe('test-secret');
+    expect(fetchMock.mock.calls[1][1].headers['x-homiehouse-key']).toBeUndefined();
+  });
+});
