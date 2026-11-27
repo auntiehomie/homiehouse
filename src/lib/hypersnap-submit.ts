@@ -10,6 +10,13 @@ const HYPERSNAP_WRITE_FALLBACK =
   process.env.HYPERSNAP_FALLBACK_URL?.trim() ||
   process.env.SNAPCHAIN_FALLBACK_URL?.trim() ||
   DEFAULT_HYPERSNAP_URL;
+/**
+ * Optional shared secret sent only to the personal node, so its reverse proxy
+ * can exempt HomieHouse's server-side writes from per-IP rate limits. Never
+ * sent to the fallback (haatz).
+ */
+const HYPERSNAP_WRITE_KEY = process.env.HYPERSNAP_WRITE_KEY?.trim();
+const HYPERSNAP_WRITE_KEY_HEADER = 'x-homiehouse-key';
 const HYPERSNAP_WRITE_TARGETS = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRITE_FALLBACK]
   .map((url) => url.replace(/\/+$/, ''))
   .filter(Boolean))];
@@ -49,6 +56,9 @@ export async function submitHypersnapMessage(messageBytes: ArrayBuffer): Promise
         headers: {
           'content-type': 'application/octet-stream',
           accept: 'application/json',
+          ...(HYPERSNAP_WRITE_KEY && baseUrl === HYPERSNAP_WRITE_BASE.replace(/\/+$/, '') && baseUrl !== DEFAULT_HYPERSNAP_URL
+            ? { [HYPERSNAP_WRITE_KEY_HEADER]: HYPERSNAP_WRITE_KEY }
+            : {}),
         },
         body: messageBytes.slice(0),
         signal: AbortSignal.timeout(10_000),
