@@ -1,4 +1,6 @@
 /** Shared server-side transport for immediate and scheduled signed messages. */
+import { getExtraFallbackUrls, markNodeHealthy, markNodeUnhealthy, preferHealthy } from './hypersnap-nodes';
+
 const DEFAULT_HYPERSNAP_URL = 'https://haatz.quilibrium.com';
 const HYPERSNAP_WRITE_BASE =
   process.env.MY_HYPERSNAP_NODE_URL?.trim() ||
@@ -17,9 +19,18 @@ const HYPERSNAP_WRITE_FALLBACK =
  */
 const HYPERSNAP_WRITE_KEY = process.env.HYPERSNAP_WRITE_KEY?.trim();
 const HYPERSNAP_WRITE_KEY_HEADER = 'x-homiehouse-key';
-const HYPERSNAP_WRITE_TARGETS = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRITE_FALLBACK]
-  .map((url) => url.replace(/\/+$/, ''))
-  .filter(Boolean))];
+const PERSONAL_WRITE_BASE = HYPERSNAP_WRITE_BASE.replace(/\/+$/, '');
+/** Per-node and overall time limits for one submission. */
+const NODE_TIMEOUT_MS = 10_000;
+const TOTAL_TIMEOUT_MS = 25_000;
+
+/** Personal node, then haatz, then any HYPERSNAP_FALLBACK_URLS; recently failed nodes last. */
+function writeTargets(): string[] {
+  const targets = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRITE_FALLBACK, ...getExtraFallbackUrls()]
+    .map((url) => url.replace(/\/+$/, ''))
+    .filter(Boolean))];
+  return preferHealthy(targets, (url) => url);
+}
 
 /**
  * Hypersnap (like Snapchain) reports a busy node — full mempool, still syncing,
@@ -48,33 +59,46 @@ async function isTransientRejection(response: Response): Promise<boolean> {
 
 export async function submitHypersnapMessage(messageBytes: ArrayBuffer): Promise<Response> {
   let lastError: unknown;
+  const targets = writeTargets();
+  const deadline = Date.now() + TOTAL_TIMEOUT_MS;
 
-  for (const [index, baseUrl] of HYPERSNAP_WRITE_TARGETS.entries()) {
+  for (const [index, baseUrl] of targets.entries()) {
+    const remaining = deadline - Date.now();
+    if (remaining < 1_000) break;
+    const isLast = index === targets.length - 1;
     try {
       const response = await fetch(`${baseUrl}/v1/submitMessage`, {
         method: 'POST',
         headers: {
           'content-type': 'application/octet-stream',
           accept: 'application/json',
-          ...(HYPERSNAP_WRITE_KEY && baseUrl === HYPERSNAP_WRITE_BASE.replace(/\/+$/, '') && baseUrl !== DEFAULT_HYPERSNAP_URL
+          // The write key goes only to the personal node, never to haatz or other operators.
+          ...(HYPERSNAP_WRITE_KEY && baseUrl === PERSONAL_WRITE_BASE && baseUrl !== DEFAULT_HYPERSNAP_URL
             ? { [HYPERSNAP_WRITE_KEY_HEADER]: HYPERSNAP_WRITE_KEY }
             : {}),
         },
         body: messageBytes.slice(0),
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(Math.min(NODE_TIMEOUT_MS, remaining)),
       });
 
-      if (index === HYPERSNAP_WRITE_TARGETS.length - 1 || !(await isTransientRejection(response))) {
-        return response;
-      }
+      const transient = await isTransientRejection(response);
+      if (transient) markNodeUnhealthy(baseUrl);
+      else markNodeHealthy(baseUrl);
+      if (isLast || !transient) return response;
 
-      console.warn(`[submit-cast] Hypersnap node ${baseUrl} returned ${response.status} (node busy/unavailable); trying fallback`);
+      // Log the node's own reason (e.g. "mempool channel is full" vs "Error adding
+      // to mempool") so a node problem can be told apart from a client one.
+      const reason = await response.clone().text().catch(() => '');
+      console.warn(
+        `[submit-cast] Hypersnap node ${baseUrl} returned ${response.status} (node busy/unavailable); trying next node. Node said: ${reason.slice(0, 300)}`,
+      );
     } catch (error) {
       lastError = error;
-      if (index === HYPERSNAP_WRITE_TARGETS.length - 1) throw error;
-      console.warn('[submit-cast] primary Hypersnap node unavailable; trying fallback:', error);
+      markNodeUnhealthy(baseUrl);
+      if (isLast) throw error;
+      console.warn(`[submit-cast] Hypersnap node ${baseUrl} unavailable; trying next node:`, error instanceof Error ? error.message : error);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('No Hypersnap write target is configured');
+  throw lastError instanceof Error ? lastError : new Error('No Hypersnap write target answered in time');
 }

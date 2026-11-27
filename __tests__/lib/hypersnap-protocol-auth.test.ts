@@ -1,4 +1,7 @@
 import { createMessage, encodeToken } from "@farcasterorg/quick-auth/token";
+import { resetNodeHealth } from "@/lib/hypersnap-nodes";
+
+beforeEach(() => resetNodeHealth());
 import { privateKeyToAccount } from "viem/accounts";
 import {
   createHypersnapProtocolAuthClient,
@@ -98,10 +101,11 @@ describe("Hypersnap protocol auth", () => {
           link: { linked: true, method: "custody" },
         }),
       ]);
+      // After the personal node fails once, the next lookup skips straight to
+      // haatz instead of waiting on the unreachable node again.
       expect(calls).toEqual([
         "https://rpc.example.test/v2/farcaster/user/bulk-by-address",
         "https://haatz.quilibrium.com/v2/farcaster/user/bulk-by-address",
-        "https://rpc.example.test/v1/fidAddressType",
         "https://haatz.quilibrium.com/v1/fidAddressType",
       ]);
     } finally {

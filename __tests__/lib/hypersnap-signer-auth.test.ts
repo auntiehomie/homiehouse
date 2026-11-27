@@ -1,10 +1,11 @@
 import { checkHypersnapSigner, isActiveHypersnapSigner } from '@/lib/hypersnap-signer-auth';
+import { resetNodeHealth } from '@/lib/hypersnap-nodes';
 
 const key = '02'.repeat(32);
 const signer = { fid: 123, key, keyType: 1, source: 'SIGNER_SOURCE_OFFCHAIN' };
 
 describe('Hypersnap signer proof', () => {
-  beforeEach(() => { global.fetch = jest.fn(); });
+  beforeEach(() => { global.fetch = jest.fn(); resetNodeHealth(); });
 
   it('accepts an exact offchain key and FID using a live, public-key-only lookup', async () => {
     (fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => ({ signer }) });
