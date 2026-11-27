@@ -49,6 +49,12 @@ export function getMiniAppIdentity(url: string): {
   };
 }
 
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && ISO_TIMESTAMP.test(value) && !Number.isNaN(Date.parse(value));
+}
+
 export async function signInToMiniApp({
   miniAppUrl,
   expectedFid,
@@ -71,6 +77,14 @@ export async function signInToMiniApp({
 
   if (!/^[a-zA-Z0-9]{8,}$/.test(options.nonce)) {
     throw new Error('Mini App sign-in requires a nonce of at least 8 letters or numbers');
+  }
+
+  // These come from the Mini App. Accept only plain ISO-8601 timestamps so a
+  // newline cannot add or override lines in the signed SIWE message.
+  for (const [label, value] of [['expirationTime', options.expirationTime], ['notBefore', options.notBefore]] as const) {
+    if (value !== undefined && !isIsoTimestamp(value)) {
+      throw new Error(`Mini App sign-in ${label} must be an ISO-8601 timestamp`);
+    }
   }
 
   const { domain, siweUri } = getMiniAppIdentity(miniAppUrl);
