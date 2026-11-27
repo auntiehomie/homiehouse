@@ -50,7 +50,23 @@ export function getAuthHeaders(requiredScope?: string): FarcasterAuthHeaders | n
   }
 }
 
+/**
+ * Thrown when posting access could not be confirmed because Hypersnap (or the
+ * session store) was temporarily unavailable. The signer may still be valid,
+ * so this does not open the renewal flow.
+ */
+export class PostingTemporarilyUnavailableError extends Error {
+  readonly code = 'POSTING_TEMPORARILY_UNAVAILABLE';
+
+  constructor() {
+    super('Hypersnap is slow to respond right now. Your posting access is still set up. Try again in a moment.');
+    this.name = 'PostingTemporarilyUnavailableError';
+  }
+}
+
 const sessionRequests = new Map<number, Promise<FarcasterAuthHeaders | null>>();
+/** Set when the last session request failed for a temporary reason (5xx or network). */
+let lastSessionFailureTemporary = false;
 
 /**
  * Return a session header with the requested capability, creating a fresh
@@ -76,6 +92,7 @@ export async function ensureAuthHeaders(
   if (inFlight) return inFlight;
 
   const request = (async (): Promise<FarcasterAuthHeaders | null> => {
+    lastSessionFailureTemporary = false;
     try {
       const response = await fetch('/api/auth/session', {
         method: 'POST',
@@ -86,6 +103,10 @@ export async function ensureAuthHeaders(
         },
         body: JSON.stringify({ fid }),
       });
+      if (response.status >= 500) {
+        lastSessionFailureTemporary = true;
+        return null;
+      }
       const data = await response.json();
       if (!response.ok || !data?.ok || typeof data.token !== 'string' || Number(data.fid) !== fid) {
         return null;
@@ -97,6 +118,7 @@ export async function ensureAuthHeaders(
       window.dispatchEvent(new Event('hh:auth:changed'));
       return getAuthHeaders(requiredScope);
     } catch {
+      lastSessionFailureTemporary = true;
       return null;
     } finally {
       sessionRequests.delete(fid);
@@ -105,6 +127,11 @@ export async function ensureAuthHeaders(
 
   sessionRequests.set(fid, request);
   return request;
+}
+
+/** True when the most recent session request failed for a temporary reason. */
+export function lastSessionFailureWasTemporary(): boolean {
+  return lastSessionFailureTemporary;
 }
 
 /** Open the wallet sign-in or signer renewal flow after a write cannot authenticate. */
@@ -122,6 +149,9 @@ export function requestPostingAuthorization(): void {
 export async function requirePostingAuthHeaders(): Promise<FarcasterAuthHeaders> {
   const headers = await ensureAuthHeaders('write:casts');
   if (headers) return headers;
+  if (lastSessionFailureTemporary && getStoredFid() && getStoredSignerKey()) {
+    throw new PostingTemporarilyUnavailableError();
+  }
   requestPostingAuthorization();
   throw new PostingAuthorizationError();
 }

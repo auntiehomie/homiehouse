@@ -16,7 +16,7 @@ import { AuthError } from './errors';
 import { sql } from './db';
 import { verifySession, SessionError } from './session';
 import type { SessionScope } from './session';
-import { isActiveHypersnapSigner } from './hypersnap-signer-auth';
+import { checkHypersnapSigner } from './hypersnap-signer-auth';
 
 const KEY_REGISTRY = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
 const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
@@ -295,8 +295,14 @@ export async function verifyFarcasterSignerKey(fid: number, signerKey: string): 
       LIMIT 1
     `;
     if (rows.length > 0) return fid;
-    if (await isActiveHypersnapSigner(fid, publicKeyHex)) return fid;
+    const hypersnapStatus = await checkHypersnapSigner(fid, publicKeyHex);
+    if (hypersnapStatus === 'active') return fid;
     if (await recoverApprovedSigner(fid, publicKeyHex)) return fid;
+    if (hypersnapStatus === 'unavailable') {
+      // No node could confirm either way. Report a temporary outage instead of
+      // an invalid key, so the client retries rather than forcing a renewal.
+      throw new AuthError('Hypersnap could not confirm your signer right now. Try again in a moment.', 503, 'SIGNER_VERIFICATION_UNAVAILABLE');
+    }
     throw new AuthError('Invalid or unapproved signer key for this FID', 401, 'INVALID_SIGNER_KEY');
   } catch (error) {
     if (error instanceof AuthError) throw error;

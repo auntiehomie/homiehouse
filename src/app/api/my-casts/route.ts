@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchFromHypersnapNodes, getHypersnapNodes, type HypersnapNode } from '@/lib/hypersnap-nodes';
 
 export const maxDuration = 30;
-
-const HYPERSNAP_BASE =
-  process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20; // up to 2000 casts
@@ -22,17 +20,18 @@ export async function GET(req: NextRequest) {
     const allCasts: any[] = [];
     let pageToken: string | null = null;
     let pages = 0;
+    // Page tokens belong to the node that issued them, so once a node answers
+    // the first page, keep paginating on that node.
+    let nodes: HypersnapNode[] = getHypersnapNodes();
 
     while (pages < MAX_PAGES) {
-      const url = new URL(`${HYPERSNAP_BASE}/v1/castsByFid`);
-      url.searchParams.set('fid', String(fid));
-      url.searchParams.set('pageSize', String(PAGE_SIZE));
-      url.searchParams.set('reverse', '1');
-      if (pageToken) url.searchParams.set('pageToken', pageToken);
+      const query = new URLSearchParams({ fid: String(fid), pageSize: String(PAGE_SIZE), reverse: '1' });
+      if (pageToken) query.set('pageToken', pageToken);
 
-      const hubRes = await fetch(url.toString(), {
-        headers: { accept: 'application/json' },
+      const { response: hubRes, node } = await fetchFromHypersnapNodes(`/v1/castsByFid?${query}`, {
+        nodes, timeoutMs: 8_000, label: 'my-casts',
       });
+      nodes = [node];
 
       if (!hubRes.ok) {
         return NextResponse.json({ error: `Hub error ${hubRes.status}` }, { status: 502 });

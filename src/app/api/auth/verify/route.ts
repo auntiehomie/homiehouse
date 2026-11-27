@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/ratelimit'
-
-const HYPERSNAP_BASE =
-  process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com'
+import { fetchFromHypersnapNodes, HypersnapUnavailableError } from '@/lib/hypersnap-nodes'
 
 /**
  * Verify a Farcaster-native auth challenge.
  *
  * The client builds and signs a protobuf CastAdd message containing
  * `homiehouse-auth-${timestamp}-${nonce}` and POSTs the raw bytes here.
- * We forward to Hypersnap — if the hub accepts it, the user has proven
- * key-possession of the FID embedded in the message.
+ * We forward to Hypersnap (personal node first, then the fallback nodes) —
+ * if a node accepts it, the user has proven key-possession of the FID
+ * embedded in the message.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -31,13 +30,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const hubRes = await fetch(`${HYPERSNAP_BASE}/v1/submitMessage`, {
+    const { response: hubRes } = await fetchFromHypersnapNodes('/v1/submitMessage', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/octet-stream',
-        accept: 'application/json',
-      },
+      headers: { 'content-type': 'application/octet-stream' },
       body: messageBytes as unknown as BodyInit,
+      timeoutMs: 10_000,
+      label: 'auth/verify',
     })
 
     const rawText = await hubRes.text()
@@ -67,6 +65,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true, ...data })
   } catch (error: any) {
+    if (error instanceof HypersnapUnavailableError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 503 })
+    }
     console.error('[auth/verify] proxy error:', error)
     return NextResponse.json(
       { ok: false, error: error?.message || 'Verification failed' },

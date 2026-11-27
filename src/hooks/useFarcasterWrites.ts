@@ -11,7 +11,7 @@ import { fetchChannelParentUrl } from '@/lib/hypersnap';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { publishOptimisticCast } from '@/lib/optimistic-casts';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
-import { ensureAuthHeaders, PostingAuthorizationError, requestPostingAuthorization, requirePostingAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders, lastSessionFailureWasTemporary, PostingAuthorizationError, PostingTemporarilyUnavailableError, requestPostingAuthorization, requirePostingAuthHeaders } from '@/lib/client-auth';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
@@ -34,6 +34,7 @@ async function submitMessage(message: Uint8Array): Promise<unknown> {
   if (res.status === 401) {
     const refreshedAuth = await ensureAuthHeaders('write:casts', { forceRefresh: true });
     if (!refreshedAuth) {
+      if (lastSessionFailureWasTemporary()) throw new PostingTemporarilyUnavailableError();
       requestPostingAuthorization();
       throw new PostingAuthorizationError();
     }
