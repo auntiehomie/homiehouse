@@ -6,6 +6,7 @@ import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import SignInButton from "@/components/SignInButton";
 import HHLogo from "@/components/HHLogo";
 import AuthenticatedHome from "@/components/AuthenticatedHome";
+import styles from "./HomeClient.module.css";
 
 // ─── Static sample module (shows value before auth) ───────────────────────────
 
@@ -162,83 +163,62 @@ export default function HomeClient() {
   if (isAuthenticated) return <AuthenticatedHome />;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', display: 'flex', flexDirection: 'column' }}>
+    <div className={styles.page}>
 
       {/* Nav */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, background: 'rgba(9,9,11,0.85)', backdropFilter: 'blur(12px)', zIndex: 50 }}>
+      <header className={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <HHLogo size={28} />
-          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>HomieHouse</span>
+          <span className={styles.brand}>HomieHouse</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/learn/library" style={{ fontSize: 14, color: '#a1a1aa', textDecoration: 'none' }} className="hidden sm:inline">
+          <Link href="/learn/library" className={`${styles.browseLink} hidden sm:inline`}>
             Browse free lessons
           </Link>
           <SignInButton />
         </div>
       </header>
 
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      <main className={styles.main}>
 
         {/* ── Hero ── */}
-        <section style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '56px 20px 40px', maxWidth: 720, width: '100%', textAlign: 'center' }}>
+        <section className={styles.hero}>
 
           {/* Live badge */}
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '5px 14px', borderRadius: 20, marginBottom: 24,
-            background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)',
-            fontSize: 13, fontWeight: 600, color: '#6ee7b7',
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', display: 'inline-block', animation: 'hh-pulse 2s ease-in-out infinite' }} />
+          <div className={styles.eyebrow}>
+            <span className={styles.eyebrowDot} aria-hidden="true" />
             {learnerCount > 0 ? `${learnerCount.toLocaleString()} people learning here` : 'Learn from casts, no experience needed'}
-            <style>{`@keyframes hh-pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
           </div>
 
-          <h1 style={{
-            fontSize: 'clamp(32px, 7vw, 56px)',
-            fontWeight: 800, lineHeight: 1.12, letterSpacing: '-0.03em', margin: '0 0 18px',
-            background: 'linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>
+          <h1 className={styles.title}>
             Learn. Cast. Grow.<br />Understand what’s behind the casts.
           </h1>
 
-          <p style={{ fontSize: 'clamp(15px, 2.5vw, 18px)', color: '#71717a', maxWidth: 540, lineHeight: 1.7, margin: '0 0 28px' }}>
+          <p className={styles.description}>
             Turn casts into personalized lessons. Explore AI, crypto, Web3, decentralization, privacy, encryption, and decentralized social with Homiehouse, a Hypersnap client built to help you understand the conversation.
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-              <Link href="/learn?track=survival" style={{
-                padding: '12px 24px', borderRadius: 12, background: '#34d399', color: '#09090b',
-                fontWeight: 700, fontSize: 15, textDecoration: 'none', whiteSpace: 'nowrap',
-              }}>
-                Start your first lesson →
+          <div className={styles.actions}>
+            <div className={styles.actionRow}>
+              <Link href="/learn?track=survival" className={styles.primaryAction}>
+                Start your first lesson <span aria-hidden="true">→</span>
               </Link>
-              <div style={{ transform: 'scale(1)' }}>
-                <SignInButton />
-              </div>
             </div>
-            <span style={{ fontSize: 12, color: '#3f3f46', marginTop: 4 }}>
+            <span className={styles.reassurance}>
               Free lessons · Explore casts with Hypersnap
             </span>
           </div>
         </section>
 
         {/* ── "What is this?" explainer for newcomers ── */}
-        <section style={{ width: '100%', maxWidth: 720, padding: '0 20px 48px' }}>
+        <section className={styles.explainer}>
           <button
             onClick={() => setShowExplainer(!showExplainer)}
-            style={{
-              width: '100%', padding: '16px 20px', borderRadius: 14,
-              background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)',
-              color: '#a5b4fc', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}
+            className={styles.disclosure}
+            aria-expanded={showExplainer}
           >
             <span>What is Homiehouse? What can I learn here?</span>
-            <span style={{ fontSize: 18 }}>{showExplainer ? '−' : '+'}</span>
+            <span className={styles.disclosureIcon} aria-hidden="true">{showExplainer ? '−' : '+'}</span>
           </button>
           {showExplainer && (
             <div style={{
@@ -248,8 +228,7 @@ export default function HomeClient() {
               <style>{`@keyframes hh-fade-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}`}</style>
               {EXPLAINER_STEPS.map((item) => (
                 <div key={item.q} style={{
-                  padding: '16px 18px', borderRadius: 12,
-                  background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+                  padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.08)',
                 }}>
                   <p style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', margin: '0 0 6px' }}>{item.q}</p>
                   <p style={{ fontSize: 13, color: '#a1a1aa', lineHeight: 1.6, margin: 0 }}>{item.a}</p>

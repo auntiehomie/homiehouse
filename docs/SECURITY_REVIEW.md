@@ -16,3 +16,11 @@ The first command is a dry run. The migration rewrites both legacy plaintext key
 ## Recurring review
 
 The monthly Homiehouse dependency and security review checks dependency advisories, ownership and auth boundaries, server-side URL fetching, secrets, headers, uploads, and CI. Findings should be recorded with severity, affected route or package, and a tracked remediation.
+
+## Production dependency audit gate
+
+Run `npm run audit:security` after lockfile changes. CI rejects unexpected
+critical advisories and new high or moderate advisories that npm reports as
+fixable. Review the underlying advisory and dependency path before changing
+`scripts/security-audit-baseline.json`. Remove entries as they are resolved;
+the baseline records existing debt and does not indicate that it is safe.

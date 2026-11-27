@@ -1,13 +1,16 @@
-'use client';
+"use client";
 
-import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import { formatDistanceToNow } from 'date-fns';
-import AppShell from '@/components/AppShell';
-import HH2Badge from '@/components/HH2Badge';
-import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import { useCallback, useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { formatDistanceToNow } from "date-fns";
+import AppShell from "@/components/AppShell";
+import HH2Badge from "@/components/HH2Badge";
+import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
+import { useFarcasterAuth } from "@/lib/farcaster-auth";
+import { profileApiUrl } from "@/lib/profile-links";
+import CastText from "@/components/CastText";
 
 interface UserProfile {
   fid: number;
@@ -32,7 +35,8 @@ interface Cast {
   text: string;
   timestamp: string;
   parent_hash?: string;
-  parent_author?: { fid: number; username: string };
+  parent_author?: { fid?: number; username?: string; display_name?: string };
+  parent_author_fid?: number;
   replies: { count: number };
   reactions: { likes_count: number; recasts_count: number };
   embeds?: any[];
@@ -40,7 +44,7 @@ interface Cast {
 
 interface Trade {
   hash: string;
-  type: 'buy' | 'sell' | 'transfer';
+  type: "buy" | "sell" | "transfer";
   tokenSymbol: string;
   tokenName: string;
   amount: string;
@@ -50,7 +54,7 @@ interface Trade {
   contractAddress: string;
 }
 
-type Tab = 'casts' | 'replies' | 'trades' | 'learning';
+type Tab = "casts" | "replies" | "trades" | "learning";
 
 interface ProfileCastReturn {
   path: string;
@@ -61,7 +65,7 @@ interface ProfileCastReturn {
   ts: number;
 }
 
-const CAST_RETURN_KEY = 'hh_cast_return';
+const CAST_RETURN_KEY = "hh_cast_return";
 
 function LearningTab({ profileFid }: { profileFid: number }) {
   const [plan, setPlan] = useState<any>(null);
@@ -70,16 +74,16 @@ function LearningTab({ profileFid }: { profileFid: number }) {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('hh_profile');
+      const raw = localStorage.getItem("hh_profile");
       if (raw) {
         const p = JSON.parse(raw);
         setViewerFid(p.fid ?? null);
       }
     } catch {}
     try {
-      const p = localStorage.getItem('hh_learning_plan');
+      const p = localStorage.getItem("hh_learning_plan");
       if (p) setPlan(JSON.parse(p));
-      const prog = localStorage.getItem('hh_learning_progress');
+      const prog = localStorage.getItem("hh_learning_progress");
       if (prog) setProgress(new Set(JSON.parse(prog)));
     } catch {}
   }, []);
@@ -88,17 +92,34 @@ function LearningTab({ profileFid }: { profileFid: number }) {
 
   if (!isOwnProfile) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+      <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>🎓</div>
-        <p style={{ fontWeight: 600, marginBottom: 6 }}>Learning on HomieHouse</p>
-        <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, marginBottom: 20 }}>
-          Start your own Web3 learning journey and share your progress with the community.
+        <p style={{ fontWeight: 600, marginBottom: 6 }}>
+          Learning on HomieHouse
         </p>
-        <a href="/learn" style={{
-          display: 'inline-block', padding: '10px 24px', borderRadius: 10,
-          background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14,
-          textDecoration: 'none',
-        }}>
+        <p
+          style={{
+            color: "var(--muted-on-dark)",
+            fontSize: 14,
+            marginBottom: 20,
+          }}
+        >
+          Start your own Web3 learning journey and share your progress with the
+          community.
+        </p>
+        <a
+          href="/learn"
+          style={{
+            display: "inline-block",
+            padding: "10px 24px",
+            borderRadius: 10,
+            background: "var(--accent)",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: 14,
+            textDecoration: "none",
+          }}
+        >
           Start Learning →
         </a>
       </div>
@@ -107,17 +128,31 @@ function LearningTab({ profileFid }: { profileFid: number }) {
 
   if (!plan) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+      <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>📚</div>
         <p style={{ fontWeight: 600, marginBottom: 6 }}>No learning plan yet</p>
-        <p style={{ color: 'var(--muted-on-dark)', fontSize: 14, marginBottom: 20 }}>
+        <p
+          style={{
+            color: "var(--muted-on-dark)",
+            fontSize: 14,
+            marginBottom: 20,
+          }}
+        >
           Build a personalized Web3 learning path tailored to your goals.
         </p>
-        <a href="/learn" style={{
-          display: 'inline-block', padding: '10px 24px', borderRadius: 10,
-          background: 'var(--accent)', color: '#fff', fontWeight: 600, fontSize: 14,
-          textDecoration: 'none',
-        }}>
+        <a
+          href="/learn"
+          style={{
+            display: "inline-block",
+            padding: "10px 24px",
+            borderRadius: 10,
+            background: "var(--accent)",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: 14,
+            textDecoration: "none",
+          }}
+        >
           Build My Plan →
         </a>
       </div>
@@ -132,36 +167,123 @@ function LearningTab({ profileFid }: { profileFid: number }) {
   return (
     <div>
       {/* Plan header */}
-      <div className="surface" style={{ borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontWeight: 700, fontSize: 15 }}>My Learning Plan</span>
-          <span style={{ fontSize: 13, color: 'var(--muted-on-dark)' }}>{completed}/{total} modules · {pct}%</span>
+      <div
+        className="surface"
+        style={{
+          borderRadius: 12,
+          padding: "1rem 1.25rem",
+          marginBottom: "1rem",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <span style={{ fontWeight: 700, fontSize: 15 }}>
+            My Learning Plan
+          </span>
+          <span style={{ fontSize: 13, color: "var(--muted-on-dark)" }}>
+            {completed}/{total} modules · {pct}%
+          </span>
         </div>
-        <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3, transition: 'width 0.4s' }} />
+        <div
+          style={{
+            height: 6,
+            borderRadius: 3,
+            background: "var(--border)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${pct}%`,
+              background: "var(--accent)",
+              borderRadius: 3,
+              transition: "width 0.4s",
+            }}
+          />
         </div>
         {plan.summary && (
-          <p style={{ fontSize: 13, color: 'var(--muted-on-dark)', marginTop: 10, lineHeight: 1.5 }}>{plan.summary}</p>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--muted-on-dark)",
+              marginTop: 10,
+              lineHeight: 1.5,
+            }}
+          >
+            {plan.summary}
+          </p>
         )}
       </div>
 
       {/* Module list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {modules.map((mod: any, i: number) => {
           const done = progress.has(mod.id);
           return (
-            <div key={mod.id} className="surface" style={{ borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, opacity: done ? 0.6 : 1 }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                background: done ? 'var(--accent)' : 'transparent',
-                border: `2px solid ${done ? 'var(--accent)' : 'var(--border)'}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {done && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="var(--bg-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            <div
+              key={mod.id}
+              className="surface"
+              style={{
+                borderRadius: 10,
+                padding: "12px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                opacity: done ? 0.6 : 1,
+              }}
+            >
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 6,
+                  flexShrink: 0,
+                  background: done ? "var(--accent)" : "transparent",
+                  border: `2px solid ${done ? "var(--accent)" : "var(--border)"}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {done && (
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M2 6l3 3 5-5"
+                      stroke="var(--bg-dark)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, margin: 0, textDecoration: done ? 'line-through' : 'none' }}>{String(i + 1).padStart(2, '0')} {mod.title}</p>
-                <p style={{ fontSize: 12, color: 'var(--muted-on-dark)', margin: '2px 0 0' }}>{mod.estimatedMinutes} min · {mod.difficulty}</p>
+                <p
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    margin: 0,
+                    textDecoration: done ? "line-through" : "none",
+                  }}
+                >
+                  {String(i + 1).padStart(2, "0")} {mod.title}
+                </p>
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "var(--muted-on-dark)",
+                    margin: "2px 0 0",
+                  }}
+                >
+                  {mod.estimatedMinutes} min · {mod.difficulty}
+                </p>
               </div>
             </div>
           );
@@ -169,9 +291,20 @@ function LearningTab({ profileFid }: { profileFid: number }) {
       </div>
 
       {pct === 100 && (
-        <div style={{ textAlign: 'center', marginTop: 20, padding: '1rem', background: 'rgba(52,211,153,0.1)', borderRadius: 12, border: '1px solid rgba(52,211,153,0.2)' }}>
-          <p style={{ fontSize: 20, margin: '0 0 6px' }}>🎉</p>
-          <p style={{ fontWeight: 700, color: '#34d399', margin: 0 }}>Plan complete!</p>
+        <div
+          style={{
+            textAlign: "center",
+            marginTop: 20,
+            padding: "1rem",
+            background: "rgba(52,211,153,0.1)",
+            borderRadius: 12,
+            border: "1px solid rgba(52,211,153,0.2)",
+          }}
+        >
+          <p style={{ fontSize: 20, margin: "0 0 6px" }}>🎉</p>
+          <p style={{ fontWeight: 700, color: "#34d399", margin: 0 }}>
+            Plan complete!
+          </p>
         </div>
       )}
     </div>
@@ -179,46 +312,99 @@ function LearningTab({ profileFid }: { profileFid: number }) {
 }
 
 function CastCard({ cast, onOpen }: { cast: Cast; onOpen?: () => void }) {
-  let timeLabel = '';
+  let timeLabel = "";
   try {
     if (cast?.timestamp) {
       const d = new Date(cast.timestamp);
-      if (!isNaN(d.getTime())) timeLabel = formatDistanceToNow(d, { addSuffix: true });
+      if (!isNaN(d.getTime()))
+        timeLabel = formatDistanceToNow(d, { addSuffix: true });
     }
   } catch {}
 
   return (
-    <Link
-      href={`/cast/${cast.hash}`}
+    // Use browser navigation so a profile card can open even if the
+    // client-side route transition stalls.
+    <a
+      href={`/cast/${encodeURIComponent(cast.hash)}`}
       data-profile-cast-hash={cast.hash}
       onClick={onOpen}
       className="surface"
-      style={{ display: 'block', padding: '1rem', borderRadius: 10, textDecoration: 'none', color: 'inherit', transition: 'border-color 0.2s' }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
+      style={{
+        display: "block",
+        padding: "1rem",
+        borderRadius: 10,
+        textDecoration: "none",
+        color: "inherit",
+        transition: "border-color 0.2s",
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.borderColor = "var(--accent)")
+      }
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "")}
     >
-      {cast.parent_author && (
-        <p style={{ fontSize: '0.75rem', color: 'var(--muted-on-dark)', marginBottom: '0.5rem' }}>
-          ↩ replying to @{cast.parent_author.username}
+      {(cast.parent_author || cast.parent_author_fid) && (
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--muted-on-dark)",
+            marginBottom: "0.5rem",
+          }}
+        >
+          ↩ replying to{" "}
+          {cast.parent_author?.username
+            ? `@${cast.parent_author.username}`
+            : cast.parent_author?.display_name ||
+                cast.parent_author?.fid ||
+                cast.parent_author_fid
+              ? cast.parent_author?.display_name ||
+                `FID ${cast.parent_author?.fid || cast.parent_author_fid}`
+              : "a cast"}
         </p>
       )}
-      <p style={{ marginBottom: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.5 }}>
-        {cast.text}
+      <p
+        style={{
+          marginBottom: "0.75rem",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          lineHeight: 1.5,
+        }}
+      >
+        <CastText cast={cast} />
       </p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "1rem",
+          fontSize: "0.8rem",
+          color: "var(--muted-on-dark)",
+        }}
+      >
         <span>{timeLabel}</span>
         <span>💬 {cast.replies?.count || 0}</span>
         <span>❤️ {cast.reactions?.likes_count || 0}</span>
         <span>🔄 {cast.reactions?.recasts_count || 0}</span>
       </div>
-    </Link>
+    </a>
   );
 }
 
 function TradeCard({ trade }: { trade: Trade }) {
-  const time = formatDistanceToNow(new Date(trade.timestamp), { addSuffix: true });
-  const typeColor = trade.type === 'buy' ? '#22c55e' : trade.type === 'sell' ? '#f87171' : 'var(--muted-on-dark)';
-  const typeLabel = trade.type === 'buy' ? '↙ Received' : trade.type === 'sell' ? '↗ Sent' : '⇄ Transfer';
+  const time = formatDistanceToNow(new Date(trade.timestamp), {
+    addSuffix: true,
+  });
+  const typeColor =
+    trade.type === "buy"
+      ? "#22c55e"
+      : trade.type === "sell"
+        ? "#f87171"
+        : "var(--muted-on-dark)";
+  const typeLabel =
+    trade.type === "buy"
+      ? "↙ Received"
+      : trade.type === "sell"
+        ? "↗ Sent"
+        : "⇄ Transfer";
   const shortHash = `${trade.hash.slice(0, 6)}…${trade.hash.slice(-4)}`;
 
   return (
@@ -227,27 +413,73 @@ function TradeCard({ trade }: { trade: Trade }) {
       target="_blank"
       rel="noopener noreferrer"
       className="surface"
-      style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: 10, textDecoration: 'none', color: 'inherit', transition: 'border-color 0.2s' }}
-      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = '')}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+        padding: "0.875rem 1rem",
+        borderRadius: 10,
+        textDecoration: "none",
+        color: "inherit",
+        transition: "border-color 0.2s",
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.borderColor = "var(--accent)")
+      }
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "")}
     >
-      <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <span style={{ fontSize: '1.1rem' }}>
-          {trade.type === 'buy' ? '📈' : trade.type === 'sell' ? '📉' : '↔️'}
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 8,
+          background: "var(--bg-dark)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: "1.1rem" }}>
+          {trade.type === "buy" ? "📈" : trade.type === "sell" ? "📉" : "↔️"}
         </span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: typeColor }}>{typeLabel}</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
+          <span
+            style={{ fontSize: "0.85rem", fontWeight: 600, color: typeColor }}
+          >
+            {typeLabel}
+          </span>
           <span style={{ fontWeight: 700 }}>{trade.amount}</span>
-          <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{trade.tokenSymbol}</span>
+          <span style={{ fontWeight: 600, color: "var(--accent)" }}>
+            {trade.tokenSymbol}
+          </span>
         </div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--muted-on-dark)', marginTop: 2 }}>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--muted-on-dark)",
+            marginTop: 2,
+          }}
+        >
           {trade.tokenName} · {shortHash} · {time}
         </div>
       </div>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--muted-on-dark)', flexShrink: 0 }}>
-        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round" />
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        style={{ color: "var(--muted-on-dark)", flexShrink: 0 }}
+      >
+        <path
+          d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6m0 0v6m0-6L10 14"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </a>
   );
@@ -265,20 +497,36 @@ function ProfileContent() {
   const [castsPageError, setCastsPageError] = useState(false);
   const [tradesLoading, setTradesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('casts');
-  const [pendingCastReturn, setPendingCastReturn] = useState<ProfileCastReturn | null>(null);
-  const [viewerFid, setViewerFid] = useState<number | null>(null);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("casts");
+  const [pendingCastReturn, setPendingCastReturn] =
+    useState<ProfileCastReturn | null>(null);
+  const { fid: viewerFid } = useFarcasterAuth();
+  const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
+  const [followStatusLoading, setFollowStatusLoading] = useState(false);
+  const [followStatusError, setFollowStatusError] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [badges, setBadges] = useState<{ id: string; name: string; emoji: string }[]>([]);
+  const [followingOpen, setFollowingOpen] = useState(false);
+  const [followingUsers, setFollowingUsers] = useState<any[]>([]);
+  const [followingCursor, setFollowingCursor] = useState<string | null>(null);
+  const [followingLoading, setFollowingLoading] = useState(false);
+  const [followingError, setFollowingError] = useState(false);
+  const [badges, setBadges] = useState<
+    { id: string; name: string; emoji: string }[]
+  >([]);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadedProfileKey, setLoadedProfileKey] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const requestedFid = searchParams.get("fid");
+  const requestedUser = searchParams.get("user");
+  const profileRequestKey = `${requestedFid ?? ""}:${requestedUser ?? ""}`;
   const { follow, unfollow } = useFarcasterWrites();
 
   const saveCastReturn = (castHash: string, tab: Tab) => {
     try {
-      const castCard = Array.from(document.querySelectorAll<HTMLElement>('[data-profile-cast-hash]'))
-        .find((element) => element.dataset.profileCastHash === castHash);
+      const castCard = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-profile-cast-hash]"),
+      ).find((element) => element.dataset.profileCastHash === castHash);
       const state: ProfileCastReturn = {
         path: `${window.location.pathname}${window.location.search}`,
         scrollY: window.scrollY,
@@ -291,90 +539,153 @@ function ProfileContent() {
     } catch {}
   };
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('hh_profile');
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p?.fid) setViewerFid(p.fid);
-      }
-    } catch {}
-  }, []);
-
   // Load owned HH2 shop badges for the displayed profile (public data)
   useEffect(() => {
     if (!profile) return;
     fetch(`/api/user-badges?fid=${profile.fid}`)
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (data.ok && Array.isArray(data.badges)) setBadges(data.badges);
       })
       .catch(() => {});
   }, [profile]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    setLoading(true);
+    setError(null);
+    setProfile(null);
+    setCasts([]);
+    setCastsLoading(true);
+    setCastsUnavailable(false);
+    setCastsCursor(null);
+    setLoadedProfileKey(null);
+
     const loadProfile = async () => {
       try {
-        const requestedFid = searchParams.get('fid');
-        const username = searchParams.get('user');
-
-        let url: string;
-        if (requestedFid) {
-          // Profile links from feeds and the signed-in summary may identify
-          // accounts by FID. Honor that route parameter instead of silently
-          // replacing it with the viewer's local profile.
-          url = `/api/profile?fid=${encodeURIComponent(requestedFid)}&casts=true`;
-        } else if (username) {
-          url = `/api/profile?username=${encodeURIComponent(username)}&casts=true`;
-        } else {
-          const storedProfile = localStorage.getItem('hh_profile');
-          if (!storedProfile) { router.push('/'); return; }
+        let url = profileApiUrl({ fid: requestedFid, user: requestedUser });
+        if (!url) {
+          const storedProfile = localStorage.getItem("hh_profile");
+          if (!storedProfile) {
+            router.push("/");
+            return;
+          }
           const { fid } = JSON.parse(storedProfile);
-          url = `/api/profile?fid=${encodeURIComponent(String(fid))}&casts=true`;
+          url = profileApiUrl({ fid: String(fid ?? ""), user: null });
         }
+        if (!url)
+          throw new Error("A valid profile FID or username is required");
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch profile');
+        const response = await fetch(url, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const failure = await response.json().catch(() => null);
+          throw new Error(
+            failure?.error || `Profile request failed (${response.status}).`,
+          );
+        }
 
         const data = await response.json();
         const payload = data?.data ?? data;
         const user = payload.user ?? payload;
-        const castsResp = payload.casts ?? (payload.user?.casts ?? null);
+        const castsResp = payload.casts ?? payload.user?.casts ?? null;
+
+        if (!user?.fid)
+          throw new Error("The profile response did not include a valid FID.");
 
         const normalizedUser = {
           ...user,
-          follower_count: typeof user?.follower_count === 'number' ? user.follower_count : Number(user?.follower_count) || 0,
-          following_count: typeof user?.following_count === 'number' ? user.following_count : Number(user?.following_count) || 0,
+          follower_count:
+            typeof user?.follower_count === "number"
+              ? user.follower_count
+              : Number(user?.follower_count) || 0,
+          following_count:
+            typeof user?.following_count === "number"
+              ? user.following_count
+              : Number(user?.following_count) || 0,
         };
 
+        if (!active) return;
         setProfile(normalizedUser as UserProfile);
         if (Array.isArray(castsResp)) setCasts(castsResp);
         setCastsUnavailable(payload.castsUnavailable === true);
         setCastsCursor(payload.next?.cursor ?? null);
         setCastsLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile');
+        if (!active || controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : "Failed to load profile");
         setCastsLoading(false);
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+          setLoadedProfileKey(profileRequestKey);
+        }
       }
     };
 
     loadProfile();
-  }, [router, searchParams]);
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [router, requestedFid, requestedUser, loadAttempt, profileRequestKey]);
 
   const loadMoreCasts = async () => {
     if (!profile || !castsCursor || loadingMoreCasts) return;
     setLoadingMoreCasts(true);
     setCastsPageError(false);
     try {
-      const response = await fetch(`/api/profile?fid=${profile.fid}&casts=true&cursor=${encodeURIComponent(castsCursor)}`);
-      if (!response.ok) throw new Error('Profile page unavailable');
+      const response = await fetch(
+        `/api/profile?fid=${profile.fid}&casts=true&cursor=${encodeURIComponent(castsCursor)}`,
+      );
+      if (!response.ok) throw new Error("Profile page unavailable");
       const data = await response.json();
-      setCasts(previous => [...new Map([...previous, ...(data.casts ?? [])].map(c => [c.hash, c])).values()]);
+      setCasts((previous) => [
+        ...new Map(
+          [...previous, ...(data.casts ?? [])].map((c) => [c.hash, c]),
+        ).values(),
+      ]);
       setCastsCursor(data.next?.cursor ?? null);
-    } catch { setCastsPageError(true); }
-    finally { setLoadingMoreCasts(false); }
+    } catch {
+      setCastsPageError(true);
+    } finally {
+      setLoadingMoreCasts(false);
+    }
+  };
+
+  const loadFollowing = async (reset = false) => {
+    if (!profile || followingLoading) return;
+    setFollowingLoading(true);
+    setFollowingError(false);
+    try {
+      const cursor = reset ? null : followingCursor;
+      const query = new URLSearchParams({ fid: String(profile.fid) });
+      if (cursor) query.set("cursor", cursor);
+      const response = await fetch(`/api/friends?${query.toString()}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Following list unavailable");
+      const payload = await response.json();
+      const users = Array.isArray(payload.data) ? payload.data : [];
+      setFollowingUsers((previous) =>
+        reset ? users : [...previous, ...users],
+      );
+      setFollowingCursor(payload.cursor ?? null);
+    } catch {
+      setFollowingError(true);
+    } finally {
+      setFollowingLoading(false);
+    }
+  };
+
+  const openFollowing = () => {
+    setFollowingUsers([]);
+    setFollowingCursor(null);
+    setFollowingOpen(true);
+    void loadFollowing(true);
   };
 
   // A cast opened from this profile should return to the same tab and scroll
@@ -386,9 +697,9 @@ function ProfileContent() {
       const saved = JSON.parse(raw) as ProfileCastReturn;
       const currentPath = `${window.location.pathname}${window.location.search}`;
       if (
-        saved.path === currentPath
-        && Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000
-        && ['casts', 'replies', 'trades', 'learning'].includes(saved.tab)
+        saved.path === currentPath &&
+        Date.now() - Number(saved.ts || 0) < 10 * 60 * 1000 &&
+        ["casts", "replies", "trades", "learning"].includes(saved.tab)
       ) {
         setActiveTab(saved.tab);
         setPendingCastReturn(saved);
@@ -397,15 +708,31 @@ function ProfileContent() {
   }, []);
 
   useEffect(() => {
-    if (!pendingCastReturn || loading || castsLoading || activeTab !== pendingCastReturn.tab) return;
+    if (
+      !pendingCastReturn ||
+      loading ||
+      castsLoading ||
+      activeTab !== pendingCastReturn.tab
+    )
+      return;
     const frame = requestAnimationFrame(() => {
-      const castCard = Array.from(document.querySelectorAll<HTMLElement>('[data-profile-cast-hash]'))
-        .find((element) => element.dataset.profileCastHash === pendingCastReturn.castHash);
-      if (castCard && typeof pendingCastReturn.castOffset === 'number') {
-        const target = window.scrollY + castCard.getBoundingClientRect().top - pendingCastReturn.castOffset;
-        window.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
+      const castCard = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-profile-cast-hash]"),
+      ).find(
+        (element) =>
+          element.dataset.profileCastHash === pendingCastReturn.castHash,
+      );
+      if (castCard && typeof pendingCastReturn.castOffset === "number") {
+        const target =
+          window.scrollY +
+          castCard.getBoundingClientRect().top -
+          pendingCastReturn.castOffset;
+        window.scrollTo({ top: Math.max(0, target), behavior: "auto" });
       } else {
-        window.scrollTo({ top: Math.max(0, pendingCastReturn.scrollY || 0), behavior: 'auto' });
+        window.scrollTo({
+          top: Math.max(0, pendingCastReturn.scrollY || 0),
+          behavior: "auto",
+        });
       }
       sessionStorage.removeItem(CAST_RETURN_KEY);
       setPendingCastReturn(null);
@@ -413,42 +740,113 @@ function ProfileContent() {
     return () => cancelAnimationFrame(frame);
   }, [activeTab, castsLoading, loading, pendingCastReturn]);
 
-  // Check follow status once profile and viewerFid are both known
+  const refreshFollowStatus = useCallback(async () => {
+    const targetFid = profile?.fid;
+    if (!viewerFid || !targetFid || viewerFid === targetFid) return;
+
+    setFollowStatusLoading(true);
+    setFollowStatusError(false);
+    try {
+      const query = new URLSearchParams({
+        fid: String(viewerFid),
+        target_fid: String(targetFid),
+      });
+      const response = await fetch(`/api/follow-status?${query}`, {
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (!response.ok || typeof data?.following !== "boolean") {
+        throw new Error(data?.error || "Follow status unavailable");
+      }
+      setIsFollowing(data.following);
+    } catch {
+      // Preserve a previously confirmed state; an unavailable node is not an
+      // authoritative "not following" result.
+      setFollowStatusError(true);
+    } finally {
+      setFollowStatusLoading(false);
+    }
+  }, [profile?.fid, viewerFid]);
+
   useEffect(() => {
-    if (!profile || !viewerFid || viewerFid === profile.fid) return;
-    fetch(`/api/follow-status?fid=${viewerFid}&target_fid=${profile.fid}`)
-      .then((r) => r.json())
-      .then((d) => setIsFollowing(!!d.following))
-      .catch(() => {});
-  }, [profile, viewerFid]);
+    if (!profile || !viewerFid || viewerFid === profile.fid) {
+      setIsFollowing(null);
+      return;
+    }
+
+    setIsFollowing(null);
+    setFollowStatusError(false);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshFollowStatus();
+    };
+    void refreshFollowStatus();
+    window.addEventListener("focus", refreshFollowStatus);
+    window.addEventListener("hh:miniapp:resume", refreshFollowStatus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", refreshFollowStatus);
+      window.removeEventListener("hh:miniapp:resume", refreshFollowStatus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [profile, refreshFollowStatus, viewerFid]);
 
   // Fetch trades when trades tab selected and we have ETH addresses
   useEffect(() => {
-    if (activeTab !== 'trades' || !profile) return;
+    if (activeTab !== "trades" || !profile) return;
     const ethAddresses = profile.verified_addresses?.eth_addresses ?? [];
     if (ethAddresses.length === 0 || trades.length > 0) return;
 
     setTradesLoading(true);
-    fetch(`/api/trades?addresses=${ethAddresses.join(',')}`)
+    fetch(`/api/trades?addresses=${ethAddresses.join(",")}`)
       .then((r) => r.json())
       .then((data) => setTrades(data.trades ?? []))
       .catch(() => setTrades([]))
       .finally(() => setTradesLoading(false));
   }, [activeTab, profile, trades.length]);
 
-  if (loading) {
+  if (loading || loadedProfileKey !== profileRequestKey) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem' }}>
-        <span style={{ color: 'var(--muted-on-dark)' }}>Loading profile...</span>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "4rem",
+        }}
+      >
+        <span style={{ color: "var(--muted-on-dark)" }}>
+          Loading profile...
+        </span>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', flexDirection: 'column', gap: '1rem' }}>
-        <p style={{ color: '#f87171' }}>{error || 'Profile not found'}</p>
-        <Link href="/" style={{ color: 'var(--accent)' }}>Go back home</Link>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "4rem",
+          flexDirection: "column",
+          gap: "1rem",
+        }}
+      >
+        <p style={{ color: "#f87171" }}>{error || "Profile not found"}</p>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            setLoadedProfileKey(null);
+            setLoadAttempt((attempt) => attempt + 1);
+          }}
+        >
+          Try again
+        </button>
+        <Link href="/feed" style={{ color: "var(--accent)" }}>
+          Back to feed
+        </Link>
       </div>
     );
   }
@@ -458,10 +856,13 @@ function ProfileContent() {
   const ethAddresses = profile.verified_addresses?.eth_addresses ?? [];
 
   const TAB_ITEMS: { id: Tab; label: string }[] = [
-    { id: 'casts', label: 'Recent Casts' },
-    { id: 'replies', label: viewerFid === profile.fid ? 'My Replies' : 'Replies' },
-    { id: 'trades', label: 'Recent Trades' },
-    { id: 'learning', label: '🎓 Learning' },
+    { id: "casts", label: "Recent Casts" },
+    {
+      id: "replies",
+      label: viewerFid === profile.fid ? "My Replies" : "Replies",
+    },
+    { id: "trades", label: "Recent Trades" },
+    { id: "learning", label: "🎓 Learning" },
   ];
 
   return (
@@ -469,47 +870,137 @@ function ProfileContent() {
       {/* Back link */}
       <Link
         href="/feed"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--muted-on-dark)', marginBottom: '1rem', textDecoration: 'none', fontSize: '0.9rem' }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          color: "var(--muted-on-dark)",
+          marginBottom: "1rem",
+          textDecoration: "none",
+          fontSize: "0.9rem",
+        }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            d="M15 19l-7-7 7-7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
         Back to feed
       </Link>
 
       {/* Profile card */}
-      <div className="surface" style={{ borderRadius: 12, overflow: 'hidden', marginBottom: '1.5rem' }}>
+      <div
+        className="surface"
+        style={{ borderRadius: 12, overflow: "hidden", marginBottom: "1.5rem" }}
+      >
         {/* Header gradient */}
-        <div style={{ height: '7rem', background: 'linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)' }} />
+        <div
+          style={{
+            height: "7rem",
+            background:
+              "linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%)",
+          }}
+        />
 
-        <div style={{ padding: '0 1.5rem 1.5rem' }}>
+        <div style={{ padding: "0 1.5rem 1.5rem" }}>
           {/* Avatar */}
-          <div style={{ position: 'relative', marginTop: '-4rem', marginBottom: '1rem' }}>
+          <div
+            style={{
+              position: "relative",
+              marginTop: "-4rem",
+              marginBottom: "1rem",
+            }}
+          >
             <Image
-              src={profile.pfp_url || '/default-avatar.png'}
-              alt={profile.display_name || 'User avatar'}
+              src={profile.pfp_url || "/default-avatar.png"}
+              alt={profile.display_name || "User avatar"}
               width={128}
               height={128}
-              style={{ borderRadius: '50%', border: '4px solid var(--surface)', objectFit: 'cover' }}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/default-avatar.png'; }}
+              style={{
+                borderRadius: "50%",
+                border: "4px solid var(--surface)",
+                objectFit: "cover",
+              }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src =
+                  "/default-avatar.png";
+              }}
             />
             {profile.power_badge && (
-              <div style={{ position: 'absolute', bottom: 0, right: 0, background: '#3b82f6', borderRadius: '50%', width: '2.25rem', height: '2.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid var(--surface)' }}>
-                <span style={{ color: '#fff', fontSize: '1rem', lineHeight: 1 }}>✓</span>
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  background: "#3b82f6",
+                  borderRadius: "50%",
+                  width: "2.25rem",
+                  height: "2.25rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "3px solid var(--surface)",
+                }}
+              >
+                <span
+                  style={{ color: "#fff", fontSize: "1rem", lineHeight: 1 }}
+                >
+                  ✓
+                </span>
               </div>
             )}
           </div>
 
           {/* Name + Follow button row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "0.75rem",
+              marginBottom: "1rem",
+            }}
+          >
             <div style={{ minWidth: 0 }}>
-              <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.25rem' }}>{profile.display_name}</h1>
-              <p style={{ color: 'var(--muted-on-dark)', margin: 0 }}>@{profile.username}</p>
+              <h1
+                style={{
+                  fontSize: "1.75rem",
+                  fontWeight: 700,
+                  marginBottom: "0.25rem",
+                }}
+              >
+                {profile.display_name}
+              </h1>
+              <p style={{ color: "var(--muted-on-dark)", margin: 0 }}>
+                @{profile.username}
+              </p>
             </div>
-            {viewerFid !== profile.fid && <Link
-              className="btn" href={`/messages?recipient=${profile.fid}`}
-              title="Open a private conversation in Homiehouse">Message</Link>}
+            {viewerFid !== profile.fid && (
+              <Link
+                className="btn"
+                href={`/messages?recipient=${profile.fid}`}
+                title="Open a private conversation in Homiehouse"
+              >
+                Message
+              </Link>
+            )}
             {viewerFid && viewerFid !== profile.fid && (
               <button
                 onClick={async () => {
+                  if (isFollowing === null || followStatusError) {
+                    await refreshFollowStatus();
+                    return;
+                  }
                   setFollowLoading(true);
                   try {
                     if (isFollowing) {
@@ -519,75 +1010,171 @@ function ProfileContent() {
                       await follow(profile.fid);
                       setIsFollowing(true);
                     }
+                    setFollowStatusError(false);
                   } catch (err: any) {
-                    alert(err?.message || 'Follow failed — make sure your Hypersnap signer is active.');
+                    alert(
+                      err?.message ||
+                        "Follow failed — make sure your Hypersnap signer is active.",
+                    );
                   } finally {
                     setFollowLoading(false);
                   }
                 }}
-                disabled={followLoading}
+                disabled={followLoading || followStatusLoading}
+                title={
+                  followStatusError
+                    ? "Follow status could not be refreshed. Tap to retry."
+                    : undefined
+                }
                 style={{
                   flexShrink: 0,
-                  marginTop: '0.35rem',
-                  padding: '8px 18px',
+                  marginTop: "0.35rem",
+                  padding: "8px 18px",
                   borderRadius: 20,
-                  border: '1.5px solid color-mix(in srgb, var(--text-on-dark) 35%, var(--surface))',
-                  background: isFollowing ? 'var(--surface)' : 'var(--btn-primary-bg)',
-                  color: isFollowing ? 'var(--text-on-dark)' : 'var(--btn-primary-color)',
+                  border:
+                    "1.5px solid color-mix(in srgb, var(--text-on-dark) 35%, var(--surface))",
+                  background:
+                    isFollowing === true
+                      ? "var(--surface)"
+                      : "var(--btn-primary-bg)",
+                  color:
+                    isFollowing === true
+                      ? "var(--text-on-dark)"
+                      : "var(--btn-primary-color)",
                   fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: followLoading ? 'not-allowed' : 'pointer',
-                  opacity: followLoading ? 0.6 : 1,
-                  transition: 'all 0.15s',
-                  whiteSpace: 'nowrap',
+                  fontSize: "0.9rem",
+                  cursor:
+                    followLoading || followStatusLoading
+                      ? "not-allowed"
+                      : "pointer",
+                  opacity: followLoading || followStatusLoading ? 0.6 : 1,
+                  transition: "all 0.15s",
+                  whiteSpace: "nowrap",
                 }}
               >
-                {followLoading ? '…' : isFollowing ? 'Following' : 'Follow'}
+                {followLoading
+                  ? "…"
+                  : followStatusLoading
+                    ? "Checking…"
+                    : isFollowing === null || followStatusError
+                      ? "Retry status"
+                      : isFollowing
+                        ? "Following"
+                        : "Follow"}
               </button>
             )}
           </div>
 
           {/* Stats */}
-          <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.25rem', paddingBottom: '1.25rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1.5rem",
+              marginBottom: "1.25rem",
+              paddingBottom: "1.25rem",
+              borderBottom: "1px solid var(--border)",
+              flexWrap: "wrap",
+            }}
+          >
             <div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{profile.follower_count.toLocaleString()}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>Followers</div>
+              <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>
+                {profile.follower_count.toLocaleString()}
+              </div>
+              <div
+                style={{ fontSize: "0.8rem", color: "var(--muted-on-dark)" }}
+              >
+                Followers
+              </div>
             </div>
             <div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{profile.following_count.toLocaleString()}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>Following</div>
+              <button
+                type="button"
+                onClick={openFollowing}
+                aria-label={`View ${profile.following_count.toLocaleString()} accounts followed by ${profile.display_name || profile.username}`}
+                style={{
+                  padding: 0,
+                  border: 0,
+                  background: "none",
+                  color: "inherit",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>
+                  {profile.following_count.toLocaleString()}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "var(--muted-on-dark)",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                  }}
+                >
+                  Following
+                </div>
+              </button>
             </div>
             <div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{profile.fid}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--muted-on-dark)' }}>FID</div>
+              <div style={{ fontSize: "1.4rem", fontWeight: 700 }}>
+                {profile.fid}
+              </div>
+              <div
+                style={{ fontSize: "0.8rem", color: "var(--muted-on-dark)" }}
+              >
+                FID
+              </div>
             </div>
           </div>
 
           {/* Bio */}
           {profile.profile?.bio?.text && (
-            <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, marginBottom: ethAddresses.length > 0 || badges.length > 0 ? '1rem' : 0 }}>
+            <p
+              style={{
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.6,
+                marginBottom:
+                  ethAddresses.length > 0 || badges.length > 0 ? "1rem" : 0,
+              }}
+            >
               {profile.profile.bio.text}
             </p>
           )}
 
           {/* Owned HH2 badges */}
           {badges.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: ethAddresses.length > 0 ? '1rem' : 0 }}>
-              {badges.map(badge => (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+                marginBottom: ethAddresses.length > 0 ? "1rem" : 0,
+              }}
+            >
+              {badges.map((badge) => (
                 <span
                   key={badge.id}
                   title={badge.name}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontSize: '0.8rem', fontWeight: 600,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid var(--border)',
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid var(--border)",
                     borderRadius: 999,
-                    padding: '4px 10px',
-                    color: 'var(--text-on-dark)',
+                    padding: "4px 10px",
+                    color: "var(--text-on-dark)",
                   }}
                 >
-                  <HH2Badge id={badge.id} name={badge.name} size={25} style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.35))' }} /> {badge.name}
+                  <HH2Badge
+                    id={badge.id}
+                    name={badge.name}
+                    size={25}
+                    style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,.35))" }}
+                  />{" "}
+                  {badge.name}
                 </span>
               ))}
             </div>
@@ -595,7 +1182,7 @@ function ProfileContent() {
 
           {/* Verified ETH addresses */}
           {ethAddresses.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
               {ethAddresses.map((addr) => (
                 <a
                   key={addr}
@@ -603,16 +1190,30 @@ function ProfileContent() {
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                    borderRadius: 20, fontSize: '0.75rem', fontFamily: 'monospace',
-                    background: 'var(--bg-dark)', border: '1px solid var(--border)',
-                    color: 'var(--muted-on-dark)', textDecoration: 'none',
-                    transition: 'border-color 0.15s',
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: "4px 10px",
+                    borderRadius: 20,
+                    fontSize: "0.75rem",
+                    fontFamily: "monospace",
+                    background: "var(--bg-dark)",
+                    border: "1px solid var(--border)",
+                    color: "var(--muted-on-dark)",
+                    textDecoration: "none",
+                    transition: "border-color 0.15s",
                   }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)')}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = '')}
+                  onMouseEnter={(e) =>
+                    ((e.currentTarget as HTMLElement).style.borderColor =
+                      "var(--accent)")
+                  }
+                  onMouseLeave={(e) =>
+                    ((e.currentTarget as HTMLElement).style.borderColor = "")
+                  }
                 >
-                  <span style={{ color: 'var(--accent)', fontSize: '0.7rem' }}>⛓</span>
+                  <span style={{ color: "var(--accent)", fontSize: "0.7rem" }}>
+                    ⛓
+                  </span>
                   {addr.slice(0, 6)}…{addr.slice(-4)}
                 </a>
               ))}
@@ -621,18 +1222,228 @@ function ProfileContent() {
         </div>
       </div>
 
+      {followingOpen && (
+        <div
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setFollowingOpen(false);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="following-dialog-title"
+            className="surface"
+            style={{
+              width: "min(100%, 32rem)",
+              maxHeight: "min(80vh, 44rem)",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 14,
+              overflow: "hidden",
+            }}
+          >
+            <header
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "1rem 1.25rem",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <div>
+                <h2
+                  id="following-dialog-title"
+                  style={{ fontSize: "1.1rem", margin: 0 }}
+                >
+                  Following
+                </h2>
+                <p
+                  style={{
+                    margin: "3px 0 0",
+                    color: "var(--muted-on-dark)",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  Accounts followed by @{profile.username}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setFollowingOpen(false)}
+                aria-label="Close following list"
+              >
+                Close
+              </button>
+            </header>
+            <div style={{ overflowY: "auto", padding: "0.5rem 1rem 1rem" }}>
+              {followingUsers.map((entry, index) => {
+                const user = entry?.user ?? entry;
+                const fid = Number(user?.fid ?? entry?.fid);
+                const username = user?.username || `fid-${fid}`;
+                const displayName = user?.display_name || username;
+                return (
+                  <Link
+                    key={`${fid}-${index}`}
+                    href={`/profile?fid=${fid}`}
+                    onClick={() => setFollowingOpen(false)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      padding: "0.65rem 0.25rem",
+                      color: "inherit",
+                      textDecoration: "none",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <Image
+                      src={user?.pfp_url || "/default-avatar.png"}
+                      alt=""
+                      width={42}
+                      height={42}
+                      style={{
+                        borderRadius: "50%",
+                        objectFit: "cover",
+                        background: "var(--bg-dark)",
+                      }}
+                      onError={(event) => {
+                        (event.currentTarget as HTMLImageElement).src =
+                          "/default-avatar.png";
+                      }}
+                    />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span
+                        style={{
+                          display: "block",
+                          fontWeight: 600,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {displayName}
+                      </span>
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: "0.85rem",
+                          color: "var(--muted-on-dark)",
+                        }}
+                      >
+                        @{username}
+                      </span>
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      style={{ color: "var(--muted-on-dark)" }}
+                    >
+                      ›
+                    </span>
+                  </Link>
+                );
+              })}
+              {followingLoading && (
+                <p
+                  role="status"
+                  style={{
+                    textAlign: "center",
+                    padding: "1rem",
+                    color: "var(--muted-on-dark)",
+                  }}
+                >
+                  Loading accounts…
+                </p>
+              )}
+              {followingError && (
+                <div style={{ textAlign: "center", padding: "1rem" }}>
+                  <p role="alert" style={{ color: "var(--muted-on-dark)" }}>
+                    Could not load this following list right now.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() =>
+                      void loadFollowing(followingUsers.length === 0)
+                    }
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+              {!followingLoading &&
+                !followingError &&
+                followingUsers.length === 0 && (
+                  <p
+                    style={{
+                      textAlign: "center",
+                      padding: "1.5rem 0.5rem",
+                      color: "var(--muted-on-dark)",
+                    }}
+                  >
+                    This account is not following anyone yet.
+                  </p>
+                )}
+              {!followingLoading && followingCursor && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => void loadFollowing()}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    marginTop: "0.75rem",
+                  }}
+                >
+                  Load more
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: '1.25rem', borderBottom: '1px solid var(--border)' }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 4,
+          marginBottom: "1.25rem",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
         {TAB_ITEMS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
-              padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: '0.9rem', fontWeight: activeTab === tab.id ? 700 : 400,
-              color: activeTab === tab.id ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
-              borderBottom: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
-              marginBottom: -1, transition: 'color 0.15s',
+              padding: "8px 16px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              fontWeight: activeTab === tab.id ? 700 : 400,
+              color:
+                activeTab === tab.id
+                  ? "var(--text-on-dark)"
+                  : "var(--muted-on-dark)",
+              borderBottom:
+                activeTab === tab.id
+                  ? "2px solid var(--accent)"
+                  : "2px solid transparent",
+              marginBottom: -1,
+              transition: "color 0.15s",
             }}
           >
             {tab.label}
@@ -641,72 +1452,181 @@ function ProfileContent() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'casts' && (
-        castsLoading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading casts...</div>
+      {activeTab === "casts" &&
+        (castsLoading ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              color: "var(--muted-on-dark)",
+            }}
+          >
+            Loading casts...
+          </div>
         ) : topLevelCasts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
-            {castsUnavailable ? 'Profile loaded, but recent casts are temporarily unavailable.' : 'No casts yet'}
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              color: "var(--muted-on-dark)",
+            }}
+          >
+            {castsUnavailable
+              ? "Profile loaded, but recent casts are temporarily unavailable."
+              : "No casts yet"}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {topLevelCasts.map((cast) => <CastCard key={cast.hash} cast={cast} onOpen={() => saveCastReturn(cast.hash, activeTab)} />)}
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+          >
+            {topLevelCasts.map((cast) => (
+              <CastCard
+                key={cast.hash}
+                cast={cast}
+                onOpen={() => saveCastReturn(cast.hash, activeTab)}
+              />
+            ))}
           </div>
-        )
-      )}
+        ))}
 
-      {activeTab === 'replies' && (
+      {activeTab === "replies" && (
         <>
           {viewerFid === profile.fid && (
-            <div style={{ padding: '12px 14px', marginBottom: 12, borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
-              <p style={{ margin: '0 0 8px', color: 'var(--muted-on-dark)', fontSize: 13, lineHeight: 1.45 }}>
-                These are replies you wrote. To see people replying to your casts, open your reply alerts.
+            <div
+              style={{
+                padding: "12px 14px",
+                marginBottom: 12,
+                borderRadius: 10,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <p
+                style={{
+                  margin: "0 0 8px",
+                  color: "var(--muted-on-dark)",
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                }}
+              >
+                These are replies you wrote. To see people replying to your
+                casts, open your reply alerts.
               </p>
-              <Link href="/notifications?filter=replies" style={{ color: 'var(--accent)', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
+              <Link
+                href="/notifications?filter=replies"
+                style={{
+                  color: "var(--accent)",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  textDecoration: "none",
+                }}
+              >
                 Replies to my casts →
               </Link>
             </div>
           )}
           {castsLoading ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading replies...</div>
+            <div
+              style={{
+                textAlign: "center",
+                padding: "2rem",
+                color: "var(--muted-on-dark)",
+              }}
+            >
+              Loading replies...
+            </div>
           ) : replies.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>No replies in recent casts</div>
+            <div
+              style={{
+                textAlign: "center",
+                padding: "2rem",
+                color: "var(--muted-on-dark)",
+              }}
+            >
+              No replies in recent casts
+            </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {replies.map((cast) => <CastCard key={cast.hash} cast={cast} onOpen={() => saveCastReturn(cast.hash, activeTab)} />)}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}
+            >
+              {replies.map((cast) => (
+                <CastCard
+                  key={cast.hash}
+                  cast={cast}
+                  onOpen={() => saveCastReturn(cast.hash, activeTab)}
+                />
+              ))}
             </div>
           )}
         </>
       )}
 
-      {(activeTab === 'casts' || activeTab === 'replies') && castsCursor && (
+      {(activeTab === "casts" || activeTab === "replies") && castsCursor && (
         <div>
-          {castsPageError && <p role="status">Could not load older casts. Please try again.</p>}
-          <button className="btn" onClick={loadMoreCasts} disabled={loadingMoreCasts}>
-            {loadingMoreCasts ? 'Loading older casts…' : 'Load older casts and replies'}
+          {castsPageError && (
+            <p role="status">Could not load older casts. Please try again.</p>
+          )}
+          <button
+            className="btn"
+            onClick={loadMoreCasts}
+            disabled={loadingMoreCasts}
+          >
+            {loadingMoreCasts
+              ? "Loading older casts…"
+              : "Load older casts and replies"}
           </button>
         </div>
       )}
 
-      {activeTab === 'trades' && (
-        ethAddresses.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>
+      {activeTab === "trades" &&
+        (ethAddresses.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              color: "var(--muted-on-dark)",
+            }}
+          >
             No verified ETH addresses linked to this account.
           </div>
         ) : tradesLoading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>Loading trades...</div>
-        ) : trades.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-on-dark)' }}>No recent token activity found on Base.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {trades.map((trade) => <TradeCard key={trade.hash + trade.contractAddress} trade={trade} />)}
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              color: "var(--muted-on-dark)",
+            }}
+          >
+            Loading trades...
           </div>
-        )
-      )}
+        ) : trades.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              color: "var(--muted-on-dark)",
+            }}
+          >
+            No recent token activity found on Base.
+          </div>
+        ) : (
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+          >
+            {trades.map((trade) => (
+              <TradeCard
+                key={trade.hash + trade.contractAddress}
+                trade={trade}
+              />
+            ))}
+          </div>
+        ))}
 
-      {activeTab === 'learning' && (
-        <LearningTab profileFid={profile.fid} />
-      )}
+      {activeTab === "learning" && <LearningTab profileFid={profile.fid} />}
     </>
   );
 }
@@ -714,11 +1634,22 @@ function ProfileContent() {
 export default function ProfileClient() {
   return (
     <AppShell>
-      <Suspense fallback={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem' }}>
-          <span style={{ color: 'var(--muted-on-dark)' }}>Loading profile...</span>
-        </div>
-      }>
+      <Suspense
+        fallback={
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "4rem",
+            }}
+          >
+            <span style={{ color: "var(--muted-on-dark)" }}>
+              Loading profile...
+            </span>
+          </div>
+        }
+      >
         <ProfileContent />
       </Suspense>
     </AppShell>

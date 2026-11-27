@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import { registerHypersnapSigner, type KeyAddSigningPayload } from "@/lib/hypersnap-signer-client";
+import styles from "./FarcasterOnboarding.module.css";
 
 // ── Farcaster EIP-712 domains ─────────────────────────────────────────────────
 const ID_GATEWAY_DOMAIN = {
@@ -137,6 +138,7 @@ export default function FarcasterOnboarding() {
   const { address: connectedAddress, connector, isConnected, chainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const [show, setShow] = useState(false);
   const [step, setStep] = useState<Step>("welcome");
@@ -154,6 +156,40 @@ export default function FarcasterOnboarding() {
     window.addEventListener("hh:need:farcaster-account", handleNeedAccount);
     return () => window.removeEventListener("hh:need:farcaster-account", handleNeedAccount);
   }, []);
+
+  useEffect(() => {
+    if (!show) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = panelRef.current;
+    const getFocusable = () => panel?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? [];
+    getFocusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShow(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [show]);
 
   async function checkAvailability() {
     if (!username) return;
@@ -319,8 +355,9 @@ export default function FarcasterOnboarding() {
         };
         localStorage.setItem(`signer_${result.fid}`, JSON.stringify(signerRecord));
         let active = false;
-        for (let attempt = 0; attempt < 20; attempt++) {
-          if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1_000));
+        const activationDelays = [0, 1_000, 1_500, 2_500, 4_000, 6_000, 8_000, 10_000];
+        for (const delay of activationDelays) {
+          if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
           const response = await fetch(`/api/hypersnap/signer?fid=${result.fid}&publicKey=${encodeURIComponent(signerRecord.public_key)}`, { cache: "no-store" });
           const data = await response.json().catch(() => ({}));
           if (data.ok && data.active) {
@@ -376,19 +413,9 @@ export default function FarcasterOnboarding() {
   if (!show) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16,
-      }}
-    >
-      <div
-        style={{
-          background: "var(--surface)", borderRadius: 24, padding: "32px 28px",
-          maxWidth: 440, width: "100%", border: "1px solid var(--border)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
-        }}
-      >
+    <div className={styles.overlay}>
+      <div ref={panelRef} className={styles.panel} role="dialog" aria-modal="true" aria-label="Create your HomieHouse identity" tabIndex={-1}>
+        <div key={step} className={styles.step}>
         {/* Welcome */}
         {step === "welcome" && (
           <>
@@ -499,13 +526,12 @@ export default function FarcasterOnboarding() {
             <p style={{ color: "var(--muted-on-dark)", fontSize: 14, lineHeight: 1.5 }}>
               Your wallet will ask you to sign the FID registration, username, and scoped Hypersnap signer authorization. The signer request is not a transaction.
             </p>
-            <div style={{ marginTop: 16, fontSize: 13, color: "var(--muted-on-dark)" }}>
+            <div role="status" aria-live="polite" style={{ marginTop: 16, fontSize: 13, color: "var(--muted-on-dark)" }}>
               Check your wallet for signature requests…
             </div>
             <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
-              <div style={{ width: 24, height: 24, border: "3px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <div className={styles.spinner} aria-hidden="true" style={{ width: 24, height: 24, border: "3px solid var(--accent)", borderTopColor: "transparent", borderRadius: "50%" }} />
             </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         )}
 
@@ -513,7 +539,7 @@ export default function FarcasterOnboarding() {
         {step === "creating" && (
           <div style={{ textAlign: "center", padding: "24px 0" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>⛓️</div>
-            <h2 style={{ margin: "0 0 16px", fontSize: 20 }}>Creating your account…</h2>
+            <h2 aria-live="polite" style={{ margin: "0 0 16px", fontSize: 20 }}>Creating your account…</h2>
             <p style={{ color: "var(--muted-on-dark)", fontSize: 13, marginBottom: 20 }}>
               Writing to Optimism — this takes about 5–10 seconds.
             </p>
@@ -526,7 +552,7 @@ export default function FarcasterOnboarding() {
                 {status[key as keyof CreatingStatus] ? (
                   <span style={{ color: "#22c55e", fontSize: 16 }}>✓</span>
                 ) : (
-                  <div style={{ width: 16, height: 16, border: "2px solid var(--border)", borderTopColor: "var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                  <div className={styles.spinner} aria-hidden="true" style={{ width: 16, height: 16, border: "2px solid var(--border)", borderTopColor: "var(--accent)", borderRadius: "50%", flexShrink: 0 }} />
                 )}
                 <span style={{ color: status[key as keyof CreatingStatus] ? "#22c55e" : "var(--muted-on-dark)" }}>{label}</span>
               </div>
@@ -673,6 +699,7 @@ export default function FarcasterOnboarding() {
             </button>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

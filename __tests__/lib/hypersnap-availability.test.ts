@@ -44,3 +44,14 @@ it('reads channel discovery directly from the node without OpenRank', async () =
   expect(data.casts[0].hash).toBe('unranked');
   expect(mockFetch).toHaveBeenCalledTimes(1);
 });
+
+it('selects fresher author history with its cursor when a node is behind', async () => {
+  mockFetch
+    .mockResolvedValueOnce(ok({ casts: [{ hash: 'old', timestamp: '2026-11-08T12:00:00Z' }], next: { cursor: 'old-page' } }))
+    .mockResolvedValueOnce(ok({ casts: [{ hash: 'new', timestamp: '2026-11-11T12:00:00Z', parent_hash: 'parent' }], next: { cursor: 'new-page' } }));
+
+  const page = await fetchUserCastsPage(123, 25);
+  expect(page.casts).toEqual([expect.objectContaining({ hash: 'new', parent_hash: 'parent' })]);
+  expect(page.next.cursor).toBe('new-page');
+  expect(mockFetch.mock.calls.map((call) => call[1].cache)).toEqual(['no-store', 'no-store']);
+});

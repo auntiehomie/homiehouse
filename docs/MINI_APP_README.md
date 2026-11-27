@@ -15,6 +15,17 @@ This proves the user's Farcaster identity to that Mini App. It does not enable
 HomieHouse posting; posting still requires the separate Hypersnap signer
 authorization.
 
+HomieHouse login cannot automatically sign a user into an unrelated Mini App:
+the Mini App must request its own domain-bound SIWF signature. After an iOS PWA
+reopen, the social session may remain valid even if the EVM wallet disconnected.
+Reconnect the linked custody wallet (or an approved Auth Address), tap the Mini
+App's Sign in button, and approve the domain-specific signature. Do not send
+HomieHouse session tokens or Hypersnap posting signer credentials to the iframe.
+
+The embedded host now keeps its message bridge during social session changes,
+reads the latest FID/signing callback on request, and displays wallet/linking
+errors in the host UI rather than silently resetting a Mini App sign-in spinner.
+
 ## 🏗️ Setup Complete
 
 ### Files Created

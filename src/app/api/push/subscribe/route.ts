@@ -3,22 +3,8 @@ import { rateLimit } from '@/lib/ratelimit';
 import { getDb } from '@/lib/db';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
-
-async function ensureTable(db: ReturnType<typeof getDb>) {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS push_subscriptions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_fid INTEGER NOT NULL,
-      subscription JSONB NOT NULL,
-      last_notified_at TIMESTAMPTZ DEFAULT NOW(),
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(user_fid, (subscription->>'endpoint'))
-    )
-  `);
-  await db.query(
-    `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_fid ON push_subscriptions(user_fid)`
-  );
-}
+import { ensurePushTable } from '@/lib/push-storage';
+import { parsePushPreferences } from '@/lib/push-preferences';
 
 // POST /api/push/subscribe  { fid, subscription }
 export async function POST(req: NextRequest) {
@@ -29,11 +15,12 @@ export async function POST(req: NextRequest) {
     // Rate limit: 30 requests/minute per IP
     const forwarded = req.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`push-subscribe:${ip}`, 30, 60);
+    const { success: rateLimitOk } = await rateLimit(`push-subscribe:${ip}`, 30, 60);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
-    const { fid, subscription } = await req.json();
+    const { fid, subscription, preferences: requestedPreferences } = await req.json();
+    const preferences = parsePushPreferences(requestedPreferences);
     if (!fid || !subscription?.endpoint) {
       return NextResponse.json({ error: 'fid and subscription required' }, { status: 400 });
     }
@@ -46,25 +33,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let endpoint: URL;
+    try { endpoint = new URL(subscription.endpoint); } catch {
+      return NextResponse.json({ error: 'Invalid push endpoint' }, { status: 400 });
+    }
+    if (!Number.isSafeInteger(fid) || fid <= 0 || endpoint.protocol !== 'https:' || endpoint.username || endpoint.password ||
+      endpoint.href.length > 4096 || !/^[A-Za-z0-9_-]{87}=?$/.test(subscription.keys?.p256dh || '') ||
+      !/^[A-Za-z0-9_-]{22}(==)?$/.test(subscription.keys?.auth || '') || !preferences) {
+      return NextResponse.json({ error: 'Invalid push subscription or preferences' }, { status: 400 });
+    }
     const db = getDb();
-    await ensureTable(db);
+    await ensurePushTable(db);
+    // A browser endpoint belongs to the currently signed-in account, not prior logins.
+    await db.query(`DELETE FROM push_subscriptions WHERE subscription->>'endpoint' = $1 AND user_fid <> $2`, [subscription.endpoint, fid]);
 
     await db.query(
-      `INSERT INTO push_subscriptions (user_fid, subscription)
-       VALUES ($1, $2)
+      `INSERT INTO push_subscriptions (user_fid, subscription, preferences)
+       VALUES ($1, $2, $3)
        ON CONFLICT (user_fid, (subscription->>'endpoint')) DO UPDATE
          SET subscription = EXCLUDED.subscription,
-             last_notified_at = NOW()`,
-      [fid, JSON.stringify(subscription)]
+             last_cast_notified_at = CASE
+               WHEN NOT COALESCE((push_subscriptions.preferences->>'newCasts')::boolean, false)
+                 AND (EXCLUDED.preferences->>'newCasts')::boolean THEN NOW()
+               ELSE push_subscriptions.last_cast_notified_at END,
+             preferences = EXCLUDED.preferences`,
+      [fid, JSON.stringify(subscription), JSON.stringify(preferences)]
     );
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof AuthError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     console.error('[push/subscribe] POST error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Could not update notification settings' }, { status: 500 });
   }
 }
 
@@ -88,6 +90,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     const db = getDb();
+    await ensurePushTable(db);
     await db.query(
       `DELETE FROM push_subscriptions
        WHERE user_fid = $1 AND subscription->>'endpoint' = $2`,
@@ -95,11 +98,11 @@ export async function DELETE(req: NextRequest) {
     );
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof AuthError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     console.error('[push/subscribe] DELETE error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Could not update notification settings' }, { status: 500 });
   }
 }

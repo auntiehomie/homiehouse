@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     // Rate limit: 30 requests/minute per IP
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`curated-lists:${ip}`, 30, 60);
+    const { success: rateLimitOk } = await rateLimit(`curated-lists:${ip}`, 30, 60);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/curated-lists
  * Body: { id, isPublic } — toggle an existing list's visibility.
- * Auth: x-farcaster-fid + x-signer-key headers (verified server-side).
+ * Auth: scoped HomieHouse session.
  */
 export async function PATCH(request: NextRequest) {
   const logger = createApiLogger('/curated-lists PATCH');

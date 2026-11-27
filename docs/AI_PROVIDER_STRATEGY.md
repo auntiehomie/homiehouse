@@ -56,7 +56,6 @@ that doesn't go through `llm.ts` at all:
 | `src/app/api/learning-plan/route.ts` | `ChatAnthropic` → `ChatGroq` → **`ChatOpenAI` (`gpt-4o-mini`)** | ❌ **violates the "no OpenAI fallback" policy** — this is langchain-based provider selection, entirely separate from `llm.ts`, and its last resort is paid OpenAI |
 | `src/lib/ai/agents.ts` (`AgentOrchestrator` — composer/coach/researcher agents used by `ask-homie`) | `ChatAnthropic` **or** `ChatOpenAI`, selected by which key is set — no free-tier option at all | ❌ **doesn't use the free stack at all** |
 | `src/app/api/ask-homie/route.ts` | Its own local getters: self-hosted Ollama (if `OLLAMA_URL` set) → Groq directly — separate from both `llm.ts` and `agents.ts`, despite importing `AgentOrchestrator` | ⚠️ a *third* independent provider-selection scheme in the same route |
-| `src/app/api/bot/test-reply/route.ts` | Groq directly (diagnostic endpoint, explicitly marked "remove after debugging") | not production traffic, low priority |
 
 **Bottom line: there are at least four independent provider-fallback
 implementations in this codebase** (`llm.ts`, `lesson.ts`'s local additions,

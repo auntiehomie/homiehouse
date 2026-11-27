@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/auth/session/route';
-import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { verifyFarcasterSignerKey } from '@/lib/auth';
 import { createSession, verifySession } from '@/lib/session';
 import { AuthError } from '@/lib/errors';
 import {
@@ -8,7 +8,7 @@ import {
   verifyHypersnapProtocolToken,
 } from '@/lib/hypersnap-protocol-auth';
 
-jest.mock('@/lib/auth', () => ({ verifyFarcasterSignerAuth: jest.fn() }));
+jest.mock('@/lib/auth', () => ({ verifyFarcasterSignerKey: jest.fn() }));
 jest.mock('@/lib/hypersnap-protocol-auth', () => ({
   getHomieHouseAuthDomain: jest.fn().mockReturnValue('homiehouse.app'),
   verifyHypersnapProtocolToken: jest.fn(),
@@ -25,7 +25,7 @@ jest.mock('@/lib/session', () => ({
   SessionError: class SessionError extends Error {},
 }));
 
-const mockVerifyAuth = verifyFarcasterSignerAuth as jest.Mock;
+const mockVerifyAuth = verifyFarcasterSignerKey as jest.Mock;
 const mockCreateSession = createSession as jest.Mock;
 const mockVerifySession = verifySession as jest.Mock;
 const mockVerifyProtocolToken = verifyHypersnapProtocolToken as jest.Mock;
@@ -105,6 +105,7 @@ describe('POST /api/auth/session', () => {
 
     const response = await POST(request);
     expect(response.status).toBe(200);
+    expect(mockVerifyAuth).toHaveBeenCalledWith(42, 'approved-key');
     expect(mockCreateSession).toHaveBeenCalledWith(42, expect.any(Object));
     expect(mockCreateSession.mock.calls[0][1]).not.toHaveProperty('scopes');
   });

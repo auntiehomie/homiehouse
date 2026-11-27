@@ -10,7 +10,8 @@
  *   4. Subsequent API calls send x-session-token (JWT) instead of x-signer-key
  *
  * Sessions are short-lived (default 24h), server-signed JWTs with FID + scope claims.
- * Backward compat with x-signer-key is maintained during migration.
+ * Raw signer keys are accepted only at the session issuance boundary and by
+ * features that explicitly require encrypted signer custody.
  */
 
 import * as jose from 'jose';
@@ -340,7 +341,7 @@ export async function refreshSession(token: string): Promise<string | null> {
   return createSession(claims.fid, { scopes: claims.scopes });
 }
 
-// ── Migration helper — extract x-signer-key usage sites ──────────────────────
+// ── Session metrics ──────────────────────────────────────────────────────────
 
 /**
  * Returns the number of active sessions for a FID.

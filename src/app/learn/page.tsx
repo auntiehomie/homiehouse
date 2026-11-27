@@ -59,7 +59,7 @@ export default function LearnPage() {
     estimatedMinutes: module.estimatedMinutes,
     difficulty: module.difficulty,
     tags: module.tags,
-    section: module.tags.includes('network-states') ? 'network' : 'safety',
+    section: module.tags.includes('ai') ? 'ai' : module.tags.includes('network-states') ? 'network' : 'safety',
   })).concat(PREMIUM_TRACKS.flatMap(track => track.modules.map((module): CourseCatalogItem => ({
     id: module.id,
     title: module.title,

@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
-import { getAuthHeaders } from "@/lib/client-auth";
+import { ensureAuthHeaders, requirePostingAuthHeaders } from "@/lib/client-auth";
 import {
   OPEN_COMPOSE_MODAL_EVENT,
   type ComposeCastResult,
   type OpenComposeModalDetail,
 } from '@/lib/compose-modal-events';
 import Image from "next/image";
+import StickerPicker from '@/components/StickerPicker';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
 
@@ -41,12 +42,12 @@ function splitIntoThread(text: string, limit: number): string[] {
   }
 
   if (remaining) parts.push(remaining);
-  return parts;
+  return parts.length ? parts : [''];
 }
 
 export default function ComposeModal() {
   const { fid: userFid } = useFarcasterAuth();
-  const { hasActiveSigner, requestSigner, submitCast, reply } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, reply, getPrivateKeyHex } = useFarcasterWrites();
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -60,12 +61,17 @@ export default function ComposeModal() {
   const [showMentions, setShowMentions] = useState(false);
   const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [stickerUrls, setStickerUrls] = useState<string[]>([]);
+  const hasStickers = imageUrls.some(url => stickerUrls.includes(url));
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [channels, setChannels] = useState<any[]>([]);
   const [channelSearch, setChannelSearch] = useState<string>('');
+  const [channelSearchResults, setChannelSearchResults] = useState<any[] | null>(null);
+  const [channelSearchLoading, setChannelSearchLoading] = useState(false);
+  const [channelSearchError, setChannelSearchError] = useState<string | null>(null);
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [channelsError, setChannelsError] = useState<string | null>(null);
@@ -108,6 +114,7 @@ export default function ComposeModal() {
         typeof onComplete === 'function' ? onComplete : null;
       setText(prefilledText ?? '');
       setImageUrls([]);
+      setStickerUrls([]);
       setRequestedEmbeds(
         Array.isArray(embeds)
           ? embeds.filter((url): url is string => typeof url === 'string').slice(0, 2)
@@ -151,19 +158,20 @@ export default function ComposeModal() {
   // accidental dismissals (back swipe, app backgrounded, tap outside).
   // Debounced to avoid hammering localStorage on every keystroke.
   useEffect(() => {
-    if (!open || !text.trim()) return;
+    if (!open || (!text.trim() && !imageUrls.length)) return;
     const t = setTimeout(() => {
       try {
         localStorage.setItem('hh_compose_draft', JSON.stringify({
           text,
           imageUrls,
+          stickerUrls,
           selectedChannel,
           timestamp: Date.now(),
         }));
       } catch {}
     }, 500);
     return () => clearTimeout(t);
-  }, [open, text, imageUrls, selectedChannel]);
+  }, [open, text, imageUrls, stickerUrls, selectedChannel]);
 
   // Channel discovery is public data; do not wait for the signer/FID to load.
   // Cache successful results for the session, and let the user retry node reads.
@@ -208,6 +216,47 @@ export default function ComposeModal() {
 
     return () => { active = false; };
   }, [open, channelReload]);
+
+  // Search the node's channel registry so channels outside the initial page
+  // remain selectable from the composer.
+  useEffect(() => {
+    const query = channelSearch.trim();
+    if (!open || !showChannelSuggestions || !query) {
+      setChannelSearchResults(null);
+      setChannelSearchError(null);
+      setChannelSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setChannelSearchLoading(true);
+      setChannelSearchError(null);
+      try {
+        const params = new URLSearchParams({ q: query, limit: '20' });
+        const response = await fetch(`/api/channels?${params}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok || !data?.ok || !Array.isArray(data?.channels)) {
+          throw new Error(data?.error || `Channel search failed (${response.status}).`);
+        }
+        const results = data.channels.filter((channel: any) =>
+          typeof channel?.id === 'string' && channel.id.trim().length > 0
+        );
+        if (active) setChannelSearchResults(results);
+      } catch (error: any) {
+        if (!active) return;
+        setChannelSearchResults([]);
+        setChannelSearchError(error?.message || 'Could not search Hypersnap channels.');
+      } finally {
+        if (active) setChannelSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [open, showChannelSuggestions, channelSearch, channelReload]);
 
   // Search for users when typing @mentions
   useEffect(() => {
@@ -335,7 +384,8 @@ export default function ComposeModal() {
         const formData = new FormData();
         formData.append('file', file);
         if (userFid) formData.append('fid', String(userFid));
-        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const auth = await requirePostingAuthHeaders();
+        const response = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: formData });
         const data = await response.json();
         if (!response.ok || !data.ok || !data.url) {
           setStatus(`Upload failed: ${data.error || 'Unknown error'}`);
@@ -383,13 +433,14 @@ export default function ComposeModal() {
 
       // Scheduled casts cannot retry after a node-side embed rejection, so
       // larger photo sets are scheduled as a single Homiehouse gallery link.
-      const useGalleryForSchedule = isScheduled && imageUrls.length > 2;
+      const useGalleryForSchedule = isScheduled && imageUrls.length > 2 && !hasStickers;
       const embedUrls = [
         ...(useGalleryForSchedule ? [buildCastGalleryUrl(imageUrls)] : imageUrls),
         ...requestedEmbeds,
         ...(urlPreview && detectedUrl ? [detectedUrl] : []),
       ].filter((url, index, all) => !!url && all.indexOf(url) === index);
-      const maxEmbeds = useGalleryForSchedule ? 2 : imageUrls.length > 2 ? MAX_CAST_EMBEDS : 2;
+      const maxEmbeds = useGalleryForSchedule ? 2 : hasStickers || imageUrls.length > 2 ? MAX_CAST_EMBEDS : 2;
+      if (hasStickers && embedUrls.length > MAX_CAST_EMBEDS) { setStatus("Too many attachments. Remove an image or link before posting."); return; }
       const embeds = embedUrls.slice(0, maxEmbeds).map(url => ({ url }));
       if (embeds.length) body.embeds = embeds;
 
@@ -411,10 +462,16 @@ export default function ComposeModal() {
 
         body.scheduled_time = scheduledDate.toISOString();
         
-        const authHeaders = getAuthHeaders();
+        const authHeaders = await ensureAuthHeaders('write:casts');
+        const signerKey = getPrivateKeyHex();
+        if (!authHeaders || !signerKey) {
+          setStatus('Your posting session could not be verified. Reconnect or enable posting, then try again.');
+          setLoading(false);
+          return;
+        }
         const res = await fetch("/api/schedule-cast", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
+          headers: { "Content-Type": "application/json", ...authHeaders, 'x-signer-key': signerKey },
           body: JSON.stringify(body),
         });
 
@@ -463,7 +520,7 @@ export default function ComposeModal() {
             parentCastHash: replyParentHash,
             parentCastFid: replyParentFid,
             embeds: body.embeds,
-            galleryImages: imageUrls,
+            galleryImages: hasStickers ? undefined : imageUrls,
           });
           prevHash = result.castHash;
           firstHash = result.castHash;
@@ -472,7 +529,7 @@ export default function ComposeModal() {
           const result = await submitCast({
             text: threadParts[0],
             embeds: body.embeds,
-            galleryImages: imageUrls,
+            galleryImages: hasStickers ? undefined : imageUrls,
             channelKey: body.channelKey,
             parentUrl: body.parentUrl,
           });
@@ -547,6 +604,7 @@ export default function ComposeModal() {
       const draft = JSON.parse(raw);
       if (draft.text) setText(draft.text);
       if (Array.isArray(draft.imageUrls)) setImageUrls(draft.imageUrls.slice(0, MAX_CAST_PHOTOS));
+      if (Array.isArray(draft.stickerUrls)) setStickerUrls(draft.stickerUrls.filter((url: unknown): url is string => typeof url === "string"));
       else if (draft.imageUrl) setImageUrls([draft.imageUrl]);
       if (draft.selectedChannel) setSelectedChannel(draft.selectedChannel);
     } catch {}
@@ -682,7 +740,7 @@ export default function ComposeModal() {
               <div style={{ display: 'grid', gridTemplateColumns: imageUrls.length === 1 ? '1fr' : '1fr 1fr', gap: 8, marginTop: 10 }}>
                 {imageUrls.map((url, index) => (
                   <div key={`${url}-${index}`} style={{ position: 'relative' }}>
-                    <img src={url} alt={`Photo ${index + 1}`} style={{ width: '100%', height: imageUrls.length === 1 ? 220 : 140, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
+                    <img src={url} crossOrigin={stickerUrls.includes(url) ? "anonymous" : undefined} alt={`Photo ${index + 1}`} style={{ width: '100%', height: imageUrls.length === 1 ? 220 : 140, objectFit: stickerUrls.includes(url) ? 'contain' : 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block' }} onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
                     <button type="button" onClick={() => removeImage(index)} aria-label={`Remove photo ${index + 1}`} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
                   </div>
                 ))}
@@ -741,11 +799,11 @@ export default function ComposeModal() {
                 <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
                   <input type="text" value={channelSearch} onChange={e => setChannelSearch(e.target.value)} placeholder="Search channels…" autoFocus style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
                 </div>
-                {channelsLoading ? (
+                {channelsLoading && !channelSearch.trim() ? (
                   <div role="status" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
                     Loading channels from Hypersnap…
                   </div>
-                ) : channelsError ? (
+                ) : channelsError && !channelSearch.trim() ? (
                   <div role="alert" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
                     <div>{channelsError}</div>
                     <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>
@@ -753,20 +811,34 @@ export default function ComposeModal() {
                     </button>
                   </div>
                 ) : (() => {
-                  const matches = channels.filter(ch =>
-                    !channelSearch ||
-                    ch.id.toLowerCase().includes(channelSearch.toLowerCase()) ||
-                    ch.name?.toLowerCase?.().includes(channelSearch.toLowerCase())
+                  if (channelSearchLoading) {
+                    return <div role="status" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>Searching Hypersnap channels…</div>;
+                  }
+                  if (channelSearchError) {
+                    return (
+                      <div role="alert" style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
+                        <div>{channelSearchError}</div>
+                        <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>
+                          Retry search
+                        </button>
+                      </div>
+                    );
+                  }
+                  const source = channelSearch.trim() ? channelSearchResults ?? [] : channels;
+                  const matches = source.filter(ch =>
+                    !channelSearch.trim() ||
+                    ch.id.toLowerCase().includes(channelSearch.trim().toLowerCase()) ||
+                    ch.name?.toLowerCase?.().includes(channelSearch.trim().toLowerCase())
                   ).slice(0, 8);
                   if (!matches.length) {
                     return (
                       <div style={{ padding: '12px 16px', fontSize: 13, color: 'var(--muted-on-dark)' }}>
-                        {channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}
+                        {channelSearch.trim() ? 'No matching channels.' : channels.length ? 'No matching channels.' : 'No channels are available from Hypersnap.'}
                       </div>
                     );
                   }
                   return matches.map(ch => (
-                    <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                    <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setChannelSearchResults(null); setShowChannelSuggestions(false); }} style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                       <span style={{ color: 'var(--muted-on-dark)' }}>/</span>{ch.id}{ch.name && <span style={{ color: 'var(--muted-on-dark)', marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
                     </button>
                   ));
@@ -777,6 +849,7 @@ export default function ComposeModal() {
             <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', boxSizing: 'border-box', width: '100%', overflow: 'hidden' }}>
               {/* Left: scrollable tools */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, overflowX: 'auto', flex: 1, minWidth: 0, scrollbarWidth: 'none' }}>
+                <StickerPicker disabled={new Set([...imageUrls, ...requestedEmbeds, ...(urlPreview && detectedUrl ? [detectedUrl] : [])]).size >= MAX_CAST_EMBEDS} onSelect={sticker => { if (!imageUrls.includes(sticker.url) && !requestedEmbeds.includes(sticker.url)) { setImageUrls(prev => [...prev, sticker.url]); setStickerUrls(prev => [...prev, sticker.url]); } }} />
                 <label htmlFor="image-upload" style={{ ...toolBtn, cursor: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 'not-allowed' : 'pointer', opacity: (uploadingImage || imageUrls.length >= MAX_CAST_PHOTOS) ? 0.4 : 1 }} title={`Add photos (${imageUrls.length}/${MAX_CAST_PHOTOS})`}>
                   {uploadingImage
                     ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity=".25"/><path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" opacity=".75"/></svg>

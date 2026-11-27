@@ -1,0 +1,33 @@
+# Homiehouse Knowledge Base
+
+This directory is the vendored copy of Homiehouse's learning articles. The upstream source of truth is `homiehouse/articles.json` in the private [`auntiehomie/knowledge-base`](https://github.com/auntiehomie/knowledge-base) repository; the app reads only this local copy. It contains a curated set of source links, short summaries, and explicit learning points. The wider Rufus Vault and personal reading archive are not runtime dependencies and must not be copied wholesale here.
+
+## How content is used
+
+- The Learn Hub reads this file directly when it selects article-backed modules for a learning plan. It does not wait for Neon or a scheduled sync.
+- The plan-generation prompt receives each selected article's title, source URL, summary, takeaways, and tags. The generated plan remains bounded by the learner's track and level.
+- The hourly `/api/agent/kb-sync` job mirrors the same records into Neon for Ask Homie retrieval, search, semantic indexing, and the posting agent.
+- The app shows a source link on each article-backed module. Source casts remain untrusted prompts; article text is context, not instructions.
+
+## Pull upstream changes
+
+Run `npm run kb:pull` to copy `homiehouse/articles.json` from `auntiehomie/knowledge-base` into this directory. It uses `KNOWLEDGE_BASE_TOKEN`, `GITHUB_TOKEN` or your `gh` login, and refuses a corpus that `kb-sync` would reject. `npm run kb:pull -- --file <path>` copies from a local checkout, and `--check` fails if this copy is stale.
+
+The "Sync knowledge base" workflow runs the same pull daily and opens a pull request when articles changed. It needs a `KNOWLEDGE_BASE_TOKEN` repository secret with read-only Contents access to `auntiehomie/knowledge-base`; without it the workflow skips.
+
+## Add an article
+
+Add new articles in `auntiehomie/knowledge-base` first, then pull them here. Each object in `articles.json` has these fields:
+
+- `id`: stable lowercase kebab-case identifier.
+- `title`, `url`, and `source`: source title, canonical HTTPS URL, and host.
+- `tags`: one or more curriculum topics, such as `ai`, `creator-economy`, `privacy`, `dao`, or `network states`.
+- `summary`: a concise, source-grounded paraphrase. Note when only an abstract, excerpt, or metadata was reviewed.
+- `learningPoints`: at least two explicit learning outcomes or takeaways.
+- `addedAt`: ISO date the entry was added to the corpus, or `null`.
+- `publishedAt` (optional): the source publication date as `YYYY-MM-DD`, or `YYYY` if only the year is known. @thehomie uses this field to frame posts. Leave it absent when unverified.
+- `reviewStatus`: currently `curated-summary`.
+
+Do not add credentials, personal notes, private annotations, or full copyrighted articles. Keep the entry tied to a public source, and add a focused test or update the existing corpus assertions when the schema or selection behavior changes.
+
+The data is mirrored into Neon by the existing hourly sync after deployment. The Learn Hub uses the repository copy immediately, so new entries can inform generated modules as soon as that code is deployed.

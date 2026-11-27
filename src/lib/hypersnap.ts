@@ -77,7 +77,11 @@ export function getHypersnapReadDiagnostics(data: any): {
 /** Ardea/Arca — second Hypersnap node, same API surface. Used when primary is slow/unavailable. */
 const HYPERSNAP_FALLBACK =
   (typeof process !== 'undefined' && process.env.HYPERSNAP_FALLBACK_URL) ||
-  (PERSONAL_HYPERSNAP_BASE ? PUBLIC_HYPERSNAP_BASE : 'http://161.35.52.192:3100');
+  // Operator-owned reference node: read fallback when no
+  // HYPERSNAP_FALLBACK_URL is configured and no personal node is set.
+  // Replaces the dead legacy hub (161.35.52.192:3100) that left feeds
+  // with no working fallback during primary-node stalls.
+  (PERSONAL_HYPERSNAP_BASE ? PUBLIC_HYPERSNAP_BASE : 'https://rpc.homiehouse.xyz');
 
 // ─── Generic fetch ──────────────────────────────────────────────────────────
 
@@ -175,8 +179,9 @@ async function fallbackNotifications(endpoint: string): Promise<any> {
  * GET /v2/farcaster/user/following?fid=:fid&limit=:limit
  * Maps Hypersnap's `result` array to `users` for API compatibility.
  */
-export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
+export async function fetchFollowing(fid: number, limit = 100, cursor?: string | null): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
+  if (cursor) qs.set('cursor', cursor);
   const endpoint = `/v2/farcaster/user/following?${qs.toString()}`;
   const normalize = (data: any) => data?.result && !data?.users ? { ...data, users: data.result } : data;
   let failure = 'empty_response';
@@ -189,6 +194,39 @@ export async function fetchFollowing(fid: number, limit = 100): Promise<any> {
   const fallback = normalize(await fallbackFetch(endpoint));
   if (Array.isArray(fallback?.users)) return withReadSource(fallback, 'fallback', failure);
   throw new Error('Following list unavailable on both nodes');
+}
+
+/** Check one follow edge without loading the user's entire following list. */
+export async function fetchFollowStatus(fid: number, targetFid: number): Promise<boolean> {
+  if (!Number.isSafeInteger(fid) || fid <= 0 || !Number.isSafeInteger(targetFid) || targetFid <= 0) {
+    throw new Error('Valid viewer and target FIDs are required');
+  }
+  if (fid === targetFid) return false;
+
+  const endpoint = `/v1/linkById?${new URLSearchParams({
+    fid: String(fid),
+    target_fid: String(targetFid),
+    link_type: 'follow',
+  })}`;
+  const nodes = [...new Set([HYPERSNAP_BASE, HYPERSNAP_FALLBACK].filter(Boolean))];
+  let lastError: unknown;
+
+  for (const base of nodes) {
+    try {
+      const response = await fetch(`${base}${endpoint}`, {
+        cache: 'no-store',
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (response.status === 404) return false;
+      if (response.ok) return true;
+      lastError = new Error(`Hypersnap link lookup failed (${response.status})`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Hypersnap follow status is unavailable');
 }
 
 /**
@@ -244,6 +282,10 @@ export async function fetchTrendingFeed(params: Record<string, any> = {}): Promi
   }
   const qs = new URLSearchParams({ limit: String(limit) });
   if (params.cursor) qs.set('cursor', String(params.cursor));
+  const viewerFid = Number(params.viewer_fid);
+  if (Number.isSafeInteger(viewerFid) && viewerFid > 0) {
+    qs.set('viewer_fid', String(viewerFid));
+  }
   const timeWindow = typeof params.time_window === 'string' ? params.time_window.trim() : '';
   if (timeWindow) {
     if (!['1h', '6h', '12h', '24h', '7d'].includes(timeWindow)) {
@@ -353,7 +395,7 @@ export async function fetchChannelFeed(channelId: string, params: {
 
 export async function fetchUserChannels(fid: number, limit = 50): Promise<any> {
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
-  const endpoint = `/v2/farcaster/user/channels?${qs.toString()}`;
+  const endpoint = `/v2/farcaster/channel/user-active?${qs.toString()}`;
 
   // 1. Primary hub
   try {
@@ -387,10 +429,37 @@ export function normalizeChannelListResponse(data: any): any[] | null {
 /**
  * Fetch the full channel list from Hypersnap, retrying the fallback node when
  * the primary node errors or returns an empty list.
- * GET /v2/farcaster/channel/list?limit=:limit
+ * GET /v2/farcaster/channel/all?limit=:limit
  */
 export async function fetchChannelList(limit = 50): Promise<any> {
-  const endpoint = `/v2/farcaster/channel/list?limit=${limit}`;
+  const endpoint = `/v2/farcaster/channel/all?limit=${limit}`;
+  let primaryResult: any = null;
+  let primaryError: unknown;
+
+  try {
+    const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
+    const channels = normalizeChannelListResponse(data);
+    if (channels?.length) return { ...data, channels };
+    if (channels) primaryResult = { ...data, channels };
+  } catch (error) {
+    primaryError = error;
+  }
+
+  const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
+  const fallbackChannels = normalizeChannelListResponse(fallback);
+  if (fallbackChannels?.length) return { ...fallback, channels: fallbackChannels };
+  if (primaryResult) return primaryResult;
+  if (primaryError) throw primaryError;
+  return { channels: [] };
+}
+
+/** Search the channel registry instead of limiting composer search to the first page. */
+export async function searchChannels(query: string, limit = 20): Promise<any> {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return { channels: [] };
+
+  const qs = new URLSearchParams({ q: normalizedQuery, limit: String(limit) });
+  const endpoint = `/v2/farcaster/channel/search?${qs.toString()}`;
   let primaryResult: any = null;
   let primaryError: unknown;
 
@@ -413,24 +482,41 @@ export async function fetchChannelList(limit = 50): Promise<any> {
 
 /** Resolve a channel's canonical parent URL from Hypersnap's channel registry. */
 export async function fetchChannelParentUrl(channelId: string): Promise<string> {
-  const endpoint = `/v2/farcaster/channel?id=${encodeURIComponent(channelId)}&type=id`;
+  const normalizedId = channelId.trim();
+  if (/^(https?:\/\/|chain:\/\/)/i.test(normalizedId)) return normalizedId;
+
+  const endpoint = `/v2/farcaster/channel?id=${encodeURIComponent(normalizedId)}&type=id`;
   let primaryError: unknown;
+
+  const parentUrlFrom = (data: any): string | null => {
+    const channel = data?.channel ?? data?.result?.channel ?? data?.data?.channel;
+    const candidates = [channel?.parent_url, channel?.parentUrl, channel?.url];
+    const parentUrl = candidates.find((value) =>
+      typeof value === 'string' && /^(https?:\/\/|chain:\/\/)/i.test(value.trim())
+    );
+    return typeof parentUrl === 'string' ? parentUrl.trim() : null;
+  };
 
   try {
     const data = await hypersnapFetch(endpoint, { cache: 'no-store' });
-    const channel = data?.channel ?? data?.result?.channel ?? data?.data?.channel;
-    const parentUrl = channel?.parent_url ?? channel?.parentUrl;
-    if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+    const parentUrl = parentUrlFrom(data);
+    if (parentUrl) return parentUrl;
   } catch (error) {
     primaryError = error;
   }
 
   const fallback = await fallbackFetch(endpoint, { cache: 'no-store' });
-  const channel = fallback?.channel ?? fallback?.result?.channel ?? fallback?.data?.channel;
-  const parentUrl = channel?.parent_url ?? channel?.parentUrl;
-  if (typeof parentUrl === 'string' && parentUrl.length) return parentUrl;
+  const fallbackParentUrl = parentUrlFrom(fallback);
+  if (fallbackParentUrl) return fallbackParentUrl;
+
+  // Match Hypersnap's /feed/channels resolver: ordinary channel IDs map to
+  // this canonical parent URL even when the channel registry is unavailable.
+  if (/^[a-z0-9][a-z0-9_-]{0,127}$/i.test(normalizedId)) {
+    return `https://warpcast.com/~/channel/${encodeURIComponent(normalizedId)}`;
+  }
+
   if (primaryError) throw primaryError;
-  throw new Error(`Hypersnap did not return a parent_url for channel ${channelId}`);
+  throw new Error(`Hypersnap did not return a parent URL for channel ${channelId}`);
 }
 
 /**
@@ -465,14 +551,33 @@ export async function fetchUserCastsPage(fid: number, limit = 50, cursor?: strin
   const qs = new URLSearchParams({ fid: String(fid), limit: String(limit) });
   if (cursor) qs.set('cursor', cursor);
   const endpoint = `/v2/farcaster/feed/user/casts?${qs}`;
+  const options: RequestInit = { cache: 'no-store' };
   let failure = 'empty_response';
-  try {
-    const data = await hypersnapFetch(endpoint);
-    if (Array.isArray(data?.casts)) return withReadSource(data, 'configured');
-  } catch (error) { failure = classifyReadFailure(error); }
-  const fallback = await fallbackFetch(endpoint);
-  if (Array.isArray(fallback?.casts)) return withReadSource(fallback, 'fallback', failure);
-  throw new Error(`Author feed unavailable for fid=${fid}`);
+  const primaryRead = hypersnapFetch(endpoint, options).catch((error) => {
+    failure = classifyReadFailure(error);
+    return null;
+  });
+  // Compare first pages even when the primary answers successfully. A node
+  // that is behind can return valid history while missing the latest casts.
+  const readFallback = () => fallbackFetch(endpoint, options).catch(() => null);
+  const fallbackRead = cursor ? null : readFallback();
+  const primary = await primaryRead;
+  if (cursor && Array.isArray(primary?.casts)) return withReadSource(primary, 'configured');
+  const fallback = await (fallbackRead ?? readFallback());
+  if (!Array.isArray(primary?.casts)) {
+    if (Array.isArray(fallback?.casts)) return withReadSource(fallback, 'fallback', failure);
+    throw new Error(`Author feed unavailable for fid=${fid}`);
+  }
+
+  const newest = (casts: { timestamp?: string }[]) => casts.reduce(
+    (latest, cast) => Math.max(latest, Date.parse(cast.timestamp ?? '') || 0), 0,
+  );
+  if (Array.isArray(fallback?.casts) && fallback.casts.length > 0 &&
+    (!primary.casts.length || newest(fallback.casts) > newest(primary.casts))) {
+    // Keep the selected page and its cursor together.
+    return withReadSource(fallback, 'fallback', primary.casts.length ? 'newer_history' : 'empty_response');
+  }
+  return withReadSource(primary, 'configured');
 }
 
 export async function fetchCastsByFid(fid: number, limit = 50): Promise<any[]> {

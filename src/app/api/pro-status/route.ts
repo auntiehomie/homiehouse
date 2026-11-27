@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { privateJson } from '@/lib/private-response';
 import { sql } from '@/lib/db';
-import { isProUser } from '@/lib/pro';
+import { getAskHomieProStatus, isProUser } from '@/lib/pro';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 
@@ -46,9 +46,12 @@ export async function GET(req: NextRequest) {
     const isPro = rows.length > 0;
     const sub = rows[0] ?? null;
 
+    const askHomiePro = await getAskHomieProStatus(fid);
+
     return privateJson({
       ok: true,
       is_pro: isPro,
+      ask_homie_pro: askHomiePro,
       subscription: sub
         ? {
             status: (sub as any).status,

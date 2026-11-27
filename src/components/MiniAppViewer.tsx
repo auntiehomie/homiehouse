@@ -1,6 +1,6 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { ConnectButton, useConnectModal } from '@rainbow-me/rainbowkit';
 import type {
   MiniAppHost,
   MiniAppHostCapability,
@@ -9,10 +9,12 @@ import { useAccount, useSignMessage } from 'wagmi';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
-import { getMiniAppIdentity } from '@/lib/miniapp-auth';
+import { getMiniAppIdentity, getMiniAppAuthMethod } from '@/lib/miniapp-auth';
 import { signInToMiniApp } from '@/lib/miniapp-auth';
+import { profileHref } from '@/lib/profile-links';
 import { requestMiniAppComposeCast } from '@/lib/compose-modal-events';
 import { MiniAppEmbed } from './MiniAppEmbed';
+import styles from './MiniAppViewer.module.css';
 
 interface OpenMiniAppDetail {
   url: string;
@@ -56,17 +58,24 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     useFarcasterAuth();
   const { connector, isConnected, address } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { openConnectModal } = useConnectModal();
   const [app, setApp] = useState<OpenMiniAppDetail | null>(null);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [minimized, setMinimized] = useState(false);
   const [ethProvider, setEthProvider] = useState<unknown>(null);
 
   const close = useCallback(() => {
     setApp(null);
+    setMinimized(false);
+    setSignInError(null);
   }, []);
 
   const navigateToMiniApp = useCallback((url: string, title?: string) => {
     const safeUrl = safeMiniAppUrl(url);
     if (!safeUrl) return;
     setApp({ url: safeUrl, title });
+    setMinimized(false);
+    setSignInError(null);
   }, []);
 
   useEffect(() => {
@@ -79,7 +88,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
   }, [navigateToMiniApp]);
 
   useEffect(() => {
-    if (!app) return;
+    if (!app || minimized) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
@@ -90,7 +99,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [app, close]);
+  }, [app, close, minimized]);
 
   useEffect(() => {
     let active = true;
@@ -120,43 +129,45 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     expectedFid: number;
     options: Parameters<MiniAppHost['signIn']>[0];
   }) => {
-    if (!isAuthenticated || !fid || expectedFid !== fid) {
-      throw new Error('Sign in to HomieHouse before signing in to a Mini App');
-    }
-    if (!isConnected || !address) {
-      throw new Error('Connect the wallet linked to your social account to continue');
-    }
+    setSignInError(null);
+    try {
+      if (!isAuthenticated || !fid || expectedFid !== fid) {
+        throw new Error('Sign in to HomieHouse before signing in to this Mini App.');
+      }
+      if (!isConnected || !address) {
+        throw new Error('Connect the wallet linked to your HomieHouse FID above, then tap Sign in again.');
+      }
 
     const response = await fetch(`/api/auth/linked-accounts?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
     const data = await response.json().catch(() => ({})) as {
       error?: string;
       accounts?: Array<{
         fid: number;
-        link?: { linked: boolean; method: string };
+        link?: { linked?: boolean; method: string };
       }>;
     };
     if (!response.ok) {
       throw new Error(data.error || 'Hypersnap could not verify the connected wallet');
     }
-    const linkedAccount = data.accounts?.find(
-      account => account.fid === expectedFid && account.link?.linked,
-    );
-    const linkedMethod = linkedAccount?.link?.method;
-    const authMethod = linkedMethod === 'custody' || linkedMethod === 'authAddress'
-      ? linkedMethod
-      : undefined;
+    const authMethod = getMiniAppAuthMethod(data.accounts, expectedFid);
     if (authMethod !== 'custody' && authMethod !== 'authAddress') {
       throw new Error('The connected wallet must be the FID custody wallet or an approved Auth Address');
     }
 
-    return signInToMiniApp({
-      miniAppUrl,
-      expectedFid,
-      options,
-      address,
-      authMethod,
-      signMessage: message => signMessageAsync({ message }),
-    });
+      return await signInToMiniApp({
+        miniAppUrl,
+        expectedFid,
+        options,
+        address,
+        authMethod,
+        signMessage: message => signMessageAsync({ message }),
+      });
+    } catch (error) {
+      // Embedded apps often swallow SDK errors and reset their loading spinner.
+      // Tell the user what happened without passing session/signing keys.
+      setSignInError(error instanceof Error ? error.message : 'Mini App sign-in failed. Please try again.');
+      throw error;
+    }
   }, [address, fid, isAuthenticated, isConnected, signMessageAsync]);
 
   const hostConfig = useMemo(() => {
@@ -200,12 +211,14 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
         ready: () => undefined,
         openUrl: openExternalUrl,
         viewCast: async ({ hash }: { hash: string }) => {
-          close();
+          setMinimized(true);
           router.push(`/cast/${hash}`);
         },
         viewProfile: async ({ fid: profileFid }: { fid: number }) => {
-          close();
-          router.push(`/profile?user=${profileFid}`);
+          // Keep the iframe and its host bridge mounted while the user acts on
+          // the profile. Mini Apps commonly return here to re-check a follow.
+          setMinimized(true);
+          router.push(profileHref({ fid: profileFid }));
         },
         composeCast: (async (options: {
           text?: string;
@@ -262,6 +275,45 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
     domain = new URL(app.url).hostname;
   } catch {}
 
+  if (minimized) {
+    return (
+      <>
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: -10000,
+            top: 0,
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+        >
+          <MiniAppEmbed
+            key={app.url}
+            snapUrl={app.url}
+            title={app.title || `Mini App from ${domain}`}
+            hostConfig={hostConfig}
+            className="min-h-0 flex-1"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setMinimized(false);
+            window.dispatchEvent(new Event('hh:miniapp:resume'));
+          }}
+          className="fixed left-1/2 z-[10001] -translate-x-1/2 rounded-full border border-zinc-600 bg-zinc-900 px-4 py-2 text-sm font-semibold text-white shadow-lg"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}
+        >
+          Return to {app.title || 'Mini App'}
+        </button>
+      </>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-[10000] flex flex-col bg-black"
@@ -270,8 +322,7 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       aria-label={app.title || `Mini App from ${domain}`}
     >
       <header
-        className="flex shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-950 px-3 pb-3"
-        style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}
+        className={`flex shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-950 px-3 pb-3 ${styles.header}`}
       >
         <button
           type="button"
@@ -283,10 +334,10 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
           ×
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-sm font-semibold text-white">
+          <div className={`truncate ${styles.title}`}>
             {app.title || 'Mini App'}
           </div>
-          <div className="truncate text-xs text-zinc-400">{domain}</div>
+          <div className={`truncate ${styles.domain}`}>{domain}</div>
         </div>
         <div className="shrink-0">
           <ConnectButton
@@ -300,6 +351,22 @@ export default function MiniAppViewer({ clientFid = 0 }: { clientFid?: number })
       {!isAuthenticated && (
         <div className="border-b border-amber-800 bg-amber-950 px-4 py-2 text-center text-sm text-amber-100">
           Sign in to HomieHouse to share your social identity with this Mini App.
+        </div>
+      )}
+      {isAuthenticated && !isConnected && (
+        <div className="flex items-center justify-center gap-2 border-b border-amber-800 bg-amber-950 px-3 py-2 text-sm text-amber-100">
+          <span>Connect your linked wallet to sign in to Mini Apps.</span>
+          {openConnectModal && (
+            <button type="button" className="shrink-0 rounded-md border border-amber-500 px-2 py-1 font-semibold" onClick={() => openConnectModal()}>
+              Connect wallet
+            </button>
+          )}
+        </div>
+      )}
+      {signInError && (
+        <div role="alert" className="flex items-start gap-3 border-b border-red-800 bg-red-950 px-3 py-2 text-sm text-red-100">
+          <span className="min-w-0 flex-1">{signInError}</span>
+          <button type="button" onClick={() => setSignInError(null)} aria-label="Dismiss Mini App sign-in error" className="shrink-0 font-bold">×</button>
         </div>
       )}
 

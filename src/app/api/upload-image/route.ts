@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateImageFile } from '@/lib/validation';
+import { validateImageFile, validateImageSignature } from '@/lib/validation';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { rateLimit } from '@/lib/ratelimit';
+import { verifyFarcasterSignerAuth } from '@/lib/auth';
+import { AuthError } from '@/lib/errors';
+import { getQStorageConfig, uploadImageToQStorage } from '@/lib/qstorage';
 
 export async function POST(request: NextRequest) {
   const logger = createApiLogger('/upload-image');
   logger.start();
 
   try {
+    const authenticatedFid = await verifyFarcasterSignerAuth(request, 'write:casts');
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const { success: rlOk } = rateLimit(`upload-image:${ip}`, 20, 3600);
+    const { success: rlOk } = await rateLimit(`upload-image:${ip}`, 20, 3600);
     if (!rlOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
@@ -18,15 +22,51 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fid = formData.get('fid');
-    logger.info('Upload request', { fid: fid ? Number(fid) : 'unknown' });
+    if (fid !== null && Number(fid) !== authenticatedFid) {
+      return NextResponse.json({ error: 'FID does not match authenticated user' }, { status: 403 });
+    }
+    logger.info('Upload request', { fid: authenticatedFid });
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     validateImageFile(file);
+    await validateImageSignature(file);
 
     logger.info('Uploading image', { fileName: file.name, fileType: file.type, fileSize: file.size });
+
+    // Prefer QStorage; use the configured IPFS provider if it is unavailable.
+    // Authentication and file validation above apply to every provider.
+    try {
+      const qstorageConfig = getQStorageConfig();
+      if (qstorageConfig) {
+        const uploaded = await uploadImageToQStorage(file, String(authenticatedFid));
+        logger.success('Uploaded image to QStorage', { key: uploaded.key, url: uploaded.url });
+        logger.end();
+        return NextResponse.json({ ok: true, url: uploaded.url, key: uploaded.key, provider: 'qstorage' });
+      }
+    } catch (error: unknown) {
+      const qstorageError = error as {
+        name?: string;
+        message?: string;
+        code?: string;
+        Code?: string;
+        $metadata?: {
+          httpStatusCode?: number;
+          requestId?: string;
+          extendedRequestId?: string;
+        };
+      };
+      logger.error('QStorage upload failed', {
+        name: qstorageError?.name,
+        message: qstorageError?.message,
+        code: qstorageError?.Code || qstorageError?.code,
+        status: qstorageError?.$metadata?.httpStatusCode,
+        requestId: qstorageError?.$metadata?.requestId,
+        extendedRequestId: qstorageError?.$metadata?.extendedRequestId,
+      });
+    }
 
     // ── 1. Try Pinata IPFS ───────────────────────────────────────────────────
     const pinataJwt = process.env.PINATA_JWT;
@@ -37,7 +77,7 @@ export async function POST(request: NextRequest) {
         // Add metadata so the file is easily identifiable in Pinata dashboard
         pinataForm.append('pinataMetadata', JSON.stringify({
           name: `homiehouse-cast-${Date.now()}-${file.name}`,
-          keyvalues: { source: 'homiehouse', fid: fid ? String(fid) : '' },
+          keyvalues: { source: 'homiehouse', fid: String(authenticatedFid) },
         }));
         pinataForm.append('pinataOptions', JSON.stringify({ cidVersion: 1 }));
 
@@ -105,6 +145,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, url: result.data.url, deleteUrl: result.data.delete_url, provider: 'imgbb' });
 
   } catch (error: any) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     logger.error('Upload failed', error);
     return handleApiError(error, 'POST /upload-image');
   }

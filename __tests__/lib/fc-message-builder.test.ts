@@ -10,6 +10,21 @@ describe('Hypersnap message types', () => {
     expect(MessageType.KEY_REMOVE).toBe(17);
   });
 
+  it('encodes a cast removal with its 20-byte target hash', () => {
+    const data = encodeMessageData({
+      type: MessageType.CAST_REMOVE,
+      fid: 123,
+      timestamp: 1,
+      network: FarcasterNetwork.MAINNET,
+      body: { castRemoveBody: { targetHash: new Uint8Array(20).fill(7) } },
+    });
+
+    expect(Array.from(data.slice(0, 2))).toEqual([0x08, 0x02]);
+    // CAST_REMOVE's cast_remove_body oneof uses message-data field 6.
+    expect(Array.from(data)).toContain(0x32);
+    expect(data.filter(byte => byte === 7)).toHaveLength(20);
+  });
+
   it('encodes KEY_ADD as the protocol message type and key_add_body field', () => {
     const data = encodeMessageData({
       type: MessageType.KEY_ADD,

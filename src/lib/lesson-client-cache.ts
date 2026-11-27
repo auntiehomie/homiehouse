@@ -1,9 +1,16 @@
+import { normalizeLessonScenes, type LessonScene } from '@/lib/lesson-scene';
 import { getAuthHeaders } from '@/lib/client-auth';
 import { correctLessonRepositoryReferences } from '@/lib/lesson-source-corrections';
 
 export interface LessonModuleRequest {
   id: string;
   title: string;
+  sourceArticleId?: string;
+  sourceUrl?: string;
+  sourceAuthor?: string;
+  sourcePublisher?: string;
+  sourcePublishedAt?: string;
+  sourceCaveats?: string;
   description: string;
   whyItMatters: string;
   objectives: string[];
@@ -22,7 +29,7 @@ export interface LessonQuizQuestion {
 
 export interface LessonContent {
   intro: string;
-  concepts: Array<{ title: string; explanation: string; analogy?: string }>;
+  concepts: Array<{ title: string; explanation: string; analogy?: string; visuals?: LessonScene[] }>;
   practicalExample: string;
   quickActions: string[];
   summary: string;
@@ -32,6 +39,50 @@ export interface LessonContent {
 interface CachedLesson {
   cachedAt: number;
   lesson: LessonContent;
+}
+
+function normalizeLessonContent(value: unknown): LessonContent | null {
+  if (!value || typeof value !== 'object') return null;
+  const lesson = value as Partial<LessonContent>;
+  const concepts = Array.isArray(lesson.concepts)
+    ? lesson.concepts.flatMap((concept) => {
+        if (!concept || typeof concept !== 'object') return [];
+        const title = typeof concept.title === 'string' ? concept.title.trim() : '';
+        const explanation = typeof concept.explanation === 'string' ? concept.explanation.trim() : '';
+        if (!explanation) return [];
+        return [{
+          title: title || 'Key concept',
+          explanation,
+          visuals: normalizeLessonScenes(concept.visuals, explanation),
+          ...(typeof concept.analogy === 'string' && concept.analogy.trim() ? { analogy: concept.analogy.trim() } : {}),
+        }];
+      })
+    : [];
+  const quiz = Array.isArray(lesson.quiz)
+    ? lesson.quiz.flatMap((question) => {
+        if (!question || typeof question !== 'object') return [];
+        const options = Array.isArray(question.options)
+          ? question.options.filter((option): option is string => typeof option === 'string').map(option => option.trim()).filter(Boolean)
+          : [];
+        const correctIndex = Number.isInteger(question.correctIndex) ? question.correctIndex : 0;
+        if (typeof question.question !== 'string' || !question.question.trim() || options.length < 2 || correctIndex < 0 || correctIndex >= options.length) return [];
+        return [{
+          question: question.question.trim(),
+          options,
+          correctIndex,
+          explanation: typeof question.explanation === 'string' ? question.explanation : '',
+        }];
+      })
+    : [];
+  if (typeof lesson.intro !== 'string' || concepts.length === 0 || quiz.length === 0) return null;
+  return {
+    intro: lesson.intro,
+    concepts,
+    practicalExample: typeof lesson.practicalExample === 'string' ? lesson.practicalExample : '',
+    quickActions: Array.isArray(lesson.quickActions) ? lesson.quickActions.filter((action): action is string => typeof action === 'string') : [],
+    summary: typeof lesson.summary === 'string' ? lesson.summary : '',
+    quiz,
+  };
 }
 
 const CACHE_PREFIX = 'hh_lesson_v2:';
@@ -51,6 +102,7 @@ function fingerprint(value: string): string {
 function lessonKey(module: LessonModuleRequest, eli5: boolean): string {
   const revision = fingerprint(JSON.stringify({
     title: module.title,
+    sourceArticleId: module.sourceArticleId,
     description: module.description,
     whyItMatters: module.whyItMatters,
     objectives: module.objectives,
@@ -86,16 +138,17 @@ export function getCachedLesson(module: LessonModuleRequest, eli5: boolean): Les
   const key = lessonKey(module, eli5);
   try {
     const cached = JSON.parse(window.localStorage.getItem(key) ?? 'null') as CachedLesson | null;
-    if (!cached?.lesson || Date.now() - cached.cachedAt > CACHE_TTL_MS) {
+    const lesson = normalizeLessonContent(cached?.lesson);
+    if (!cached || !lesson || Date.now() - cached.cachedAt > CACHE_TTL_MS) {
       window.localStorage.removeItem(key);
       return null;
     }
     touchIndex(key);
-    const lesson = correctLessonRepositoryReferences(cached.lesson);
-    if (JSON.stringify(lesson) !== JSON.stringify(cached.lesson)) {
-      window.localStorage.setItem(key, JSON.stringify({ ...cached, lesson }));
+    const correctedLesson = correctLessonRepositoryReferences(lesson);
+    if (JSON.stringify(correctedLesson) !== JSON.stringify(cached.lesson)) {
+      window.localStorage.setItem(key, JSON.stringify({ ...cached, lesson: correctedLesson }));
     }
-    return lesson;
+    return correctedLesson;
   } catch {
     return null;
   }
@@ -112,7 +165,7 @@ function cacheLesson(module: LessonModuleRequest, eli5: boolean, lesson: LessonC
   }
 }
 
-export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<LessonContent> {
+export function loadLesson(module: LessonModuleRequest, eli5: boolean, options?: { preserveCached?: boolean }): Promise<LessonContent> {
   const authenticated = Boolean(getAuthHeaders());
   const cached = authenticated ? null : getCachedLesson(module, eli5);
   if (cached) return Promise.resolve(cached);
@@ -131,9 +184,11 @@ export function loadLesson(module: LessonModuleRequest, eli5: boolean): Promise<
     .then(async response => {
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || 'Failed to load lesson');
-      const lesson = correctLessonRepositoryReferences(data as LessonContent);
+      const normalized = normalizeLessonContent(data);
+      if (!normalized) throw new Error('The generated lesson was incomplete. Please try again.');
+      const lesson = correctLessonRepositoryReferences(normalized);
       // Don't cache fallback lessons — they're temporary content from AI provider failures.
-      if (response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
+      if (!options?.preserveCached && response.headers.get('X-HomieHouse-Lesson-Source') !== 'fallback') {
         cacheLesson(module, eli5, lesson);
       }
       return lesson;

@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const fidParam = searchParams.get("fid");
+    const cursor = searchParams.get("cursor");
 
     if (!fidParam) {
       return NextResponse.json({ error: "FID required" }, { status: 400 });
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     logger.info('Fetching following list', { fid });
 
     // Fetch following using shared utility
-    const data = await fetchFollowing(fid, 100);
+    const data = await fetchFollowing(fid, 100, cursor);
 
     const users = data?.users || [];
     logger.success('Following list fetched', { count: users.length });

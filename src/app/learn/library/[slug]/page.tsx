@@ -1,8 +1,10 @@
+import LessonIllustration from '@/components/learning/LessonIllustration';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CURATED_CURRICULUM, getCuratedLesson } from '@/lib/curated-curriculum';
 
+import { LEARN_QUIZ_LESSON_ID, LEARN_QUIZ_URL } from '@/lib/learn-quiz';
 import StartNetworkStateCourse from '@/components/learning/StartNetworkStateCourse';
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://homiehouse.lol';
@@ -42,6 +44,10 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
   const { slug } = await params;
   const lesson = getCuratedLesson(slug);
   if (!lesson) notFound();
+  const relatedLessons = (lesson.relatedLessons ?? []).flatMap((id) => {
+    const related = getCuratedLesson(id);
+    return related ? [related] : [];
+  });
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -57,6 +63,8 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
   };
 
   const shareText = `I’m learning on HomieHouse: ${lesson.module.title}\n\n${BASE_URL}/learn/library/${slug}\n\n#HomieHouseLearning #StayInTheGame`;
+
+  const quizShareText = `Quick Learn Hub quiz: What permissions should an AI agent have?\n\n${LEARN_QUIZ_URL}`;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
@@ -86,6 +94,7 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
             <section key={concept.title}>
               <h2 className="text-2xl font-bold">{concept.title}</h2>
               <p className="mt-4 text-base leading-8 text-[var(--muted-on-dark)]">{concept.explanation}</p>
+              <LessonIllustration text={`${concept.title} ${concept.explanation}`} />
               {concept.analogy && <p className="mt-4 rounded-xl border-l-4 border-[var(--accent)] bg-[var(--surface)] p-4 italic leading-7 text-[var(--muted-on-dark)]">{concept.analogy}</p>}
             </section>
           ))}
@@ -94,6 +103,7 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
         <section className="mt-10 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
           <h2 className="text-xl font-bold">Put it into practice</h2>
           <p className="mt-3 leading-7 text-[var(--muted-on-dark)]">{lesson.practicalExample}</p>
+          <LessonIllustration text={lesson.practicalExample} />
           <ol className="mt-5 space-y-3 text-[var(--muted-on-dark)]">
             {lesson.quickActions.map((action, index) => <li key={action} className="flex gap-3"><span className="font-bold text-[var(--accent)]">{index + 1}.</span><span>{action}</span></li>)}
           </ol>
@@ -106,6 +116,21 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
           </ul>
         </section>
 
+        {relatedLessons.length > 0 && (
+          <section className="mt-10" aria-labelledby="related-lessons-heading">
+            <h2 id="related-lessons-heading" className="text-xl font-bold">Related lessons</h2>
+            <ul className="mt-4 space-y-2">
+              {relatedLessons.map((related) => (
+                <li key={related.module.id}>
+                  <Link href={`/learn/library/${related.module.id}`} className="text-[var(--accent)] underline underline-offset-4">
+                    {related.module.title} · {related.module.difficulty}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <footer className="mt-12 border-t border-[var(--border)] pt-8">
           <p className="font-semibold">{lesson.summary}</p>
           {lesson.module.tags.includes('network-states')
@@ -116,6 +141,14 @@ export default async function PublicLessonPage({ params }: { params: Promise<{ s
               ? <StartNetworkStateCourse moduleId={lesson.module.id} />
               : <Link href="/learn?track=survival" className="rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-white no-underline">Take the interactive track</Link>}
             <Link href={`/compose?text=${encodeURIComponent(shareText)}`} className="rounded-xl border border-[var(--border)] px-5 py-3 font-semibold text-[var(--text-on-dark)] no-underline">Share what you learned</Link>
+            {slug === LEARN_QUIZ_LESSON_ID && (
+              <Link
+                href={`/compose?text=${encodeURIComponent(quizShareText)}`}
+                className="rounded-xl border border-[var(--border)] px-5 py-3 font-semibold text-[var(--text-on-dark)] no-underline"
+              >
+                Share a quiz
+              </Link>
+            )}
           </div>
         </footer>
       </article>

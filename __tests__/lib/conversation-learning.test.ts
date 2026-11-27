@@ -1,7 +1,7 @@
 import { searchRelevantCasts } from '@/lib/ai/cast-research';
 import { searchTopicWeb } from '@/lib/ai/news';
 import { generateConversationLearning } from '@/lib/ai/conversation-learning';
-import { conversationLearningUrl } from '@/lib/conversation-learning';
+import { conversationLearningPlanUrl, conversationLearningUrl } from '@/lib/conversation-learning';
 import { llmChat } from '@/lib/llm';
 import { fetchCast } from '@/lib/hypersnap';
 import { getRelevantKBArticles } from '@/lib/kb-sync';
@@ -65,6 +65,28 @@ test('carries percent signs, Unicode and question marks through a learning link 
   const url = new URL(conversationLearningUrl(cast, 'explain'), 'https://homiehouse.app');
   expect(JSON.parse(url.searchParams.get('cast')!)).toEqual(cast);
   expect(url.searchParams.get('learning')).toBe('explain');
+});
+
+test('stores the feed cast for a reward-eligible Learn Hub plan without putting its text in the URL', () => {
+  const stored: Record<string, string> = {};
+  const cast = { hash: '0x' + 'a'.repeat(40), text: 'A claim worth learning about 🔑', author: { username: 'alice' } };
+  const href = conversationLearningPlanUrl(cast, { setItem: (key, value) => { stored[key] = value; } });
+  const url = new URL(href, 'https://homiehouse.app');
+  const id = url.searchParams.get('sourceCastId')!;
+  expect(url.pathname).toBe('/learn');
+  expect(url.searchParams.get('build')).toBe('1');
+  expect(url.searchParams.get('track')).toBe('decentralization');
+  expect(url.searchParams.has('sourceCast')).toBe(false);
+  expect(JSON.parse(stored[`hh_learning_source_cast:${id}`])).toEqual({ author: 'alice', text: cast.text });
+});
+
+it('keeps the cast context in the Learn Hub URL when session storage is unavailable', () => {
+  const cast = { text: 'A short public cast', author: { username: 'alice' } };
+  const href = conversationLearningPlanUrl(cast, { setItem: () => { throw new Error('blocked'); } });
+  const url = new URL(href, 'https://homiehouse.app');
+  expect(url.pathname).toBe('/learn');
+  expect(url.searchParams.get('build')).toBe('1');
+  expect(JSON.parse(url.searchParams.get('sourceCast')!)).toEqual({ author: 'alice', text: cast.text });
 });
 
 test.each(['explain', 'lesson'] as const)('%s searches the question topic without an attached cast and keeps web and KB sources', async mode => {

@@ -52,7 +52,11 @@ struct CommunityView: View {
                     Button("Load more") { Task { await load(more: true) } }.disabled(store.loading)
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Community")
+            .navigationBarTitleDisplayMode(.inline)
             .refreshable { await load() }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button("Account", systemImage: "person.crop.circle") { connect = true } }
@@ -64,6 +68,8 @@ struct CommunityView: View {
                 else { ContentUnavailableView("Your community", systemImage: "bubble.left.and.bubble.right", description: Text("Choose a cast to explore its conversation.")) }
             }
         }
+        .tint(HHDesignSystem.tint)
+        .background(Color(uiColor: .systemGroupedBackground))
         .sheet(isPresented: $connect) { ConnectView(bridge: bridge) }
         .sheet(isPresented: $compose) { ComposerView(bridge: bridge) { Task { await load() } } }
         .task(id: "\(type)-\(bridge.status.fid ?? 0)") { selected = nil; await load() }
@@ -77,17 +83,39 @@ struct CastRow: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 if let raw = cast.author.pfp_url, let url = URL(string: raw), url.scheme == "https" {
-                    AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { Image(systemName: "person.crop.circle") }
-                        .frame(width: 32, height: 32).clipShape(Circle())
+                    AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
+                        Image(systemName: "person.crop.circle.fill").foregroundStyle(.tertiary)
+                    }
+                    .frame(width: 36, height: 36)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground))
+                    .clipShape(Circle())
+                    .accessibilityHidden(true)
+                } else {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
                 }
-                Text(cast.author.name).font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(cast.author.name)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(cast.author.username.map { "@\($0) · FID \(cast.author.fid)" } ?? "FID \(cast.author.fid)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
-            Text(cast.text ?? "").textSelection(.enabled)
+            Text(cast.text ?? "")
+                .font(.body)
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
             ForEach(cast.embeds ?? [], id: \.self) { embed in
                 if let raw = embed.url, let url = URL(string: raw), ["https", "http"].contains(url.scheme ?? "") {
                     Link(destination: url) { Label(url.host ?? raw, systemImage: "link").lineLimit(2) }
                 }
             }
-        }.padding(.vertical, 8)
+        }
+        .padding(.vertical, HHDesignSystem.Spacing.compact)
+        .frame(maxWidth: HHDesignSystem.contentWidth, alignment: .leading)
     }
 }

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { TooltipTrigger } from "@/lib/progressive-disclosure";
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { CHANNELS_UPDATED_EVENT, readSavedChannels } from '@/lib/channel-preferences';
 
 interface Channel {
   id: string;
@@ -30,19 +32,26 @@ function channelDisplayName(ch: any): string {
 }
 
 function useChannels() {
+  const { fid } = useFarcasterAuth();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("hh_profile");
-    if (!stored) { setLoaded(true); return; }
-    const { fid } = JSON.parse(stored);
-    if (!fid) { setLoaded(true); return; }
-
+  const load = useCallback(() => {
+    if (!fid) {
+      setChannels([]);
+      setLoaded(true);
+      return;
+    }
+    const saved: Channel[] = readSavedChannels(fid).map(ch => ({
+      id: ch.id,
+      name: channelDisplayName(ch),
+      image_url: ch.image_url || undefined,
+    }));
+    setLoaded(false);
     fetch(`/api/channels?fid=${fid}&limit=50`)
       .then(r => r.json())
       .then(data => {
-        const list: Channel[] = (data.channels || [])
+        const active: Channel[] = (data.channels || [])
           .filter((ch: any) => {
             const id = ch.id || ch.name || '';
             return id && !id.startsWith('http') && !id.startsWith('chain://');
@@ -52,11 +61,25 @@ function useChannels() {
             name: channelDisplayName(ch),
             image_url: ch.image_url || ch.imageUrl || ch.image || null,
           }));
-        setChannels(list);
+        const byId = new Map<string, Channel>();
+        for (const channel of [...saved, ...active]) {
+          if (channel.id) byId.set(channel.id.toLowerCase(), channel);
+        }
+        setChannels([...byId.values()]);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
-  }, []);
+  }, [fid]);
+
+  useEffect(() => {
+    load();
+    const handleUpdated = (event: Event) => {
+      const eventFid = (event as CustomEvent<{ fid?: string }>).detail?.fid;
+      if (!eventFid || eventFid === String(fid)) load();
+    };
+    window.addEventListener(CHANNELS_UPDATED_EVENT, handleUpdated);
+    return () => window.removeEventListener(CHANNELS_UPDATED_EVENT, handleUpdated);
+  }, [load, fid]);
 
   return { channels, loaded };
 }
@@ -114,14 +137,17 @@ export function ChannelSidebar() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-on-dark)', padding: '0 8px 8px' }}>
-        <TooltipTrigger termKey="channel">Channels</TooltipTrigger>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 8px 8px' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted-on-dark)' }}>
+          <TooltipTrigger termKey="channel">My Channels</TooltipTrigger>
+        </div>
+        <Link href="/channels" aria-label="Add or manage channels" title="Add or manage channels" style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}>+ Add</Link>
       </div>
       {!loaded && (
         <div style={{ padding: '8px', fontSize: 12, color: 'var(--muted-on-dark)' }}>Loading…</div>
       )}
       {loaded && channels.length === 0 && (
-        <div style={{ padding: '8px', fontSize: 12, color: 'var(--muted-on-dark)' }}>No channels yet</div>
+        <div style={{ padding: '8px', fontSize: 12, color: 'var(--muted-on-dark)' }}>Add channels to browse their feeds</div>
       )}
       {channels.map(ch => (
         <Link

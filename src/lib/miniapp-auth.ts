@@ -4,6 +4,26 @@ type SignInResult = Awaited<ReturnType<MiniAppHost['signIn']>>;
 
 export type MiniAppAuthMethod = 'custody' | 'authAddress';
 
+/**
+ * Hypersnap's linkedAccounts response identifies a verified account link by
+ * link.method, not a mandatory link.linked boolean. Only custody wallets and
+ * approved Auth Addresses may produce Mini App SIWF signatures.
+ */
+export function getMiniAppAuthMethod(
+  accounts: ReadonlyArray<{ fid: number; link?: { method?: string; linked?: boolean } }> | undefined,
+  expectedFid: number,
+): MiniAppAuthMethod | null {
+  const account = accounts?.find(item =>
+    item.fid === expectedFid &&
+    item.link?.linked !== false &&
+    (item.link?.method === 'custody' || item.link?.method === 'authAddress'),
+  );
+  if (account?.link?.method === 'custody' || account?.link?.method === 'authAddress') {
+    return account.link.method;
+  }
+  return null;
+}
+
 export interface MiniAppWalletAuthorization {
   address: `0x${string}`;
   authMethod: MiniAppAuthMethod;

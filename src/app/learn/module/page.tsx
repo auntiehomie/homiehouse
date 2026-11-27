@@ -3,11 +3,16 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getEli5Mode } from '@/lib/eli5';
+import { buildLearningModuleReturnTo, LEARNING_PATH_ROUTE } from '@/lib/learning-navigation';
 import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { base as baseChain } from 'wagmi/chains';
-import { getAuthHeaders, getStoredFid } from '@/lib/client-auth';
+import { ensureAuthHeaders, getAuthHeaders, getStoredFid } from '@/lib/client-auth';
 import LessonWalkthrough from '@/components/learning/LessonWalkthrough';
+import LessonIllustration from '@/components/learning/LessonIllustration';
+import { storyboardForText } from '@/lib/lesson-storyboard';
+import { loadExistingLessonScene } from '@/lib/lesson-scene-client';
+import { sceneForText, sceneForExistingText, type LessonScene } from '@/lib/lesson-scene';
 import LessonCorrectionReportDialog from '@/components/LessonCorrectionReportDialog';
 import {
   getCachedLesson,
@@ -27,7 +32,7 @@ const LS_CARD_POSITION_PREFIX = 'hh_lesson_position:';
 type CardDef =
   | { type: 'intro'; label: string; content: string }
   | { type: 'why'; label: string; content: string }
-  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }
+  | { type: 'concept'; label: string; title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean; visual?: LessonScene }
   | { type: 'example'; label: string; content: string }
   | { type: 'actions'; label: string; items: string[] }
   | { type: 'summary'; label: string; content: string }
@@ -35,7 +40,8 @@ type CardDef =
   | { type: 'complete'; label: string };
 
 function splitIntoSentences(text: string): string[] {
-  return text.replace(/([.!?])\s+/g, '$1|||').split('|||').map(s => s.trim()).filter(Boolean);
+  const safeText = typeof text === 'string' ? text : '';
+  return safeText.replace(/([.!?])\s+/g, '$1|||').split('|||').map(s => s.trim()).filter(Boolean);
 }
 
 function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
@@ -56,7 +62,7 @@ function buildCards(lesson: LessonContent, mod: LearningModule): CardDef[] {
 
     const total = textChunks.length + (c.analogy ? 1 : 0);
     textChunks.forEach((text, idx) => {
-      cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false });
+      cards.push({ type: 'concept', label: `${base} · ${idx + 1}/${total}`, title: c.title, explanation: text, part: idx + 1, isAnalogy: false, visual: sceneForText(c.visuals, text) });
     });
     if (c.analogy) cards.push({ type: 'concept', label: `${base} · ${total}/${total}`, title: c.title, explanation: '', analogy: c.analogy, part: total, isAnalogy: true });
   });
@@ -100,6 +106,7 @@ function IntroCard({ content, lesson }: { content: string; lesson: LessonContent
       }}>
         <p style={{ fontSize: 15, color: '#e0e7ff', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      <LessonIllustration text={content} />
       {lesson && <LessonWalkthrough lesson={lesson} />}
     </CardBody>
   );
@@ -116,11 +123,12 @@ function WhyCard({ content }: { content: string }) {
           💡 {content}
         </p>
       </div>
+      <LessonIllustration text={content} />
     </CardBody>
   );
 }
 
-function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean }) {
+function ConceptCard({ title, explanation, analogy, part, isAnalogy, visual }: { title: string; explanation: string; analogy?: string; part: number; isAnalogy?: boolean; visual?: LessonScene }) {
   if (isAnalogy) {
     return (
       <CardBody>
@@ -133,6 +141,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
             🔁 {analogy ?? 'No analogy provided.'}
           </p>
         </div>
+        <LessonIllustration text={`${title} ${analogy ?? ''}`} />
       </CardBody>
     );
   }
@@ -146,6 +155,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
         <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
           {explanation}
         </p>
+        <LessonIllustration text={`${title} ${explanation}`} visual={visual} />
       </CardBody>
     );
   }
@@ -158,6 +168,7 @@ function ConceptCard({ title, explanation, analogy, part, isAnalogy }: { title: 
       <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>
         {explanation}
       </p>
+      <LessonIllustration text={`${title} ${explanation}`} visual={visual} />
     </CardBody>
   );
 }
@@ -171,6 +182,7 @@ function ExampleCard({ content }: { content: string }) {
       }}>
         <p style={{ fontSize: 15, color: 'var(--text-on-dark)', margin: 0, lineHeight: 1.6 }}>{content}</p>
       </div>
+      <LessonIllustration text={content} />
     </CardBody>
   );
 }
@@ -198,6 +210,7 @@ function ActionsCard({ items }: { items: string[] }) {
           <span style={{ fontSize: 15, color: 'var(--text-on-dark)', lineHeight: 1.7 }}>{action}</span>
         </div>
       ))}
+      <LessonIllustration text={items.join(' ')} />
     </CardBody>
   );
 }
@@ -213,6 +226,7 @@ function SummaryCard({ content, onShare, isNetworkState = false }: { content: st
           {content}
         </p>
       </div>
+      <LessonIllustration text={content} />
       <button
         onClick={onShare}
         style={{
@@ -315,13 +329,14 @@ function QuizCard({
 
 type ClaimStatus = 'idle' | 'sending' | 'success' | 'failed' | 'not-connected' | 'wrong-chain' | 'already-claimed';
 
-function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, rewardError, onRetryVerification, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
+function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDone, rewardError, retryingVerification, onRetryVerification, claimStatus, claimTxHash, claimError, switchPending, onSwitchChain }: {
   mod: LearningModule;
   onShare: () => void;
   onBack: () => void;
   rewardEarned: boolean;
   rewardVerificationDone: boolean;
   rewardError: string | null;
+  retryingVerification: boolean;
   onRetryVerification: () => void;
   claimStatus: ClaimStatus;
   claimTxHash: string | null;
@@ -345,10 +360,12 @@ function CompleteCard({ mod, onShare, onBack, rewardEarned, rewardVerificationDo
           </p>
         </div>
 
-        {rewardVerificationDone && !rewardEarned && (
+        {(rewardVerificationDone || retryingVerification) && !rewardEarned && (
           <div role="alert" style={{ maxWidth: 360, width: '100%', padding: 14, borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)' }}>
-            <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-on-dark)' }}>{rewardError || 'Verification is unavailable. Your lesson progress is saved.'}</p>
-            <button type="button" onClick={onRetryVerification} className="btn primary">Retry HH2 verification</button>
+            <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-on-dark)' }}>{retryingVerification ? 'Retrying HH2 verification…' : rewardError || 'Verification is unavailable. Your lesson progress is saved.'}</p>
+            <button type="button" onClick={onRetryVerification} disabled={retryingVerification} className="btn primary">
+              {retryingVerification ? 'Retrying verification…' : 'Retry HH2 verification'}
+            </button>
           </div>
         )}
 
@@ -516,6 +533,7 @@ function ModuleLessonContent() {
   const [mod, setMod] = useState<LearningModule | null>(null);
   const [lessonContent, setLessonContent] = useState<LessonContent | null>(null);
   const [cards, setCards] = useState<CardDef[]>([]);
+  const [cardPositionRestored, setCardPositionRestored] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCorrectionReport, setShowCorrectionReport] = useState(false);
@@ -559,6 +577,7 @@ function ModuleLessonContent() {
   const [rewardVerificationDone, setRewardVerificationDone] = useState(false);
   const [rewardError, setRewardError] = useState<string | null>(null);
   const [rewardAttemptMissing, setRewardAttemptMissing] = useState(false);
+  const [retryingVerification, setRetryingVerification] = useState(false);
 
   // HH2 auto-claim state
   const [claimStatus, setClaimStatus] = useState<ClaimStatus>('idle');
@@ -568,6 +587,9 @@ function ModuleLessonContent() {
 
   useEffect(() => {
     if (!moduleId) { router.replace('/learn'); return; }
+    setCardPositionRestored(false);
+    setCards([]);
+    setCardIndex(0);
     try {
       const raw = localStorage.getItem(LS_PLAN_KEY);
       if (!raw) { router.replace('/learn'); return; }
@@ -578,39 +600,79 @@ function ModuleLessonContent() {
 
       const progRaw = localStorage.getItem(LS_PROGRESS_KEY);
       const progress: string[] = progRaw ? JSON.parse(progRaw) : [];
-      setAlreadyDone(progress.includes(moduleId));
+      const moduleAlreadyDone = progress.includes(moduleId);
+      setAlreadyDone(moduleAlreadyDone);
+      if (moduleAlreadyDone) {
+        setRewardVerificationDone(true);
+        try {
+          const completions = JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) ?? '{}');
+          const rewardEarned = completions?.[moduleId]?.rewardEarned === true;
+          setRewardEarned(rewardEarned);
+          if (!rewardEarned) setRewardError('Your lesson progress is saved. HH2 verification is still available to retry.');
+        } catch {
+          setRewardError('Your lesson progress is saved. HH2 verification is still available to retry.');
+        }
+      }
 
       const eli5 = getEli5Mode();
-      const cached = getAuthHeaders() ? null : getCachedLesson(found, eli5);
+      const cached = getCachedLesson(found, eli5);
       if (cached) {
         setLessonContent(cached);
         setCards(buildCards(cached, found));
         setLoading(false);
-        return;
       }
 
-      loadLesson(found, eli5)
+      // Render a valid local lesson immediately, including for signed-in
+      // learners. The request still starts on open so the server can register
+      // the reward attempt; its cached/generated response refreshes the view.
+      loadLesson(found, eli5, { preserveCached: Boolean(cached) })
         .then(data => {
-          setLessonContent(data);
-          setCards(buildCards(data, found));
+          // Keep the lesson the learner was already working through; the request
+          // may register a reward attempt, but must not replace cached content.
+          const displayedLesson = cached ?? data;
+          setLessonContent(displayedLesson);
+          setCards(buildCards(displayedLesson, found));
           setLoading(false);
         })
-        .catch((loadError) => { setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.'); setLoading(false); });
+        .catch((loadError) => {
+          if (!cached) setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.');
+          setLoading(false);
+        });
     } catch { setError('Could not load module.'); setLoading(false); }
   }, [moduleId, router]);
 
   useEffect(() => {
-    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    if (!moduleId || cards.length === 0) return;
     try {
-      const saved = Number(localStorage.getItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`));
-      if (Number.isInteger(saved) && saved > 0 && saved < cards.length - 1) setCardIndex(saved);
+      if (alreadyDone) {
+        setCardIndex(cards.length - 1);
+      } else {
+        const savedValue = localStorage.getItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`);
+        const saved = savedValue === null ? Number.NaN : Number(savedValue);
+        if (Number.isInteger(saved) && saved >= 0 && saved < cards.length - 1) setCardIndex(saved);
+        else setCardIndex(0);
+      }
     } catch {}
+    setCardPositionRestored(true);
   }, [moduleId, cards.length, alreadyDone]);
 
   useEffect(() => {
-    if (!moduleId || cards.length === 0 || alreadyDone) return;
+    if (!moduleId || cards.length === 0 || !cardPositionRestored) return;
     try { localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cardIndex)); } catch {}
-  }, [moduleId, cards.length, cardIndex, alreadyDone]);
+  }, [moduleId, cards.length, cardIndex, cardPositionRestored]);
+
+  // Prepare only the next visible card, so its animation can arrive before the
+  // learner advances. Existing plans and built-in scenes need no network call.
+  useEffect(() => {
+    const next = cards[cardIndex + 1];
+    if (!next) return;
+    let text = '';
+    if (next.type === 'concept' && next.visual?.layout !== 'storyboard') text = `${next.title} ${next.isAnalogy ? next.analogy ?? '' : next.explanation}`;
+    else if (next.type === 'actions') text = next.items.join(' ');
+    else if (next.type === 'why' || next.type === 'example' || next.type === 'summary') text = next.content;
+    if (!text || sceneForExistingText(text)?.layout === 'tokenization' || storyboardForText(text)) return;
+    void loadExistingLessonScene(text);
+  }, [cards, cardIndex]);
 
   const currentCard = cards[cardIndex];
   const totalCards = cards.length;
@@ -645,7 +707,7 @@ function ModuleLessonContent() {
   const handleComplete = useCallback(async () => {
     if (!moduleId) return;
     // The server starts the attempt when it serves this lesson and enforces this time gate.
-    const authHeaders = getAuthHeaders();
+    const authHeaders = await ensureAuthHeaders('write:learn');
     let verified = false;
     setRewardVerificationDone(false);
     setRewardError(null);
@@ -672,7 +734,9 @@ function ModuleLessonContent() {
         setRewardError('Network error during reward verification. Please try again.');
       }
     } else {
-      setRewardAttemptMissing(false);
+      // A retry can restore a signed-in attempt by reopening the lesson after
+      // the learner's signer session becomes available.
+      setRewardAttemptMissing(true);
       setRewardError('Sign in to verify this reward. Your learning progress is saved.');
     }
     setRewardEarned(verified);
@@ -683,10 +747,12 @@ function ModuleLessonContent() {
       const progress: string[] = raw ? JSON.parse(raw) : [];
       const updatedProgress = progress.includes(moduleId) ? progress : [...progress, moduleId];
       if (!progress.includes(moduleId)) localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify(updatedProgress));
-      localStorage.removeItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`);
+      if (cards.length > 0) {
+        localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cards.length - 1));
+      }
       if (mod) {
         const compRaw = localStorage.getItem(LS_COMPLETIONS_KEY);
-        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number }> =
+        const completions: Record<string, { completedAt: string; title: string; description: string; difficulty: string; estimatedMinutes: number; rewardEarned?: boolean }> =
           compRaw ? JSON.parse(compRaw) : {};
         if (!completions[moduleId]) {
           completions[moduleId] = {
@@ -695,9 +761,11 @@ function ModuleLessonContent() {
             description: mod.description,
             difficulty: mod.difficulty,
             estimatedMinutes: mod.estimatedMinutes,
+            rewardEarned: verified,
           };
-          localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
         }
+        completions[moduleId].rewardEarned = verified;
+        localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(completions));
         const fid = getStoredFid();
         if (fid && authHeaders) {
           const plan = (() => {
@@ -714,55 +782,63 @@ function ModuleLessonContent() {
   }, [moduleId, mod, cards, quizAnswers]);
 
   const handleRetryVerification = useCallback(async () => {
-    if (!rewardAttemptMissing) {
-      void handleComplete();
-      return;
-    }
-
-    if (!mod || !getAuthHeaders()) {
-      setRewardError('Your social session is not available to this lesson yet. Refresh the page while signed in, then retry.');
-      return;
-    }
-
+    if (retryingVerification) return;
+    setRetryingVerification(true);
+    setRewardError(null);
     try {
-      // Re-open the lesson through the authenticated API so the server records
-      // an attempt for this FID. The server still enforces its 45-second window.
-      const lesson = await loadLesson(mod, getEli5Mode());
-      setLessonContent(lesson);
-      const refreshedCards = buildCards(lesson, mod);
-      const currentQuiz = cards
-        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
-        .map(card => card.question);
-      const refreshedQuiz = refreshedCards
-        .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
-        .map(card => card.question);
-      const sameQuiz = JSON.stringify(currentQuiz) === JSON.stringify(refreshedQuiz);
-
-      setRewardAttemptMissing(false);
-      if (sameQuiz) {
-        setRewardError('Your signed-in lesson attempt is now registered. Keep this page open for 45 seconds, then tap Retry HH2 verification. Your course progress is saved.');
-        setRewardVerificationDone(true);
+      if (!rewardAttemptMissing) {
+        await handleComplete();
         return;
       }
 
-      // If the server returns a different quiz, use the verified version and
-      // have the learner redo only the quiz, not the lesson content.
-      setCards(refreshedCards);
-      setQuizAnswers({});
-      setQuizChecked({});
-      setQuizFailed(false);
-      setAlreadyDone(false);
-      const firstQuizIndex = refreshedCards.findIndex(card => card.type === 'quiz');
-      if (firstQuizIndex >= 0) {
-        setDir('back');
-        setCardIndex(firstQuizIndex);
-        setAnimating(true);
-        setTimeout(() => setAnimating(false), 260);
+      const authHeaders = await ensureAuthHeaders('write:learn');
+      if (!mod || !authHeaders) {
+        setRewardError('Sign in with your approved Hypersnap signer, then retry HH2 verification. Your lesson progress is saved.');
+        return;
       }
-    } catch {
-      setRewardError('Could not reconnect this lesson to your signed-in account. Please retry HH2 verification.');
+
+      try {
+        // Reopen the lesson through the authenticated API so the server registers
+        // an attempt for this FID. The server enforces its 45-second window.
+        const lesson = await loadLesson(mod, getEli5Mode());
+        setLessonContent(lesson);
+        const refreshedCards = buildCards(lesson, mod);
+        const currentQuiz = cards
+          .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+          .map(card => card.question);
+        const refreshedQuiz = refreshedCards
+          .filter((card): card is Extract<CardDef, { type: 'quiz' }> => card.type === 'quiz')
+          .map(card => card.question);
+        const sameQuiz = JSON.stringify(currentQuiz) === JSON.stringify(refreshedQuiz);
+
+        setRewardAttemptMissing(false);
+        if (sameQuiz) {
+          setRewardError('Your signed-in lesson attempt is now registered. Keep this page open for 45 seconds, then tap Retry HH2 verification. Your course progress is saved.');
+          setRewardVerificationDone(true);
+          return;
+        }
+
+        // If the server returns a different quiz, use the verified version and
+        // have the learner redo only the quiz, not the lesson content.
+        setCards(refreshedCards);
+        setQuizAnswers({});
+        setQuizChecked({});
+        setQuizFailed(false);
+        setAlreadyDone(false);
+        const firstQuizIndex = refreshedCards.findIndex(card => card.type === 'quiz');
+        if (firstQuizIndex >= 0) {
+          setDir('back');
+          setCardIndex(firstQuizIndex);
+          setAnimating(true);
+          setTimeout(() => setAnimating(false), 260);
+        }
+      } catch {
+        setRewardError('Could not reconnect this lesson to your signed-in account. Please retry HH2 verification.');
+      }
+    } finally {
+      setRetryingVerification(false);
     }
-  }, [rewardAttemptMissing, mod, cards, handleComplete]);
+  }, [retryingVerification, rewardAttemptMissing, mod, cards, handleComplete]);
 
   // Mark complete when reaching the complete card — retries after the time gate clears
   // Only awards HH2 if quiz score is 75%+ (quizPassed). If quiz not passed, the
@@ -770,14 +846,27 @@ function ModuleLessonContent() {
   // only fires when the user has already passed.
   useEffect(() => {
     if (currentCard?.type !== 'complete') return;
-    if (!quizPassed) return; // safety guard — should never reach here without passing
+    if (alreadyDone) return;
+    if (!quizPassed || !moduleId) return; // Only a passed lesson can be saved
+    // Save completion before any reward timer, authentication or network request.
+    // Leaving for the composer must not discard a passed lesson.
+    try {
+      const saved: string[] = JSON.parse(localStorage.getItem(LS_PROGRESS_KEY) || '[]');
+      if (!saved.includes(moduleId)) localStorage.setItem(LS_PROGRESS_KEY, JSON.stringify([...saved, moduleId]));
+      localStorage.setItem(`${LS_CARD_POSITION_PREFIX}${moduleId}`, String(cards.length - 1));
+      if (mod) {
+        const records = JSON.parse(localStorage.getItem(LS_COMPLETIONS_KEY) || '{}');
+        records[moduleId] ??= { completedAt: new Date().toISOString(), title: mod.title, description: mod.description, difficulty: mod.difficulty, estimatedMinutes: mod.estimatedMinutes, rewardEarned: false };
+        localStorage.setItem(LS_COMPLETIONS_KEY, JSON.stringify(records));
+      }
+    } catch {}
     const elapsed = (Date.now() - moduleStartTime.current) / 1000;
     const remaining = Math.max(0, MIN_MODULE_SECONDS - elapsed);
     const timer = setTimeout(() => {
       void handleComplete();
     }, remaining * 1000);
     return () => clearTimeout(timer);
-  }, [currentCard, handleComplete]);
+  }, [currentCard, alreadyDone, handleComplete]);
 
   // ── HH2 auto-claim ──────────────────────────────────────────────────────
   const doClaim = useCallback(async () => {
@@ -878,7 +967,7 @@ function ModuleLessonContent() {
   const handleShare = () => {
     if (!mod) return;
     const text = `Just completed "${mod.title}" on HomieHouse! 🎓\n\nBuilding my Web3 knowledge one module at a time. 🏡\n\nhomiehouse.lol`;
-    router.push(`/compose?text=${encodeURIComponent(text)}`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=${encodeURIComponent(buildLearningModuleReturnTo(moduleId || mod.id))}`);
   };
 
   const handleShareTakeaway = () => {
@@ -887,12 +976,12 @@ function ModuleLessonContent() {
       ? `${currentCard.content.slice(0, 177).trimEnd()}…`
       : currentCard.content;
     const text = `One thing I learned in “${mod.title}”:\n\n${takeaway}\n\nWhat would you add? #HomieHouseLearning`;
-    router.push(`/compose?text=${encodeURIComponent(text)}`);
+    router.push(`/compose?text=${encodeURIComponent(text)}&returnTo=${encodeURIComponent(buildLearningModuleReturnTo(moduleId || mod.id))}`);
   };
 
   const handleBack = () => {
     if (cardIndex > 0) navigate('back');
-    else router.push('/learn');
+    else router.push(LEARNING_PATH_ROUTE);
   };
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -914,10 +1003,27 @@ function ModuleLessonContent() {
   }, [canContinue, navigate, cardIndex]);
 
   if (error) {
+    const retryLesson = async () => {
+      if (!mod) return;
+      setError(null);
+      setLoading(true);
+      try {
+        const lesson = await loadLesson(mod, getEli5Mode());
+        setLessonContent(lesson);
+        setCards(buildCards(lesson, mod));
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load lesson.');
+      } finally {
+        setLoading(false);
+      }
+    };
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24 }}>
         <p style={{ color: 'var(--muted-on-dark)' }}>{error}</p>
-        <button onClick={() => router.push('/learn')} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
+        <button onClick={retryLesson} disabled={!mod || loading} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
+          Try again
+        </button>
+        <button onClick={() => router.push(LEARNING_PATH_ROUTE)} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>
           ← Back to plan
         </button>
       </div>
@@ -972,6 +1078,7 @@ function ModuleLessonContent() {
         <div style={{ minWidth: 72, textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
           <div style={{ fontSize: 11, color: 'var(--muted-on-dark)', whiteSpace: 'nowrap' }}>
             {loading ? '' : `Step ${cardIndex + 1} of ${totalCards}`}
+            {mod?.sourceUrl && <a href={mod.sourceUrl} target="_blank" rel="noopener noreferrer" title={[mod.sourceAuthor, mod.sourcePublisher, mod.sourcePublishedAt, mod.sourceCaveats].filter(Boolean).join(' · ')} aria-label={`Open source${mod.sourcePublisher ? ` from ${mod.sourcePublisher}` : ''}${mod.sourcePublishedAt ? `, published ${mod.sourcePublishedAt}` : ''}${mod.sourceCaveats ? `. Note: ${mod.sourceCaveats}` : ''}`} style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Source ↗</a>}
             {mod?.tags.includes('network-states') && <a href={`/learn/library/${encodeURIComponent(mod.id)}#sources`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: 'var(--accent)', fontSize: 11 }}>Course sources ↗</a>}
           </div>
           {!loading && mod && currentCard && (
@@ -1036,7 +1143,7 @@ function ModuleLessonContent() {
               {currentCard.type === 'intro' && <IntroCard content={currentCard.content} lesson={lessonContent} />}
               {currentCard.type === 'why' && <WhyCard content={currentCard.content} />}
               {currentCard.type === 'concept' && (
-                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} />
+                <ConceptCard title={currentCard.title} explanation={currentCard.explanation} analogy={currentCard.analogy} part={currentCard.part} isAnalogy={currentCard.isAnalogy} visual={currentCard.visual} />
               )}
               {currentCard.type === 'example' && <ExampleCard content={currentCard.content} />}
               {currentCard.type === 'actions' && <ActionsCard items={currentCard.items} />}
@@ -1059,10 +1166,11 @@ function ModuleLessonContent() {
                 <CompleteCard
                   mod={mod}
                   onShare={handleShare}
-                  onBack={() => router.push('/learn')}
+                  onBack={() => router.push(LEARNING_PATH_ROUTE)}
                   rewardEarned={rewardEarned}
                   rewardVerificationDone={rewardVerificationDone}
                   rewardError={rewardError}
+                  retryingVerification={retryingVerification}
                   onRetryVerification={() => { void handleRetryVerification(); }}
                   claimStatus={claimStatus}
                   claimTxHash={claimTxHash}

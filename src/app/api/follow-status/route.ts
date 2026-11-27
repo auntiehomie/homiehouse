@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const HYPERSNAP_BASE =
-  process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
+import { fetchFollowStatus } from '@/lib/hypersnap';
 
 /**
  * Check if viewerFid follows targetFid on Farcaster.
@@ -17,13 +15,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'fid and target_fid required' }, { status: 400 });
   }
 
+  if (!/^[1-9]\d*$/.test(fid) || !/^[1-9]\d*$/.test(targetFid)) {
+    return NextResponse.json({ error: 'fid and target_fid must be positive integers' }, { status: 400 });
+  }
+
+  const viewerFid = Number(fid);
+  const profileFid = Number(targetFid);
+  if (!Number.isSafeInteger(viewerFid) || !Number.isSafeInteger(profileFid)) {
+    return NextResponse.json({ error: 'fid and target_fid must be safe integers' }, { status: 400 });
+  }
+
   try {
-    const res = await fetch(
-      `${HYPERSNAP_BASE}/v1/linkById?fid=${fid}&target_fid=${targetFid}&link_type=follow`,
-      { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
-    );
-    return NextResponse.json({ following: res.ok });
+    const following = await fetchFollowStatus(viewerFid, profileFid);
+    return NextResponse.json({ following }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
-    return NextResponse.json({ following: false });
+    // A node outage is not proof that the user is not following this profile.
+    return NextResponse.json(
+      { following: null, error: 'Follow status is temporarily unavailable' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
   }
 }

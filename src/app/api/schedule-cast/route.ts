@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { rateLimit } from '@/lib/ratelimit';
-import { verifyFarcasterSignerAuth, verifyFarcasterSigner } from '@/lib/auth';
+import { verifyFarcasterSignerAuth, verifyFarcasterSigner, verifyFarcasterSignerKey } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
 import { encryptSignerKey } from '@/lib/signer-crypto';
+import { castTypeForText } from '@/lib/cast-text';
 
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`schedule-cast:${ip}`, 10, 3600);
+    const { success: rateLimitOk } = await rateLimit(`schedule-cast:${ip}`, 10, 3600);
 
     if (!rateLimitOk) {
       return NextResponse.json(
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (typeof text !== 'string' || !text.trim()) {
+      return NextResponse.json({ ok: false, error: 'Cast text is required' }, { status: 400 });
+    }
+    try { castTypeForText(text); } catch (error) {
+      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+    }
+
     const userFid = Number(fid);
     if (!userFid || isNaN(userFid)) {
       return NextResponse.json({ ok: false, error: 'Invalid fid' }, { status: 400 });
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const scheduledDate = new Date(scheduled_time);
-    if (scheduledDate <= new Date()) {
+    if (!Number.isFinite(scheduledDate.getTime()) || scheduledDate <= new Date()) {
       return NextResponse.json(
         { ok: false, error: 'Scheduled time must be in the future' },
         { status: 400 }
@@ -55,9 +63,8 @@ export async function POST(req: NextRequest) {
     const embedsJson = JSON.stringify(Array.isArray(embeds) ? embeds : []);
     const scheduledAt = scheduledDate.toISOString();
 
-    // Capture the signer key from the auth header and encrypt it for server-side publishing.
-    // The key is never in the request body — it's from x-signer-key header, already verified by
-    // verifyFarcasterSignerAuth above. At publish time, the cron job decrypts it to sign the cast.
+    // Scheduled publishing requires explicit signer custody. Verify the
+    // supplied key independently of the scoped session before encrypting it.
     const signerKey = req.headers.get('x-signer-key');
     if (!signerKey) {
       return NextResponse.json(
@@ -65,6 +72,7 @@ export async function POST(req: NextRequest) {
         { status: 401 }
       );
     }
+    await verifyFarcasterSignerKey(userFid, signerKey);
     const encryptedKey = encryptSignerKey(signerKey);
 
     const rows = await sql`

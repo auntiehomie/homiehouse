@@ -1,5 +1,9 @@
 "use client";
 
+import InlineAskHomie from './InlineAskHomie';
+
+import ReplyStickers from '@/components/ReplyStickers';
+
 import { consumeFeedReturn, FEED_RETURN_TTL, feedSnapshotKey, readFeedReturn, readFeedSnapshot, saveFeedReturn as rememberFeedReturn, saveFeedSnapshot } from '@/lib/feed-session';
 import { feedScrollHost, restoreFeedScroll } from '@/lib/feed-scroll';
 
@@ -11,17 +15,19 @@ import FarcasterCastEmbed from './FarcasterCastEmbed';
 import ConversationLearningLinks from './ConversationLearningLinks';
 import ParentCastBadge from './ParentCastBadge';
 import AICurationSuggestions from './AICurationSuggestions';
-import { getStoredFid } from '@/lib/client-auth';
+import { getStoredFid, PostingAuthorizationError } from '@/lib/client-auth';
 import { useFeedFreshness } from '@/hooks/useFeedFreshness';
 import { FeedSkeleton } from "./Skeletons";
+import AppIcon from './AppIcon';
 import { formatDistanceToNow } from "date-fns";
 import { FeedScope } from "./FeedTrendingTabs";
 import { useFarcasterWrites } from "@/hooks/useFarcasterWrites";
 import HH2TipAction from '@/components/HH2TipAction';
 import Link from "next/link";
+import CastText from "@/components/CastText";
 import { useRouter } from "next/navigation";
 import { personalizePage, preferenceStorage } from '@/lib/like-curation';
-import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions } from '@/lib/recent-interactions';
+import { forgetRecentInteraction, rememberRecentInteraction, loadRecentInteractions, type RecentInteractionType } from '@/lib/recent-interactions';
 import {
   getPendingOptimisticCasts,
   listenForOptimisticCasts,
@@ -45,29 +51,6 @@ const LazyMarkdown = dynamic(
   { ssr: false }
 );
 
-function renderCastText(text: string) {
-  const tokenOrUrl = /(\$[A-Z][A-Z0-9]{0,9}|https?:\/\/[^\s]+|(?:[a-zA-Z0-9-]+\.)+(?:com|net|org|io|lol|xyz|app|dev|co|ai|eth|fyi|gg|wtf|us|uk)[^\s]*)/g;
-  const parts = text.split(tokenOrUrl);
-  return parts.map((part, i) => {
-    if (/^\$[A-Z][A-Z0-9]{0,9}$/.test(part)) {
-      return (
-        <Link key={i} href={`/tokens/${encodeURIComponent(part.slice(1))}`} style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }} onClick={e => e.stopPropagation()}>
-          {part}
-        </Link>
-      );
-    }
-    if (/^https?:\/\//i.test(part) || /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/.test(part)) {
-      const href = part.startsWith('http') ? part : `https://${part}`;
-      return (
-        <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>
-          {part}
-        </a>
-      );
-    }
-    return <React.Fragment key={i}>{part}</React.Fragment>;
-  });
-}
-
 function ActionBtn({
   onClick, icon, label, active = false, disabled = false,
 }: {
@@ -81,16 +64,19 @@ function ActionBtn({
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-label={label}
+      title={label}
       style={{
-        display: 'flex', alignItems: 'center', gap: 5,
+        position: 'relative',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
         border: 'none',
         color: active ? 'var(--text-on-dark)' : 'var(--muted-on-dark)',
         cursor: disabled ? 'default' : 'pointer',
         fontSize: 13, fontWeight: active ? 600 : 400,
-        padding: '5px 9px', borderRadius: 8,
+        width: 36, height: 36, padding: 0, borderRadius: 999,
         transition: 'background 0.15s, color 0.15s',
-        flexShrink: 0, whiteSpace: 'nowrap',
+        flexShrink: 0,
         opacity: disabled ? 0.5 : 1,
       }}
       onMouseEnter={e => {
@@ -105,7 +91,7 @@ function ActionBtn({
       }}
     >
       {icon}
-      {label}
+      <span style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>{label}</span>
     </button>
   );
 }
@@ -143,6 +129,8 @@ export default function FeedList({
   const [refreshKey, setRefreshKey] = useState(0);
   const [pullDist, setPullDist] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showPullRefreshHint, setShowPullRefreshHint] = useState(false);
+  const pullRefreshHintShownRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
   const PULL_THRESHOLD = 72;
   const [showActions, setShowActions] = useState<string | null>(null);
@@ -156,6 +144,7 @@ export default function FeedList({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [replyStickers, setReplyStickers] = useState<string[]>([]);
   const [replyLoading, setReplyLoading] = useState(false);
   const [showRecastModal, setShowRecastModal] = useState<string | null>(null);
   const [showRecastAuthorFid, setShowRecastAuthorFid] = useState<number>(0);
@@ -169,11 +158,91 @@ export default function FeedList({
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [curateLoading, setCurateLoading] = useState(false);
   const [savedNotes, setSavedNotes] = useState<Set<string>>(new Set());
+  const [followedFids, setFollowedFids] = useState<Set<number>>(new Set());
+  const [followingLoadingFids, setFollowingLoadingFids] = useState<Set<number>>(new Set());
+  const [castFeedback, setCastFeedback] = useState<Record<string, 'more' | 'less'>>({});
+
+  useEffect(() => {
+    if (!viewerFid || feedType !== 'global') { setFollowedFids(new Set()); return; }
+    let cancelled = false;
+    (async () => {
+      const ids = new Set<number>();
+      let cursor: string | null = null;
+      for (let page = 0; page < 20; page++) {
+        const params = new URLSearchParams({ fid: String(viewerFid) });
+        if (cursor) params.set('cursor', cursor);
+        const response = await fetch(`/api/friends?${params}`, { cache: 'no-store' });
+        if (!response.ok) break;
+        const payload = await response.json();
+        for (const user of payload.data || []) {
+          const id = Number(user.fid ?? user.user?.fid);
+          if (Number.isSafeInteger(id) && id > 0) ids.add(id);
+        }
+        cursor = payload.cursor || null;
+        if (!cursor) break;
+      }
+      if (!cancelled) setFollowedFids(ids);
+    })().catch(() => {});
+    return () => { cancelled = true; };
+  }, [viewerFid, feedType]);
+
+  useEffect(() => {
+    const feedback: Record<string, 'more' | 'less'> = {};
+    for (const item of loadRecentInteractions(preferenceStorage(viewerFid))) {
+      if (item.type === 'more' || item.type === 'less') feedback[item.castHash] = item.type;
+    }
+    setCastFeedback(feedback);
+  }, [viewerFid]);
+
+  const recordCastFeedback = (type: 'more' | 'less', cast: any) => {
+    const hash = String(cast.hash || cast.id || '');
+    if (!hash) return;
+    const current = castFeedback[hash];
+    const next = current === type ? undefined : type;
+    const storage = preferenceStorage(viewerFid);
+    if (current) forgetRecentInteraction(current as RecentInteractionType, hash, storage);
+    if (next) rememberRecentInteraction({ type: next, castHash: hash, authorFid: Number(cast.author?.fid) || 0, text: String(cast.text || '').slice(0, 1000), authorUsername: cast.author?.username, channelId: cast.channel?.id }, storage);
+    setCastFeedback(previous => { const updated = { ...previous }; if (next) updated[hash] = next; else delete updated[hash]; return updated; });
+  };
 
   const manualRefreshRef = useRef(false);
 
   const router = useRouter();
-  const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, reply: replyFn } = useFarcasterWrites();
+  const { hasActiveSigner, requestSigner, submitCast, likeCast, unlikeCast, recast: recastFn, removeRecast, removeCast, reply: replyFn, follow } = useFarcasterWrites();
+
+  const handleDeleteCast = async (castHash: string) => {
+    if (!viewerFid || !window.confirm('Delete this cast? This action cannot be undone.')) return;
+    setActionLoading(`delete-${castHash}`);
+    try {
+      await removeCast(castHash);
+      setItems(previous => previous?.filter(item => String(item.hash || item.id) !== castHash) ?? previous);
+      setPendingCasts(previous => previous.filter(item => item.hash !== castHash));
+      setShowActions(null);
+      setToast({ msg: 'Cast deleted.', ok: true });
+      setTimeout(() => setToast(null), 3000);
+    } catch (error: any) {
+      setToast({ msg: error?.message || 'Could not delete this cast.', ok: false });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleFollowAuthor = async (targetFid: number) => {
+    if (!hasActiveSigner) { await requestSigner(); return; }
+    setFollowingLoadingFids(previous => new Set(previous).add(targetFid));
+    try {
+      await follow(targetFid);
+      setFollowedFids(previous => new Set(previous).add(targetFid));
+    } catch (error: any) {
+      if (error instanceof PostingAuthorizationError) {
+        setToast({ msg: 'Reconnect your wallet in the prompt to renew posting access, then try again.', ok: false });
+        setTimeout(() => setToast(null), 5000);
+      } else alert(`Failed to follow: ${error?.message ?? error}`);
+    } finally {
+      setFollowingLoadingFids(previous => { const next = new Set(previous); next.delete(targetFid); return next; });
+    }
+  };
 
   useEffect(() => {
     if (!viewerFid) {
@@ -236,7 +305,10 @@ export default function FeedList({
       }
     } catch (error: any) {
       console.error('Like error:', error);
-      alert(`Failed to like: ${error?.message ?? error}`);
+      if (error instanceof PostingAuthorizationError) {
+        setToast({ msg: 'Reconnect your wallet in the prompt to renew posting access, then try again.', ok: false });
+        setTimeout(() => setToast(null), 5000);
+      } else alert(`Failed to like: ${error?.message ?? error}`);
     } finally {
       setActionLoading(null);
     }
@@ -261,7 +333,10 @@ export default function FeedList({
       }
     } catch (error: any) {
       console.error('Recast error:', error);
-      alert(`Failed to recast: ${error?.message ?? error}`);
+      if (error instanceof PostingAuthorizationError) {
+        setToast({ msg: 'Reconnect your wallet in the prompt to renew posting access, then try again.', ok: false });
+        setTimeout(() => setToast(null), 5000);
+      } else alert(`Failed to recast: ${error?.message ?? error}`);
     } finally {
       setActionLoading(null);
     }
@@ -275,20 +350,22 @@ export default function FeedList({
   const handleReply = async (castHash: string, authorFid: number) => {
     if (!hasActiveSigner) { await requestSigner(); return; }
     const text = replyText.trim();
-    if (!text) return;
+    if (!text && !replyStickers.length) return;
 
-    // Optimistic dismiss — close the form immediately so the user isn't waiting
-    setReplyText('');
-    setReplyingTo(null);
+    if (replyLoading) return;
+    setReplyLoading(true);
     showToast('Sending reply…', true);
 
     try {
-      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid });
+      await replyFn({ text, parentCastHash: castHash, parentCastFid: authorFid, embeds: replyStickers.map(url => ({url})) });
+      setReplyText(''); setReplyStickers([]); setReplyingTo(null);
       showToast('Reply posted!', true);
     } catch (error: any) {
       console.error('Reply error:', error);
-      showToast(`Failed: ${error?.message ?? 'unknown error'}`, false);
-    }
+      showToast(error instanceof PostingAuthorizationError
+        ? 'Reconnect your wallet in the prompt to renew posting access, then retry.'
+        : `Failed: ${error?.message ?? 'unknown error'}`, false);
+    } finally { setReplyLoading(false); }
   };
 
   const handleCurateCast = async (castHash: string, castData: any) => {
@@ -400,9 +477,9 @@ export default function FeedList({
     (async () => {
       let res;
       let nextCursor: string | null = null;
+      let fid: number | undefined = undefined;
       try {
         // Get FID from localStorage since auth-kit profile doesn't include it
-        let fid: number | undefined = undefined;
         try {
           const storedProfile = localStorage.getItem("hh_profile");
           if (storedProfile) {
@@ -436,7 +513,7 @@ export default function FeedList({
         if (initialFeedRequestRef.current === request) initialFeedRequestRef.current = null;
 
         res = json?.data ?? json;
-        if (Array.isArray(res) && feedType === 'community' && !selectedChannel) res = personalizePage(res, fid);
+        if (Array.isArray(res) && (feedType === 'community' || feedType === 'global') && !selectedChannel) res = personalizePage(res, fid);
         nextCursor = json?.cursor || null;
       } catch (e) {
         initialFeedRequestRef.current = null;
@@ -455,6 +532,28 @@ export default function FeedList({
         if (Array.isArray(res)) saveFeedSnapshot(cacheKey, {
           items: res, cursor: nextCursor, hasMore: !!nextCursor, ts: Date.now(),
         });
+      }
+
+      if (mounted && feedType === 'global' && fid && !selectedChannel) {
+        const likedAuthors = [...new Set(loadRecentInteractions(preferenceStorage(fid))
+          .filter(item => item.type === 'like' && item.authorFid > 0)
+          .map(item => item.authorFid))].slice(0, 3);
+        if (likedAuthors.length) {
+          fetch(`/api/discover-affinity?fids=${likedAuthors.join(',')}`, { cache: 'no-store' })
+            .then(response => response.ok ? response.json() : null)
+            .then(payload => {
+              const affinityCasts = Array.isArray(payload?.casts) ? payload.casts : [];
+              if (!mounted || !affinityCasts.length) return;
+              setItems(previous => {
+                const known = new Set((previous || []).map(cast => cast.hash || cast.id));
+                const merged = [...affinityCasts.filter((cast: any) => !known.has(cast.hash || cast.id)), ...(previous || [])];
+                const personalized = personalizePage(merged, fid);
+                saveFeedSnapshot(cacheKey, { items: personalized, cursor: nextCursor, hasMore: !!nextCursor, ts: Date.now() });
+                return personalized;
+              });
+            })
+            .catch(() => {});
+        }
       }
     })();
     return () => {
@@ -503,7 +602,7 @@ export default function FeedList({
       if (feedRes.ok) {
         const json = await feedRes.json();
         const rawItems = json?.data ?? json;
-        const newItems = Array.isArray(rawItems) && feedType === 'community' && !selectedChannel ? personalizePage(rawItems, fid) : rawItems;
+        const newItems = Array.isArray(rawItems) && (feedType === 'community' || feedType === 'global') && !selectedChannel ? personalizePage(rawItems, fid) : rawItems;
         const nextCursor = json?.cursor || null;
         if (Array.isArray(newItems)) {
           setItems(prev => {
@@ -535,7 +634,7 @@ export default function FeedList({
     }, { threshold: 0.1 });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [hasMore, loadingMore, cursor, feedError]);
 
   // Must be before any early returns — hooks can't be called conditionally
@@ -550,7 +649,7 @@ export default function FeedList({
       return true;
     });
     return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [items, mutedUsers, hiddenCasts]);
 
   const displayItems = useMemo(() => {
@@ -563,6 +662,25 @@ export default function FeedList({
       ...filteredItems,
     ];
   }, [filteredItems, pendingCasts, selectedChannel]);
+
+  useEffect(() => {
+    if (pullRefreshHintShownRef.current || items === null || displayItems.length === 0) return;
+    pullRefreshHintShownRef.current = true;
+
+    const supportsTouch = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
+    if (!supportsTouch) return;
+
+    try {
+      if (localStorage.getItem('hh-onboarding-hint-eligible') !== '1' || localStorage.getItem('hh-pull-refresh-hint-seen') === '1') return;
+      localStorage.setItem('hh-pull-refresh-hint-seen', '1');
+    } catch {
+      // Show the hint for this mount if browser storage is unavailable.
+    }
+
+    setShowPullRefreshHint(true);
+    const timer = window.setTimeout(() => setShowPullRefreshHint(false), 2400);
+    return () => window.clearTimeout(timer);
+  }, [items, displayItems.length]);
 
   if (items === null && displayItems.length === 0)
     return (
@@ -612,11 +730,20 @@ export default function FeedList({
 
   return (
     <>
-    <div className="hh-feed-status" role="status">
-      <span>{feedError || checkError || (checkedAt ? `Checked ${new Date(checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Checks for updates every minute while visible.')}</span>
-      {feedError && cursor && <button className="btn" onClick={loadMore} disabled={loadingMore}>Retry older casts</button>}
-      <button className="btn" onClick={refreshFeed}>{updates ? `Load ${updates} new casts` : 'Refresh feed'}</button>
-    </div>
+    {showPullRefreshHint && (
+      <div className="hh-pull-refresh-hint" role="status" aria-live="polite">
+        Pull down to refresh
+      </div>
+    )}
+    {(feedError || checkError || checkedAt || (feedError && cursor) || updates > 0) && (
+      <div className="hh-feed-status" role="status">
+        {(feedError || checkError || checkedAt) && (
+          <span>{feedError || checkError || `Checked ${new Date(checkedAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}</span>
+        )}
+        {feedError && cursor && <button className="btn" onClick={loadMore} disabled={loadingMore}>Retry older casts</button>}
+        {updates > 0 && <button className="btn" onClick={refreshFeed}>Load {updates} new casts</button>}
+      </div>
+    )}
     {/* Non-blocking toast for reply/post feedback */}
     {toast && (
       <div
@@ -735,6 +862,7 @@ export default function FeedList({
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '4px' }}>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'start', flex: 1 }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
                 <Link href={profileHref}>
                   <img
                     src={authorObj?.pfp_url || '/default-avatar.png'}
@@ -751,6 +879,17 @@ export default function FeedList({
                     }}
                   />
                 </Link>
+                {feedType === 'global' && viewerFid && authorFid && !followedFids.has(Number(authorFid)) && (
+                  <button
+                    type="button"
+                    aria-label={`Follow @${authorUsername || authorName}`}
+                    title={`Follow @${authorUsername || authorName}`}
+                    disabled={followingLoadingFids.has(Number(authorFid))}
+                    onClick={() => void handleFollowAuthor(Number(authorFid))}
+                    style={{ position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, display: 'grid', placeItems: 'center', padding: 0, border: '2px solid var(--surface)', borderRadius: '50%', background: 'var(--accent)', color: '#fff', fontSize: 18, lineHeight: 1, fontWeight: 700, cursor: 'pointer', opacity: followingLoadingFids.has(Number(authorFid)) ? 0.6 : 1 }}
+                  >{followingLoadingFids.has(Number(authorFid)) ? '…' : '+'}</button>
+                )}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', flexWrap: 'wrap', minWidth: 0 }}>
                     <Link
@@ -808,6 +947,20 @@ export default function FeedList({
                 zIndex: 10,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
               }}>
+                {viewerFid && Number(authorFid) === viewerFid && !it.optimistic && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteCast(String(it.hash || it.id || key))}
+                    disabled={actionLoading === `delete-${key}`}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px',
+                      background: 'transparent', border: 'none', color: '#ef4444',
+                      cursor: 'pointer', fontSize: '14px', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {actionLoading === `delete-${key}` ? 'Deleting…' : 'Delete cast'}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onHideCast(key);
@@ -975,6 +1128,12 @@ export default function FeedList({
               overflowX: 'auto',
               scrollbarWidth: 'none',
             }}>
+              {feedType === 'global' && viewerFid && (
+                <>
+                  <ActionBtn active={castFeedback[String(it.hash || it.id)] === 'more'} onClick={() => recordCastFeedback('more', it)} label="More like this" icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h3.28a2 2 0 0 0 1.7-.95l3.02-4.85a1.5 1.5 0 0 1 2.74 1.68Z"/></svg>} />
+                  <ActionBtn active={castFeedback[String(it.hash || it.id)] === 'less'} onClick={() => recordCastFeedback('less', it)} label="Less like this" icon={<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3.28a2 2 0 0 0-1.7.95l-3.02 4.85a1.5 1.5 0 0 1-2.74-1.68Z"/></svg>} />
+                </>
+              )}
               {/* Like */}
               <ActionBtn
                 active={likedCasts.has(key)}
@@ -1023,7 +1182,7 @@ export default function FeedList({
               {/* Reply */}
               <ActionBtn
                 active={replyingTo === key}
-                onClick={() => setReplyingTo(replyingTo === key ? null : key)}
+                onClick={() => (setReplyStickers([]), setReplyingTo(replyingTo === key ? null : key))}
                 icon={
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 }
@@ -1053,34 +1212,6 @@ export default function FeedList({
                   <svg width="15" height="15" viewBox="0 0 24 24" fill={curatingCast === key ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
                 }
                 label="Curate"
-              />
-
-              {/* Ask Homie */}
-              <ActionBtn
-                onClick={() => {
-                  const castText = typeof it.text === 'string' ? it.text : (it.body ?? (typeof it.message === 'string' ? it.message : ''));
-                  const castContext = {
-                    author: { username: authorUsername, display_name: authorName, pfp_url: authorObj?.pfp_url },
-                    text: castText,
-                    hash: key,
-                    timestamp: rawTs,
-                    reactions: { likes_count: it.reactions?.likes_count || 0, recasts_count: it.reactions?.recasts_count || 0 },
-                    replies: { count: it.replies?.count || 0 }
-                  };
-                  // Long casts can exceed browser/proxy URL limits when the
-                  // complete context is JSON-encoded into a query parameter.
-                  // Keep the text in same-tab storage and pass only its hash.
-                  try {
-                    sessionStorage.setItem(`hh_ask_context:${key}`, JSON.stringify(castContext));
-                  } catch {
-                    localStorage.setItem('hh_ask_context', JSON.stringify(castContext));
-                  }
-                  window.location.href = `/ask-homie?castId=${encodeURIComponent(key)}`;
-                }}
-                icon={
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                }
-                label="Ask Homie"
               />
 
               {/* Save to Notes */}
@@ -1115,6 +1246,12 @@ export default function FeedList({
               />
             </div>
             
+            <InlineAskHomie cast={{
+              hash: String(key),
+              text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
+              author: { username: authorUsername, display_name: authorName, fid: authorObj?.fid },
+            }} />
+
             <ConversationLearningLinks cast={{
               hash: String(key),
               text: typeof it.text === 'string' ? it.text : (it.body ?? ''),
@@ -1132,12 +1269,14 @@ export default function FeedList({
                   autoFocus
                   style={{ minHeight: '80px', fontSize: '14px' }}
                 />
+                <ReplyStickers urls={replyStickers} onChange={setReplyStickers} />
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
                   <button 
                     className="btn" 
                     onClick={() => {
                       setReplyingTo(null);
                       setReplyText("");
+                      setReplyStickers([]);
                     }}
                     disabled={replyLoading}
                   >
@@ -1146,7 +1285,7 @@ export default function FeedList({
                   <button
                     className="btn primary"
                     onClick={() => handleReply(key, authorObj?.fid ?? 0)}
-                    disabled={!replyText.trim()}
+                    disabled={replyLoading || (!replyText.trim() && !replyStickers.length)}
                   >
                     Post Reply
                   </button>
@@ -1280,7 +1419,7 @@ export default function FeedList({
                   gap: '8px'
                 }}
               >
-                💬 Quote Cast
+                <AppIcon name="quote" className="w-4 h-4" /> Quote Cast
               </button>
 
               {/* Recast or Undo Recast */}
@@ -1303,7 +1442,7 @@ export default function FeedList({
                     color: '#ef4444'
                   }}
                 >
-                  ↩️ Undo Recast
+                  <AppIcon name="reply" className="w-4 h-4" /> Undo Recast
                 </button>
               ) : (
                 <button
@@ -1322,7 +1461,7 @@ export default function FeedList({
                     gap: '8px'
                   }}
                 >
-                  🔄 Recast
+                  <AppIcon name="recast" className="w-4 h-4" /> Recast
                 </button>
               )}
 
@@ -1343,7 +1482,7 @@ export default function FeedList({
                   gap: '8px'
                 }}
               >
-                💬 Reply
+                <AppIcon name="messages" className="w-4 h-4" /> Reply
               </button>
               
               <button
@@ -1435,7 +1574,7 @@ export default function FeedList({
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word'
                     }}>
-                      {renderCastText(cast.text || '(No text)')}
+                      <CastText cast={cast} fallback="(No text)" />
                     </p>
                     {cast.embeds && cast.embeds.length > 0 && cast.embeds[0]?.url && (
                       <div style={{ marginTop: '12px' }}>
@@ -1502,7 +1641,7 @@ export default function FeedList({
                   gap: '8px'
                 }}
               >
-                {quoteLoading ? 'Posting...' : '💬 Post Quote Cast'}
+                {quoteLoading ? 'Posting...' : <><AppIcon name="quote" className="w-4 h-4 inline-block mr-2" />Post Quote Cast</>}
               </button>
               
               <button

@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripeOrThrow, upsertProSubscriber, updateSubscriptionStatus } from '@/lib/stripe';
+import { getStripeOrThrow, upsertAskHomieProSubscriber, upsertProSubscriber, updateSubscriptionStatus } from '@/lib/stripe';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,15 +77,25 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        await upsertProSubscriber({
-          userFid: fid,
-          stripeCustomerId: customerId,
-          stripeSubscriptionId: subscriptionId,
-          status: 'active',
-          expiresAt,
-        });
-
-        console.log(`[stripe/webhook] Pro subscription activated for FID ${fid}`);
+        if (session.metadata?.product === 'ask_homie_pro') {
+          await upsertAskHomieProSubscriber({
+            userFid: fid,
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: subscriptionId,
+            status: 'active',
+            expiresAt,
+          });
+          console.log(`[stripe/webhook] Ask Homie Pro subscription activated for FID ${fid}`);
+        } else {
+          await upsertProSubscriber({
+            userFid: fid,
+            stripeCustomerId: customerId,
+            stripeSubscriptionId: subscriptionId,
+            status: 'active',
+            expiresAt,
+          });
+          console.log(`[stripe/webhook] Pro subscription activated for FID ${fid}`);
+        }
         break;
       }
 

@@ -1,0 +1,72 @@
+.activity {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text-on-dark);
+  overflow-wrap: anywhere;
+}
+
+.activity h3,
+.activity p {
+  margin: 0 0 .65rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.controls button {
+  min-height: 44px;
+  padding: .5rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: .65rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.controls button[aria-pressed='true'],
+.controls button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.controls button:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.feedback > * {
+  margin-top: .75rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .feedback > * {
+    animation: reveal .2s ease-out;
+  }
+}
+
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(.25rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.route,
+.queue li {
+  padding: .5rem .75rem;
+  border-radius: .5rem;
+  background: rgba(99, 102, 241, .15);
+}
+
+.queue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: 0;
+  list-style: none;
+}

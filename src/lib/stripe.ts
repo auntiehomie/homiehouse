@@ -28,6 +28,7 @@ export function getStripeOrThrow(): Stripe {
 const STRIPE_PRICE_ID = process.env.STRIPE_PRO_MONTHLY_PRICE_ID!;
 
 export const PRO_PRICE_ID = STRIPE_PRICE_ID;
+export const ASK_HOMIE_PRO_PRICE_ID = process.env.STRIPE_ASK_HOMIE_PRO_MONTHLY_PRICE_ID!;
 
 // ── Database helpers ──────────────────────────────────────────────────────────
 
@@ -71,6 +72,24 @@ export async function upsertProSubscriber(params: {
 /**
  * Update subscription status by Stripe subscription ID.
  */
+let askHomieSubscriptionTableReady = false;
+async function ensureAskHomieSubscriptionTable(): Promise<void> {
+  if (askHomieSubscriptionTableReady) return;
+  await sql`
+    CREATE TABLE IF NOT EXISTS ask_homie_pro_subscribers (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_fid INTEGER UNIQUE NOT NULL,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT UNIQUE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      subscribed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  askHomieSubscriptionTableReady = true;
+}
+
 export async function updateSubscriptionStatus(
   stripeSubscriptionId: string,
   status: string,
@@ -83,6 +102,50 @@ export async function updateSubscriptionStatus(
         updated_at = NOW()
     WHERE stripe_subscription_id = ${stripeSubscriptionId}
   `;
+  await ensureAskHomieSubscriptionTable();
+  await sql`
+    UPDATE ask_homie_pro_subscribers
+    SET status = ${status},
+        expires_at = ${expiresAt ?? null},
+        updated_at = NOW()
+    WHERE stripe_subscription_id = ${stripeSubscriptionId}
+  `;
+}
+
+export async function upsertAskHomieProSubscriber(params: {
+  userFid: number;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  status?: string;
+  expiresAt?: Date | null;
+}): Promise<void> {
+  await ensureAskHomieSubscriptionTable();
+  const { userFid, stripeCustomerId, stripeSubscriptionId, status = 'active', expiresAt = null } = params;
+  await sql`
+    INSERT INTO ask_homie_pro_subscribers
+      (user_fid, status, stripe_customer_id, stripe_subscription_id, subscribed_at, expires_at)
+    VALUES (${userFid}, ${status}, ${stripeCustomerId}, ${stripeSubscriptionId}, NOW(), ${expiresAt ?? null})
+    ON CONFLICT (user_fid)
+    DO UPDATE SET
+      status = EXCLUDED.status,
+      stripe_customer_id = EXCLUDED.stripe_customer_id,
+      stripe_subscription_id = EXCLUDED.stripe_subscription_id,
+      expires_at = EXCLUDED.expires_at,
+      updated_at = NOW()
+  `;
+}
+
+/** Look up an Ask Homie Pro subscriber by FID. */
+export async function getAskHomieProSubscriber(userFid: number) {
+  await ensureAskHomieSubscriptionTable();
+  const rows = await sql`
+    SELECT id, user_fid, status, subscribed_at, expires_at,
+           stripe_customer_id, stripe_subscription_id
+    FROM ask_homie_pro_subscribers
+    WHERE user_fid = ${userFid}
+    LIMIT 1
+  `;
+  return rows.length ? rows[0] as any : null;
 }
 
 /**

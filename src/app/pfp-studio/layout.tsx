@@ -3,14 +3,14 @@ import type { Metadata } from 'next';
 const appUrl = 'https://homiehouse.lol/pfp-studio';
 const miniAppFrame = {
   version: '1',
-  imageUrl: 'https://homiehouse.lol/icon-512.png',
+  imageUrl: 'https://homiehouse.lol/homiehouse-icon-512.png',
   button: {
     title: 'Style my photo',
     action: {
       type: 'launch_frame',
       name: 'Homiehouse Studio',
       url: appUrl,
-      splashImageUrl: 'https://homiehouse.lol/icon-512.png',
+      splashImageUrl: 'https://homiehouse.lol/homiehouse-icon-512.png',
       splashBackgroundColor: '#1a1a1c',
     },
   },

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     }
 
     const ip = req.headers.get('x-forwarded-for') || 'unknown';
-    const { success } = rateLimit(`saved-apps:${ip}`, 60, 60);
+    const { success } = await rateLimit(`saved-apps:${ip}`, 60, 60);
     if (!success) return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
 
     const apps = await sql`

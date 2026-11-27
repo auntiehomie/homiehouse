@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     // Rate limit: 30 requests/minute per IP
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`profile:${ip}`, 30, 60);
+    const { success: rateLimitOk } = await rateLimit(`profile:${ip}`, 30, 60);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
@@ -71,6 +71,41 @@ export async function GET(request: NextRequest) {
         logger.info('Fetching user casts', { fid: userFid });
         const page = await fetchUserCastsPage(userFid, 25, searchParams.get('cursor') || undefined);
         casts = page.casts;
+        if (Array.isArray(casts)) {
+          // Author feeds can include only the parent author's FID, which leaves
+          // profile cards rendering the incomplete label "replying to @".
+          // Resolve each distinct parent FID once before returning the page.
+          const parentFids = [...new Set(casts.flatMap((cast: any) => {
+            const parentAuthor = cast?.parent_author;
+            const fid = Number(parentAuthor?.fid ?? cast?.parent_author_fid);
+            return Number.isSafeInteger(fid) && fid > 0 && !parentAuthor?.username
+              ? [fid]
+              : [];
+          }))];
+          const parentUsers = new Map<number, any>();
+          await Promise.all(parentFids.map(async (fid) => {
+            try {
+              const result = await fetchUserByFid(fid);
+              if (result?.user) parentUsers.set(fid, result.user);
+            } catch {
+              // Keep the reply and its parent FID available if lookup fails.
+            }
+          }));
+          casts = casts.map((cast: any) => {
+            const fid = Number(cast?.parent_author?.fid ?? cast?.parent_author_fid);
+            const parentUser = parentUsers.get(fid);
+            if (!parentUser) return cast;
+            return {
+              ...cast,
+              parent_author: {
+                ...cast.parent_author,
+                fid,
+                username: cast.parent_author?.username || parentUser.username,
+                display_name: cast.parent_author?.display_name || parentUser.display_name,
+              },
+            };
+          });
+        }
         next = page.next ?? null;
         castHistoryReadNode = getHypersnapReadDiagnostics(page);
         logger.info('Casts fetched', { count: casts.length });
@@ -105,7 +140,7 @@ export async function GET(request: NextRequest) {
       displayName: normalizedUser.display_name
     });
 
-    return NextResponse.json({ ...normalizedUser, casts, next, castsUnavailable, ...(includeCasts ? { castHistoryReadNode } : {}) }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } });
+    return NextResponse.json({ ...normalizedUser, casts, next, castsUnavailable, ...(includeCasts ? { castHistoryReadNode } : {}) }, { headers: { 'Cache-Control': includeCasts ? 'no-store' : 'public, s-maxage=120, stale-while-revalidate=300' } });
   } catch (error: any) {
     logger.error('Failed to fetch profile', error);
     return handleApiError(error, 'GET /profile');

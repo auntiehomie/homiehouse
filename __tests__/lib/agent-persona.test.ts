@@ -30,8 +30,21 @@ describe('knowledge-grounded educational posting', () => {
     expect(prompt).toContain('Accounts can move across apps.');
     expect(prompt).toContain('Check portability limits.');
     expect(prompt).toContain('https://example.org/identity');
+    expect(prompt).toContain('Cataloged publication date: unknown');
     expect(prompt).not.toContain('undefined');
     expect(prompt).not.toContain('homiehouse.app/learn');
+  });
+
+  it.each<PostMode>(['tip', 'question', 'culture', 'deep-dive'])('uses the publication date for %s drafts', (mode) => {
+    const prompt = postInstruction(mode, {
+      kbArticle: {
+        title: 'Moment of Zen',
+        summary: 'An interview about network states.',
+        url: 'https://www.youtube.com/watch?v=EqJoXaNFFjY',
+      },
+    });
+    expect(prompt).toContain('Cataloged publication date: 2023-09-10');
+    expect(prompt).not.toContain('2026-11-08');
   });
 
   it('gives X a complete single-tweet brief and retains Farcaster long explanations', () => {

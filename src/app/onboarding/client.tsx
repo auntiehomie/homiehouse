@@ -35,6 +35,8 @@ export default function OnboardingClient({ userId, email }: OnboardingClientProp
         throw new Error(data?.error || 'Something went wrong');
       }
 
+      try { localStorage.setItem('hh-onboarding-hint-eligible', '1'); } catch {}
+
       if (mode === 'existing_connected') {
         // Navigate to connect-existing flow
         router.push('/onboarding/connect');

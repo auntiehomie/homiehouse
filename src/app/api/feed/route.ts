@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       } else {
         fetchParams.feed_type = 'filter'; fetchParams.filter_type = 'global_trending';
         if (fid) fetchParams.viewer_fid = fid;
-        if (isCommunity) {
+        if (feedType === 'global' || isCommunity) {
           // Hypersnap currently caps trending pages at 50; request the full page
           // and let the existing cursor pagination expose subsequent candidates.
           fetchParams.limit = 50;

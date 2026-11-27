@@ -1,0 +1,1650 @@
+{
+  "version": 1,
+  "description": "Homiehouse learning corpus. Source summaries and takeaways migrated from the Homiehouse-curated portion of Rufus Vault; do not add personal notes or secrets.",
+  "articles": [
+    {
+      "id": "uniswap-v4-whitepaper",
+      "title": "Uniswap v4 Whitepaper",
+      "url": "https://app.uniswap.org/whitepaper-v4.pdf",
+      "source": "app.uniswap.org",
+      "tags": [
+        "crypto",
+        "defi",
+        "uniswap"
+      ],
+      "summary": "The Uniswap v4 whitepaper introduces a major architectural evolution of the protocol centered on \"hooks\" — custom smart contract plugins that execute at specific points in the pool lifecycle (before/after swaps, LP deposits/withdrawals, etc.). This allows developers to build custom pool types (oracle-integrated, limit orders, dynamic fees, TWAMM, range orders, and more) without forking the core protocol. v4 also introduces a singleton contract architecture where all pools live inside one contract, reducing gas costs for multi-pool operations and simplifying deployment. The design separates the core swap logic from customization, letting developers compose new AMM features as hook contracts while inheriting Uniswap's security and liquidity.",
+      "learningPoints": [
+        "Hooks are the core innovation of Uniswap v4 — they're custom contracts that intercept pool lifecycle events (before/after swap, before/after LP position changes), enabling features like dynamic fees, on-chain oracles, limit orders, and custom swap routing without modifying the core protocol",
+        "The singleton architecture (all pools in one contract) reduces gas costs for multi-hop swaps because tokens don't need to be transferred between separate pool contracts — a multi-pool route is just internal accounting within a single contract",
+        "v4's design philosophy is \"incremental customization without forking\" — instead of launching new AMM variants as separate protocols, developers build hooks that compose with Uniswap's core, inheriting its liquidity network and audit surface while adding custom logic"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-whitepaper",
+      "title": "Ethereum Whitepaper",
+      "url": "https://ethereum.org/whitepaper/",
+      "publishedAt": "2014",
+      "source": "ethereum.org",
+      "tags": [
+        "crypto",
+        "ethereum",
+        "blockchain"
+      ],
+      "summary": "Vitalik Buterin's 2014 whitepaper introduces Ethereum as a next-generation smart contract and decentralized application platform — a blockchain with a built-in Turing-complete programming language that can encode arbitrary state transition functions. The paper traces the history of decentralized digital currency from Chaumian e-cash through b-money and Bitcoin, then frames Bitcoin as a state transition system where UTXOs are the state and transactions trigger transitions. Ethereum's key innovation is generalizing this: instead of Bitcoin's limited scripting language, Ethereum's contracts can implement any computational logic, enabling custom currencies (colored coins), smart property, name registration (Namecoin), DAOs, and arbitrary financial instruments — all on one chain. The paper covers mining, GHOST-based consensus, gas/fees, and applications like financial derivatives, identity systems, and decentralized file storage.",
+      "learningPoints": [
+        "Ethereum's core insight was treating the blockchain as a general-purpose state transition machine rather than a specialized ledger — by making the state transition function fully programmable, a single chain can support currencies, property registries, DAOs, and any arbitrary contract logic without hardcoding each use case",
+        "The \"Turing-complete\" distinction matters practically: Bitcoin's Script is intentionally limited (no loops, limited conditionals) to keep verification simple and predictable, while Ethereum's EVM allows arbitrary computation — this enables far more complex applications but introduces the gas system to bound execution and prevent infinite loops from halting the chain",
+        "The whitepaper's framing of DAOs as \"blockchain-based organizations operating by code\" was prescient in 2014 — it described exactly what emerged as The DAO (2016), MakerDAO, and the entire DeFi governance ecosystem, validating the thesis that programmable state transitions on a blockchain can encode organizational governance"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "bitcoin-whitepaper",
+      "title": "Bitcoin Whitepaper",
+      "url": "https://bitcoin.org/bitcoin.pdf",
+      "publishedAt": "2008",
+      "source": "bitcoin.org",
+      "tags": [
+        "crypto",
+        "bitcoin",
+        "blockchain"
+      ],
+      "summary": "Satoshi Nakamoto's 2008 whitepaper proposes a peer-to-peer electronic cash system that solves the double-spending problem without requiring a trusted third party. The core innovation is a proof-of-work-based distributed timestamp server that chains blocks of transactions together using cryptographic hashes, creating a public ledger (the blockchain) where the computational cost of rewriting history exceeds the cost of honest participation. The paper defines the mechanics: transactions are digitally signed, nodes form a peer-to-peer network, transactions are broadcast and grouped into blocks, miners compete to find a nonce producing a SHA-256 hash below the difficulty target, and the longest chain (most accumulated proof-of-work) is accepted as truth. The system is designed so that attacking the network requires controlling more than 50% of the network's compute power — making it economically irrational to attack rather than participate honestly.",
+      "learningPoints": [
+        "The double-spending problem is THE fundamental challenge of digital currency — without a central authority, how do you know someone hasn't spent the same coin twice? Satoshi's solution (proof-of-work + longest chain rule) was the first practical implementation that didn't rely on a trusted third party, solving a problem that had stumped cryptographers for decades",
+        "The \"longest chain = truth\" rule is really \"most accumulated proof-of-work = truth\" — this means consensus is probabilistic: a transaction isn't truly final until enough subsequent blocks have been mined that an attacker would need impossibly large compute to rewrite history, which is why Bitcoin has a recommended 6-confirmation wait",
+        "The economic incentives are the real security mechanism: miners are rewarded for honest participation (block rewards + transaction fees) and would lose that revenue stream by attacking the network, making honest behavior the dominant strategy — game theory, not cryptography alone, is what secures Bitcoin"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-theory-of-bankless-dao",
+      "title": "The Theory of Bankless DAO",
+      "url": "https://www.bankless.com/the-theory-of-bankless-dao",
+      "source": "bankless.com",
+      "tags": [
+        "crypto",
+        "dao",
+        "governance",
+        "philosophy"
+      ],
+      "summary": "David Hoffman, co-founder of Bankless, lays out the theoretical foundation for why Bankless transitioned from a centralized LLC to a DAO structure. The core argument is that the Bankless revolution — a cultural movement toward crypto-native, decentralized finance — cannot be scaled through a traditional C-corp without becoming the very thing it opposes. Hoffman argues that \"capitalism is only evil at scale\" — at local scale, economic participants can see and regulate each other, but at corporate scale, hierarchies calcify, incentives misalign, and harm is externalized to people who have no governance voice. The DAO structure offers a flatter topology where leadership and laborers work in the same Discord channels, coordination is emergent rather than top-down, and the movement can scale to a global population without concentrating power in a single entity.",
+      "learningPoints": [
+        "The \"capitalism is only evil at scale\" framework (attributed to Kevin Owocki of Gitcoin) is a useful lens: local economies self-regulate through visibility and shared interest, but at corporate scale, hierarchies disconnect decision-makers from consequences — DAOs attempt to fix this by keeping the organization flat and transparent",
+        "A \"headless brand\" — a brand that no single entity can own or co-opt — is a uniquely crypto-native concept that's impossible under traditional corporate structures. The Wells Fargo April Fools joke about acquiring Bankless resonated precisely because the community instinctively understands that acquisition should be structurally impossible for a genuine movement",
+        "The transition from LLC to DAO is not just a legal restructuring but a bet that emergent, distributed coordination will outperform hierarchical management at scale — Discord vs. Slack as organizational primitives matters: Discord's channel-based, open-participation model enables flat coordination that Slack's permissioned, enterprise-oriented model cannot"
+      ],
+      "addedAt": "2026-10-11",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "welcome-to-x402",
+      "title": "Welcome to x402",
+      "url": "https://docs.x402.org/introduction",
+      "source": "docs.x402.org",
+      "tags": [
+        "ai",
+        "agents",
+        "crypto",
+        "payments",
+        "web3",
+        "api"
+      ],
+      "summary": "x402 is an open standard for charging for APIs and content through HTTP, using the `402 Payment Required` response. Buyers, including AI agents, can pay programmatically without service accounts or manual checkout. The server supplies payment instructions, then verifies and settles the submitted payment itself or through a facilitator before providing the resource. The introduction highlights per-request APIs, digital content, and microtransaction-based tools as use cases.",
+      "learningPoints": [
+        "HTTP 402 can communicate payment requirements within a normal resource request.",
+        "A facilitator can provide payment verification and settlement endpoints.",
+        "x402 supports machine-to-machine payments and micropayments; the standard itself has no built-in fees."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "builder-code-erc-8021",
+      "title": "Builder Code (ERC-8021)",
+      "url": "https://docs.x402.org/extensions/builder-code",
+      "source": "docs.x402.org",
+      "tags": [
+        "crypto",
+        "x402",
+        "payments",
+        "attribution",
+        "developer docs"
+      ],
+      "summary": "The x402 builder-code extension adds on-chain attribution to payments by appending an ERC-8021 Schema 2 suffix to settlement transaction calldata. Resource servers, clients, and facilitators can each contribute codes identifying the app, participating services, and payment facilitator. The extension documents implementations for TypeScript, Go, and Python, plus tools to encode and parse the suffix. Codes are limited to lowercase letters, digits, and underscores, and each participant has a reserved capacity so one party cannot crowd out another.",
+      "learningPoints": [
+        "The attribution fields distinguish the app (`a`), facilitator (`w`), and service codes (`s`).",
+        "ERC-8021 encodes attribution in a CBOR suffix appended to settlement calldata, where off-chain tools can inspect it.",
+        "x402 provides code examples across TypeScript, Go, and Python, with separate code limits for clients, servers, and facilitators."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "let-a-thousand-societies-bloom-section-9",
+      "title": "Let a thousand societies bloom (section 9)",
+      "url": "https://vitalik.eth.limo/general/2025/12/17/societies.html#9",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "philosophy",
+        "decentralization",
+        "network states",
+        "governance"
+      ],
+      "summary": "Vitalik Buterin explores how people might voluntarily form new communities, cultures, cities, and jurisdictions instead of inheriting a single fixed set of social institutions. He discusses “tribes,” physical hubs, and special zones as different settings for cultural and governance experiments, while emphasizing that culture is shaped by lived habits and practices rather than mission statements alone. The essay favors small, pluralistic experiments that can generate real feedback while limiting the risks of imposing one model on everyone. It treats these ideas as varied experiments with tradeoffs, not as a single proven blueprint.",
+      "learningPoints": [
+        "Communities can range from online groups to cities and jurisdictions, with different degrees of autonomy and connection to existing institutions.",
+        "Physical hubs can make a community’s values tangible through shared spaces, routines, and services.",
+        "Voluntary, limited-scale experiments can test governance ideas while containing risks better than imposing a model at national scale."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "all-property-becomes-cryptography",
+      "title": "All Property Becomes Cryptography",
+      "url": "https://open.substack.com/pub/balajis/p/all-property-becomes-cryptography?r=8v1yo4&utm_medium=ios",
+      "source": "open.substack.com",
+      "tags": [
+        "crypto",
+        "tokenization",
+        "property",
+        "smart contracts"
+      ],
+      "summary": "Balaji Srinivasan argues that cryptographic systems could increasingly secure and control valuable assets, beginning with digital currency and potentially extending to financial instruments, doors, vehicles, and electronically controlled equipment. He points to stablecoins and smart locks as examples of how on-chain records and signatures could connect digital ownership with access to physical assets. The essay’s “99%+” claim is the author’s projection, not an established measurement, and the piece acknowledges that everyday consumables are an exception. It concludes with a broader vision of blockchain infrastructure enabling a code-based economic order across the internet.",
+      "learningPoints": [
+        "The argument moves from recording digital assets on-chain toward using cryptographic credentials to control access to physical property.",
+        "Smart contracts and digital signatures can act as access-control components when connected to electronic locks and equipment.",
+        "The essay is a forecast about technical and legal adoption, so its claims should be treated as a thesis rather than a description of current universal practice."
+      ],
+      "addedAt": "2026-10-12",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "optimism-documentation-for-ai-agents",
+      "title": "Optimism Documentation for AI Agents",
+      "url": "https://docs.optimism.io/llms.txt",
+      "source": "docs.optimism.io",
+      "tags": [
+        "crypto",
+        "optimism",
+        "OP Stack",
+        "AI agents",
+        "documentation"
+      ],
+      "summary": "Optimism publishes an `llms.txt` index that maps its entire documentation set as Markdown pages optimized for AI agent consumption, covering app development, chain operations, protocol concepts, interoperability, security, and component references. The companion \"Use the Docs with AI\" guide describes how to pair the index with per-page Markdown and an Optimism-hosted MCP server for agent-assisted research. This index serves as a discovery map — follow its links to the specific official page needed for a question, then read that page's Markdown as the primary source.",
+      "learningPoints": [
+        "The `llms.txt` standard provides a structured entry point for agents to navigate large documentation sets without crawling — Optimism's index spans the full OP Stack, Superchain, and OP Mainnet reference material",
+        "Optimism hosts an MCP server that agents can connect to for live documentation access; check the AI guide for current connection details and prompt instructions before configuring an agent",
+        "Always verify the linked page's network, component, version, and review date — documentation indexes can change, and time-sensitive implementation details should be rechecked against current official pages"
+      ],
+      "addedAt": "2026-10-10",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-network-state-in-one-thousand-words",
+      "title": "The Network State in One Thousand Words",
+      "url": "https://thenetworkstate.com/the-network-state-in-one-thousand-words",
+      "source": "thenetworkstate.com",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Balaji proposes seven stages: form a startup society, organize collective action, build offline trust and an online economy, fund physical locations, connect them, audit membership and resources, and seek recognition. This is an advocated pathway, not evidence that scale guarantees sovereignty.",
+      "learningPoints": [
+        "An online group is an early stage, not automatically a state.",
+        "Physical community is part of the proposal.",
+        "Recognition remains a political objective rather than a technical feature."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-network-state-in-one-essay",
+      "title": "The Network State in One Essay",
+      "url": "https://thenetworkstate.com/the-network-state-in-one-essay",
+      "source": "thenetworkstate.com",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Balaji contrasts conventional and speculative routes to new countries with a digitally organized, geographically dispersed community. His case is that existing internet tools make gradual community-building plausible. The proposed transition from organizational success to political recognition remains an argument to evaluate.",
+      "learningPoints": [
+        "The essay supplies the rationale behind the shorter roadmap.",
+        "Distributed locations can belong to one social project.",
+        "Measured membership or wealth should not be confused with governing authority."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "what-do-i-think-about-network-states",
+      "title": "What do I think about network states?",
+      "url": "https://vitalik.eth.limo/general/2022/07/13/networkstates.html",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Vitalik Buterin's July 13, 2022 review supports experimentation while challenging founder dominance, exclusion of people without resources, reliance on exit, and harms that cross community borders. He favors participatory governance, constraints on wealth-based voting, and representation for surrounding communities.",
+      "learningPoints": [
+        "Support for experiments does not require accepting Balaji's political worldview.",
+        "A right to leave does not replace accountable leadership.",
+        "His alternative combines local experimentation with democracy and wider cooperation."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "overthrowing-the-network-state-an-initial-critique-and-alternatives",
+      "title": "Overthrowing The Network State: An Initial Critique and Alternatives",
+      "url": "https://theblockchainsocialist.com/overthrowing-the-network-state-an-initial-critique-and-alternatives/",
+      "source": "theblockchainsocialist.com",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "The January 29, 2023 episode page introduces a critical series co-hosted by The Blockchain Socialist and Primavera De Filippi. Its written framing contrasts exit-based autonomy with commons-based governance that acknowledges interdependence. This summary covers the accessible written introduction only; the audio was not transcribed or reviewed.",
+      "learningPoints": [
+        "This is an explicitly critical perspective, not neutral reporting.",
+        "Its alternative emphasizes shared governance and interdependence.",
+        "Specific spoken arguments require transcript or audio verification before teaching them."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "modular-politics-toward-a-governance-layer-for-online-communities",
+      "title": "Modular Politics: Toward a Governance Layer for Online Communities",
+      "url": "https://arxiv.org/abs/2005.13701",
+      "source": "arxiv.org",
+      "tags": [
+        "network states",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Nathan Schneider, Primavera De Filippi, Seth Frey, Joshua Z. Tan and Amy X. Zhang propose composable online governance mechanisms. The accessible abstract highlights missing institutions such as juries, term limits and formal debate. This earlier work is an alternative design framework, not a direct review of Balaji's later book; abstract reviewed, not full paper.",
+      "learningPoints": [
+        "Governance tools can offer more than platform-owner discretion.",
+        "Communities could combine portable participatory mechanisms.",
+        "A proposed framework is not proof that a particular implementation works."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-meaning-of-decentralization",
+      "title": "The Meaning of Decentralization",
+      "url": "https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274",
+      "source": "medium.com",
+      "tags": [
+        "decentralization",
+        "governance",
+        "web3"
+      ],
+      "summary": "Separates architectural, political, and logical decentralization. These describe failure tolerance, controlling actors, and whether a system maintains one shared state. A large computer count is insufficient to establish independent control. Use the framework to ask narrower questions rather than treating decentralization as an absolute label.",
+      "learningPoints": [
+        "Computer count and control differ.",
+        "Shared state is another dimension.",
+        "Specify the property being evaluated."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "daos-are-not-corporations-where-decentralization-in-autonomous-organizations-matters",
+      "title": "DAOs are not corporations: where decentralization in autonomous organizations matters",
+      "url": "https://vitalik.eth.limo/general/2022/09/20/daos.html",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "dao",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Argues for decentralized decision-making where compromise, durable censorship resistance, or credible fairness matters. Focused execution teams can coexist with broader accountability. The institutional setting matters: an organization providing basic infrastructure faces different demands from a company. This is a normative design argument, not a comparative performance study.",
+      "learningPoints": [
+        "Decentralization has multiple purposes.",
+        "Teams may retain operational focus.",
+        "Fairness requires credible safeguards."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "moving-beyond-coin-voting-governance",
+      "title": "Moving beyond coin voting governance",
+      "url": "https://vitalik.eth.limo/general/2021/08/16/voting3.html",
+      "source": "vitalik.eth.limo",
+      "tags": [
+        "dao",
+        "governance",
+        "decentralization"
+      ],
+      "summary": "Examines wealthy-holder dominance, excluded non-holder interests, and vote buying. Delegation addresses some participation problems without removing all incentive failures. Proposed alternatives include limiting governance powers and non-coin participation. These mechanisms have their own identity and collusion challenges; the essay does not establish a universal solution.",
+      "learningPoints": [
+        "Token ownership can concentrate influence.",
+        "Delegation has limited scope.",
+        "Alternatives also need attack analysis."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "building-effective-agents",
+      "title": "Building effective agents",
+      "url": "https://www.anthropic.com/research/building-effective-agents",
+      "source": "anthropic.com",
+      "tags": [
+        "ai",
+        "agents",
+        "agentic-economy"
+      ],
+      "summary": "Distinguishes predetermined workflows from agents choosing steps and tools. Recommends starting simply, adding complexity when evaluation demonstrates value, and designing clear tool interfaces. Agent loops use environmental feedback and stopping conditions. Flexibility can introduce extra latency, costs, and accumulated errors. Treat the patterns separately from changing framework recommendations.",
+      "learningPoints": [
+        "Workflows prescribe their paths.",
+        "Agents choose tools and steps.",
+        "Evaluate added complexity against results."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "non-fungible-tokens-nft",
+      "title": "Non-fungible tokens (NFT)",
+      "url": "https://ethereum.org/nft/",
+      "source": "ethereum.org",
+      "tags": [
+        "nft",
+        "creator",
+        "creator-economy",
+        "ethereum"
+      ],
+      "summary": "Describes unique token identities, smart-contract ownership records, metadata, and uses such as art, tickets, and course credentials. The page advocates NFT benefits. Teaching should distinguish the token mechanism from an issuer’s additional promises and avoid treating every possible integration as universally supported.",
+      "learningPoints": [
+        "Contracts track distinguishable tokens.",
+        "Credentials are one possible use.",
+        "Inspect each additional promise separately."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "zora-coins-protocol",
+      "title": "Zora Coins Protocol",
+      "url": "https://docs.zora.co/coins",
+      "source": "docs.zora.co",
+      "tags": [
+        "creator",
+        "creator-economy",
+        "creator-coins",
+        "zora"
+      ],
+      "summary": "Distinguishes profile Creator Coins, post Content Coins and Trend Coins. Creator supply includes a five-year vesting allocation. Do not confuse these tokens with ZORA or the Base network.",
+      "learningPoints": [
+        "A profile token differs from a post token.",
+        "Allocations vary by coin type.",
+        "A token purchase alone does not establish copyright or equity."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "about-bankless",
+      "title": "About Bankless",
+      "url": "https://www.bankless.com/about",
+      "source": "bankless.com",
+      "tags": [
+        "bankless",
+        "finance",
+        "media-literacy"
+      ],
+      "summary": "Presents crypto as coordination technology and a path toward greater sovereignty. Useful as the publisher’s own statement of perspective, rather than independent evidence for its economic conclusions. Pair substantive arguments with original evidence and the publisher’s disclosures.",
+      "learningPoints": [
+        "A publisher has a thesis.",
+        "A thesis is not outcome evidence.",
+        "Compare interpretations with original sources."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "bankless-disclosures",
+      "title": "Bankless Disclosures",
+      "url": "https://www.bankless.com/disclosures",
+      "source": "bankless.com",
+      "tags": [
+        "bankless",
+        "finance",
+        "media-literacy"
+      ],
+      "summary": "Describes material contributor holdings, advisory interests, and venture investments covered by disclosures. This frames potential conflicts; it does not prove a particular argument true or false. The linked spreadsheet was not inspected, so this note makes no claim about current individual positions.",
+      "learningPoints": [
+        "Holdings can shape incentives.",
+        "Disclosure is not a verdict.",
+        "Actual positions require separate verification."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "the-side-hustle-economys-crypto-moment",
+      "title": "The Side Hustle Economy's Crypto Moment",
+      "url": "https://www.bankless.com/read/the-side-hustle-economys-crypto-moment",
+      "source": "bankless.com",
+      "tags": [
+        "creator",
+        "creator-economy",
+        "bankless",
+        "finance"
+      ],
+      "summary": "Uses Whop to argue that crypto infrastructure can serve existing creator businesses instead of requiring creators to begin with tokens. Critiques earlier token-first approaches and acknowledges marketplace abuse concerns. Platform growth and product descriptions are attributed claims, not independently verified findings. Use it as a counterpoint to coin-based creator funding.",
+      "learningPoints": [
+        "Start with the service customers need.",
+        "Trading and creator revenue differ.",
+        "Product claims need original evidence."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "monero-faq-privacy-and-limitations",
+      "title": "Monero FAQ: privacy and limitations",
+      "url": "https://www.getmonero.org/get-started/faq/",
+      "source": "getmonero.org",
+      "tags": [
+        "privacy",
+        "monero",
+        "crypto"
+      ],
+      "summary": "Explains transaction-privacy mechanisms while explicitly rejecting complete-anonymity guarantees. Identity disclosures, exposed keys, compromised endpoints, and remote-node observations remain relevant. A privacy claim must name its observer and assumptions. This project reference is not an independent audit or a guarantee against future analysis.",
+      "learningPoints": [
+        "Transaction privacy has boundaries.",
+        "Endpoint compromise remains important.",
+        "Remote nodes add trust considerations."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "what-is-the-difference-between-shielded-and-transparent-zcash",
+      "title": "What is the difference between shielded and transparent Zcash?",
+      "url": "https://z.cash/learn/what-is-the-difference-between-shielded-and-transparent-zcash/",
+      "source": "z.cash",
+      "tags": [
+        "privacy",
+        "zcash",
+        "crypto"
+      ],
+      "summary": "Contrasts public transparent activity with shielded activity intended to protect financial details. The privacy mode matters; an asset name alone does not identify what observers can see. This short page does not establish the security properties of every wallet or operational path.",
+      "learningPoints": [
+        "Transparent activity exposes financial data.",
+        "Shielded activity has different visibility.",
+        "Check the actual transaction path."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "an-empirical-analysis-of-anonymity-in-zcash",
+      "title": "An Empirical Analysis of Anonymity in Zcash",
+      "url": "https://arxiv.org/abs/1805.03180",
+      "source": "arxiv.org",
+      "tags": [
+        "privacy",
+        "zcash",
+        "research"
+      ],
+      "summary": "The abstract reports that identifiable usage patterns can reduce anonymity sets in the then-deployed Zcash system. It supports examining behavior alongside cryptography. Historical results must not be presented as a current exploit, a modern-pool benchmark, or proof that private use is impossible.",
+      "learningPoints": [
+        "Usage patterns affect practical privacy.",
+        "The findings concern historical deployment.",
+        "Modern claims need newer evidence."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "legacy-zora-nft-documentation",
+      "title": "Legacy Zora NFT documentation",
+      "url": "https://nft-docs.zora.co/",
+      "source": "nft-docs.zora.co",
+      "tags": [
+        "creator",
+        "nft",
+        "zora"
+      ],
+      "summary": "Explicitly legacy documentation pointing readers to the modern Coins docs. Use it to explain the earlier NFT protocol rather than current coin mechanics.",
+      "learningPoints": [
+        "NFT collecting and fungible coins are distinct.",
+        "The documentation marks its historical scope.",
+        "Current coins need modern references."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "zora-coin-rewards",
+      "title": "Zora Coin Rewards",
+      "url": "https://docs.zora.co/coins/contracts/rewards",
+      "source": "docs.zora.co",
+      "tags": [
+        "creator",
+        "zora",
+        "content-coins"
+      ],
+      "summary": "The protocol splits trading fees among multiple recipients. Date and version matter; older help material can describe different rewards.",
+      "learningPoints": [
+        "Total fee is not all creator income.",
+        "Creator income is separate from holder returns.",
+        "Check deployed version and fee recipients."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "base-app-launch-vision",
+      "title": "Base App launch vision",
+      "url": "https://www.base.org/blog/a-new-day-one",
+      "source": "base.org",
+      "tags": [
+        "creator",
+        "base-app",
+        "content-coins"
+      ],
+      "summary": "Historical 2025 launch announcement describes social distribution, Zora-powered posts and separate weekly creator rewards. It does not establish present availability.",
+      "learningPoints": [
+        "Distribution shaped the experiment.",
+        "Weekly platform incentives differ from trading fees.",
+        "Launch promises require comparison with later outcomes."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "zora-and-base-app-integration-case-study",
+      "title": "Zora and Base App integration case study",
+      "url": "https://0x.org/case-studies/zora",
+      "source": "0x.org",
+      "tags": [
+        "creator",
+        "base-app",
+        "zora"
+      ],
+      "summary": "Integration provider describes routing between post coins, creator coins and ZORA. It is a promotional technical account, not independent evidence of durable earnings.",
+      "learningPoints": [
+        "Token pairs can require multi-hop routing.",
+        "Integration mechanics do not prove creator profitability.",
+        "Treat provider framing as interested evidence."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "creator-coin-retreat-reporting-and-analysis",
+      "title": "Creator coin retreat: reporting and analysis",
+      "url": "https://www.galaxy.com/insights/research/coinbase-capitulates-on-creator-coins-in-base-team-shakeup",
+      "source": "galaxy.com",
+      "tags": [
+        "creator",
+        "creator-economy",
+        "content-coins"
+      ],
+      "summary": "July 17, 2026 reporting and analysis describes the retreat from content coins and critiques fragmented attention and speculative cycles. Attribute the assessment to Galaxy; do not infer that every creator coin or creator business failed.",
+      "learningPoints": [
+        "Historical launch features may later change.",
+        "Attention, volume and sustainable income differ.",
+        "Separate reported events from causal interpretation."
+      ],
+      "addedAt": "2026-10-25",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "joint-declaration-peaceful-assembly-digital-technologies-2023",
+      "title": "Joint Declaration on Freedom of Peaceful Assembly and Association and Digital Technologies",
+      "url": "https://www.ohchr.org/sites/default/files/documents/issues/trafficking/statements/20230915-jd-foaa-digital-technologies.pdf",
+      "source": "ohchr.org",
+      "tags": [
+        "network states",
+        "governance",
+        "privacy",
+        "digital rights",
+        "community"
+      ],
+      "summary": "The 2023 joint declaration sets out recommendations for protecting peaceful assembly and association when digital technologies are designed and used. It calls for meaningful public consultation, privacy and data protection safeguards, accountability, and protections for expression and association. It addresses states and companies generally; it does not assess a particular network-state project.",
+      "learningPoints": [
+        "Meaningful public participation and transparent governance can help affected people scrutinize technology decisions.",
+        "Privacy safeguards and oversight matter when surveillance can affect peaceful association and expression.",
+        "Apply these general recommendations as questions for evaluating a project, not as evidence that a specific project committed an abuse."
+      ],
+      "addedAt": "2026-11-07",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-index",
+      "title": "Ethereum Improvement Proposals: Networking",
+      "url": "https://eips.ethereum.org/networking",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization"
+      ],
+      "summary": "The official Ethereum networking EIP index groups peer-to-peer networking specifications and proposals by status. Statuses can change; check the source before treating a proposal as an active network rule.",
+      "learningPoints": [
+        "Identify how discovery, peer compatibility, message exchange and synchronization relate to decentralized networks.",
+        "Distinguish final specifications from last-call, draft, stagnant and withdrawn proposals."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8",
+      "title": "EIP-8: devp2p Forward Compatibility Requirements for Homestead",
+      "url": "https://eips.ethereum.org/EIPS/eip-8",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Defines forward-compatible handling of devp2p hello, discovery packets and RLPx handshakes. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8: devp2p Forward Compatibility Requirements for Homestead.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-627",
+      "title": "EIP-627: Whisper Specification",
+      "url": "https://eips.ethereum.org/EIPS/eip-627",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Specifies Whisper, a peer-to-peer messaging protocol; this historical specification should not be assumed to describe present-day messaging deployments. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-627: Whisper Specification.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-706",
+      "title": "EIP-706: DEVp2p snappy compression",
+      "url": "https://eips.ethereum.org/EIPS/eip-706",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Specifies Snappy compression for devp2p messages to reduce network bandwidth. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-706: DEVp2p snappy compression.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-778",
+      "title": "EIP-778: Ethereum Node Records (ENR)",
+      "url": "https://eips.ethereum.org/EIPS/eip-778",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Defines signed, extensible records describing Ethereum nodes and their connection information. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-778: Ethereum Node Records (ENR).",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-868",
+      "title": "EIP-868: Node Discovery v4 ENR Extension",
+      "url": "https://eips.ethereum.org/EIPS/eip-868",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Extends discovery v4 to resolve authoritative Ethereum Node Records. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-868: Node Discovery v4 ENR Extension.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2124",
+      "title": "EIP-2124: Fork identifier for chain compatibility checks",
+      "url": "https://eips.ethereum.org/EIPS/eip-2124",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Defines a fork identifier to help peers assess chain and fork compatibility. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2124: Fork identifier for chain compatibility checks.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2364",
+      "title": "EIP-2364: eth/64: forkid-extended protocol handshake",
+      "url": "https://eips.ethereum.org/EIPS/eip-2364",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Adds the fork identifier to the eth/64 protocol handshake. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2364: eth/64: forkid-extended protocol handshake.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2464",
+      "title": "EIP-2464: eth/65: transaction announcements and retrievals",
+      "url": "https://eips.ethereum.org/EIPS/eip-2464",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Introduces transaction hash announcements and pooled transaction retrieval messages. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2464: eth/65: transaction announcements and retrievals.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2481",
+      "title": "EIP-2481: eth/66 request identifier",
+      "url": "https://eips.ethereum.org/EIPS/eip-2481",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Adds request identifiers to correlate eth protocol requests and responses. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2481: eth/66 request identifier.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-2976",
+      "title": "EIP-2976: Typed Transactions over Gossip",
+      "url": "https://eips.ethereum.org/EIPS/eip-2976",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Describes how typed transactions are propagated over Ethereum's gossip protocol. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-2976: Typed Transactions over Gossip.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-4938",
+      "title": "EIP-4938: eth/67 - Removal of GetNodeData",
+      "url": "https://eips.ethereum.org/EIPS/eip-4938",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Removes GetNodeData and NodeData messages from the eth wire protocol. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-4938: eth/67 - Removal of GetNodeData.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-5793",
+      "title": "EIP-5793: eth/68 - Add tx type to tx announcement",
+      "url": "https://eips.ethereum.org/EIPS/eip-5793",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Adds transaction type and size information to pooled transaction hash announcements. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-5793: eth/68 - Add tx type to tx announcement.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-6122",
+      "title": "EIP-6122: Forkid checks based on timestamps",
+      "url": "https://eips.ethereum.org/EIPS/eip-6122",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Extends fork identifier compatibility checks to account for timestamp-based forks. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-6122: Forkid checks based on timestamps.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7642",
+      "title": "EIP-7642: eth/69 - history expiry and simpler receipts",
+      "url": "https://eips.ethereum.org/EIPS/eip-7642",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "final"
+      ],
+      "summary": "Introduces block-range information and simpler receipts for the eth/69 protocol. The networking index listed this EIP as Final on 2026-11-08; check the source for changes.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7642: eth/69 - history expiry and simpler receipts.",
+        "Interpret its Final status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7975",
+      "title": "EIP-7975: eth/70 - Partial Block Receipt Lists",
+      "url": "https://eips.ethereum.org/EIPS/eip-7975",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes requests for partial block receipt lists in the eth peer-to-peer protocol. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7975: eth/70 - Partial Block Receipt Lists.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8070",
+      "title": "EIP-8070: eth/72 - Sparse Blobpool",
+      "url": "https://eips.ethereum.org/EIPS/eip-8070",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes a sparse blobpool design affecting how blob transactions and their data are managed and exchanged. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8070: eth/72 - Sparse Blobpool.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8136",
+      "title": "EIP-8136: Cell-Level Deltas for Data Column Broadcast",
+      "url": "https://eips.ethereum.org/EIPS/eip-8136",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes cell-level deltas for broadcasting data columns. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8136: Cell-Level Deltas for Data Column Broadcast.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8159",
+      "title": "EIP-8159: eth/71 - Block Access List Exchange",
+      "url": "https://eips.ethereum.org/EIPS/eip-8159",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes protocol messages for exchanging block access lists between peers. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8159: eth/71 - Block Access List Exchange.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8189",
+      "title": "EIP-8189: snap/2 - BAL-Based State Healing",
+      "url": "https://eips.ethereum.org/EIPS/eip-8189",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "last-call"
+      ],
+      "summary": "Proposes block-access-list-based state healing in a new snap protocol version. The networking index listed this EIP as Last Call on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8189: snap/2 - BAL-Based State Healing.",
+        "Interpret its Last Call status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-4444",
+      "title": "EIP-4444: Bound Historical Data in Execution Clients",
+      "url": "https://eips.ethereum.org/EIPS/eip-4444",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes bounds on historical data served by execution clients, with implications for syncing and historical data availability. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-4444: Bound Historical Data in Execution Clients.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7801",
+      "title": "EIP-7801: etha - Sharded Blocks Subprotocol",
+      "url": "https://eips.ethereum.org/EIPS/eip-7801",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes an etha subprotocol for sharded blocks. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7801: etha - Sharded Blocks Subprotocol.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8077",
+      "title": "EIP-8077: eth/XX - announce transactions with nonce",
+      "url": "https://eips.ethereum.org/EIPS/eip-8077",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes including sender and nonce information in transaction announcements. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8077: eth/XX - announce transactions with nonce.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8094",
+      "title": "EIP-8094: eth/vhash - Blob-Aware Mempool",
+      "url": "https://eips.ethereum.org/EIPS/eip-8094",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes a blob-aware mempool and changes to blob transaction exchange. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8094: eth/vhash - Blob-Aware Mempool.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8371",
+      "title": "EIP-8371: RowDAS - Distributed Blob Reconstruction",
+      "url": "https://eips.ethereum.org/EIPS/eip-8371",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes distributed reconstruction of blob data using row and column topics. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8371: RowDAS - Distributed Blob Reconstruction.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8383",
+      "title": "EIP-8383: Reduce CL Block Retention Window",
+      "url": "https://eips.ethereum.org/EIPS/eip-8383",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes reducing the consensus-layer block retention window and discusses checkpoint sync and weak subjectivity. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8383: Reduce CL Block Retention Window.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8408",
+      "title": "EIP-8408: eth/73 - Indexed Cell Requests",
+      "url": "https://eips.ethereum.org/EIPS/eip-8408",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes indexed requests and responses for cells in a new eth protocol version. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8408: eth/73 - Indexed Cell Requests.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-8411",
+      "title": "EIP-8411: Fast Execution Payload Broadcast",
+      "url": "https://eips.ethereum.org/EIPS/eip-8411",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "draft"
+      ],
+      "summary": "Proposes a mechanism for faster broadcasting of execution payloads. The networking index listed this EIP as Draft on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-8411: Fast Execution Payload Broadcast.",
+        "Interpret its Draft status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-1459",
+      "title": "EIP-1459: Node Discovery via DNS",
+      "url": "https://eips.ethereum.org/EIPS/eip-1459",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "stagnant"
+      ],
+      "summary": "Describes authenticated, updateable Ethereum node lists retrievable via DNS. The networking index listed this EIP as Stagnant on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-1459: Node Discovery via DNS.",
+        "Interpret its Stagnant status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7639",
+      "title": "EIP-7639: eth/70 - Cease serving history before PoS",
+      "url": "https://eips.ethereum.org/EIPS/eip-7639",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "stagnant"
+      ],
+      "summary": "Proposes ending peer-to-peer requests and responses for block data from before the Paris upgrade. The networking index listed this EIP as Stagnant on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7639: eth/70 - Cease serving history before PoS.",
+        "Interpret its Stagnant status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7542",
+      "title": "EIP-7542: eth/70 - available-blocks-extended protocol",
+      "url": "https://eips.ethereum.org/EIPS/eip-7542",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "withdrawn"
+      ],
+      "summary": "Proposed a way for nodes to communicate the range of blocks available to peers. The networking index listed this EIP as Withdrawn on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7542: eth/70 - available-blocks-extended protocol.",
+        "Interpret its Withdrawn status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ethereum-networking-eip-7636",
+      "title": "EIP-7636: Extension of EIP-778 for \"client\" ENR Entry",
+      "url": "https://eips.ethereum.org/EIPS/eip-7636",
+      "source": "eips.ethereum.org",
+      "tags": [
+        "ethereum",
+        "blockchain",
+        "networking",
+        "decentralization",
+        "withdrawn"
+      ],
+      "summary": "Proposed a client software and version field in Ethereum Node Records. The networking index listed this EIP as Withdrawn on 2026-11-08; check the source for changes. Do not assume this proposal is deployed or current network behavior.",
+      "learningPoints": [
+        "Explain the networking topic covered by EIP-7636: Extension of EIP-778 for \"client\" ENR Entry.",
+        "Interpret its Withdrawn status as of 2026-11-08 and verify current status and deployment before applying it."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "digicert-customer-data-and-identity-document-breach",
+      "title": "DigiCert data breach exposes customer information and identity documents",
+      "url": "https://www.bleepingcomputer.com/news/security/digicert-data-breach-exposes-customer-information-identity-documents/",
+      "source": "bleepingcomputer.com",
+      "tags": [
+        "cybersecurity",
+        "data breach",
+        "identity",
+        "access control",
+        "certificate authorities"
+      ],
+      "summary": "BleepingComputer reports that a February 2025 server migration exposed an internal DigiCert business system that had previously required VPN access. An external self-registration path and an authorization flaw later allowed read-only access to archived customer records, including business contact information and, for some people, identity documents. DigiCert said the affected account could not alter records, approve validations, or issue certificates, and that CertCentral, DigiCert ONE, customer credentials, and issued certificates were not compromised. The number of affected people was not stated in the reviewed report.",
+      "learningPoints": [
+        "A migration can change a system's trust boundary: an internal service exposed to the internet needs a fresh review of registration, authorization, and archived-data access.",
+        "Authentication and authorization are different controls; creating an account should not grant access to data unless every object-level permission is verified.",
+        "Incident scope should distinguish exposed identity records from unaffected certificate issuance, credentials, and production services rather than treating every part of a provider as compromised."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "microsoft-email-threat-landscape-q3-2026",
+      "title": "Email threat landscape: Q3 2026 trends and insights",
+      "url": "https://www.microsoft.com/en-us/security/blog/2026/11/05/email-threat-landscape-q3-2026-trends-and-insights/",
+      "source": "microsoft.com",
+      "tags": [
+        "cybersecurity",
+        "phishing",
+        "email security",
+        "social engineering",
+        "credential theft"
+      ],
+      "summary": "Microsoft Threat Intelligence and Defender researchers report detecting about 7.3 billion email-based phishing threats from July through September 2026, including nearly 3 billion in September. Credential theft remained the dominant objective. Microsoft also observed roughly 129 million malicious messages spoofing tracked business-service domains and found that broad tenant or user exceptions frequently overrode protections even after authentication failures and malicious classification. The figures describe Microsoft's detections and do not establish that recipients opened the messages or that accounts were compromised.",
+      "learningPoints": [
+        "Security exceptions can undo otherwise successful detection, so allowlists and overrides need narrow scope, ownership, expiration, and regular review.",
+        "Familiar brands and routine requests such as invoices, signatures, payroll, or salary reviews are social-engineering tools, not proof that a sender is authentic.",
+        "Detection volume measures observed threats, not confirmed victim impact; distinguish blocked or classified messages from opened messages and compromised accounts."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "openssh-10-6p2-password-authentication-bypass",
+      "title": "OpenSSH 10.6p2 password authentication bypass workaround",
+      "url": "https://www.openssh.org/releasenotes.html",
+      "source": "openssh.org",
+      "tags": [
+        "cybersecurity",
+        "openssh",
+        "linux",
+        "authentication",
+        "patching"
+      ],
+      "summary": "OpenSSH 10.6p2, released November 5, 2026, includes a critical workaround for a password-authentication bypass affecting some Linux systems that use musl libc and run OpenSSH with PAM support disabled. The OpenSSH team says the root cause is outside sshd but can be exploited through sshd and avoided there. The condition is configuration-specific rather than a claim that every OpenSSH installation is vulnerable.",
+      "learningPoints": [
+        "Assess exposure using the complete condition set—Linux, musl libc, and PAM disabled—rather than assuming every OpenSSH server is affected.",
+        "A component can provide a defensive workaround even when the underlying defect originates elsewhere in the operating-system stack.",
+        "Patch decisions should use the official release notes and the distribution's fixed package guidance, followed by a verification of the running version and configuration."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "post-quantum-questions-to-ask-your-vendors",
+      "title": "Post-quantum questions to ask your vendors",
+      "url": "https://www.cyber.gov.au/publication/post-quantum-questions-to-ask-your-vendors",
+      "source": "cyber.gov.au",
+      "tags": [
+        "cybersecurity",
+        "post-quantum cryptography",
+        "cryptography",
+        "vendor risk",
+        "supply chain"
+      ],
+      "summary": "Guidance jointly authored by Australia's ACSC with CISA and the NSA provides vendor-neutral questions for evaluating post-quantum cryptography readiness during procurement, contract renewal, and ongoing assurance. It focuses on identifying cryptographic dependencies, understanding vendor risk assessments and transition plans, evaluating implementation approaches, and maintaining supplier communication. The document is planning guidance for a phased migration; it does not claim that every organization should replace all cryptography immediately.",
+      "learningPoints": [
+        "An organization cannot plan its own post-quantum transition without knowing which vendor products, managed services, and cloud systems choose or depend on public-key cryptography.",
+        "Procurement and renewal reviews should ask for a cryptographic inventory, accountable migration milestones, testing plans, update paths, and clear communication about dependencies and delays.",
+        "Post-quantum readiness is a supply-chain and lifecycle-management problem as well as an algorithm choice, so early vendor engagement reduces later migration risk."
+      ],
+      "addedAt": "2026-11-06",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "moment-of-zen-tech-tribe-cities-part-2",
+      "title": "Balaji on How the Tech Tribe Can Save Our Cities [Part 2]",
+      "url": "https://www.youtube.com/watch?v=EqJoXaNFFjY",
+      "publishedAt": "2023-09-10",
+      "source": "www.youtube.com",
+      "tags": [
+        "network states",
+        "governance",
+        "civic participation"
+      ],
+      "summary": "In this September 2023 Moment of Zen episode with Erik Torenberg and Dan Romero, Balaji Srinivasan discusses how a tech-aligned coalition he calls the Gray tribe could organize and seek political influence in cities. The publisher frames the conversation as an early draft of his ideas. This entry draws on the publisher's description and chapter markers, with context from Mission Local's reporting on Srinivasan's proposals for San Francisco. Transcript review is pending. Treat the proposals and predictions as attributed views.",
+      "learningPoints": [
+        "Compare exit and reform at 10:30. Identify who can leave an institution, who bears the costs of leaving, and what voice people retain if they stay.",
+        "Use the chapters on network effects at 34:00 and physical territory at 2:36:30 to examine how online coordination could translate into land ownership and local influence. Ask who would have a say once decisions affect residents outside the original network.",
+        "Compare the discussion of San Francisco organizing at 3:50:00 with Mission Local's reporting on political exclusion (https://missionlocal.org/2024/05/balaji-srinivasan-vc-advocating-dystopian-vision-for-san-francisco-backing-push-for-sf-tech-campus/). Ask what participation, appeal, and accountability safeguards would protect residents with different political views."
+      ],
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "attention-is-all-you-need",
+      "title": "Attention Is All You Need",
+      "url": "https://arxiv.org/abs/1706.03762",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "transformers"
+      ],
+      "summary": "The 2017 preprint introduces the Transformer, using attention in place of recurrence and convolutions in its sequence architecture. The authors evaluate machine translation. Abstract reviewed.",
+      "learningPoints": [
+        "Explain how tokens can draw on information from other positions and why positional information matters.",
+        "Change one word in a sentence and identify which surrounding words help resolve a reference."
+      ],
+      "publishedAt": "2017-06-12",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "retrieval-augmented-generation",
+      "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "url": "https://arxiv.org/abs/2005.11401",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "rag",
+        "retrieval"
+      ],
+      "summary": "The 2020 preprint combines a pretrained text generator with a retriever over an external document index and evaluates it on knowledge-intensive language tasks. Abstract reviewed.",
+      "learningPoints": [
+        "Distinguish information stored in weights from documents retrieved at answer time.",
+        "Compare answers with and without a retrieved source and highlight which claims it supports."
+      ],
+      "publishedAt": "2020-05-22",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "react-language-model-agents",
+      "title": "ReAct: Synergizing Reasoning and Acting in Language Models",
+      "url": "https://arxiv.org/abs/2210.03629",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "agents",
+        "tool-use"
+      ],
+      "summary": "The 2022 preprint interleaves model reasoning with actions and uses tool observations to inform what happens next. It evaluates the approach on tasks including question answering and interactive environments. Abstract reviewed.",
+      "learningPoints": [
+        "Identify an action and an observation in a search-tool example.",
+        "Use the search result to choose a next action, then explain the final answer using the source."
+      ],
+      "publishedAt": "2022-10-06",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "agentdojo",
+      "title": "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents",
+      "url": "https://arxiv.org/abs/2406.13352",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "agents",
+        "prompt-injection",
+        "security"
+      ],
+      "summary": "The 2024 preprint introduces a benchmark for tool-using agents exposed to untrusted content. The tested agents struggled with some ordinary tasks and adversarial cases. Abstract reviewed.",
+      "learningPoints": [
+        "Spot an injected instruction in a simulated email and identify which action the user authorized.",
+        "Score task completion and resistance to unauthorized actions separately."
+      ],
+      "publishedAt": "2024-06-19",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "federated-learning-decentralized-data",
+      "title": "Communication-Efficient Learning of Deep Networks from Decentralized Data",
+      "url": "https://arxiv.org/abs/1602.05629",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "machine-learning",
+        "federated-learning",
+        "decentralization",
+        "privacy"
+      ],
+      "summary": "The 2016 preprint studies federated learning by aggregating locally computed model updates while the training examples stay on devices. Its experiments compare communication efficiency across several models and datasets. Abstract reviewed.",
+      "learningPoints": [
+        "Simulate three devices sharing updates while keeping examples local and identify who coordinates the aggregation.",
+        "Distinguish keeping raw data local from providing privacy guarantees or distributing control."
+      ],
+      "publishedAt": "2016-02-17",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "unfaithful-chain-of-thought",
+      "title": "Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting",
+      "url": "https://arxiv.org/abs/2305.04388",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "model-evaluation",
+        "explainability"
+      ],
+      "summary": "The 2023 preprint finds that written model explanations can omit experimental cues that influenced answers, including answer ordering in few-shot prompts. Abstract reviewed.",
+      "learningPoints": [
+        "Compare answers and explanations after changing answer order in a few-shot prompt.",
+        "Check an explanation against external evidence and flag influences it may have omitted."
+      ],
+      "publishedAt": "2023-05-07",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "agentdyn",
+      "title": "AgentDyn: A Dynamic Open-Ended Benchmark for Evaluating Prompt Injection Attacks of Real-World Agent Security System",
+      "url": "https://arxiv.org/abs/2602.03117",
+      "source": "arxiv.org",
+      "tags": [
+        "ai",
+        "llm",
+        "agents",
+        "prompt-injection",
+        "security"
+      ],
+      "summary": "The 2026 preprint introduces a benchmark with open-ended agent tasks and both helpful and malicious third-party instructions. Its results describe the defenses and scenarios tested in that benchmark. Abstract reviewed.",
+      "learningPoints": [
+        "Identify third-party instructions that exceed the user's authorization in an open-ended task.",
+        "Evaluate whether a defense blocks unauthorized actions while still allowing legitimate work."
+      ],
+      "publishedAt": "2026-02-03",
+      "addedAt": "2026-11-08",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "hypersnap-trending-feed-metrics",
+      "title": "Trending feeds follow the metrics generation",
+      "author": "Hypersnap project contributors (not individually attributed)",
+      "publisher": "Hypersnap",
+      "publishedAt": "2026-11-06",
+      "url": "https://hypersnap.org/updates",
+      "source": "hypersnap.org",
+      "tags": [
+        "hypersnap",
+        "decentralized-social",
+        "decentralized clients",
+        "feeds",
+        "infrastructure",
+        "ethereum"
+      ],
+      "summary": "Hypersnap's development log reports that trending-feed readers now use the same generation handle as the metrics writer and refresh cached rankings when that generation changes, or when the cache ages. This is a small but useful example of how a social client can surface an indexed ranking derived from network activity rather than displaying an exhaustive record of every cast. The log labels this as merged upstream source, while explicitly saying it is not a deployment receipt; rankings remain bounded and may continue to serve during background refresh.",
+      "learningPoints": [
+        "A trending feed is a ranked view built from activity and metrics; it is not necessarily a complete or chronological record of all posts.",
+        "A shared generation marker helps readers know when ranking inputs have changed, while an age-based cache refresh provides another path to freshness.",
+        "When reading a feature update, distinguish merged source code from a deployed feature and from an open proposal or discussion."
+      ],
+      "caveats": "The update is marked as merged source, not proof that a particular node or client has deployed it. Rankings are bounded and can remain available during background refresh; do not infer exhaustive coverage or exact real-time freshness.",
+      "addedAt": "2026-11-13",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ef-protocol-current-emerging-priorities-2026",
+      "title": "EF Protocol: Current and Emerging Priorities",
+      "author": "Ethereum Foundation Protocol Cluster",
+      "publisher": "Ethereum Foundation Blog",
+      "publishedAt": "2026-09-07",
+      "url": "https://blog.ethereum.org/2026/09/07/protocol-priorities",
+      "source": "blog.ethereum.org",
+      "tags": [
+        "ethereum",
+        "post-quantum",
+        "cryptography",
+        "zk-rollup",
+        "protect-the-protocol",
+        "decentralized clients",
+        "protocol governance"
+      ],
+      "summary": "The Ethereum Foundation Protocol Cluster describes its current research and delivery priorities through 2029. The post groups work into fast finality, post-quantum security, privacy, state management and zkEVM proofs, and describes a maturity path from research and EIPs through prototypes, devnets and mainnet. It also explains why these goals depend on coordinated work across client teams, researchers and the wider ecosystem.",
+      "learningPoints": [
+        "Separate a research direction, an EIP, a prototype, a devnet result and a mainnet release; each stage provides different evidence and is not a promise that the feature is already live.",
+        "Post-quantum preparation covers Ethereum execution, consensus and data layers, with the Foundation describing December 2029 as a target and minimum-viable safeguards as reduced-guarantee steps rather than full resistance.",
+        "Protocol roadmaps involve tradeoffs: the post argues that staging fork scope and formal verification work help teams manage security, implementation capacity and upgrade risk.",
+        "Use this post as the Protocol cluster’s stated plan, then check later EIPs, client implementations and network releases before describing a proposal as adopted or deployed."
+      ],
+      "caveats": "This is a roadmap and priority statement, not an independent assessment or a guarantee of delivery. The authors call the schedule aggressive; fork ordering, specifications and research remain subject to change, and the post says the minimum-viable post-quantum milestone would retain reduced guarantees.",
+      "addedAt": "2026-11-20",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "osaka-metropolitan-university-data-breach",
+      "title": "Osaka Metropolitan University information systems incident: sixth update",
+      "url": "https://www.omu.ac.jp/news/12123",
+      "source": "omu.ac.jp",
+      "tags": [
+        "cybersecurity",
+        "privacy",
+        "vendor risk"
+      ],
+      "summary": "Osaka Metropolitan University reported that supplier-managed cloud storage exposed data for about 170,000 people, including particularly sensitive information for about 1,400. Many sensitive records dated to a system migration. Possible additional disclosure from university systems remained under investigation.",
+      "learningPoints": [
+        "Set retention limits and verify deletion of temporary migration data.",
+        "Review supplier and subcontractor access to sensitive records.",
+        "Distinguish confirmed exposure from potential exposure still under investigation."
+      ],
+      "publishedAt": "2026-11-13",
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "ftc-fake-websites-and-impersonators",
+      "title": "How to spot fake FTC websites and FTC impersonators",
+      "url": "https://consumer.ftc.gov/consumer-alerts/2026/11/how-spot-fake-ftc-websites-and-ftc-impersonators",
+      "source": "consumer.ftc.gov",
+      "tags": [
+        "cybersecurity",
+        "privacy",
+        "phishing"
+      ],
+      "summary": "FTC consumer guidance explains that impersonators copy agency branding and contact people through calls and messages. It advises verifying the official website independently, refusing requests to transfer money for protection, and reporting scams through ReportFraud.ftc.gov.",
+      "learningPoints": [
+        "Verify the full domain before sharing personal information.",
+        "Confirm unexpected government outreach through a known official channel.",
+        "Recognize requests to move money for safekeeping as a scam warning sign."
+      ],
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "check-point-gateway-incident-defense",
+      "title": "PHP2Shell Exploitation on Check Point Gateway",
+      "url": "https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/",
+      "source": "research.checkpoint.com",
+      "tags": [
+        "cybersecurity",
+        "network security",
+        "incident response"
+      ],
+      "summary": "Check Point Research reported intrusions involving unpatched gateways and documented destructive activity on a virtualization host in one investigated incident. The case illustrates the importance of gateway patching, management-network isolation, and recoverable backups.",
+      "learningPoints": [
+        "Track patch status for internet-facing gateways.",
+        "Restrict administrative access to virtualization infrastructure.",
+        "Practice restoring critical workloads from isolated backups."
+      ],
+      "publishedAt": "2026-11-12",
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
+    },
+    {
+      "id": "talos-ai-enabled-penetration-testing-defense",
+      "title": "ARTEX and beyond: AI-enabled penetration testing platforms",
+      "url": "https://blog.talosintelligence.com/artex-and-beyond/",
+      "source": "blog.talosintelligence.com",
+      "tags": [
+        "ai",
+        "agents",
+        "cybersecurity",
+        "defensive monitoring"
+      ],
+      "summary": "Cisco Talos reports observing misuse of AI-enabled penetration-testing platforms in real incidents. Its observations illustrate how automation can shorten the time defenders have to detect and respond to suspicious activity.",
+      "learningPoints": [
+        "Define explicit authorization and scope for security testing.",
+        "Correlate alerts across endpoints, identities, and gateways.",
+        "Practice rapid alert triage in a defensive tabletop exercise."
+      ],
+      "publishedAt": "2026-11-13",
+      "addedAt": "2026-11-14",
+      "reviewStatus": "curated-summary"
+    }
+  ]
+}

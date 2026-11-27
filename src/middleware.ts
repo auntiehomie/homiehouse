@@ -19,7 +19,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * no middleware.
  */
 
-const FRAMEABLE_PREFIXES = ['/mini', '/api/frame', '/.well-known'];
+const FRAMEABLE_PREFIXES = ['/mini'];
 
 function isFrameable(pathname: string): boolean {
   return FRAMEABLE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
@@ -69,7 +69,7 @@ function setCorsHeaders(
   );
   response.headers.set(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Farcaster-Auth, x-api-key, x-farcaster-fid, x-signer-key, x-session-token',
+    'Content-Type, Authorization, X-Farcaster-Auth, x-api-key, x-session-token',
   );
   response.headers.set('Access-Control-Max-Age', '86400');
 }

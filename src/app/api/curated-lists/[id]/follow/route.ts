@@ -19,7 +19,7 @@ async function ensureTable(db: ReturnType<typeof getDb>) {
   await db.query(CREATE_TABLE_SQL);
 }
 
-/** POST /api/curated-lists/:id/follow — auth via x-farcaster-fid + x-signer-key headers */
+/** POST /api/curated-lists/:id/follow — auth via scoped HomieHouse session */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const logger = createApiLogger('/curated-lists/[id]/follow POST');
   logger.start();
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Rate limit: 30 requests/minute per IP
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`curated-lists-id-follow:${ip}`, 30, 60);
+    const { success: rateLimitOk } = await rateLimit(`curated-lists-id-follow:${ip}`, 30, 60);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-/** DELETE /api/curated-lists/:id/follow — auth via x-farcaster-fid + x-signer-key headers */
+/** DELETE /api/curated-lists/:id/follow — auth via scoped HomieHouse session */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const logger = createApiLogger('/curated-lists/[id]/follow DELETE');
   logger.start();

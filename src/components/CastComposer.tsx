@@ -33,6 +33,7 @@ import {
 import Editor from '@draft-js-plugins/editor';
 import 'draft-js/dist/Draft.css';
 import createEmojiPlugin from '@draft-js-plugins/emoji';
+import AppIcon from './AppIcon';
 import createMentionPlugin, {
   defaultSuggestionsFilter,
   type MentionData,
@@ -42,6 +43,7 @@ import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { searchUsers } from '@/lib/hypersnap';
 import { MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
+import { requirePostingAuthHeaders } from '@/lib/client-auth';
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
@@ -392,7 +394,8 @@ export default function CastComposer({
           const form = new FormData();
           form.append('file', file);
           if (userFid) form.append('fid', String(userFid));
-          const res = await fetch('/api/upload-image', { method: 'POST', body: form });
+        const auth = await requirePostingAuthHeaders();
+          const res = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: form });
           const data = await res.json();
           if (res.ok && data?.ok && data?.url) uploaded.push(data.url);
         }
@@ -570,7 +573,7 @@ export default function CastComposer({
                 style={editorStyles.removeImgBtn}
                 aria-label="Remove image"
               >
-                ×
+                <AppIcon name="close" className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
@@ -591,7 +594,7 @@ export default function CastComposer({
           title={imageUrls.length >= MAX_CAST_PHOTOS ? 'Maximum 4 photos' : `Add photos (${imageUrls.length}/${MAX_CAST_PHOTOS})`}
           aria-label={imageUrls.length >= MAX_CAST_PHOTOS ? 'Maximum 4 photos attached' : `Add photos, ${imageUrls.length} of ${MAX_CAST_PHOTOS} attached`}
         >
-          {uploadingImage ? '⏳' : '🖼️'}
+          {uploadingImage ? <AppIcon name="spinner" className="w-4 h-4 animate-spin" /> : <AppIcon name="image" className="w-4 h-4" />}
           <span style={{ fontSize: '11px', marginLeft: '3px' }}>{imageUrls.length}/{MAX_CAST_PHOTOS}</span>
         </button>
 

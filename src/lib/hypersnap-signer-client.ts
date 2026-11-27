@@ -1,12 +1,8 @@
 'use client';
 
 import { ed25519 } from '@noble/curves/ed25519';
-import {
-  blake3_20,
-  encodeMessageData,
-  FarcasterNetwork,
-  MessageType,
-} from '@/lib/fc-message-builder';
+import { farcasterTimestamp, hexToBytes } from '@/lib/fc-message-builder';
+import { encodeKeyAddSignedMessage } from '@/lib/hypersnap-key-add-message';
 
 export const HYPERSNAP_SIGNER_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const HYPERSNAP_SIGNER_SCOPES = [1, 2, 3, 4, 5, 6] as const;
@@ -100,24 +96,23 @@ export async function registerHypersnapSigner(
   };
   const custodySignature = await signTypedData(payload);
 
-  const dataBytes = encodeMessageData({
-    type: MessageType.KEY_ADD,
+  // Sign one exact message, including its timestamp. The server must verify
+  // this identical protobuf rather than generating a different timestamp.
+  const timestamp = farcasterTimestamp();
+  const { hash } = encodeKeyAddSignedMessage({
+    timestamp,
     fid,
-    network: FarcasterNetwork.MAINNET,
-    body: { keyAddBody: {
-      signerPublicKey: publicKey,
-      custodySignature: Uint8Array.from(custodySignature.slice(2).match(/.{1,2}/g)!.map((b) => Number.parseInt(b, 16))),
-      deadline: prepared.deadline,
-      nonce: prepared.nonce,
-      metadata: Uint8Array.from(prepared.metadata.slice(2).match(/.{1,2}/g)!.map((b: string) => Number.parseInt(b, 16))),
-      registrationTxHash: prepared.registrationTxHash
-        ? Uint8Array.from(String(prepared.registrationTxHash).slice(2).match(/.{1,2}/g)!.map((b: string) => Number.parseInt(b, 16)))
-        : undefined,
-      scopes: prepared.scopes,
-      ttl: prepared.ttl,
-    } },
+    signerPublicKey: publicKey,
+    custodySignature: hexToBytes(custodySignature),
+    deadline: prepared.deadline,
+    nonce: prepared.nonce,
+    metadata: hexToBytes(prepared.metadata),
+    registrationTxHash: prepared.registrationTxHash
+      ? hexToBytes(prepared.registrationTxHash)
+      : undefined,
+    scopes: prepared.scopes,
+    ttl: prepared.ttl,
   });
-  const hash = blake3_20(dataBytes);
   const messageSignature = bytesToHex(ed25519.sign(hash, privateKey));
 
   const submitResponse = await fetch('/api/hypersnap/signer', {
@@ -125,7 +120,7 @@ export async function registerHypersnapSigner(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       action: 'submit', fid, publicKey: publicKeyHex,
-      custodySignature, messageSignature,
+      timestamp, custodySignature, messageSignature,
       deadline: prepared.deadline, nonce: prepared.nonce,
       metadata: prepared.metadata, scopes: prepared.scopes, ttl: prepared.ttl,
       registrationTxHash: prepared.registrationTxHash,

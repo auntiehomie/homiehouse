@@ -6,6 +6,9 @@ import Link from 'next/link';
 import FeedList from '@/components/FeedList';
 import TrendingList from '@/components/TrendingList';
 import type { ChannelInfo } from '@/hooks/queries/users';
+import { useFarcasterAuth } from '@/lib/farcaster-auth';
+import { addSavedChannel, readSavedChannels, removeSavedChannel } from '@/lib/channel-preferences';
+import { openComposeModal } from '@/lib/compose-modal-events';
 
 export default function ChannelPage() {
   const params = useParams();
@@ -14,6 +17,25 @@ export default function ChannelPage() {
   const [hiddenCasts, setHiddenCasts] = useState<Set<string>>(new Set());
   const [channel, setChannel] = useState<ChannelInfo | null>(null);
   const [view, setView] = useState<'recent' | 'trending'>('recent');
+  const { fid } = useFarcasterAuth();
+  const [isSaved, setIsSaved] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsSaved(!!fid && readSavedChannels(fid).some(item => item.id.toLowerCase() === channelId?.toLowerCase()));
+  }, [fid, channelId]);
+
+  function toggleSaved() {
+    if (!fid) {
+      setActionMessage('Sign in to add this channel to My Channels.');
+      return;
+    }
+    const next = isSaved
+      ? removeSavedChannel(fid, channelId)
+      : addSavedChannel(fid, { id: channelId, name: channel?.name || channelId, image_url: channel?.image_url || null });
+    setIsSaved(next.some(item => item.id.toLowerCase() === channelId.toLowerCase()));
+    setActionMessage(isSaved ? 'Removed from My Channels.' : 'Added to My Channels.');
+  }
 
   useEffect(() => {
     if (!channelId) return;
@@ -66,22 +88,20 @@ export default function ChannelPage() {
               </h1>
               <p style={{ fontSize: 13, color: '#888', margin: '2px 0 0' }}>/{channelId}</p>
             </div>
-            <Link
-              href="/feed"
-              style={{
-                fontSize: 13,
-                color: '#666',
-                textDecoration: 'none',
-                padding: '6px 12px',
-                border: '1px solid #333',
-                borderRadius: 20,
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              ← Back
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+            <button type="button" onClick={toggleSaved} aria-pressed={isSaved} style={{ fontSize: 13, fontWeight: 600, color: isSaved ? '#fff' : '#111', background: isSaved ? 'transparent' : '#fff', padding: '8px 14px', border: '1px solid #444', borderRadius: 20, cursor: 'pointer' }}>
+              {isSaved ? 'Added to My Channels ✓' : '+ Add to My Channels'}
+            </button>
+            <button type="button" onClick={() => openComposeModal({ channelKey: channelId })} style={{ fontSize: 13, fontWeight: 600, color: '#fff', background: 'transparent', padding: '8px 14px', border: '1px solid #444', borderRadius: 20, cursor: 'pointer' }}>
+              Post to channel
+            </button>
+            <Link href="/channels" style={{ fontSize: 13, color: '#aaa', textDecoration: 'none', padding: '8px 12px', border: '1px solid #333', borderRadius: 20 }}>
+              Browse channels
             </Link>
           </div>
+          {actionMessage && <p role="status" style={{ fontSize: 12, color: '#aaa', margin: '8px 0 0' }}>{actionMessage}</p>}
 
           {channel?.description && (
             <p style={{ fontSize: 14, color: '#aaa', marginTop: 8, lineHeight: 1.5 }}>

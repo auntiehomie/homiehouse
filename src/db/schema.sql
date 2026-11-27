@@ -63,6 +63,26 @@ CREATE TABLE IF NOT EXISTS lesson_correction_reports (
 CREATE INDEX IF NOT EXISTS idx_lesson_correction_reports_status_created
   ON lesson_correction_reports (status, created_at DESC);
 
+-- Ask Homie Pro add-on subscriptions and monthly response allowance.
+CREATE TABLE IF NOT EXISTS ask_homie_pro_subscribers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_fid INTEGER UNIQUE NOT NULL,
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT UNIQUE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  subscribed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ask_homie_usage (
+  user_fid INTEGER NOT NULL,
+  period_start DATE NOT NULL,
+  requests INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_fid, period_start)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_saved_casts_user_id ON saved_casts(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_casts_cast_hash ON saved_casts(cast_hash);

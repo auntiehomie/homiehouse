@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchUserChannels, fetchChannelList } from '@/lib/hypersnap';
+import { fetchUserChannels, fetchChannelList, searchChannels } from '@/lib/hypersnap';
 import { handleApiError } from '@/lib/errors';
 import { createApiLogger } from '@/lib/logger';
 import { validateFid, validateLimit } from '@/lib/validation';
@@ -12,13 +12,18 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const fidParam = searchParams.get("fid");
     const limitParam = searchParams.get("limit");
+    const query = searchParams.get("q")?.trim() || "";
 
     const limit = validateLimit(limitParam, 100);
     const fid = fidParam ? validateFid(fidParam) : null;
 
-    logger.info('Request params', { fid, limit });
+    logger.info('Request params', { fid, limit, searching: Boolean(query) });
 
-    const data = fid ? await fetchUserChannels(fid, limit) : await fetchChannelList(limit);
+    const data = query
+      ? await searchChannels(query.slice(0, 100), limit)
+      : fid
+        ? await fetchUserChannels(fid, limit)
+        : await fetchChannelList(limit);
 
     const raw = data?.channels || [];
     const channels = raw.map((ch: any) => {

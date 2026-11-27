@@ -38,16 +38,15 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/homiehouse-pixel.svg', type: 'image/svg+xml' },
-      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/homiehouse-favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/homiehouse-favicon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/homiehouse-icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/homiehouse-icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/homiehouse-apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
-    shortcut: '/homiehouse-pixel.svg',
+    shortcut: '/homiehouse-favicon-32.png',
   },
   manifest: '/manifest.json',
   applicationName: 'HomieHouse',
@@ -106,6 +105,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f8f8f8' },
+    { media: '(prefers-color-scheme: dark)', color: '#09090b' },
+  ],
   // Allow orientation changes — don't lock to portrait
 };
 
@@ -130,6 +133,7 @@ export default function RootLayout({
         />
         {/* iOS PWA splash screens — required for clean launch experience */}
         <meta name="mobile-web-app-capable" content="yes" />
+        <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon-precomposed.png" />
         <link rel="apple-touch-startup-image" href="/splash.png" />
       </head>
       <body className={`antialiased`}>

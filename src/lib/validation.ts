@@ -207,6 +207,20 @@ export function validateImageFile(file: File): void {
   }
 }
 
+/** Verify that the file bytes match an allowed raster image signature. */
+export async function validateImageSignature(file: File): Promise<void> {
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const prefix = (start: number, end: number) => String.fromCharCode(...bytes.slice(start, end));
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const isPng = bytes.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+    .every((value, index) => bytes[index] === value);
+  const isGif = bytes.length >= 6 && (prefix(0, 6) === 'GIF87a' || prefix(0, 6) === 'GIF89a');
+  const isWebp = bytes.length >= 12 && prefix(0, 4) === 'RIFF' && prefix(8, 12) === 'WEBP';
+  if (!isJpeg && !isPng && !isGif && !isWebp) {
+    throw new ValidationError('File contents do not match an allowed image type', 'file');
+  }
+}
+
 /**
  * Validate embeds array
  */

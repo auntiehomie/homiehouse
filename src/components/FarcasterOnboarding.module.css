@@ -1,0 +1,60 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(6px);
+  animation: overlay-in 180ms ease-out both;
+}
+
+.panel {
+  width: min(100%, 440px);
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: clamp(20px, 5vw, 32px) clamp(18px, 5vw, 28px);
+  background: var(--surface);
+  color: var(--text-on-dark);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.step {
+  animation: step-in 180ms ease-out both;
+}
+
+.spinner { animation: spin 800ms linear infinite; }
+
+.panel :global(button:focus-visible),
+.panel :global(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.panel :global(button) { min-height: 44px; }
+
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .step,
+  .spinner {
+    animation: none;
+  }
+}

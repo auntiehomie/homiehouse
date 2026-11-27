@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { llmChat } from '@/lib/llm';
 import { createApiLogger } from '@/lib/logger';
+import { splitCastText, STANDARD_CAST_BYTES } from '@/lib/cast-text';
 import type { PostMode } from '@/lib/ai/persona';
 
 const logger = createApiLogger('/agent-post');
@@ -22,14 +23,52 @@ export function tooSimilar(text: string, recentTexts: string[], threshold = 0.4)
   return recentTexts.some((r) => similarity(text, r) >= threshold);
 }
 
-export function cleanPost(text: string, maxLen = 280): string {
+export function cleanPost(text: string, maxLen = Infinity): string {
   return text.trim().replace(/^['"]|['"]$/g, '').slice(0, maxLen).trim();
 }
 
+/**
+ * Fail closed when a model mixes private reasoning or drafting notes into cast text.
+ * Callers must skip publishing when this returns true.
+ */
+export function containsInternalReasoning(text: string): boolean {
+  const patterns = [
+    /^\s*(?:<\/?(?:think|analysis|reasoning)>|\*\*(?:analysis|reasoning)\*\*)/i,
+    /^\s*(?:analysis|reasoning|chain of thought|internal reasoning|private notes)\s*[:—-]/i,
+    /^\s*(?:let me think(?: this through)?|let's think(?: this through)?|i need to (?:answer|respond|write|draft)|we need to (?:answer|respond|write|draft)|the user (?:asks|wants|is asking)|the prompt asks)\b/i,
+    /<\/?(?:think|analysis|reasoning)>/i,
+    new RegExp("(?:^|\\n)\\s*(?:analysis|reasoning|chain[- ]of[- ]thought|internal reasoning|scratchpad|thought process|draft notes|planning notes)\\s*:", "i"),
+    new RegExp("(?:^|\\n)\\s*(?:here(?:'s| is) my (?:analysis|reasoning|thought process)|let me (?:think|reason) (?:through|about)|i(?:'ll| will) (?:analyze|reason through|think through)|we need to (?:write|craft|generate) (?:a )?(?:cast|post)|step[- ]by[- ]step reasoning)\\b", "i"),
+    new RegExp("<\\s*\\/?\\s*(?:analysis|thinking|reasoning)\\s*>", "i"),
+  ];
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+/** Return only a final cast string, or an empty string when output is unsafe to publish. */
+export function finalCastOnly(text: string, maxLen = Infinity): string {
+  if (!text.trim() || containsInternalReasoning(text)) return '';
+  const withoutLabel = text.trim()
+    .replace(/^(?:final\s+)?cast\s*:\s*/i, '')
+    .replace(/^[ \t]*(?:#+[ \t]*)?(?:standalone[ \t]+educational[ \t]+post|#standaloneeducationalpost)[ \t]*[:#]*[ \t]*\r?$/gim, '');
+  // Keep URL fragments intact while stripping social hashtags.
+  const withoutHashtags = withoutLabel.replace(
+    /(https?:\/\/[^\s<>"`]+)|[ \t]*(?<![\p{L}\p{M}\p{N}_])[#＃]+[\p{L}\p{M}\p{N}_]+/giu,
+    (_match, url?: string) => url ?? '',
+  );
+  return cleanPost(withoutHashtags, maxLen);
+}
+
 export function splitThreadCasts(content: string): string[] {
-  const parts = content.split(/\n?\n?---\n?\n?/);
+  const parts = content.split(/^[ \t]*---[ \t]*\r?$/m);
   if (parts.length < 2) return [content];
   return parts.map((p) => p.trim()).filter(Boolean);
+}
+
+export function splitAgentCasts(content: string): string[] {
+  return splitThreadCasts(content)
+    .flatMap((part) => splitCastText(part, STANDARD_CAST_BYTES))
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 /** Generate a post with Anthropic first and the configured free-provider stack as fallback. */
@@ -38,7 +77,7 @@ export async function writeAgentPost(
   instruction: string,
   options: { maxLen?: number; model?: string } = {},
 ): Promise<string> {
-  const maxLen = options.maxLen ?? 280;
+  const maxLen = options.maxLen;
   if (process.env.ANTHROPIC_API_KEY) {
     try {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -49,8 +88,13 @@ export async function writeAgentPost(
         system,
         messages: [{ role: 'user', content: instruction }],
       });
+      if (res.stop_reason === 'max_tokens') throw new Error('Anthropic response reached its output token limit');
       const block = res.content[0];
-      if (block?.type === 'text' && block.text.trim()) return cleanPost(block.text, maxLen);
+      if (block?.type === 'text' && block.text.trim()) {
+        const finalCast = finalCastOnly(block.text, maxLen);
+        if (finalCast) return finalCast;
+        throw new Error('Anthropic response was not final cast text');
+      }
       throw new Error('empty Anthropic response');
     } catch (err: any) {
       logger.warn('Anthropic post failed, using free providers', err);
@@ -65,7 +109,7 @@ export async function writeAgentPost(
     maxTokens: 800,
     temperature: 0.85,
   });
-  return cleanPost(message.content || '', maxLen);
+  return finalCastOnly(message.content || '', maxLen);
 }
 
 export type { PostMode };

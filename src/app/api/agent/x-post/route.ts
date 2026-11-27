@@ -19,7 +19,8 @@ export const maxDuration = 60;
  * Scheduled autonomous posting for @thehomie on X.
  *
  * X and Farcaster posts share the same voice and choose educational
- * modes grounded in articles and processed context synced from Rufus-vault.
+ * modes grounded in articles and processed context from the vendored
+ * auntiehomie/knowledge-base corpus.
  * X credentials are user-context OAuth 1.0a tokens for the account that should
  * publish. Missing credentials or synced KB content safely skip publication.
  */
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
     // Rate limit: 10 requests/hour per IP (cron endpoint protection)
     const forwarded = request.headers.get('x-forwarded-for');
     const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = rateLimit(`agent-x-post:${ip}`, 10, 3600);
+    const { success: rateLimitOk } = await rateLimit(`agent-x-post:${ip}`, 10, 3600);
     if (!rateLimitOk) {
       return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import { clipVideoUrl } from '@/lib/clips';
 import SmartEmbed from './SmartEmbed';
 import FarcasterCastEmbed from './FarcasterCastEmbed';
 import { isCastGalleryUrl, parseCastGalleryImages } from '@/lib/cast-gallery';
@@ -64,6 +65,18 @@ export function findFarcasterCastUrls(
   return out;
 }
 
+function IpfsImagePreview({ url }: { url: string }) {
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => { setFailed(false); }, [url]);
+  if (failed) return <SmartEmbed url={url} />;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="block">
+      <img src={url} alt="Cast image" className="max-w-full h-auto rounded-lg border border-zinc-800"
+        loading="lazy" onError={() => setFailed(true)} />
+    </a>
+  );
+}
+
 export default function EmbedRenderer({ embed, index }: { embed: any; index: number }) {
   if (!embed) return null;
 
@@ -101,8 +114,27 @@ export default function EmbedRenderer({ embed, index }: { embed: any; index: num
     );
   }
 
+  if (clipVideoUrl(embedUrl)) return <video src={embedUrl} controls playsInline preload="metadata" className="w-full max-h-[75dvh] rounded-lg bg-black" />;
+
+  // IPFS CIDs have no file extension. Try the image without assuming all
+  // IPFS content is media; non-images fall back to the regular link preview.
+  try {
+    const parsed = new URL(embedUrl);
+    if (parsed.protocol === 'https:' &&
+        (parsed.hostname === 'gateway.pinata.cloud' || parsed.hostname.endsWith('.mypinata.cloud')) &&
+        parsed.pathname.startsWith('/ipfs/')) {
+      return <IpfsImagePreview url={embedUrl} />;
+    }
+  } catch {}
+
   // Image
-  const isImage = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(embedUrl) ||
+  let isQStorageObject = false;
+  try {
+    const host = new URL(embedUrl).hostname.toLowerCase();
+    isQStorageObject = host.endsWith('.qstorage.quilibrium.com');
+  } catch {}
+
+  const isImage = isQStorageObject || /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?|$)/i.test(embedUrl) ||
     embedUrl.includes('imagedelivery.net') ||
     embedUrl.includes('imgur.com') ||
     embedUrl.includes('imgbb.com') ||

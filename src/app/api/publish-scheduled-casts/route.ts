@@ -1,81 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { buildSignedMessage, hexToBytes, MessageType } from '@/lib/fc-message-builder';
-import type { CastEmbed } from '@/lib/fc-message-builder';
-import { ed25519 } from '@noble/curves/ed25519';
-import { decryptSignerKey } from '@/lib/signer-crypto';
-import { fetchChannelParentUrl } from '@/lib/hypersnap';
+import { publishWithStoredKey } from '@/lib/scheduled-cast-publisher';
 
-const HYPERSNAP_BASE =
-  process.env.NEXT_PUBLIC_HYPERSNAP_URL || 'https://haatz.quilibrium.com';
+function scheduledCastAuthorization(req: NextRequest): NextResponse | undefined {
+  const authHeader = req.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
 
-async function publishWithStoredKey(cast: any): Promise<string> {
-  // Decrypt the stored signer key (encrypted at schedule time from the auth header)
-  const privateKeyHex = decryptSignerKey(cast.signer_uuid);
-  if (!privateKeyHex) {
-    throw new Error('No valid signer key stored. Re-schedule this cast after approving posting permissions.');
+  if (!cronSecret || cronSecret.length < 32) {
+    return NextResponse.json({ ok: false, error: 'Service unavailable' }, { status: 503 });
   }
-
-  const privateKeyBytes = hexToBytes(privateKeyHex);
-  const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
-  const signer = {
-    publicKey: publicKeyBytes,
-    sign: async (hash: Uint8Array) => ed25519.sign(hash, privateKeyBytes),
-  };
-
-  const rawEmbeds: Array<{ url: string }> = Array.isArray(cast.embeds)
-    ? cast.embeds
-    : JSON.parse(cast.embeds || '[]');
-  const castEmbeds: CastEmbed[] = rawEmbeds.map((e: { url: string }) => ({ url: e.url }));
-  const parentUrl = cast.channel_id
-    ? await fetchChannelParentUrl(cast.channel_id)
-    : undefined;
-
-  const message = await buildSignedMessage(
-    {
-      type: MessageType.CAST_ADD,
-      fid: cast.user_fid,
-      body: {
-        castAddBody: {
-          text: cast.text,
-          embeds: castEmbeds.length ? castEmbeds : undefined,
-          parent: parentUrl ? { url: parentUrl } : undefined,
-        },
-      },
-    },
-    signer,
-  );
-
-  const hubRes = await fetch(`${HYPERSNAP_BASE}/v1/submitMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/octet-stream', accept: 'application/json' },
-    body: message as unknown as BodyInit,
-  });
-
-  if (!hubRes.ok) {
-    const errData = await hubRes.json().catch(() => ({}));
-    throw new Error(errData.message || errData.errMsg || errData.error || `Hub error ${hubRes.status}`);
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
-
-  const result = await hubRes.json();
-  return result.hash ?? result.cast?.hash ?? result.data?.hash ?? '';
 }
 
 async function handlePublishScheduledCasts(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-    const isVercelCron = req.headers.get('x-vercel-cron') === '1';
-
-    if (cronSecret && cronSecret.length >= 32) {
-      const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-      if (authHeader !== `Bearer ${cronSecret}` && !isVercelCron) {
-        console.warn('❌ Unauthorized cron request from:', ip);
-        return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-      }
-    } else if (!isVercelCron) {
-      console.warn('⚠️ CRON_SECRET not set; add it to Vercel env vars');
-    }
+    const denied = scheduledCastAuthorization(req);
+    if (denied) return denied;
 
     console.log('✅ Cron job running');
 
@@ -106,7 +48,7 @@ async function handlePublishScheduledCasts(req: NextRequest) {
 
         await sql`
           UPDATE scheduled_casts
-          SET status = 'published', published_at = ${nowIso}::timestamptz, cast_hash = ${castHash || null}
+          SET status = 'published', published_at = ${nowIso}::timestamptz, cast_hash = ${castHash}, error_message = NULL
           WHERE id = ${cast.id}
         `;
 
@@ -142,15 +84,8 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const authHeader = req.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret || cronSecret.length < 32) {
-      return NextResponse.json({ ok: false, error: 'Service unavailable' }, { status: 503 });
-    }
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const denied = scheduledCastAuthorization(req);
+    if (denied) return denied;
 
     const body = await req.json();
     const { id, fid } = body;
@@ -182,7 +117,7 @@ export async function PUT(req: NextRequest) {
 
       await sql`
         UPDATE scheduled_casts
-        SET status = 'published', published_at = NOW(), cast_hash = ${castHash || null}
+        SET status = 'published', published_at = NOW(), cast_hash = ${castHash}, error_message = NULL
         WHERE id = ${id}
       `;
 

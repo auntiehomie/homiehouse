@@ -11,6 +11,7 @@ import { fetchChannelParentUrl } from '@/lib/hypersnap';
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { publishOptimisticCast } from '@/lib/optimistic-casts';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
+import { ensureAuthHeaders, PostingAuthorizationError, requestPostingAuthorization, requirePostingAuthHeaders } from '@/lib/client-auth';
 import { ed25519 } from '@noble/curves/ed25519';
 import {
   buildSignedMessage,
@@ -23,13 +24,28 @@ import {
 } from '@/lib/fc-message-builder';
 
 async function submitMessage(message: Uint8Array): Promise<unknown> {
-  const res = await fetch('/api/submit-cast', {
+  const send = (auth: NonNullable<Awaited<ReturnType<typeof requirePostingAuthHeaders>>>) => fetch('/api/submit-cast', {
     method: 'POST',
-    headers: { 'content-type': 'application/octet-stream' },
+    headers: { 'content-type': 'application/octet-stream', ...auth },
     body: message as unknown as BodyInit,
   });
+  let auth = await requirePostingAuthHeaders();
+  let res = await send(auth);
+  if (res.status === 401) {
+    const refreshedAuth = await ensureAuthHeaders('write:casts', { forceRefresh: true });
+    if (!refreshedAuth) {
+      requestPostingAuthorization();
+      throw new PostingAuthorizationError();
+    }
+    auth = refreshedAuth;
+    res = await send(auth);
+    if (res.status === 401) {
+      requestPostingAuthorization();
+      throw new PostingAuthorizationError();
+    }
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  if (!res.ok || data?.ok === false || data?.success === false) {
     const detail = data?.details || data?.hub?.error_detail || data?.error || data?.hub?.errMsg || data?.hub?.message || `hub error ${res.status}`;
     throw new Error(detail);
   }
@@ -110,7 +126,9 @@ export interface UseFarcasterWritesReturn {
   unlikeCast: (params: ReactionParams) => Promise<void>;
   recast: (params: ReactionParams) => Promise<void>;
   removeRecast: (params: ReactionParams) => Promise<void>;
+  removeCast: (castHash: string) => Promise<void>;
   reply: (params: ReplyParams) => Promise<CastSubmissionResult>;
+  deleteCast: (castHash: string) => Promise<void>;
   follow: (targetFid: number) => Promise<void>;
   unfollow: (targetFid: number) => Promise<void>;
   signerApprovalUrl: null;
@@ -254,6 +272,23 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     await submitMessage(message);
   }, [getSigner, fid]);
 
+  const removeCast = useCallback(async (castHash: string): Promise<void> => {
+    const normalizedHash = castHash.trim().replace(/^0x/i, '');
+    if (!/^[0-9a-f]{40}$/i.test(normalizedHash)) {
+      throw new Error('This cast has an invalid hash and cannot be deleted.');
+    }
+    const signer = await getSigner();
+    const message = await buildSignedMessage(
+      {
+        type: MessageType.CAST_REMOVE,
+        fid,
+        body: { castRemoveBody: { targetHash: hexToBytes(normalizedHash) } },
+      },
+      signer,
+    );
+    await submitMessage(message);
+  }, [getSigner, fid]);
+
   const reply = useCallback(async (params: ReplyParams): Promise<CastSubmissionResult> => {
     const signer = await getSigner();
     const embeds: CastEmbed[] = params.embeds?.map((e) => ({ url: e.url })) ?? [];
@@ -286,6 +321,15 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     }
     return { castHash, galleryFallback: published.galleryFallback };
   }, [getSigner, fid, username, displayName, pfpUrl]);
+
+  const deleteCast = useCallback(async (castHash: string): Promise<void> => {
+    const signer = await getSigner();
+    const message = await buildSignedMessage(
+      { type: MessageType.CAST_REMOVE, fid, body: { castRemoveBody: { targetHash: hexToBytes(castHash) } } },
+      signer,
+    );
+    await submitMessage(message);
+  }, [getSigner, fid]);
 
   const follow = useCallback(async (targetFid: number): Promise<void> => {
     const signer = await getSigner();
@@ -324,7 +368,9 @@ export function useFarcasterWrites(): UseFarcasterWritesReturn {
     unlikeCast,
     recast,
     removeRecast,
+    removeCast,
     reply,
+    deleteCast,
     follow,
     unfollow,
     signerApprovalUrl: null,

@@ -9,6 +9,7 @@ jest.mock('@/lib/hypersnap', () => ({
   fetchUserByUsername: (...args: unknown[]) => fetchUserByUsername(...args),
   fetchUserByFid: (...args: unknown[]) => fetchUserByFid(...args),
   fetchUserCastsPage: (...args: unknown[]) => fetchUserCastsPage(...args),
+  getHypersnapReadDiagnostics: jest.fn(() => null),
 }));
 jest.mock('@/lib/ratelimit', () => ({ rateLimit: jest.fn(() => ({ success: true })) }));
 jest.mock('@/lib/logger', () => ({
@@ -22,6 +23,7 @@ describe('/api/profile', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     fetchUserByUsername.mockResolvedValue({ user: { fid: 123, username: 'balajis.eth', display_name: 'Balaji' } });
+    fetchUserByFid.mockResolvedValue({ user: { fid: 456, username: 'parent-user', display_name: 'Parent User' } });
     fetchUserCastsPage.mockResolvedValue({ casts: [{ hash: '0xabc', text: 'A cast' }], next: null });
   });
 
@@ -59,6 +61,20 @@ describe('/api/profile', () => {
     await expect(response.json()).resolves.toMatchObject({
       fid: 456,
       username: 'target-user',
+    });
+  });
+
+  it('resolves reply parent usernames when author casts contain only the parent FID', async () => {
+    fetchUserCastsPage.mockResolvedValueOnce({
+      casts: [{ hash: '0xreply', text: 'A reply', parent_author: { fid: 456 } }],
+      next: null,
+    });
+
+    const response = await GET(new NextRequest('http://localhost/api/profile?fid=123&casts=true'));
+
+    expect(fetchUserByFid).toHaveBeenCalledWith(456);
+    await expect(response.json()).resolves.toMatchObject({
+      casts: [{ parent_author: { fid: 456, username: 'parent-user', display_name: 'Parent User' } }],
     });
   });
 });

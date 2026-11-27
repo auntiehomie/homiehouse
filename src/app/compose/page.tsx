@@ -4,12 +4,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useFarcasterAuth } from '@/lib/farcaster-auth';
 import { useFarcasterWrites } from '@/hooks/useFarcasterWrites';
+import StickerPicker from '@/components/StickerPicker';
 import CharacterMeter from '@/components/CharacterMeter';
 import ComposeInspiration from '@/components/ComposeInspiration';
 import { splitCastText, publishCastParts, castTextBytes, MAX_CAST_BYTES, type ThreadProgress } from '@/lib/cast-text';
-import { getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders, requirePostingAuthHeaders } from '@/lib/client-auth';
+import { LEARN_QUIZ_URL } from '@/lib/learn-quiz';
 import { MAX_CAST_EMBEDS, MAX_CAST_PHOTOS } from '@/lib/cast-embeds';
 import { buildCastGalleryUrl } from '@/lib/cast-gallery';
+import { resolveComposeReturnDestination } from '@/lib/learning-navigation';
+import { channelDisplayName } from '@/lib/channel-display';
 
 function ComposePageInner() {
   const router = useRouter();
@@ -19,8 +23,11 @@ function ComposePageInner() {
 
   const [text, setText] = useState(searchParams.get('text') || "");
   const returnTo = searchParams.get('returnTo');
-  const fromAskHomie = returnTo === '/ask-homie' || returnTo?.startsWith('/ask-homie?');
-  const closeComposer = () => fromAskHomie ? router.replace(returnTo!, { scroll: false }) : router.back();
+  const destination = resolveComposeReturnDestination(returnTo);
+  const fromLearningPlan = destination === '/learn';
+  const fromLearningModule = destination?.startsWith('/learn/module?') ?? false;
+  const fromAskHomie = destination?.startsWith('/ask-homie') ?? false;
+  const closeComposer = () => destination ? router.replace(destination, { scroll: false }) : router.back();
   const parts = splitCastText(text);
   const threadProgress = useRef<{ fingerprint: string; progress: ThreadProgress }>({ fingerprint: '', progress: { hashes: [] } });
   const [loading, setLoading] = useState(false);
@@ -32,22 +39,32 @@ function ComposePageInner() {
     // Dismiss the keyboard so the confirmation stays visible on iOS.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const timer = window.setTimeout(() => {
-      if (fromAskHomie) router.replace(returnTo!, { scroll: false });
+      if (destination) router.replace(destination, { scroll: false });
       else router.back();
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [successMessage, fromAskHomie, returnTo, router]);
+  }, [successMessage, destination, router]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [stickerUrls, setStickerUrls] = useState<string[]>([]);
+  const hasStickers = uploadedImages.some(url => stickerUrls.includes(url));
   const [uploadingImage, setUploadingImage] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<string>('');
   const [isScheduled, setIsScheduled] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
+  const [selectedChannelName, setSelectedChannelName] = useState<string>('');
   const [channels, setChannels] = useState<any[]>([]);
   const [showChannelSuggestions, setShowChannelSuggestions] = useState(false);
   const [channelSearch, setChannelSearch] = useState<string>('');
+  const [channelSearchResults, setChannelSearchResults] = useState<any[] | null>(null);
+  const [channelSearchLoading, setChannelSearchLoading] = useState(false);
+  const [channelSearchError, setChannelSearchError] = useState<string | null>(null);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelsError, setChannelsError] = useState<string | null>(null);
+  const [channelReload, setChannelReload] = useState(0);
   const [urlPreview, setUrlPreview] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const embedUrl = detectedUrl && (urlPreview || detectedUrl === LEARN_QUIZ_URL) ? detectedUrl : null;
   const composeTextareaRef = useRef<HTMLTextAreaElement>(null);
   const composeViewportHeightRef = useRef<number | null>(null);
   const [isEditingCast, setIsEditingCast] = useState(false);
@@ -114,44 +131,78 @@ function ComposePageInner() {
   const [activeTrigger, setActiveTrigger] = useState<{ type: '@' | '/' | '$'; query: string; startPos: number } | null>(null);
   const [triggerResults, setTriggerResults] = useState<any[]>([]);
 
-  // Load channels on mount
+  // Channel discovery is public data; fetch it independently from the signer.
   useEffect(() => {
-    if (userFid) fetchChannels(userFid);
-  }, [userFid]);
-
-  async function fetchChannels(fid: number) {
-    try {
-      const response = await fetch(`/api/channels?fid=${fid}&limit=100`);
-      const data = await response.json();
-
-      if (data.ok && data.channels) {
-        // Filter to human-readable channel IDs only (exclude token-gated URI channels)
-        const clean = data.channels.filter((ch: any) =>
-          ch.id && !ch.id.includes(':') && !ch.id.includes('/')
+    let active = true;
+    setChannelsLoading(true);
+    setChannelsError(null);
+    fetch('/api/channels?limit=50', { cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error(`Channel request failed (${response.status}).`);
+        const data = await response.json();
+        if (!data?.ok || !Array.isArray(data?.channels)) {
+          throw new Error(data?.error || 'Hypersnap did not return a channel list.');
+        }
+        const list = data.channels.filter((channel: any) =>
+          typeof channel?.id === 'string' && channel.id.trim().length > 0
         );
-        setChannels(clean.length ? clean : data.channels.slice(0, 20));
-      } else {
-        // Fallback to popular channels
-        setChannels([
-          { id: 'base', name: 'Base' },
-          { id: 'farcaster', name: 'Social' },
-          { id: 'dev', name: 'Dev' },
-          { id: 'art', name: 'Art' },
-          { id: 'music', name: 'Music' },
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching channels:', error);
-      // Fallback to popular channels
-      setChannels([
-        { id: 'base', name: 'Base' },
-        { id: 'farcaster', name: 'Social' },
-        { id: 'dev', name: 'Dev' },
-        { id: 'art', name: 'Art' },
-        { id: 'music', name: 'Music' },
-      ]);
+        if (!list.length) throw new Error('Hypersnap returned no channels. Try again in a moment.');
+        return list;
+      })
+      .then(list => {
+        if (active) setChannels(list);
+      })
+      .catch((error: any) => {
+        if (!active) return;
+        setChannels([]);
+        setChannelsError(error?.message || 'Could not load channels from Hypersnap.');
+      })
+      .finally(() => {
+        if (active) setChannelsLoading(false);
+      });
+    return () => { active = false; };
+  }, [channelReload]);
+
+  // Search Hypersnap's channel registry so channels outside the first page
+  // remain selectable from this dedicated composer too.
+  useEffect(() => {
+    const query = channelSearch.trim();
+    if (!showChannelSuggestions || !query) {
+      setChannelSearchResults(null);
+      setChannelSearchError(null);
+      setChannelSearchLoading(false);
+      return;
     }
-  }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setChannelSearchLoading(true);
+      setChannelSearchError(null);
+      try {
+        const params = new URLSearchParams({ q: query, limit: '20' });
+        const response = await fetch(`/api/channels?${params}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok || !data?.ok || !Array.isArray(data?.channels)) {
+          throw new Error(data?.error || `Channel search failed (${response.status}).`);
+        }
+        const results = data.channels.filter((channel: any) =>
+          typeof channel?.id === 'string' && channel.id.trim().length > 0
+        );
+        if (active) setChannelSearchResults(results);
+      } catch (error: any) {
+        if (!active) return;
+        setChannelSearchResults([]);
+        setChannelSearchError(error?.message || 'Could not search Hypersnap channels.');
+      } finally {
+        if (active) setChannelSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [showChannelSuggestions, channelSearch, channelReload]);
 
   // Unified trigger search: @user, /channel, $token
   useEffect(() => {
@@ -169,8 +220,8 @@ function ComposePageInner() {
           setTriggerResults(d.users?.slice(0, 6) || []);
         } else if (type === '/') {
           const filtered = channels.filter(ch =>
-            ch.id?.toLowerCase().includes(query.toLowerCase()) ||
-            ch.name?.toLowerCase().includes(query.toLowerCase())
+            channelDisplayName(ch) && (ch.id?.toLowerCase().includes(query.toLowerCase()) ||
+            ch.name?.toLowerCase().includes(query.toLowerCase()))
           );
           setTriggerResults(filtered.slice(0, 8));
         } else if (type === '$') {
@@ -218,6 +269,7 @@ function ComposePageInner() {
       // Strip the /query from text; channel is tracked separately
       setText((before + after).replace(/^\s+/, ''));
       setSelectedChannel(result.id);
+      setSelectedChannelName(channelDisplayName(result) || result.id);
     } else if (type === '$') {
       setText(`${before}$${result.symbol} ${after}`);
     }
@@ -290,7 +342,8 @@ function ComposePageInner() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
+        const auth = await requirePostingAuthHeaders();
+        const response = await fetch('/api/upload-image', { method: 'POST', headers: { ...auth }, body: formData });
         const data = await response.json();
         if (data.ok && data.url) { uploaded.push(data.url); }
         else { setStatus(`Upload failed: ${data.error || 'Unknown error'}`); }
@@ -339,13 +392,14 @@ function ComposePageInner() {
 
       // Scheduled casts cannot retry on an embed-limit response, so preserve
       // larger photo sets in a single Homiehouse gallery link.
-      const useGalleryForSchedule = isScheduled && uploadedImages.length > 2;
+      const useGalleryForSchedule = isScheduled && uploadedImages.length > 2 && !hasStickers;
       const embeds: any[] = useGalleryForSchedule
         ? [{ url: buildCastGalleryUrl(uploadedImages) }]
         : uploadedImages.slice(0, MAX_CAST_PHOTOS).map(url => ({ url }));
-      const maxEmbeds = uploadedImages.length > 2 ? MAX_CAST_EMBEDS : 2;
-      if (urlPreview && detectedUrl && embeds.length < maxEmbeds) {
-        embeds.push({ url: detectedUrl });
+      const maxEmbeds = hasStickers || uploadedImages.length > 2 ? MAX_CAST_EMBEDS : 2;
+      if (hasStickers && new Set([...uploadedImages, ...(embedUrl ? [embedUrl] : [])]).size > MAX_CAST_EMBEDS) { setStatus("Too many attachments. Remove an image or link before posting."); return; }
+      if (embedUrl && !uploadedImages.includes(embedUrl) && embeds.length < maxEmbeds) {
+        embeds.push({ url: embedUrl });
       }
       if (embeds.length > 0) {
         body.embeds = embeds;
@@ -378,8 +432,9 @@ function ComposePageInner() {
 
         // Pass the user's signer private key so the server can sign the cast at publish time
         const signerPrivateKey = getPrivateKeyHex();
-        if (!signerPrivateKey) {
-          setStatus("Posting permissions required to schedule. Tap 'Enable Posting', authorize the Hypersnap signer, then try again.");
+        const authHeaders = await ensureAuthHeaders('write:casts');
+        if (!signerPrivateKey || !authHeaders) {
+          setStatus("Your posting session could not be verified. Tap 'Enable Posting' to authorize the Hypersnap signer, then try again.");
           setLoading(false);
           return;
         }
@@ -387,7 +442,11 @@ function ComposePageInner() {
 
        const res = await fetch("/api/schedule-cast", {
          method: "POST",
-          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+            'x-signer-key': signerPrivateKey,
+          },
          body: JSON.stringify(body),
        });
 
@@ -434,7 +493,7 @@ function ComposePageInner() {
           await publishCastParts(parts, progress, async (part, parentHash) => {
             const result = parentHash
               ? await reply({ text: part, parentCastHash: parentHash, parentCastFid: userFid })
-              : await submitCast({ text: part, embeds: body.embeds, galleryImages: uploadedImages, channelKey: body.channelKey });
+              : await submitCast({ text: part, embeds: body.embeds, galleryImages: hasStickers ? undefined : uploadedImages, channelKey: body.channelKey });
             usedGalleryFallback ||= !!result.galleryFallback;
             return result;
           });
@@ -476,8 +535,8 @@ function ComposePageInner() {
         </div>
       )}
       <header style={{ borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--bg-dark)', zIndex: 10 }}>
-        <button aria-label={fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
-          {fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button aria-label={fromLearningModule ? "Back to Lesson" : fromLearningPlan ? "Back to Learning Plan" : fromAskHomie ? "Back to Ask Homie" : "Close composer"} onClick={closeComposer} style={{ background: 'none', border: 'none', cursor: 'pointer', ...muted, display: 'flex' }}>
+          {fromLearningModule ? '← Back to Lesson' : fromLearningPlan ? '← Back to Learning Plan' : fromAskHomie ? '← Back to Ask Homie' : <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>}
         </button>
@@ -599,7 +658,7 @@ function ComposePageInner() {
                             : <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, ...muted }}>#</div>
                           }
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: 14 }}>/{result.id}</div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>/{channelDisplayName(result)}</div>
                             {result.name && <div style={{ fontSize: 12, ...muted }}>{result.name}</div>}
                           </div>
                         </>
@@ -645,7 +704,7 @@ function ComposePageInner() {
                   <div key={i} style={{ position: 'relative' }}>
                     <img
                       src={url} alt={`Image ${i + 1}`}
-                      style={{ width: '100%', height: uploadedImages.length === 1 ? 192 : 140, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }}
+                      style={{ width: '100%', height: uploadedImages.length === 1 ? 192 : 140, objectFit: stickerUrls.includes(url) ? 'contain' : 'cover', borderRadius: 10, border: '1px solid var(--border)', display: 'block' }}
                       onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
                     <button
@@ -702,30 +761,59 @@ function ComposePageInner() {
       <div style={{
         background: 'var(--bg-dark)', borderTop: '1px solid var(--border)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        position: 'relative',
+        zIndex: 20,
       }}>
         {/* Channel picker opens upward from here */}
         {showChannelSuggestions && (
-          <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 0, maxHeight: 220, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
+          <div id="compose-channel-picker" role="region" aria-label="Hypersnap channels" style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, maxHeight: 240, overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)', borderTop: 'none', borderRadius: '12px 12px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)', zIndex: 50 }}>
             <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
               <input
                 type="text"
                 value={channelSearch}
                 onChange={e => setChannelSearch(e.target.value)}
                 placeholder="Search channels…"
-                autoFocus
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
+                aria-label="Search channels"
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-on-dark)', fontSize: 16, outline: 'none', fontFamily: 'inherit' }}
               />
             </div>
-            {channels.filter(ch => !channelSearch || ch.id?.toLowerCase().includes(channelSearch.toLowerCase()) || ch.name?.toLowerCase().includes(channelSearch.toLowerCase())).slice(0, 8).map(ch => (
-              <button key={ch.id} onClick={() => { setSelectedChannel(ch.id); setChannelSearch(''); setShowChannelSuggestions(false); }}
-                style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >
-                <span style={muted}>/</span>{ch.id}
-                {ch.name && <span style={{ ...muted, marginLeft: 8, fontSize: 12 }}>{ch.name}</span>}
-              </button>
-            ))}
+            {channelsLoading && !channelSearch.trim() ? (
+              <div role="status" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>Loading channels from Hypersnap…</div>
+            ) : channelsError && !channelSearch.trim() ? (
+              <div role="alert" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>
+                <div>{channelsError}</div>
+                <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>Retry</button>
+              </div>
+            ) : (() => {
+              if (channelSearchLoading) {
+                return <div role="status" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>Searching Hypersnap channels…</div>;
+              }
+              if (channelSearchError) {
+                return (
+                  <div role="alert" style={{ padding: '12px 16px', fontSize: 13, ...muted }}>
+                    <div>{channelSearchError}</div>
+                    <button type="button" onClick={() => setChannelReload(value => value + 1)} style={{ marginTop: 8, padding: 0, border: 'none', background: 'none', color: 'var(--text-on-dark)', font: 'inherit', fontWeight: 700, cursor: 'pointer' }}>Retry search</button>
+                  </div>
+                );
+              }
+              const source = channelSearch.trim() ? channelSearchResults ?? [] : channels;
+              const query = channelSearch.trim().toLowerCase();
+              const matches = source.filter(ch =>
+                channelDisplayName(ch) && (!query || ch.id.toLowerCase().includes(query) || ch.name?.toLowerCase?.().includes(query))
+              ).slice(0, 8);
+              if (!matches.length) {
+                return <div style={{ padding: '12px 16px', fontSize: 13, ...muted }}>{query ? 'No matching named channels.' : 'No named channels in this list. Try searching for a channel.'}</div>;
+              }
+              return matches.map(ch => (
+                <button key={ch.id} type="button" onClick={() => { setSelectedChannel(ch.id); setSelectedChannelName(channelDisplayName(ch) || ch.id); setChannelSearch(''); setChannelSearchResults(null); setShowChannelSuggestions(false); }}
+                  style={{ width: '100%', padding: '10px 16px', background: 'none', border: 'none', textAlign: 'left', fontSize: 13, color: 'var(--text-on-dark)', cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                >
+                  <span style={muted}>/</span>{channelDisplayName(ch)}
+                </button>
+              ));
+            })()}
           </div>
         )}
 
@@ -749,12 +837,13 @@ function ComposePageInner() {
               <input id="image-upload-compose" type="file" accept="image/*" multiple onChange={handleImageUpload} disabled={uploadingImage || uploadedImages.length >= maxImages} style={{ display: 'none' }} />
             </label>
 
-            <button onClick={() => setShowChannelSuggestions(!showChannelSuggestions)} title="Post to channel"
+            <StickerPicker disabled={uploadedImages.length + (embedUrl && !uploadedImages.includes(embedUrl) ? 1 : 0) >= MAX_CAST_EMBEDS} onSelect={sticker => { if (!uploadedImages.includes(sticker.url)) { setUploadedImages(prev => [...prev, sticker.url]); setStickerUrls(prev => [...prev, sticker.url]); } }} />
+            <button type="button" aria-expanded={showChannelSuggestions} aria-controls="compose-channel-picker" onClick={() => { if (!showChannelSuggestions) composeTextareaRef.current?.blur(); setShowChannelSuggestions(value => !value); setChannelSearch(''); }} title="Post to channel"
               style={{ ...toolBtn, gap: 4, paddingLeft: 10, paddingRight: 10, background: selectedChannel ? 'rgba(255,255,255,0.1)' : 'none', color: selectedChannel ? 'var(--text-on-dark)' : 'var(--muted-on-dark)' }}>
               <span style={{ fontWeight: 700, fontSize: 13 }}>#</span>
-              <span style={{ fontSize: 13 }}>{selectedChannel || 'Channel'}</span>
+              <span style={{ fontSize: 13 }}>{selectedChannelName || selectedChannel || 'Channel'}</span>
               {selectedChannel && (
-                <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
+                <span role="button" onClick={e => { e.stopPropagation(); setSelectedChannel(''); setSelectedChannelName(''); setChannelSearch(''); }} style={{ marginLeft: 2, ...muted }}>×</span>
               )}
             </button>
 

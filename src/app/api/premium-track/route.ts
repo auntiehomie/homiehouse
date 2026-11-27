@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     // Anonymous visitors get teasers. Invalid credentials are an error,
     // rather than silently demoting a paying member to the free view.
     let isPro = false;
-    if (['x-session-token', 'x-farcaster-fid', 'x-signer-key', 'authorization'].some(name => req.headers.has(name))) {
+    if (req.headers.has('x-session-token')) {
       const fid = await verifyFarcasterSignerAuth(req, 'read:all');
       isPro = await isProUser(fid);
     }

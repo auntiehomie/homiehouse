@@ -23,7 +23,7 @@ const publicClient = createPublicClient({
 export async function GET(req: NextRequest) {
   const forwarded = req.headers.get('x-forwarded-for');
   const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-  const { success: rateLimitOk } = rateLimit(`custody-addr:${ip}`, 30, 60);
+  const { success: rateLimitOk } = await rateLimit(`custody-addr:${ip}`, 30, 60);
   if (!rateLimitOk) {
     return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
   }

@@ -1,7 +1,7 @@
 # @thehomie knowledge pipeline recovery — 2026-10-12
 
 ## Purpose
-Homiehouse helps people gain the skills and confidence to succeed and create with AI and crypto. The Rufus-vault Knowledge Base index and its article-context file are the only curated sources; AI explains, connects and personalizes that material into casts and courses. Selected casts invite readers to the existing Learning Hub tracks without claiming an article-specific course exists.
+Homiehouse helps people gain the skills and confidence to succeed and create with AI and crypto. The curated corpus from `auntiehomie/knowledge-base` (formerly the Rufus-vault Knowledge Base index and article-context file), vendored at `src/content/knowledge-base/articles.json`, is the only curated source; AI explains, connects and personalizes that material into casts and courses. Selected casts invite readers to the existing Learning Hub tracks without claiming an article-specific course exists.
 
 ## Cause and evidence
 Production on October 12 fetched 101 source entries, upserted zero rows, and reported 68 errors. Posting and semantic retrieval reported `relation "kb_articles" does not exist`. The sync route nevertheless returned `ok: true`.

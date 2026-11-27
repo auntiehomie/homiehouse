@@ -5,7 +5,7 @@
  * No Stripe, no KYC — just on-chain verification.
  *
  * Body: { txHash: string, walletAddress: string }
- * Headers: x-farcaster-fid, x-signer-key (Farcaster auth)
+ * Headers: x-session-token (scoped HomieHouse session)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-    const { success: rlOk } = rateLimit(`pro-subscribe:${ip}`, 5, 60);
+    const { success: rlOk } = await rateLimit(`pro-subscribe:${ip}`, 5, 60);
     if (!rlOk) {
       return NextResponse.json({ ok: false, error: 'Too many requests. Try again in a minute.' }, { status: 429 });
     }
