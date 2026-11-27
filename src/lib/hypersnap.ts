@@ -239,7 +239,7 @@ export async function fetchFollowStatus(fid: number, targetFid: number): Promise
       });
       // A Vercel routing 404 (x-vercel-error) means the proxy has no route for
       // this path, not that the follow is missing; try the next node.
-      if (response.status === 404 && !response.headers.get('x-vercel-error')) return false;
+      if (response.status === 404 && !response.headers?.get?.('x-vercel-error')) return false;
       if (response.status === 404) {
         lastError = new Error('Hypersnap proxy does not route link lookups');
         continue;
