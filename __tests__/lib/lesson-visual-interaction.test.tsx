@@ -1,3 +1,4 @@
+jest.mock('@/components/learning/LessonAnimation.module.css', () => ({}));
 jest.mock('@/components/learning/LessonActivity.module.css', () => ({}));
 
 import React from 'react';
@@ -15,14 +16,12 @@ describe('lesson visual interaction', () => {
     expect(html).not.toContain('Interactive tokenizer');
   });
 
-  it('offers accessible, content-specific steps for a grounded sequence', () => {
+  it('requests a motion storyboard for an older label-only sequence', () => {
     const text = 'Borrow tokens, swap tokens, and repay tokens.';
     const visual = { source: text, layout: 'sequence' as const, labels: ['Borrow tokens', 'swap tokens', 'repay tokens'] };
     const html = renderToStaticMarkup(<LessonIllustration text={text} visual={visual} />);
-    expect(html).toContain('Explore visual steps');
-    expect(html).toContain('1. Borrow tokens');
-    expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain('prefers-reduced-motion:reduce');
+    expect(html).toContain('Retry animated explanation');
+    expect(html).not.toContain('Explore visual steps');
   });
   it('replaces the cached generic tokenization diagram with the interactive tokenizer', () => {
     const text = "Models read tokens, chunks of text encoded as numbers.";
@@ -44,6 +43,6 @@ describe('lesson visual interaction', () => {
     const visual = { source: text, layout: 'comparison' as const, labels: ['public networks', 'private networks'] };
     const html = renderToStaticMarkup(<LessonIllustration text={text} visual={visual} />);
     expect(html).not.toContain('Explore visual steps');
-    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('Retry animated explanation');
   });
 });
