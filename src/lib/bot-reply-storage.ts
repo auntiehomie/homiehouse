@@ -44,6 +44,23 @@ async function ensureTable(): Promise<void> {
     // tracking key then fail and replied=0 in production. Drop the constraint
     // idempotently (no-op when already nullable).
     `ALTER TABLE bot_replies ALTER COLUMN parent_hash DROP NOT NULL`,
+    // Legacy tables also carry columns this code never writes, including one
+    // literally named "    parent_hash" (leading spaces) that is NOT NULL, so
+    // every INSERT failed with 23502. Relax NOT NULL on every column other than
+    // id/created_at; the unused legacy columns are left in place.
+    `DO $$
+     DECLARE col record;
+     BEGIN
+       FOR col IN
+         SELECT column_name FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'bot_replies'
+           AND is_nullable = 'NO'
+           AND column_name NOT IN ('id', 'created_at')
+       LOOP
+         EXECUTE format('ALTER TABLE bot_replies ALTER COLUMN %I DROP NOT NULL', col.column_name);
+       END LOOP;
+     END $$`,
     // Unique index backs the ON CONFLICT (parent_hash) upsert in recordReply.
     `CREATE UNIQUE INDEX IF NOT EXISTS bot_replies_parent_hash_key ON bot_replies (parent_hash)`,
   ];
@@ -148,21 +165,28 @@ export async function recordReply(params: {
  * Record replies for multiple tracking keys (cast_hash, parent_hash, root).
  * Each key gets its own row so any future notification with any of these hashes
  * will be caught.
+ *
+ * Returns true only when every valid key was stored, so fail-closed callers
+ * (the 'pending' dedup lock) can skip a cast when nothing was written.
  */
 export async function recordReplyBatch(params: {
   trackingKeys: string[];
   replyHash: string;
   commandType?: string;
   replyText?: string;
-}): Promise<void> {
+}): Promise<boolean> {
   // Filter out null/empty tracking keys before recording
   const validKeys = params.trackingKeys.filter(k => k && k.trim());
+  if (validKeys.length === 0) return false;
+  let allRecorded = true;
   for (const key of validKeys) {
-    await recordReply({
+    const recorded = await recordReply({
       parentHash: key,
       replyHash: params.replyHash,
       commandType: params.commandType,
       replyText: params.replyText,
     });
+    if (!recorded) allRecorded = false;
   }
+  return allRecorded;
 }

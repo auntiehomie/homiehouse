@@ -298,12 +298,13 @@ export async function GET(request: NextRequest) {
       // the actual reply hash after posting succeeds.
       let pendingRecorded = false;
       try {
-        await recordReplyBatch({
+        // recordReplyBatch reports DB write failures as false rather than
+        // throwing, so check the result: a failed insert must not count as a lock.
+        pendingRecorded = await recordReplyBatch({
           trackingKeys,
           replyHash: 'pending',
           commandType: 'mention',
         });
-        pendingRecorded = true;
       } catch (err: any) {
         console.error(`[agent/mention] Failed to record pending dedup for ${castHash}:`, err?.message);
       }
