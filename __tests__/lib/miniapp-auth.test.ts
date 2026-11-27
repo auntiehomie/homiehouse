@@ -129,4 +129,20 @@ describe('signInToMiniApp', () => {
     })).rejects.toThrow('nonce of at least 8');
     expect(signMessage).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['expirationTime', '2026-10-19T12:00:00Z\nURI: https://victim.example'],
+    ['notBefore', 'tomorrow'],
+    ['expirationTime', '2026-13-45T99:99:99Z'],
+  ])('rejects a non-ISO %s from the Mini App without signing', async (field, value) => {
+    await expect(signInToMiniApp({
+      miniAppUrl: 'https://example.com',
+      expectedFid: 123,
+      options: { nonce: 'validnonce123', [field]: value },
+      ...identity,
+      signMessage,
+    })).rejects.toThrow('ISO-8601');
+    expect(signMessage).not.toHaveBeenCalled();
+  });
 });
+
