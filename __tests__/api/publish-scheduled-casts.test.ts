@@ -59,14 +59,14 @@ describe("publish-scheduled-casts cron", () => {
       .mockResolvedValue([]);
     global.fetch = jest.fn(
       async () =>
-        new Response(JSON.stringify({ hash: "0xabc" }), { status: 200 }),
+        new Response(JSON.stringify({ hash: "0x" + "ab".repeat(20) }), { status: 200 }),
     ) as any;
 
     const res = await GET(cronRequest());
     const body = await res.json();
 
     expect(body.results).toEqual([
-      { id: "c1", success: true, cast_hash: "0xabc" },
+      { id: "c1", success: true, cast_hash: "0x" + "ab".repeat(20) },
     ]);
     const input = (buildSignedMessage as jest.Mock).mock.calls[0][0];
     expect(input.body.castAddBody.type).toBe(CastType.LONG_CAST);

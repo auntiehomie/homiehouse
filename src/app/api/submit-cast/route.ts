@@ -2,21 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
+import { submitHypersnapMessage } from '@/lib/hypersnap-submit';
 
-const DEFAULT_HYPERSNAP_URL = 'https://haatz.quilibrium.com';
-const HYPERSNAP_WRITE_BASE =
-  process.env.MY_HYPERSNAP_NODE_URL?.trim() ||
-  process.env.HYPERSNAP_NODE_URL?.trim() ||
-  process.env.SNAPCHAIN_NODE_URL?.trim() ||
-  process.env.NEXT_PUBLIC_HYPERSNAP_URL ||
-  DEFAULT_HYPERSNAP_URL;
-const HYPERSNAP_WRITE_FALLBACK =
-  process.env.HYPERSNAP_FALLBACK_URL?.trim() ||
-  process.env.SNAPCHAIN_FALLBACK_URL?.trim() ||
-  DEFAULT_HYPERSNAP_URL;
-const HYPERSNAP_WRITE_TARGETS = [...new Set([HYPERSNAP_WRITE_BASE, HYPERSNAP_WRITE_FALLBACK]
-  .map((url) => url.replace(/\/+$/, ''))
-  .filter(Boolean))];
 const MAX_SIGNED_MESSAGE_BYTES = 64 * 1024;
 
 function readVarint(bytes: Uint8Array, start: number): { value: bigint; next: number } {
@@ -78,36 +65,6 @@ export function readSignedMessageFid(message: Uint8Array): number {
   return fid;
 }
 
-async function submitMessage(messageBytes: ArrayBuffer): Promise<Response> {
-  let lastError: unknown;
-
-  for (const [index, baseUrl] of HYPERSNAP_WRITE_TARGETS.entries()) {
-    try {
-      const response = await fetch(`${baseUrl}/v1/submitMessage`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/octet-stream',
-          accept: 'application/json',
-        },
-        body: messageBytes.slice(0),
-        signal: AbortSignal.timeout(10_000),
-      });
-
-      if (response.ok || response.status < 500 || index === HYPERSNAP_WRITE_TARGETS.length - 1) {
-        return response;
-      }
-
-      console.warn(`[submit-cast] primary Hypersnap node returned ${response.status}; trying fallback`);
-    } catch (error) {
-      lastError = error;
-      if (index === HYPERSNAP_WRITE_TARGETS.length - 1) throw error;
-      console.warn('[submit-cast] primary Hypersnap node unavailable; trying fallback:', error);
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error('No Hypersnap write target is configured');
-}
-
 /**
  * Server-side proxy for signed-message submission to a Hypersnap node.
  * The client builds and signs the protobuf message using the app-managed
@@ -147,7 +104,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Signed message FID does not match session' }, { status: 403 });
     }
 
-    const hubRes = await submitMessage(messageBytes);
+    const hubRes = await submitHypersnapMessage(messageBytes);
 
     const rawText = await hubRes.text();
     let data: any = {};
