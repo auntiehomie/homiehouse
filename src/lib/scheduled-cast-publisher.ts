@@ -49,7 +49,7 @@ export async function publishWithStoredKey(cast: any): Promise<string> {
   const rawText = await hubRes.text();
   let result: any = {};
   try { result = JSON.parse(rawText); } catch { /* A malformed response cannot confirm publication. */ }
-  const detail = [result.error_detail, result.errorDetail, result.error?.message,
+  const detail = [result.details, result.error_detail, result.errorDetail, result.error?.message,
     result.errMsg, result.message, result.error]
     .find((value): value is string => typeof value === 'string' && value.trim().length > 0);
 
@@ -64,4 +64,3 @@ export async function publishWithStoredKey(cast: any): Promise<string> {
   }
   return hash;
 }
-

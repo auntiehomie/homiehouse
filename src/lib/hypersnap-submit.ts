@@ -43,4 +43,3 @@ export async function submitHypersnapMessage(messageBytes: ArrayBuffer): Promise
 
   throw lastError instanceof Error ? lastError : new Error('No Hypersnap write target is configured');
 }
-
