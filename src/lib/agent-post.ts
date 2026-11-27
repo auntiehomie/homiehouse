@@ -33,6 +33,10 @@ export function cleanPost(text: string, maxLen = Infinity): string {
  */
 export function containsInternalReasoning(text: string): boolean {
   const patterns = [
+    /^\s*(?:<\/?(?:think|analysis|reasoning)>|\*\*(?:analysis|reasoning)\*\*)/i,
+    /^\s*(?:analysis|reasoning|chain of thought|internal reasoning|private notes)\s*[:—-]/i,
+    /^\s*(?:let me think(?: this through)?|let's think(?: this through)?|i need to (?:answer|respond|write|draft)|we need to (?:answer|respond|write|draft)|the user (?:asks|wants|is asking)|the prompt asks)\b/i,
+    /<\/?(?:think|analysis|reasoning)>/i,
     new RegExp("(?:^|\\n)\\s*(?:analysis|reasoning|chain[- ]of[- ]thought|internal reasoning|scratchpad|thought process|draft notes|planning notes)\\s*:", "i"),
     new RegExp("(?:^|\\n)\\s*(?:here(?:'s| is) my (?:analysis|reasoning|thought process)|let me (?:think|reason) (?:through|about)|i(?:'ll| will) (?:analyze|reason through|think through)|we need to (?:write|craft|generate) (?:a )?(?:cast|post)|step[- ]by[- ]step reasoning)\\b", "i"),
     new RegExp("<\\s*\\/?\\s*(?:analysis|thinking|reasoning)\\s*>", "i"),
