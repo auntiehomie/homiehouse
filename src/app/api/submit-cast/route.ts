@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit } from '@/lib/ratelimit';
 import { verifyFarcasterSignerAuth } from '@/lib/auth';
 import { AuthError } from '@/lib/errors';
-import { submitHypersnapMessage } from '@/lib/hypersnap-submit';
+import { isNodeBusyMessage, NODE_BUSY_USER_MESSAGE, submitHypersnapMessage } from '@/lib/hypersnap-submit';
 
 const MAX_SIGNED_MESSAGE_BYTES = 64 * 1024;
 
@@ -126,6 +126,14 @@ export async function POST(request: NextRequest) {
     if (!hubRes.ok) {
       const errMsg = errorMessage || rawText.slice(0, 300) || `Hub error ${hubRes.status}`;
       console.error(`[submit-cast] hub ${hubRes.status}: ${errMsg}`, JSON.stringify(data));
+      if (hubRes.status === 429 || isNodeBusyMessage(errMsg) || isNodeBusyMessage(rawText)) {
+        // Every write target was busy. The client surfaces `details` first, so
+        // leave it unset and keep the raw node response under `hub` for debugging.
+        return NextResponse.json(
+          { ok: false, error: NODE_BUSY_USER_MESSAGE, retryable: true, hub: data },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         { ok: false, error: errMsg, details: data?.error_detail || data?.errorDetail || undefined, hub: data },
         { status: hubRes.status }
