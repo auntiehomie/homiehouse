@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getAuthHeaders } from '@/lib/client-auth';
+import { ensureAuthHeaders } from '@/lib/client-auth';
 
 interface CurationPreference {
   id?: number;
@@ -57,7 +57,7 @@ export default function CurationSettings({ onClose }: CurationSettingsProps) {
     setLoading(true);
     try {
       const res = await fetch(`/api/curation?fid=${fid}`, {
-        headers: { ...(getAuthHeaders() ?? {}) },
+        headers: { ...((await ensureAuthHeaders('read:all')) ?? {}) },
         cache: 'no-store',
       });
       const data = await res.json();
@@ -79,7 +79,7 @@ export default function CurationSettings({ onClose }: CurationSettingsProps) {
     try {
       const res = await fetch('/api/curation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(getAuthHeaders('write:lists') ?? {}) },
+        headers: { 'Content-Type': 'application/json', ...((await ensureAuthHeaders('write:lists')) ?? {}) },
         body: JSON.stringify({
           fid,
           preference_type: preferenceType,
@@ -112,7 +112,7 @@ export default function CurationSettings({ onClose }: CurationSettingsProps) {
     try {
       const res = await fetch(`/api/curation?id=${id}`, {
         method: 'DELETE',
-        headers: { ...(getAuthHeaders('write:lists') ?? {}) },
+        headers: { ...((await ensureAuthHeaders('write:lists')) ?? {}) },
       });
       
       const data = await res.json();
