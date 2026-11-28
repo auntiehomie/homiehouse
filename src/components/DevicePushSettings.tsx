@@ -9,10 +9,13 @@ export default function DevicePushSettings() {
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  // Once enabled, the card collapses to a one-line summary until "Manage" is tapped.
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     setPreferences(fid ? readPushPreferences(fid) : { ...DEFAULT_PUSH_PREFERENCES });
     setEnabled(!!fid && localStorage.getItem(`hh_push_enabled:${fid}`) === 'true');
     setMessage('');
+    setExpanded(false);
   }, [fid]);
   async function save(disable = false) {
     if (!fid) { setMessage('Sign in to manage device notifications.'); return; }
@@ -20,9 +23,21 @@ export default function DevicePushSettings() {
     try {
       if (disable) await disableDevicePush(fid);
       else await enableDevicePush(fid, preferences, true);
-      setEnabled(!disable); setMessage(disable ? 'Notifications disabled for this device.' : 'Notification preferences saved for this device.');
+      setEnabled(!disable); setExpanded(false);
+      setMessage(disable ? 'Notifications disabled for this device.' : 'Notifications are on for this device.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not save preferences.'); }
     finally { setBusy(false); }
+  }
+  if (enabled && !expanded) {
+    const on = (['replies', 'mentions', 'newCasts'] as const).filter(key => preferences[key])
+      .map(key => ({ replies: 'replies', mentions: 'mentions', newCasts: 'new casts' })[key]);
+    return <section aria-label="Device push notifications" className="surface rounded-xl px-4 py-3 mb-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm m-0">🔔 Notifications on{on.length ? ` · ${on.join(', ')}` : ''}</p>
+        <button type="button" className="btn" onClick={() => { setExpanded(true); setMessage(''); }}>Manage</button>
+      </div>
+      {message && <p role="status" className="text-xs mt-2 mb-0" style={{ color: 'var(--muted-on-dark)' }}>{message}</p>}
+    </section>;
   }
   return <section aria-label="Device push notifications" className="surface rounded-xl p-4 mb-5">
     <h2 className="font-bold">Device notifications</h2>
@@ -36,6 +51,7 @@ export default function DevicePushSettings() {
     <div className="flex flex-wrap gap-2">
       <button type="button" className="btn" disabled={busy || !fid} onClick={() => void save()}>{busy ? 'Saving…' : enabled ? 'Save notification preferences' : 'Enable notifications'}</button>
       {enabled && <button type="button" className="btn" disabled={busy} onClick={() => void save(true)}>Disable on this device</button>}
+      {enabled && <button type="button" className="btn" disabled={busy} onClick={() => { setPreferences(readPushPreferences(fid!)); setExpanded(false); }}>Cancel</button>}
     </div>
     <p className="text-xs mt-3" style={{ color: 'var(--muted-on-dark)' }}>Requires browser support and server push configuration. On iOS, install to your Home Screen. High-volume feeds use a recent sample, so delivery is best-effort.</p>
     {message && <p role="status" className="text-sm mt-2">{message}</p>}
