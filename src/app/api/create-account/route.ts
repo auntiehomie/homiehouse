@@ -1,39 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkRateLimit, rateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
+import { checkRateLimit, rateLimitKeyFromRequest } from '@/lib/ratelimit';
 import { AuthError } from '@/lib/errors';
 import {
   createPublicClient,
-  createWalletClient,
   http,
   parseAbi,
   encodeAbiParameters,
-  decodeEventLog,
+  recoverTypedDataAddress,
 } from 'viem';
 import { optimism } from 'viem/chains';
-import { privateKeyToAccount, mnemonicToAccount } from 'viem/accounts';
+import { mnemonicToAccount } from 'viem/accounts';
+import { HypersnapUnavailableError } from '@/lib/hypersnap-nodes';
+import {
+  encodeNativeOnboardMessage,
+  getNativeAccountByCustody,
+  getNativeRegistrationInfo,
+  mineRegistrationPow,
+  nativeOnboardTypedData,
+  PowTimeoutError,
+  submitNativeOnboard,
+  verifyNativeOnboardPow,
+  type NativeOnboardProof,
+} from '@/lib/hypersnap-native';
 
-// ── Farcaster contract addresses on Optimism mainnet ─────────────────────────
+// Mining the registration proof takes a few seconds of CPU on the server.
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
+// ── Legacy Farcaster contracts (signer metadata for existing Optimism FIDs only) ──
 const ID_GATEWAY    = '0x00000000Fc25870C6eD6b6c7E41Fb078b7656f69' as const;
 const ID_REGISTRY   = '0x00000000fc6c5f01fc30151999387bb99a9f489b' as const;
 const KEY_REGISTRY  = '0x00000000Fc1237824fb747aBDE0FF18990E59b7e' as const;
 const SKR_VALIDATOR = '0x00000000fc700472606ed4fa22623acf62c60553' as const;
-const FNAME_API     = 'https://fnames.farcaster.xyz/transfers';
 const OP_RPC        = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
 
-// ── ABIs ──────────────────────────────────────────────────────────────────────
 const idGatewayAbi = parseAbi([
   'function price(uint256 extraStorage) view returns (uint256)',
-  'function registerFor(address to, address recovery, uint256 deadline, bytes sig, uint256 extraStorage) payable returns (uint256 fid, uint256 overpayment)',
 ]);
-
 const idRegistryAbi = parseAbi([
   'function nonces(address owner) view returns (uint256)',
-  'event Register(address indexed to, uint256 indexed id, address recovery)',
 ]);
-
 const keyRegistryAbi = parseAbi([
   'function nonces(address owner) view returns (uint256)',
-  'function addFor(address fidOwner, uint32 keyType, bytes key, uint32 metadataType, bytes metadata, uint256 deadline, bytes sig) external',
 ]);
 
 const publicClient = createPublicClient({
@@ -41,22 +49,27 @@ const publicClient = createPublicClient({
   transport: http(OP_RPC),
 });
 
-// ── Sponsored-registration limits ────────────────────────────────────────────
-// POST spends the app wallet (APP_WALLET_PRIVATE_KEY) on IdGateway.registerFor.
-// The caller has no session yet, so spend is bounded by distributed limits that
+// ── Registration limits ─────────────────────────────────────────────────────
+// Native registration costs no gas, but each prepare spends server CPU on the
+// proof of work and each account is permanent, so both steps are limited and
 // fail closed when the shared store is unavailable.
 const DAY_SECONDS = 24 * 60 * 60;
-/** Sponsored registrations allowed per IP per day. */
+const HOUR_SECONDS = 60 * 60;
+/** Proof-of-work preparations allowed per IP per hour. */
+const PREPARE_PER_IP_PER_HOUR = 6;
+/** Registrations allowed per IP per day. */
 const PER_IP_PER_DAY = 3;
-/** Sponsored registrations allowed across all callers per day (override with CREATE_ACCOUNT_DAILY_CAP). */
+/** Registrations allowed across all callers per day (override with CREATE_ACCOUNT_DAILY_CAP). */
 const DEFAULT_GLOBAL_DAILY_CAP = 20;
+/** Time allowed for registration to show up on shard 0 before answering "pending". */
+const INCLUSION_WAIT_MS = 20_000;
 
 function globalDailyCap(): number {
   const configured = Number(process.env.CREATE_ACCOUNT_DAILY_CAP);
   return Number.isSafeInteger(configured) && configured > 0 ? configured : DEFAULT_GLOBAL_DAILY_CAP;
 }
 
-function sponsoredRegistrationDisabled(): boolean {
+function registrationDisabled(): boolean {
   return /^(1|true|yes)$/i.test(process.env.SPONSORED_REGISTRATION_DISABLED?.trim() ?? '');
 }
 
@@ -83,30 +96,36 @@ async function consume(key: string, limit: number, windowSeconds: number, messag
   }
 }
 
-// ── GET — nonces + price + pre-signed metadata (or fname availability check) ─
+function pausedResponse() {
+  return NextResponse.json(
+    { error: 'New account creation is paused right now. Try again later.' },
+    { status: 503 },
+  );
+}
+
+function errorResponse(err: unknown, fallback: string) {
+  if (err instanceof HypersnapUnavailableError || err instanceof PowTimeoutError) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 503 });
+  }
+  console.error('[create-account]', fallback, err);
+  return NextResponse.json({ error: (err as any)?.message || fallback }, { status: 500 });
+}
+
+// ── GET ─────────────────────────────────────────────────────────────────────
+//   ?lookup=0x…                         → the native FID this wallet already has, if any
+//   ?address=0x…                        → native registration proof + typed data to sign
+//   ?address=0x…&signerKey=…&deadline=… → legacy KeyRegistry signer metadata (Optimism FIDs)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
-  // fname availability sub-route
-  const checkFname = searchParams.get('checkFname');
-  if (checkFname) {
+  const lookup = searchParams.get('lookup');
+  if (lookup !== null) {
+    if (!isHex(lookup, 20)) return NextResponse.json({ error: 'A 20-byte wallet address is required' }, { status: 400 });
     try {
-
-    // Rate limit: 30 requests/minute per IP
-    const forwarded = req.headers.get('x-forwarded-for');
-    const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
-    const { success: rateLimitOk } = await rateLimit(`create-account:${ip}`, 30, 60);
-    if (!rateLimitOk) {
-      return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
-    }
-      const res = await fetch(`${FNAME_API}?name=${encodeURIComponent(checkFname)}`);
-      if (!res.ok) return NextResponse.json({ available: false });
-      const data = await res.json();
-      const transfers: any[] = data.transfers || [];
-      const available = transfers.length === 0 || transfers[transfers.length - 1]?.to === 0;
-      return NextResponse.json({ available });
-    } catch {
-      return NextResponse.json({ available: false });
+      const account = await getNativeAccountByCustody(lookup);
+      return NextResponse.json({ fid: account?.fid ?? null });
+    } catch (err) {
+      return errorResponse(err, 'Failed to look up native account');
     }
   }
 
@@ -118,27 +137,61 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'address is required; signerKey and deadline must be supplied together for legacy signer metadata' }, { status: 400 });
   }
 
-  const APP_MNEMONIC          = process.env.APP_MNEMONIC;
-  const APP_FID               = process.env.APP_FID;
-  const APP_WALLET_PRIVATE_KEY = process.env.APP_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
+  if (!signerKey || !deadline) return prepareNativeRegistration(req, address);
+  return legacySignerMetadata(address, signerKey, deadline);
+}
 
-  if (!APP_WALLET_PRIVATE_KEY || (signerKey && (!APP_MNEMONIC || !APP_FID))) {
-    return NextResponse.json({ error: 'Server configuration incomplete' }, { status: 500 });
+async function prepareNativeRegistration(req: NextRequest, address: `0x${string}`) {
+  if (!isHex(address, 20)) return NextResponse.json({ error: 'A 20-byte wallet address is required' }, { status: 400 });
+  if (registrationDisabled()) return pausedResponse();
+
+  try {
+    const existing = await getNativeAccountByCustody(address);
+    if (existing) return NextResponse.json({ existingFid: existing.fid });
+
+    const limited = await consume(
+      `create-account:prepare:${rateLimitKeyFromRequest(req)}`, PREPARE_PER_IP_PER_HOUR, HOUR_SECONDS,
+      'Too many account setup attempts from this network. Try again in an hour.',
+    );
+    if (limited) return limited;
+
+    const info = await getNativeRegistrationInfo();
+    if (!info.active) {
+      return NextResponse.json({ error: 'Hypersnap is not accepting new accounts right now.' }, { status: 503 });
+    }
+    const custody = Buffer.from(address.slice(2), 'hex');
+    const anchor = Buffer.from(info.anchorBlockHash.slice(2), 'hex');
+    const nonce = mineRegistrationPow(custody, anchor, info.minDifficultyBits);
+    const proof: NativeOnboardProof = {
+      custodyAddress: address.toLowerCase() as `0x${string}`,
+      anchorBlockHeight: info.anchorBlockHeight,
+      anchorBlockHash: info.anchorBlockHash.toLowerCase() as `0x${string}`,
+      nonce: `0x${nonce.toString('hex')}`,
+      difficultyBits: info.minDifficultyBits,
+    };
+    const typed = nativeOnboardTypedData(proof);
+    return NextResponse.json({
+      proof,
+      typedData: {
+        domain: typed.domain,
+        types: typed.types,
+        primaryType: typed.primaryType,
+        message: { ...typed.message, anchor_block_height: String(proof.anchorBlockHeight) },
+      },
+    });
+  } catch (err) {
+    return errorResponse(err, 'Failed to prepare registration');
+  }
+}
+
+async function legacySignerMetadata(address: `0x${string}`, signerKey: `0x${string}`, deadline: string) {
+  const APP_MNEMONIC = process.env.APP_MNEMONIC;
+  const APP_FID      = process.env.APP_FID;
+  if (!APP_MNEMONIC || !APP_FID) {
+    return NextResponse.json({ error: 'Legacy signer metadata configuration is incomplete' }, { status: 500 });
   }
 
   try {
-    if (!signerKey || !deadline) {
-      const [registerNonce, price] = await Promise.all([
-        publicClient.readContract({ address: ID_REGISTRY, abi: idRegistryAbi, functionName: 'nonces', args: [address] }),
-        publicClient.readContract({ address: ID_GATEWAY, abi: idGatewayAbi, functionName: 'price', args: [0n] }),
-      ]);
-      return NextResponse.json({ registerNonce: registerNonce.toString(), price: price.toString() });
-    }
-
-    if (!APP_MNEMONIC || !APP_FID) {
-      return NextResponse.json({ error: 'Legacy signer metadata configuration is incomplete' }, { status: 500 });
-    }
-
     const deadlineBn = BigInt(deadline);
     const appFid     = BigInt(APP_FID);
     const cleanMnemonic = APP_MNEMONIC.trim().replace(/^["']|["']$/g, '');
@@ -194,18 +247,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── POST — execute on-chain registration ─────────────────────────────────────
+// ── POST — submit a native Hypersnap registration ───────────────────────────
+// Body: { proof: NativeOnboardProof, custodySignature }. No gas is spent.
 export async function POST(req: NextRequest) {
-  const APP_WALLET_PRIVATE_KEY = process.env.APP_WALLET_PRIVATE_KEY as `0x${string}` | undefined;
-  if (!APP_WALLET_PRIVATE_KEY) {
-    return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 });
-  }
-  if (sponsoredRegistrationDisabled()) {
-    return NextResponse.json(
-      { error: 'New account creation is paused right now. Try again later.' },
-      { status: 503 },
-    );
-  }
+  if (registrationDisabled()) return pausedResponse();
 
   // Browser-only flow: reject cross-site and scripted requests without a matching Origin.
   const origin = req.headers.get('origin');
@@ -214,154 +259,77 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => null);
-  const {
-    custodyAddress,
-    registerSig,
-    registerDeadline,
-    fnameSig,
-    fnameTimestamp,
-    username,
-  } = body ?? {};
-
-  if (!custodyAddress || !registerSig || !registerDeadline || !username) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-  }
-  const now = Math.floor(Date.now() / 1000);
+  const proof = body?.proof ?? {};
+  const custodySignature = body?.custodySignature;
   if (
-    !isHex(custodyAddress, 20)
-    || !isHex(registerSig, 65)
-    || !/^\d{1,20}$/.test(String(registerDeadline))
-    || Number(registerDeadline) <= now
-    || Number(registerDeadline) > now + 2 * DAY_SECONDS
-    || typeof username !== 'string'
-    || !/^[a-z0-9_-]{1,16}$/.test(username)
-    || (fnameSig !== undefined && fnameSig !== null && !isHex(fnameSig, 65))
+    !isHex(proof.custodyAddress, 20)
+    || !isHex(proof.anchorBlockHash, 32)
+    || !isHex(proof.nonce)
+    || proof.nonce.length > 2 + 64 * 2
+    || !Number.isSafeInteger(proof.anchorBlockHeight) || proof.anchorBlockHeight < 0
+    || !Number.isInteger(proof.difficultyBits) || proof.difficultyBits < 1 || proof.difficultyBits > 40
+    || !isHex(custodySignature, 65)
   ) {
     return NextResponse.json({ error: 'Invalid account creation request' }, { status: 400 });
   }
+  const cleanProof: NativeOnboardProof = {
+    custodyAddress: proof.custodyAddress.toLowerCase(),
+    anchorBlockHeight: proof.anchorBlockHeight,
+    anchorBlockHash: proof.anchorBlockHash.toLowerCase(),
+    nonce: proof.nonce.toLowerCase(),
+    difficultyBits: proof.difficultyBits,
+  };
 
-  // Cheap per-IP limit before any RPC work.
+  // Cheap local checks before touching the node or the daily budget.
+  if (!verifyNativeOnboardPow(cleanProof)) {
+    return NextResponse.json({ error: 'Registration proof is invalid. Please start again.' }, { status: 400 });
+  }
+  try {
+    const signer = await recoverTypedDataAddress({ ...nativeOnboardTypedData(cleanProof), signature: custodySignature });
+    if (signer.toLowerCase() !== cleanProof.custodyAddress) {
+      return NextResponse.json({ error: 'The wallet signature does not match this wallet. Please try again.' }, { status: 400 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'The wallet signature could not be verified.' }, { status: 400 });
+  }
+
   const ipLimited = await consume(
     `create-account:post:${rateLimitKeyFromRequest(req)}`, PER_IP_PER_DAY, DAY_SECONDS,
     'Too many accounts created from this network today. Try again tomorrow.',
   );
   if (ipLimited) return ipLimited;
 
-  const serverAccount = privateKeyToAccount(APP_WALLET_PRIVATE_KEY);
-  const walletClient  = createWalletClient({
-    account: serverAccount,
-    chain: optimism,
-    transport: http(OP_RPC),
-  });
-
   try {
-    // ── 1. Get current price ────────────────────────────────────────────────
-    const price = await publicClient.readContract({
-      address: ID_GATEWAY, abi: idGatewayAbi, functionName: 'price', args: [0n],
-    });
+    const existing = await getNativeAccountByCustody(cleanProof.custodyAddress);
+    if (existing) return NextResponse.json({ ok: true, fid: existing.fid, native: true, alreadyRegistered: true });
 
-    // ── 2. Dry-run first: a bad signature or an address that already has an
-    // FID reverts here and costs nothing, and does not use the daily budget.
-    const registerArgs = [
-      custodyAddress,
-      custodyAddress, // recovery = custody
-      BigInt(registerDeadline),
-      registerSig,
-      0n,
-    ] as const;
-    try {
-      await publicClient.simulateContract({
-        account: serverAccount,
-        address: ID_GATEWAY,
-        abi: idGatewayAbi,
-        functionName: 'registerFor',
-        args: registerArgs,
-        value: price,
-      });
-    } catch (simErr: any) {
-      return NextResponse.json(
-        { error: simErr?.shortMessage || 'This registration would fail on-chain. Check your wallet signature and try again.' },
-        { status: 400 },
-      );
-    }
-
-    // ── 3. Global daily spend cap, consumed only by registrations that will succeed.
     const globalLimited = await consume(
       'create-account:post:global', globalDailyCap(), DAY_SECONDS,
       'HomieHouse has reached today\'s limit for new accounts. Try again tomorrow.',
     );
     if (globalLimited) return globalLimited;
 
-    // ── 4. Register FID ─────────────────────────────────────────────────────
-    const registerTxHash = await walletClient.writeContract({
-      address: ID_GATEWAY,
-      abi: idGatewayAbi,
-      functionName: 'registerFor',
-      args: registerArgs,
-      value: price,
-    });
-
-    // ── 5. Wait for receipt + parse FID ─────────────────────────────────────
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: registerTxHash,
-      timeout: 60_000,
-    });
-
-    let fid: number | null = null;
-    for (const log of receipt.logs) {
-      try {
-        const decoded = decodeEventLog({ abi: idRegistryAbi, data: log.data, topics: log.topics });
-        if (decoded.eventName === 'Register') {
-          fid = Number((decoded.args as any).id);
-          break;
-        }
-      } catch {}
-    }
-    if (!fid) {
-      return NextResponse.json({ error: 'FID not found in transaction receipt' }, { status: 500 });
+    const { messageBytes, hash } = encodeNativeOnboardMessage({ ...cleanProof, custodySignature });
+    const submitted = await submitNativeOnboard(messageBytes);
+    if (!submitted.ok && !/duplicate|already/i.test(submitted.error ?? '')) {
+      const expired = /anchor/i.test(submitted.error ?? '');
+      return NextResponse.json(
+        { error: expired ? 'The registration took too long and expired. Please start again.' : (submitted.error || 'Hypersnap rejected the registration.'), retry: expired },
+        { status: submitted.status >= 500 ? 502 : 400 },
+      );
     }
 
-    // ── 6. Register fname (non-fatal if it fails) ────────────────────────────
-    let fnameRegistered = false;
-    if (fnameSig && fnameTimestamp && username) {
-      try {
-        const fnameBody = {
-          name: username,
-          from: 0,
-          to: fid,
-          fid,
-          owner: custodyAddress,
-          timestamp: fnameTimestamp,
-          signature: fnameSig,
-        };
-        const fnameRes = await fetch(FNAME_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fnameBody),
-        });
-        fnameRegistered = fnameRes.ok;
-        if (!fnameRes.ok) {
-          const errText = await fnameRes.text();
-          console.error('Fname registration failed:', fnameRes.status, errText.slice(0, 200));
-        }
-      } catch (fnameErr: any) {
-        console.error('Fname POST error (non-fatal):', fnameErr.message?.slice(0, 200));
+    // Shard 0 assigns the FID when the next block includes the registration.
+    const waitUntil = Date.now() + INCLUSION_WAIT_MS;
+    while (Date.now() < waitUntil) {
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      const account = await getNativeAccountByCustody(cleanProof.custodyAddress).catch(() => null);
+      if (account) {
+        return NextResponse.json({ ok: true, fid: account.fid, native: true, hash: `0x${Buffer.from(hash).toString('hex')}` });
       }
     }
-
-    return NextResponse.json({
-      ok: true,
-      fid,
-      username,
-      registerTxHash,
-      signerTxHash: null,
-      fnameRegistered,
-    });
-  } catch (err: any) {
-    console.error('create-account POST error:', err);
-    return NextResponse.json(
-      { error: err.shortMessage || err.message || 'Registration failed' },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: true, fid: null, pending: true, native: true, hash: `0x${Buffer.from(hash).toString('hex')}` }, { status: 202 });
+  } catch (err) {
+    return errorResponse(err, 'Registration failed');
   }
 }

@@ -1,23 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPublicClient, http, parseAbi } from "viem";
-import { ID_REGISTRY } from "@/lib/farcaster-custody";
-import { optimism } from "viem/chains";
+import { custodyAddressOf } from "@/lib/farcaster-custody";
 import { rateLimit } from "@/lib/ratelimit";
-
-const OP_RPC = process.env.OP_RPC_URL || "https://mainnet.optimism.io";
-
-const idRegistryAbi = parseAbi([
-  "function custodyOf(uint256 fid) view returns (address)",
-]);
-
-const publicClient = createPublicClient({
-  chain: optimism,
-  transport: http(OP_RPC),
-});
 
 /**
  * GET /api/custody-address?fid=12345
- * Returns the on-chain custody address that owns a given FID.
+ * Returns the custody address that owns a given FID: the IdRegistry on
+ * Optimism for legacy FIDs, Hypersnap's native registry for native FIDs.
  */
 export async function GET(req: NextRequest) {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -41,18 +29,16 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const fid = parseInt(fidParam, 10);
-  if (isNaN(fid) || fid <= 0) {
+  const fid = /^\d{1,16}$/.test(fidParam) ? Number(fidParam) : NaN;
+  if (!Number.isSafeInteger(fid) || fid <= 0) {
     return NextResponse.json({ error: "Invalid FID" }, { status: 400 });
   }
 
   try {
-    const custodyAddress = await publicClient.readContract({
-      address: ID_REGISTRY,
-      abi: idRegistryAbi,
-      functionName: "custodyOf",
-      args: [BigInt(fid)],
-    });
+    const custodyAddress = await custodyAddressOf(fid);
+    if (!custodyAddress) {
+      return NextResponse.json({ error: "Unknown FID" }, { status: 404 });
+    }
 
     return NextResponse.json(
       { fid, custodyAddress },
