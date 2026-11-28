@@ -5,6 +5,7 @@ import { useAccount, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useFarcasterAuth } from "@/lib/farcaster-auth";
 import { registerHypersnapSigner, type KeyAddSigningPayload } from "@/lib/hypersnap-signer-client";
+import { MAX_DISPLAY_NAME_BYTES, publishDisplayName } from "@/lib/profile-publish";
 import styles from "./FarcasterOnboarding.module.css";
 
 type Step = "welcome" | "username" | "signing" | "creating" | "done" | "starter" | "error" | "no-wallet";
@@ -24,8 +25,13 @@ interface CreatingStatus {
   signer: boolean;
 }
 
-/** Display names are local to HomieHouse for now (no Hypersnap username yet). */
+/** Published as the profile's display name (Hypersnap has no native @username yet). */
 const DISPLAY_NAME_PATTERN = /^[\p{L}\p{N}_ .'-]{1,32}$/u;
+
+function isValidDisplayName(name: string): boolean {
+  const trimmed = name.trim();
+  return DISPLAY_NAME_PATTERN.test(trimmed) && new TextEncoder().encode(trimmed).length <= MAX_DISPLAY_NAME_BYTES;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,7 +63,7 @@ function NameStep({
   setName: (v: string) => void;
   onNext: () => void;
 }) {
-  const canNext = DISPLAY_NAME_PATTERN.test(name.trim());
+  const canNext = isValidDisplayName(name);
 
   return (
     <>
@@ -282,8 +288,15 @@ export default function FarcasterOnboarding() {
           }
         }
         setStatus({ fid: true, signer: active });
-        if (active) window.dispatchEvent(new Event("hh:signer:approved"));
-        else {
+        if (active) {
+          window.dispatchEvent(new Event("hh:signer:approved"));
+          // Publish the display name so other people see it (best-effort).
+          const published = await publishDisplayName(Number(result.fid), name, signer.privateKeyHex);
+          if (!published.ok) {
+            console.warn("Display name was not published:", published.error);
+            setSignerWarning("Your account is ready, but your display name couldn't be published yet, so others may see your ID number for now.");
+          }
+        } else {
           setSignerWarning("The FID is created and the Hypersnap key request was submitted, but activation is still pending. You can check again from the posting setup prompt.");
           window.dispatchEvent(new CustomEvent("hh:request:signer", { detail: { fid: Number(result.fid) } }));
         }
