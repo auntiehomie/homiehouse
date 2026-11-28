@@ -21,3 +21,20 @@ it('requests permission only when asked, then saves an authenticated subscriptio
  expect(JSON.parse(String(options.body))).toMatchObject({ fid: 12, preferences });
  expect(setItem).toHaveBeenCalled();
 });
+it('replaces a subscription created with an old VAPID key', async () => {
+ const unsubscribe = jest.fn(async () => true);
+ const old = { options: { applicationServerKey: new Uint8Array([1, 2, 3]).buffer }, unsubscribe, toJSON: () => ({ endpoint: 'https://push.example.org/old' }) };
+ const fresh = { toJSON: () => ({ endpoint: 'https://push.example.org/new' }) };
+ const subscribe = jest.fn(async () => fresh);
+ const registration = { pushManager: { getSubscription: jest.fn(async () => old), subscribe } };
+ Object.defineProperty(globalThis, 'window', { configurable: true, value: { PushManager: function() {} } });
+ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { serviceWorker: { register: jest.fn(async () => registration), ready: Promise.resolve(registration) } } });
+ Object.defineProperty(globalThis, 'Notification', { configurable: true, value: { permission: 'granted', requestPermission: jest.fn() } });
+ Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { setItem: jest.fn() } });
+ process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = 'configured';
+ const fetcher = jest.fn(async () => Response.json({ ok: true }));
+ await enableDevicePush(12, { replies: true, mentions: true, newCasts: false }, false, fetcher);
+ expect(unsubscribe).toHaveBeenCalled();
+ expect(subscribe).toHaveBeenCalledTimes(1);
+ expect(JSON.parse(String((fetcher.mock.calls[0][1] as RequestInit).body)).subscription.endpoint).toBe('https://push.example.org/new');
+});
