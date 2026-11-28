@@ -62,7 +62,7 @@ export function farcasterTimestamp(now: number = Date.now()): number {
 // Minimal protobuf writer
 // ---------------------------------------------------------------------------
 
-class ProtoWriter {
+export class ProtoWriter {
   private chunks: Uint8Array[] = [];
 
   private varint(v: bigint): Uint8Array {

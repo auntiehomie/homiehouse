@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mnemonicToAccount } from 'viem/accounts';
-import { createPublicClient, decodeAbiParameters, encodeAbiParameters, http, parseAbi, recoverTypedDataAddress } from 'viem';
-import { optimism } from 'viem/chains';
+import { decodeAbiParameters, encodeAbiParameters, recoverTypedDataAddress } from 'viem';
 import { ed25519 } from '@noble/curves/ed25519';
 import { rateLimit } from '@/lib/ratelimit';
 import { encodeMessageEnvelope } from '@/lib/fc-message-builder';
 import { encodeKeyAddSignedMessage, isValidKeyAddTimestamp } from '@/lib/hypersnap-key-add-message';
 import { fetchFromHypersnapNodes, HypersnapUnavailableError } from '@/lib/hypersnap-nodes';
+import { custodyAddressOf } from '@/lib/farcaster-custody';
+import { isNativeFid } from '@/lib/hypersnap-native';
 
 export const dynamic = 'force-dynamic';
 
-const ID_REGISTRY = '0x00000000fc6c5f01fc30151999387bb99a9f489b' as const;
-const OP_RPC = process.env.OP_RPC_URL || 'https://mainnet.optimism.io';
 // Signer lookups and KEY_ADD submissions go to the personal Hypersnap node
 // first, then NEXT_PUBLIC_HYPERSNAP_URL, then HYPERSNAP_FALLBACK_URL (haatz).
 // See src/lib/hypersnap-nodes.ts.
@@ -41,8 +40,6 @@ const metadataAbi = [{ type: 'tuple', components: [
   { name: 'signature', type: 'bytes' },
   { name: 'deadline', type: 'uint256' },
 ]}] as const;
-const custodyAbi = parseAbi(['function custodyOf(uint256 fid) view returns (address)']);
-const publicClient = createPublicClient({ chain: optimism, transport: http(OP_RPC) });
 const scopes = [1, 2, 3, 4, 5, 6]; // casts, cast removal, reactions, and follows only
 const signerTtl = 30 * 24 * 60 * 60;
 
@@ -64,13 +61,18 @@ function getAppAccount() {
   return { appFid, account: mnemonicToAccount(mnemonic as `${string}`) };
 }
 
+// Legacy FIDs: IdRegistry on Optimism. Native FIDs (>= 2^32): Hypersnap's native registry.
 async function custodyOf(fid: number): Promise<`0x${string}`> {
-  return publicClient.readContract({
-    address: ID_REGISTRY,
-    abi: custodyAbi,
-    functionName: 'custodyOf',
-    args: [BigInt(fid)],
-  });
+  const custody = await custodyAddressOf(fid);
+  if (!custody) throw new UnknownFidError();
+  return custody;
+}
+
+class UnknownFidError extends Error {
+  constructor() {
+    super('This FID is not registered on Hypersnap yet. Wait a few seconds and try again.');
+    this.name = 'UnknownFidError';
+  }
 }
 
 async function getUserNonce(fid: number, allowUnindexedRegistration = false): Promise<number> {
@@ -128,7 +130,7 @@ export async function POST(req: NextRequest) {
         return jsonError('FID registration transaction hash is malformed.', 400);
       }
       const [custodyAddress, currentNonce] = await Promise.all([
-        custodyOf(fid), getUserNonce(fid, !!body.registrationTxHash),
+        custodyOf(fid), getUserNonce(fid, !!body.registrationTxHash || isNativeFid(fid)),
       ]);
       const deadline = Math.floor(Date.now() / 1000) + 10 * 60;
       const { appFid, metadata } = await createMetadata(fid, body.publicKey, deadline);
@@ -157,7 +159,7 @@ export async function POST(req: NextRequest) {
     }
 
     const [custodyAddress, currentNonce] = await Promise.all([
-      custodyOf(fid), getUserNonce(fid, !!body.registrationTxHash),
+      custodyOf(fid), getUserNonce(fid, !!body.registrationTxHash || isNativeFid(fid)),
     ]);
     if (nonce !== currentNonce + 1) return jsonError('The Hypersnap signer nonce changed. Please retry authorization.', 409);
 
@@ -234,6 +236,7 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ ok: true, fid, publicKey: body.publicKey, hash: hubData.hash ?? null, status: 'submitted' });
   } catch (error: any) {
+    if (error instanceof UnknownFidError) return jsonError(error.message, 404);
     console.error('[hypersnap/signer] registration failed:', error?.message || error);
     if (error instanceof HypersnapUnavailableError) {
       return jsonError(
