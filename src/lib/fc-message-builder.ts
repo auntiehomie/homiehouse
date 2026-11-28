@@ -22,6 +22,7 @@ export enum MessageType {
   REACTION_REMOVE = 4,
   LINK_ADD = 5,
   LINK_REMOVE = 6,
+  USER_DATA_ADD = 11,
   FRAME_ACTION = 13,
   // These are the Hypersnap/Snapchain protocol values. The previous values
   // (11/12) are deprecated Farcaster signer messages, not gasless key ops.
@@ -44,6 +45,14 @@ export enum FarcasterNetwork {
 export enum ReactionType {
   LIKE = 1,
   RECAST = 2,
+}
+
+/** Profile fields carried by USER_DATA_ADD messages. */
+export enum UserDataType {
+  PFP = 1,
+  DISPLAY = 2,
+  BIO = 3,
+  URL = 5,
 }
 
 export enum CastType {
@@ -263,6 +272,7 @@ export interface MessageDataInput {
     | { reactionBody: ReactionInput }
     | { linkBody: LinkInput }
     | { keyAddBody: KeyAddInput }
+    | { userDataBody: { type: UserDataType; value: string } }
     | { frameActionBody: FrameActionInput };
 }
 
@@ -282,6 +292,11 @@ export function encodeMessageData(input: MessageDataInput): Uint8Array {
     w.writeSubMessage(7, encodeReactionBody(input.body.reactionBody));
   } else if ('linkBody' in input.body) {
     w.writeSubMessage(14, encodeLinkBody(input.body.linkBody));
+  } else if ('userDataBody' in input.body) {
+    const ub = new ProtoWriter();
+    ub.writeVarintField(1, input.body.userDataBody.type);
+    ub.writeStringField(2, input.body.userDataBody.value);
+    w.writeSubMessage(12, ub.bytes());
   } else if ('keyAddBody' in input.body) {
     w.writeSubMessage(19, encodeKeyAddBody(input.body.keyAddBody));
   } else if ('frameActionBody' in input.body) {

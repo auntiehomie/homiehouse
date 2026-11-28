@@ -5,7 +5,8 @@ import { farcasterTimestamp, hexToBytes } from '@/lib/fc-message-builder';
 import { encodeKeyAddSignedMessage } from '@/lib/hypersnap-key-add-message';
 
 export const HYPERSNAP_SIGNER_TTL_SECONDS = 30 * 24 * 60 * 60;
-export const HYPERSNAP_SIGNER_SCOPES = [1, 2, 3, 4, 5, 6] as const;
+// Casts, cast removal, reactions, follows, and profile fields (USER_DATA_ADD).
+export const HYPERSNAP_SIGNER_SCOPES = [1, 2, 3, 4, 5, 6, 11] as const;
 
 export const HYPERSNAP_KEY_ADD_DOMAIN = {
   name: 'Farcaster KeyAdd',

@@ -40,7 +40,7 @@ const metadataAbi = [{ type: 'tuple', components: [
   { name: 'signature', type: 'bytes' },
   { name: 'deadline', type: 'uint256' },
 ]}] as const;
-const scopes = [1, 2, 3, 4, 5, 6]; // casts, cast removal, reactions, and follows only
+const scopes = [1, 2, 3, 4, 5, 6, 11]; // casts, cast removal, reactions, follows, and profile fields
 const signerTtl = 30 * 24 * 60 * 60;
 
 function jsonError(error: string, status: number) {
