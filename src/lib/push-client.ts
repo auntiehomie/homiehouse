@@ -4,6 +4,12 @@ function applicationKey(value: string): ArrayBuffer {
   const raw = atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4));
   return Uint8Array.from(raw, c => c.charCodeAt(0)).buffer as ArrayBuffer;
 }
+function sameKey(current: ArrayBuffer | null | undefined, expected: ArrayBuffer): boolean {
+  // Browsers that don't expose the key: assume it matches rather than churn subscriptions.
+  if (!current) return true;
+  const a = new Uint8Array(current), b = new Uint8Array(expected);
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
 export async function enableDevicePush(fid: number, preferences: PushPreferences, askPermission: boolean, fetcher: typeof fetch = fetch) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
     throw new Error('Push is unavailable here. On iPhone/iPad, add HomieHouse to your Home Screen and open it there.');
@@ -20,9 +26,16 @@ export async function enableDevicePush(fid: number, preferences: PushPreferences
   if (!headers) throw new Error('Sign in again to save notification settings.');
   const registration = await navigator.serviceWorker.register('/sw.js');
   await navigator.serviceWorker.ready;
-  const existing = await registration.pushManager.getSubscription();
-  if (!existing && !askPermission) return;
-  const subscription = existing || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationKey(vapidKey) });
+  const serverKey = applicationKey(vapidKey);
+  let existing = await registration.pushManager.getSubscription();
+  // A subscription made with an older VAPID key can never receive pushes signed
+  // with the current one, so replace it (permission is already granted here).
+  if (existing && !sameKey(existing.options?.applicationServerKey, serverKey)) {
+    await existing.unsubscribe();
+    existing = null;
+    if (!askPermission && Notification.permission !== 'granted') return;
+  } else if (!existing && !askPermission) return;
+  const subscription = existing || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: serverKey });
   const response = await fetcher('/api/push/subscribe', {
     method: 'POST', headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify({ fid, subscription: subscription.toJSON(), preferences }),
