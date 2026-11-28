@@ -39,3 +39,8 @@ it('removes expired subscriptions for 404 as well as 410', async () => {
  await GET(new NextRequest('http://localhost/api/push/check-notifications'));
  expect(query.mock.calls.some(args => String(args[0]).includes('DELETE FROM push_subscriptions'))).toBe(true);
 });
+it('removes subscriptions created with a different VAPID key', async () => {
+ (safeFetchPublicUrl as jest.Mock).mockResolvedValue({ ok: false, status: 400, text: async () => '{"reason":"VapidPkHashMismatch"}' });
+ await GET(new NextRequest('http://localhost/api/push/check-notifications'));
+ expect(query.mock.calls.some(args => String(args[0]).includes('DELETE FROM push_subscriptions'))).toBe(true);
+});
