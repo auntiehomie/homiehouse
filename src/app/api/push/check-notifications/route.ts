@@ -87,7 +87,15 @@ export async function GET(req: NextRequest) {
         }
         if (!response.ok) {
           errors++;
-          console.error(`[push/check] fid=${sub.user_fid} push service ${endpoint.host} returned ${response.status}: ${(await response.text?.().catch(() => '') ?? '').slice(0, 200)}`);
+          const detail = (await response.text?.().catch(() => '') ?? '').slice(0, 200);
+          // Subscribed with a different VAPID public key: it can never succeed. The
+          // device resubscribes with the current key next time the app opens.
+          if (detail.includes('VapidPkHashMismatch')) {
+            console.warn(`[push/check] fid=${sub.user_fid} subscription uses an old VAPID key; removing`);
+            await db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]);
+            continue;
+          }
+          console.error(`[push/check] fid=${sub.user_fid} push service ${endpoint.host} returned ${response.status}: ${detail}`);
           continue;
         }
         sent++;
